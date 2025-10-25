@@ -43,7 +43,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
       // Fallback: try removing leading "Grade " and take last token as section
       _sectionForQuery = raw.split('-').last.trim();
       final gradePart = raw.split('-').first.trim();
-      _classNameForQuery = gradePart.startsWith('Grade') ? gradePart : 'Grade ${gradePart}';
+      _classNameForQuery = gradePart.startsWith('Grade')
+          ? gradePart
+          : 'Grade ${gradePart}';
     }
   }
 
@@ -66,11 +68,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
 
       // We only need school id and to pass a single class (e.g., ["Grade 4"]) and a single section (e.g., "A")
       final schoolId = currentUser.instituteId ?? '';
-      final students = await _teacherService.getStudentsByTeacher(
-        schoolId,
-        [_classNameForQuery],
-        _sectionForQuery,
-      );
+      final students = await _teacherService.getStudentsByTeacher(schoolId, [
+        _classNameForQuery,
+      ], _sectionForQuery);
 
       setState(() {
         _students = students;
@@ -107,25 +107,28 @@ class _StudentListScreenState extends State<StudentListScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                      const SizedBox(height: 12),
-                      Text(_error!),
-                      const SizedBox(height: 12),
-                      ElevatedButton(onPressed: _loadStudents, child: const Text('Retry')),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 12),
+                  Text(_error!),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _loadStudents,
+                    child: const Text('Retry'),
                   ),
-                )
-              : Column(
-                  children: [
-                    _buildHeader(),
-                    _buildSearchBar(),
-                    Expanded(child: _buildStudentList()),
-                  ],
-                ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                _buildHeader(),
+                _buildSearchBar(),
+                Expanded(child: _buildStudentList()),
+              ],
+            ),
     );
   }
 
@@ -200,7 +203,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
   }
 
-
   Widget _buildStudentList() {
     final students = _filteredStudents;
 
@@ -236,7 +238,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
     final first = (s['firstName'] ?? '').toString().trim();
     final last = (s['lastName'] ?? '').toString().trim();
     final fallback = [first, last].where((e) => e.isNotEmpty).join(' ').trim();
-    return (s['name'] ?? s['studentName'] ?? s['fullName'] ?? fallback).toString().trim();
+    return (s['name'] ?? s['studentName'] ?? s['fullName'] ?? fallback)
+        .toString()
+        .trim();
   }
 
   int _score(Map<String, dynamic> s) {
@@ -275,7 +279,8 @@ class _StudentListScreenState extends State<StudentListScreen> {
               // Student avatar
               ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                child: (_avatar(student) != null && _avatar(student)!.isNotEmpty)
+                child:
+                    (_avatar(student) != null && _avatar(student)!.isNotEmpty)
                     ? Image.network(
                         _avatar(student)!,
                         width: 48,
@@ -304,17 +309,21 @@ class _StudentListScreenState extends State<StudentListScreen> {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Text('Section: $_sectionForQuery',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF6B7280),
-                            )),
+                        Text(
+                          'Section: $_sectionForQuery',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        Text('${_score(student)}%',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF6B7280),
-                            )),
+                        Text(
+                          '${_score(student)}%',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -398,4 +407,3 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
   }
 }
-

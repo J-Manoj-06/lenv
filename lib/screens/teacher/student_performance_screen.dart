@@ -20,7 +20,8 @@ class StudentPerformanceScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<StudentPerformanceScreen> createState() => _StudentPerformanceScreenState();
+  State<StudentPerformanceScreen> createState() =>
+      _StudentPerformanceScreenState();
 }
 
 class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
@@ -215,7 +216,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            lastSix.isEmpty ? 'No trend yet' : 'vs. last ${lastSix.length} tests',
+            lastSix.isEmpty
+                ? 'No trend yet'
+                : 'vs. last ${lastSix.length} tests',
             style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 24),
@@ -225,15 +228,23 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: lastSix
-                  .map((e) => Text(
-                        _shortDate(e.submittedAt),
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                      ))
+                  .map(
+                    (e) => Text(
+                      _shortDate(e.submittedAt),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  )
                   .toList(),
             ),
           if (lastSix.isEmpty)
             const Center(
-              child: Text('No chart data yet', style: TextStyle(color: Color(0xFF6B7280))),
+              child: Text(
+                'No chart data yet',
+                style: TextStyle(color: Color(0xFF6B7280)),
+              ),
             ),
         ],
       ),
@@ -337,11 +348,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
     );
   }
 
-  Widget _buildTestItem(
-    String title,
-    String date,
-    int score,
-  ) {
+  Widget _buildTestItem(String title, String date, int score) {
     Color badgeBgColor;
     Color badgeTextColor;
 
@@ -445,7 +452,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
           if (!hasData)
             Text('No insights yet', style: TextStyle(color: Colors.grey[600]))
           else
-            Text('Insights coming soon', style: TextStyle(color: Colors.grey[600]))
+            Text(
+              'Insights coming soon',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
         ],
       ),
     );
@@ -453,12 +463,38 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
 
   // Helpers
   String _shortDate(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[dt.month - 1]} ${dt.day}';
   }
 
   String _longDate(DateTime dt) {
-    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
@@ -472,11 +508,19 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
     final sign = isUp ? '+' : '';
     return Row(
       children: [
-        Icon(isUp ? Icons.trending_up : Icons.trending_down, size: 16, color: color),
+        Icon(
+          isUp ? Icons.trending_up : Icons.trending_down,
+          size: 16,
+          color: color,
+        ),
         const SizedBox(width: 4),
         Text(
           '$sign${delta.toStringAsFixed(1)}%',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: color),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: color,
+          ),
         ),
       ],
     );

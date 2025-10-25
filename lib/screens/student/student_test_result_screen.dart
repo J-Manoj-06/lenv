@@ -1,5 +1,5 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../models/test_result_model.dart';
 import '../../services/student_service.dart';
 
@@ -24,7 +24,7 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     _future = _service.getTestResultById(widget.resultId);
     _ringController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1500),
     )..forward();
   }
 
@@ -36,19 +36,8 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Test Results'),
-        backgroundColor: isDark ? Colors.black : Colors.white,
-        foregroundColor: isDark ? Colors.white : Colors.black,
-        elevation: 0,
-      ),
-      backgroundColor: isDark ? Colors.black : Colors.white,
+      backgroundColor: Colors.white,
       body: FutureBuilder<TestResultModel?>(
         future: _future,
         builder: (context, snapshot) {
@@ -60,101 +49,200 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
           }
           final result = snapshot.data!;
           final pct = (result.percentage).clamp(0, 100).toDouble();
-          final dateStr = DateFormat.yMMMd().format(result.completedAt);
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildScoreRing(isDark, pct),
-                const SizedBox(height: 16),
-                _buildTrophyBanner(pct),
-                const SizedBox(height: 16),
-                Text(
-                  '${result.testTitle} • ${result.subject} • $dateStr',
-                  style: TextStyle(
-                    color: isDark ? Colors.white70 : Colors.black54,
+          return Stack(
+            children: [
+              Column(
+                children: [
+                  // Header
+                  SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const Text(
+                            'Test Results',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(width: 48),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Question Breakdown',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
+                  // Scrollable content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 16),
+                          _buildScoreRing(pct),
+                          const SizedBox(height: 24),
+                          if (pct >= 75) _buildTrophyBanner(),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Question Breakdown',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...result.questions
+                              .map((q) => _buildQuestionTile(q))
+                              .toList(),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Badges Earned',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children:
+                                result.badges.map((b) => _badgeChip(b)).toList(),
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'SWOT Summary',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildSwotGrid(result.swot),
+                          const SizedBox(height: 24),
+                          // Share and Review buttons
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Share feature coming soon!'),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.share, size: 20),
+                                  label: const Text(
+                                    'Share',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFF97316),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Review feature coming soon!'),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.rate_review, size: 20),
+                                  label: const Text(
+                                    'Review',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.grey.shade300,
+                                    foregroundColor: Colors.black87,
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                ...result.questions.map((q) => _buildQuestionTile(isDark, q)),
-                const SizedBox(height: 24),
-                Text(
-                  'Badges Earned',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: result.badges.map((b) => _badgeChip(b)).toList(),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'SWOT Summary',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildSwotGrid(isDark, result.swot),
-              ],
-            ),
+                ],
+              ),
+              // Bottom Navigation
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildBottomNav(),
+              ),
+            ],
           );
         },
       ),
-      bottomNavigationBar: _buildBottomNav(isDark),
     );
   }
 
-  Widget _buildScoreRing(bool isDark, double percentage) {
+  Widget _buildScoreRing(double percentage) {
     return Center(
       child: SizedBox(
-        width: 180,
-        height: 180,
+        width: 192,
+        height: 192,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            CircularProgressIndicator(
-              value: 1,
-              valueColor: AlwaysStoppedAnimation(Colors.grey.shade300),
-              backgroundColor: Colors.transparent,
-              strokeWidth: 10,
+            // Background gray ring
+            CustomPaint(
+              painter: _RingPainter(
+                progress: 1.0,
+                color: Colors.grey.shade300,
+                strokeWidth: 10,
+              ),
             ),
+            // Animated orange gradient ring
             AnimatedBuilder(
               animation: _ringController,
               builder: (context, _) {
-                return CircularProgressIndicator(
-                  value: _ringController.value * (percentage / 100),
-                  valueColor: const AlwaysStoppedAnimation(Color(0xFFF59E0B)),
-                  backgroundColor: Colors.transparent,
-                  strokeWidth: 10,
+                return CustomPaint(
+                  painter: _RingPainter(
+                    progress: _ringController.value * (percentage / 100),
+                    color: const Color(0xFFF97316),
+                    strokeWidth: 10,
+                  ),
                 );
               },
             ),
             Center(
               child: Text(
                 '${percentage.toStringAsFixed(0)}%',
-                style: TextStyle(
-                  fontSize: 40,
+                style: const TextStyle(
+                  fontSize: 36,
                   fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : Colors.black,
+                  color: Colors.black87,
                 ),
               ),
             ),
@@ -164,100 +252,123 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     );
   }
 
-  Widget _buildTrophyBanner(double percentage) {
-    if (percentage < 75) return const SizedBox.shrink();
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFEDD5),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0xFFFFF3C4),
-                blurRadius: 20,
-                spreadRadius: 5,
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(6),
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFF59E0B), Color(0xFFF2800D)],
-              ),
-              shape: BoxShape.circle,
-            ),
-            padding: const EdgeInsets.all(12),
-            child: const Icon(
-              Icons.emoji_events,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        const Text(
-          'Top Scorer!',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFFF97316),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuestionTile(bool isDark, QuestionResult q) {
-    final icon = q.isCorrect ? Icons.check_circle : Icons.cancel;
-    final iconColor = q.isCorrect ? Colors.green : Colors.red;
-    return Card(
-      color: isDark ? Colors.grey.shade900 : Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-        ),
-      ),
-      child: ExpansionTile(
-        initiallyExpanded: q.index == 1,
-        leading: Icon(icon, color: iconColor),
-        title: Text(
-          q.questionTitle,
-          style: TextStyle(
-            color: isDark ? Colors.white : Colors.black,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+  Widget _buildTrophyBanner() {
+    return Center(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _kvRow(isDark, 'Your Answer', q.yourAnswer),
-          _kvRow(isDark, 'Correct Answer', q.correctAnswer),
-          _kvRow(isDark, 'Teacher Notes', q.notes),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFEDD5),
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0xFFFBBF24),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(8),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFB923C), Color(0xFFF97316)],
+                ),
+                shape: BoxShape.circle,
+              ),
+              padding: const EdgeInsets.all(8),
+              child: const Icon(
+                Icons.emoji_events,
+                color: Colors.white,
+                size: 36,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          const Text(
+            'Top Scorer!',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFF97316),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _kvRow(bool isDark, String k, String v) {
+  Widget _buildQuestionTile(QuestionResult q) {
+    final icon = q.isCorrect ? Icons.check_circle : Icons.cancel;
+    final iconColor = q.isCorrect ? Colors.green : Colors.red;
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Theme(
+          data: ThemeData(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            initiallyExpanded: q.index == 1,
+            leading: Icon(icon, color: iconColor, size: 24),
+            title: Text(
+              q.questionTitle,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            iconColor: Colors.black54,
+            collapsedIconColor: Colors.black54,
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              Container(
+                width: double.infinity,
+                height: 1,
+                color: Colors.grey.shade200,
+              ),
+              const SizedBox(height: 12),
+              _kvRow('Your Answer', q.yourAnswer),
+              const SizedBox(height: 8),
+              _kvRow('Correct Answer', q.correctAnswer),
+              const SizedBox(height: 8),
+              _kvRow('Teacher Notes', q.notes),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _kvRow(String k, String v) {
+    return Align(
+      alignment: Alignment.centerLeft,
       child: RichText(
         text: TextSpan(
           children: [
             TextSpan(
               text: '$k: ',
-              style: TextStyle(
+              style: const TextStyle(
                 fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : Colors.black,
+                color: Colors.black87,
               ),
             ),
             TextSpan(
               text: v,
-              style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+              style: const TextStyle(color: Colors.black54),
             ),
           ],
         ),
@@ -266,10 +377,20 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
   }
 
   Widget _badgeChip(String label) {
+    IconData icon = Icons.workspace_premium;
+    if (label.toLowerCase().contains('math')) {
+      icon = Icons.star;
+    } else if (label.toLowerCase().contains('solver') ||
+        label.toLowerCase().contains('problem')) {
+      icon = Icons.psychology;
+    }
+
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFF59E0B), Color(0xFFF2800D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFB923C), Color(0xFFF97316)],
         ),
         borderRadius: BorderRadius.circular(999),
         boxShadow: const [
@@ -280,17 +401,18 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.workspace_premium, color: Colors.white, size: 18),
-          const SizedBox(width: 6),
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(width: 8),
           Text(
             label,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w600,
+              fontSize: 13,
             ),
           ),
         ],
@@ -298,82 +420,155 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     );
   }
 
-  Widget _buildSwotGrid(bool isDark, SwotSummary swot) {
-    return GridView(
+  Widget _buildSwotGrid(SwotSummary swot) {
+    return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.8,
-      ),
+      crossAxisCount: 2,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: 1.5,
       children: [
-        _swotCell(isDark, 'Strengths', swot.strengths, Colors.green),
-        _swotCell(isDark, 'Weaknesses', swot.weaknesses, Colors.red),
-        _swotCell(isDark, 'Opportunities', swot.opportunities, Colors.blue),
-        _swotCell(isDark, 'Threats', swot.threats, Colors.amber.shade700),
+        _swotCell('Strengths', swot.strengths, Colors.green),
+        _swotCell('Weaknesses', swot.weaknesses, Colors.red),
+        _swotCell('Opportunities', swot.opportunities, Colors.blue),
+        _swotCell('Threats', swot.threats, Colors.amber.shade700),
       ],
     );
   }
 
-  Widget _swotCell(bool isDark, String title, String value, Color color) {
+  Widget _swotCell(String title, String value, Color color) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey.shade900 : const Color(0xFFFAFAFA),
+        color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
-        ),
+        border: Border.all(color: Colors.grey.shade300),
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             title,
-            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black,
+            style: const TextStyle(
+              color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomNav(bool isDark) {
+  Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.black : Colors.white,
+        color: Colors.white,
         border: Border(
-          top: BorderSide(
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+          top: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _NavItem(
+                icon: Icons.home,
+                label: 'Home',
+                selected: false,
+                onTap: () => Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/student-dashboard',
+                  (route) => false,
+                ),
+              ),
+              _NavItem(
+                icon: Icons.description,
+                label: 'Tests',
+                selected: true,
+                onTap: () {},
+              ),
+              _NavItem(
+                icon: Icons.emoji_events,
+                label: 'Rewards',
+                selected: false,
+                onTap: () => Navigator.pushNamed(context, '/student-rewards'),
+              ),
+              _NavItem(
+                icon: Icons.leaderboard,
+                label: 'Leaderboard',
+                selected: false,
+                onTap: () =>
+                    Navigator.pushNamed(context, '/student-leaderboard'),
+              ),
+              _NavItem(
+                icon: Icons.person,
+                label: 'Profile',
+                selected: false,
+                onTap: () => Navigator.pushNamed(context, '/student-profile'),
+              ),
+            ],
           ),
         ),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: const [
-          _NavItem(icon: Icons.home, label: 'Home', selected: false),
-          _NavItem(icon: Icons.description, label: 'Tests', selected: true),
-          _NavItem(icon: Icons.emoji_events, label: 'Rewards', selected: false),
-          _NavItem(
-            icon: Icons.leaderboard,
-            label: 'Leaderboard',
-            selected: false,
-          ),
-          _NavItem(icon: Icons.person, label: 'Profile', selected: false),
-        ],
-      ),
     );
+  }
+}
+
+// Custom painter for circular progress ring
+class _RingPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  final double strokeWidth;
+
+  _RingPainter({
+    required this.progress,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    const startAngle = -math.pi / 2;
+    final sweepAngle = 2 * math.pi * progress;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      sweepAngle,
+      false,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }
 
@@ -381,29 +576,38 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
+  final VoidCallback onTap;
+
   const _NavItem({
     required this.icon,
     required this.label,
     required this.selected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? const Color(0xFFF97316) : Colors.grey;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+    final color = selected ? const Color(0xFFF97316) : Colors.grey.shade600;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

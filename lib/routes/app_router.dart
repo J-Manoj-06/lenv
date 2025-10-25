@@ -16,6 +16,9 @@ import '../screens/student/student_login_screen.dart';
 import '../screens/student/student_dashboard_screen.dart';
 import '../screens/dev/dev_tools_screen.dart';
 import '../screens/student/student_test_result_screen.dart';
+import '../screens/student/student_tests_screen.dart';
+import '../screens/student/student_rewards_screen.dart';
+import '../screens/student/student_leaderboard_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -36,6 +39,21 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => const StudentDashboardScreen(),
         );
+
+      case '/student-tests':
+        return MaterialPageRoute(
+          builder: (_) => const StudentTestsScreen(),
+        );
+
+      case '/student-rewards':
+        return MaterialPageRoute(
+          builder: (_) => const StudentRewardsScreen(),
+        );
+
+        case '/student-leaderboard':
+          return MaterialPageRoute(
+            builder: (_) => const StudentLeaderboardScreen(),
+          );
 
       case '/teacher-dashboard':
         return MaterialPageRoute(

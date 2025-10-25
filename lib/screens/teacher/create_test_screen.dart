@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/teacher_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CreateTestScreen extends StatefulWidget {
   const CreateTestScreen({Key? key}) : super(key: key);
@@ -76,7 +77,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
       List<String> secs = [];
       final rawSections = data?['sections'] ?? data?['section'];
       if (rawSections is List) {
-        secs = rawSections.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+        secs = rawSections
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
       } else if (rawSections is String) {
         secs = rawSections
             .split(',')
@@ -927,28 +931,28 @@ extension on _CreateTestScreenState {
     }
 
     if (selectedSubject == null || selectedSubject!.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a subject')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a subject')));
       return;
     }
     if (selectedClass == null || selectedClass!.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a class')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a class')));
       return;
     }
     if (selectedSection == null || selectedSection!.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a section')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a section')));
       return;
     }
 
     // Normalize fields
-  final normalizedSection = selectedSection!
-    .replaceAll('Section ', '')
-    .trim();
+    final normalizedSection = selectedSection!
+        .replaceAll('Section ', '')
+        .trim();
     final duration = int.tryParse(_timeLimitController.text.trim()) ?? 60;
     final now = DateTime.now();
     final startDate = now;
@@ -964,7 +968,8 @@ extension on _CreateTestScreenState {
             : tm.QuestionType.shortAnswer,
         question: q.questionText,
         options: q.options,
-        correctAnswer: (q.type == QuestionType.multipleChoice &&
+        correctAnswer:
+            (q.type == QuestionType.multipleChoice &&
                 q.correctAnswerIndex != null &&
                 q.options != null &&
                 q.correctAnswerIndex! >= 0 &&
@@ -975,8 +980,29 @@ extension on _CreateTestScreenState {
       );
     }).toList();
 
-    final totalPoints = int.tryParse(_totalMarksController.text.trim()) ??
+    final totalPoints =
+        int.tryParse(_totalMarksController.text.trim()) ??
         modelQuestions.fold<int>(0, (sum, q) => sum + q.points);
+
+    // When publishing, pre-compute assignedStudentIds from class/section
+    List<String> assignedIds = const [];
+    if (publish) {
+      try {
+        final teacherData = await TeacherService().getTeacherByEmail(user.email);
+        final schoolCode = teacherData?['schoolCode'] ?? user.instituteId ?? '';
+        if (schoolCode.isNotEmpty) {
+          final snap = await FirebaseFirestore.instance
+              .collection('students')
+              .where('schoolCode', isEqualTo: schoolCode)
+              .where('className', isEqualTo: selectedClass!)
+              .where('section', isEqualTo: normalizedSection)
+              .get();
+          assignedIds = snap.docs.map((d) => d.id).toList();
+        }
+      } catch (_) {
+        assignedIds = const [];
+      }
+    }
 
     final test = tm.TestModel(
       id: '',
@@ -985,8 +1011,8 @@ extension on _CreateTestScreenState {
       teacherId: user.uid,
       teacherName: user.name,
       instituteId: user.instituteId ?? '',
-  subject: selectedSubject!,
-  className: selectedClass!,
+      subject: selectedSubject!,
+      className: selectedClass!,
       section: normalizedSection,
       questions: modelQuestions,
       totalPoints: totalPoints,
@@ -994,7 +1020,7 @@ extension on _CreateTestScreenState {
       startDate: startDate,
       endDate: endDate,
       status: status,
-      assignedStudentIds: const [],
+      assignedStudentIds: assignedIds,
       createdAt: now,
       updatedAt: now,
     );
@@ -1006,16 +1032,18 @@ extension on _CreateTestScreenState {
           const SnackBar(content: Text('Test published successfully!')),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Draft saved!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Draft saved!')));
       }
       if (mounted) {
         Navigator.pop(context);
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: ${testProv.errorMessage ?? 'Unknown error'}')),
+        SnackBar(
+          content: Text('Failed: ${testProv.errorMessage ?? 'Unknown error'}'),
+        ),
       );
     }
   }

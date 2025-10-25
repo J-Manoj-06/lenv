@@ -3,6 +3,7 @@ import '../models/user_model.dart';
 import '../models/test_model.dart';
 import '../models/reward_model.dart';
 import '../models/performance_model.dart';
+import '../models/test_result_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -63,6 +64,7 @@ class FirestoreService {
   }
 
   Stream<List<TestModel>> getTestsByTeacher(String teacherId) {
+    // Index is enabled (teacherId asc, createdAt desc) — use server-side ordering
     return _db
         .collection('tests')
         .where('teacherId', isEqualTo: teacherId)
@@ -88,6 +90,20 @@ class FirestoreService {
         );
   }
 
+  // Test Results Operations (for students)
+  Stream<List<TestResultModel>> getTestResultsByStudent(String studentId) {
+    return _db
+        .collection('testResults')
+        .where('studentId', isEqualTo: studentId)
+        .orderBy('completedAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => TestResultModel.fromFirestore(doc))
+              .toList(),
+        );
+  }
+
   // Reward Operations
   Future<String> createReward(RewardModel reward) async {
     final docRef = await _db.collection('rewards').add(reward.toJson());
@@ -99,16 +115,18 @@ class FirestoreService {
   }
 
   Stream<List<RewardModel>> getRewardsByStudent(String studentId) {
+    // Same approach: avoid composite index requirement by sorting client-side.
     return _db
         .collection('rewards')
         .where('studentId', isEqualTo: studentId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => RewardModel.fromJson(doc.data()))
-              .toList(),
-        );
+        .map((snapshot) {
+      final rewards = snapshot.docs
+          .map((doc) => RewardModel.fromJson(doc.data()))
+          .toList();
+      rewards.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return rewards;
+    });
   }
 
   // Performance Operations

@@ -24,8 +24,10 @@ class _TestsScreenState extends State<TestsScreen> {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final user = auth.currentUser;
       if (user != null) {
-        Provider.of<TestProvider>(context, listen: false)
-            .loadTestsByTeacher(user.uid);
+        Provider.of<TestProvider>(
+          context,
+          listen: false,
+        ).loadTestsByTeacher(user.uid);
       }
     });
   }
@@ -36,8 +38,8 @@ class _TestsScreenState extends State<TestsScreen> {
     for (final t in tests) {
       final label = (t.className ?? '').isNotEmpty
           ? (t.section != null && (t.section ?? '').isNotEmpty
-              ? '${t.className} - ${t.section}'
-              : t.className!)
+                ? '${t.className} - ${t.section}'
+                : t.className!)
           : (t.subject.isNotEmpty ? t.subject : '');
       if (label.isNotEmpty) set.add(label);
     }
@@ -74,16 +76,15 @@ class _TestsScreenState extends State<TestsScreen> {
                 child: testProv.isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : filtered.isEmpty
-                        ? const Center(child: Text('No tests found'))
-                        : ListView.builder(
-                            padding:
-                                const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                            itemCount: filtered.length,
-                            itemBuilder: (_, i) => Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: _buildTestCardFromModel(filtered[i]),
-                            ),
-                          ),
+                    ? const Center(child: Text('No tests found'))
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                        itemCount: filtered.length,
+                        itemBuilder: (_, i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _buildTestCardFromModel(filtered[i]),
+                        ),
+                      ),
               ),
             ],
           ),
@@ -304,8 +305,8 @@ class _TestsScreenState extends State<TestsScreen> {
       if (_selectedClassFilter == 'All Classes') return true;
       final label = (t.className ?? '').isNotEmpty
           ? (t.section != null && (t.section ?? '').isNotEmpty
-              ? '${t.className} - ${t.section}'
-              : t.className!)
+                ? '${t.className} - ${t.section}'
+                : t.className!)
           : (t.subject.isNotEmpty ? t.subject : '');
       return label == _selectedClassFilter;
     }
@@ -329,22 +330,20 @@ class _TestsScreenState extends State<TestsScreen> {
     final now = DateTime.now();
     final isLive = t.startDate.isBefore(now) && t.endDate.isAfter(now);
     final isScheduled = t.startDate.isAfter(now);
-    final statusText = isLive
-        ? 'Live'
-        : (isScheduled ? 'Scheduled' : 'Past');
+    final statusText = isLive ? 'Live' : (isScheduled ? 'Scheduled' : 'Past');
     final statusColor = isLive
         ? const Color(0xFF10B981)
         : (isScheduled ? const Color(0xFF6366F1) : const Color(0xFF1F2937));
     final statusBg = isLive
         ? const Color(0xFFD1FAE5)
         : (isScheduled
-            ? const Color(0xFF6366F1).withOpacity(0.2)
-            : const Color(0xFFE5E7EB));
+              ? const Color(0xFF6366F1).withOpacity(0.2)
+              : const Color(0xFFE5E7EB));
 
     final subtitle = (t.className ?? '').isNotEmpty
         ? (t.section != null && (t.section ?? '').isNotEmpty
-            ? '${t.className} - ${t.section}'
-            : t.className!)
+              ? '${t.className} - ${t.section}'
+              : t.className!)
         : t.subject;
 
     String footerText;
@@ -384,12 +383,16 @@ class _TestsScreenState extends State<TestsScreen> {
         final prov = Provider.of<TestProvider>(context, listen: false);
         final ok = await prov.deleteTest(t.id);
         if (ok && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Deleted ${t.title}')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Deleted ${t.title}')));
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete: ${prov.errorMessage ?? 'Unknown error'}')),
+            SnackBar(
+              content: Text(
+                'Failed to delete: ${prov.errorMessage ?? 'Unknown error'}',
+              ),
+            ),
           );
         }
       },
@@ -690,8 +693,9 @@ class _TestsScreenState extends State<TestsScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              ..._buildClassFilters(Provider.of<TestProvider>(context, listen: false).tests)
-                  .map((className) {
+              ..._buildClassFilters(
+                Provider.of<TestProvider>(context, listen: false).tests,
+              ).map((className) {
                 return ListTile(
                   title: Text(className),
                   trailing: _selectedClassFilter == className
@@ -732,8 +736,7 @@ class _TestsScreenState extends State<TestsScreen> {
                 Navigator.pop(context);
                 await onConfirm();
               },
-              child:
-                  const Text('Delete', style: TextStyle(color: Colors.red)),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
             ),
           ],
         );
