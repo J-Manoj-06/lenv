@@ -88,8 +88,8 @@ class PerformanceModel {
       instituteId: json['instituteId'] ?? '',
       submissions: json['submissions'] != null
           ? (json['submissions'] as List)
-              .map((s) => TestSubmission.fromJson(s))
-              .toList()
+                .map((s) => TestSubmission.fromJson(s))
+                .toList()
           : [],
       averageScore: json['averageScore']?.toDouble() ?? 0.0,
       totalTestsTaken: json['totalTestsTaken'] ?? 0,

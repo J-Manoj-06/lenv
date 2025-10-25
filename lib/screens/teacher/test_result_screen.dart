@@ -95,7 +95,7 @@ class TestResultScreen extends StatelessWidget {
   Widget _buildTestInfo() {
     Color statusBgColor;
     Color statusTextColor;
-    
+
     if (status == 'Live') {
       statusBgColor = const Color(0xFFD1FAE5);
       statusTextColor = const Color(0xFF065F46);
@@ -172,10 +172,7 @@ class TestResultScreen extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           'Ends in: $endTime',
-          style: const TextStyle(
-            fontSize: 14,
-            color: Color(0xFF6B7280),
-          ),
+          style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
         ),
       ],
     );
@@ -286,10 +283,7 @@ class TestResultScreen extends StatelessWidget {
               ),
               Text(
                 'Avg. Score',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF6B7280),
-                ),
+                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
               ),
             ],
           ),
@@ -311,10 +305,7 @@ class TestResultScreen extends StatelessWidget {
         Container(
           width: 32,
           height: 32,
-          decoration: BoxDecoration(
-            color: bgColor,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
           child: Icon(icon, size: 16, color: iconColor),
         ),
         const SizedBox(width: 8),
@@ -325,10 +316,7 @@ class TestResultScreen extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF6B7280),
-                ),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
               ),
               const SizedBox(height: 2),
               Text(
@@ -382,7 +370,8 @@ class TestResultScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           ...students.map((student) {
-            final percentage = (student['score'] as int) / (student['total'] as int);
+            final percentage =
+                (student['score'] as int) / (student['total'] as int);
             Color progressColor;
             if (percentage >= 0.85) {
               progressColor = const Color(0xFF10B981);
@@ -430,7 +419,9 @@ class TestResultScreen extends StatelessWidget {
                             value: percentage,
                             minHeight: 6,
                             backgroundColor: const Color(0xFFE5E7EB),
-                            valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              progressColor,
+                            ),
                           ),
                         ),
                       ],
@@ -441,7 +432,9 @@ class TestResultScreen extends StatelessWidget {
                     icon: const Icon(Icons.chevron_right),
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('View details for ${student['name']}')),
+                        SnackBar(
+                          content: Text('View details for ${student['name']}'),
+                        ),
                       );
                     },
                     color: const Color(0xFF9CA3AF),
@@ -511,10 +504,7 @@ class TestResultScreen extends StatelessWidget {
           const SizedBox(height: 4),
           const Text(
             '% of students who answered correctly',
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 16),
           ...questions.map((question) {
@@ -626,10 +616,7 @@ class TestResultScreen extends StatelessWidget {
                   SizedBox(width: 8),
                   Text(
                     'End Test',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -656,9 +643,9 @@ class TestResultScreen extends StatelessWidget {
                 title: const Text('Edit Test'),
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Edit test')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Edit test')));
                 },
               ),
               ListTile(
@@ -676,14 +663,17 @@ class TestResultScreen extends StatelessWidget {
                 title: const Text('Export as PDF'),
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Export PDF')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Export PDF')));
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text('Delete Test', style: TextStyle(color: Colors.red)),
+                title: const Text(
+                  'Delete Test',
+                  style: TextStyle(color: Colors.red),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _showDeleteDialog(context);
@@ -702,7 +692,9 @@ class TestResultScreen extends StatelessWidget {
       builder: (context) {
         return AlertDialog(
           title: const Text('End Test'),
-          content: const Text('Are you sure you want to end this test? Students will no longer be able to submit answers.'),
+          content: const Text(
+            'Are you sure you want to end this test? Students will no longer be able to submit answers.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -732,7 +724,9 @@ class TestResultScreen extends StatelessWidget {
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete Test'),
-          content: const Text('Are you sure you want to delete this test? This action cannot be undone.'),
+          content: const Text(
+            'Are you sure you want to delete this test? This action cannot be undone.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -742,14 +736,11 @@ class TestResultScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.pop(context); // Go back to tests list
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Test deleted')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Test deleted')));
               },
-              child: const Text(
-                'Delete',
-                style: TextStyle(color: Colors.red),
-              ),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
             ),
           ],
         );

@@ -26,11 +26,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
       options: ['3', '4', '5'],
       correctAnswerIndex: 1,
     ),
-    Question(
-      id: 2,
-      type: QuestionType.shortAnswer,
-      questionText: '',
-    ),
+    Question(id: 2, type: QuestionType.shortAnswer, questionText: ''),
   ];
 
   final List<String> subjects = ['Mathematics', 'Science', 'History'];
@@ -301,7 +297,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
           ),
         ),
       ],
@@ -335,13 +334,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             value: value,
             decoration: const InputDecoration(
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
             ),
             items: items.map((String item) {
-              return DropdownMenuItem<String>(
-                value: item,
-                child: Text(item),
-              );
+              return DropdownMenuItem<String>(value: item, child: Text(item));
             }).toList(),
             onChanged: onChanged,
           ),
@@ -401,10 +400,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                         question.type == QuestionType.multipleChoice
                             ? 'Multiple Choice'
                             : 'Short Answer',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -413,19 +409,25 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               Row(
                 children: [
                   IconButton(
-                    icon: Icon(Icons.content_copy, size: 18, color: Colors.grey[600]),
+                    icon: Icon(
+                      Icons.content_copy,
+                      size: 18,
+                      color: Colors.grey[600],
+                    ),
                     onPressed: () {
                       // Duplicate question
                       setState(() {
-                        questions.add(Question(
-                          id: questions.length + 1,
-                          type: question.type,
-                          questionText: question.questionText,
-                          options: question.options != null
-                              ? List.from(question.options!)
-                              : null,
-                          correctAnswerIndex: question.correctAnswerIndex,
-                        ));
+                        questions.add(
+                          Question(
+                            id: questions.length + 1,
+                            type: question.type,
+                            questionText: question.questionText,
+                            options: question.options != null
+                                ? List.from(question.options!)
+                                : null,
+                            correctAnswerIndex: question.correctAnswerIndex,
+                          ),
+                        );
                       });
                     },
                   ),
@@ -465,7 +467,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+                borderSide: const BorderSide(
+                  color: Color(0xFF6366F1),
+                  width: 2,
+                ),
               ),
               contentPadding: const EdgeInsets.all(12),
             ),
@@ -511,7 +516,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                 },
                 activeColor: const Color(0xFF6366F1),
                 title: TextField(
-                  controller: TextEditingController(text: question.options![index]),
+                  controller: TextEditingController(
+                    text: question.options![index],
+                  ),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
@@ -593,13 +600,15 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               leading: const Icon(Icons.radio_button_checked),
               onTap: () {
                 setState(() {
-                  questions.add(Question(
-                    id: questions.length + 1,
-                    type: QuestionType.multipleChoice,
-                    questionText: '',
-                    options: ['', '', ''],
-                    correctAnswerIndex: 0,
-                  ));
+                  questions.add(
+                    Question(
+                      id: questions.length + 1,
+                      type: QuestionType.multipleChoice,
+                      questionText: '',
+                      options: ['', '', ''],
+                      correctAnswerIndex: 0,
+                    ),
+                  );
                 });
                 Navigator.pop(context);
               },
@@ -609,11 +618,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               leading: const Icon(Icons.short_text),
               onTap: () {
                 setState(() {
-                  questions.add(Question(
-                    id: questions.length + 1,
-                    type: QuestionType.shortAnswer,
-                    questionText: '',
-                  ));
+                  questions.add(
+                    Question(
+                      id: questions.length + 1,
+                      type: QuestionType.shortAnswer,
+                      questionText: '',
+                    ),
+                  );
                 });
                 Navigator.pop(context);
               },
@@ -696,20 +707,38 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             // Bottom navigation
             Container(
               decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Colors.grey[200]!),
-                ),
+                border: Border(top: BorderSide(color: Colors.grey[200]!)),
               ),
               child: SizedBox(
                 height: 64,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildNavItem(icon: Icons.dashboard, label: 'Dashboard', index: 0),
-                    _buildNavItem(icon: Icons.school, label: 'Classes', index: 1),
-                    _buildNavItem(icon: Icons.assignment, label: 'Tests', index: 2),
-                    _buildNavItem(icon: Icons.leaderboard, label: 'Leaderboard', index: 3),
-                    _buildNavItem(icon: Icons.person, label: 'Profile', index: 4),
+                    _buildNavItem(
+                      icon: Icons.dashboard,
+                      label: 'Dashboard',
+                      index: 0,
+                    ),
+                    _buildNavItem(
+                      icon: Icons.school,
+                      label: 'Classes',
+                      index: 1,
+                    ),
+                    _buildNavItem(
+                      icon: Icons.assignment,
+                      label: 'Tests',
+                      index: 2,
+                    ),
+                    _buildNavItem(
+                      icon: Icons.leaderboard,
+                      label: 'Leaderboard',
+                      index: 3,
+                    ),
+                    _buildNavItem(
+                      icon: Icons.person,
+                      label: 'Profile',
+                      index: 4,
+                    ),
                   ],
                 ),
               ),
@@ -761,7 +790,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Publish Test'),
-        content: const Text('Are you sure you want to publish and assign this test to students?'),
+        content: const Text(
+          'Are you sure you want to publish and assign this test to students?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

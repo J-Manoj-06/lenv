@@ -20,14 +20,14 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print('✅ Firebase initialized successfully');
-    
+
     // Enable offline persistence for Firestore
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
     print('✅ Firestore offline persistence enabled');
-    
+
     // Test Firestore connection
     try {
       print('🔥 Testing Firestore connection...');

@@ -20,7 +20,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       'section': 'A',
       'points': 9410,
       'rank': 4,
-      'imageUrl': 'https://lh3.googleusercontent.com/aida-public/AB6AXuAjTYfVvLZoo3X2a5eEymwbd1ngX9tIz_lf0KGqqghj3giXJ4331bNdfvpcizq3Mwg6CDbYY2AMdTu_d0iOrJ29EmTewcQ6xz6P9s9YbZ4SvSOFkA8SSlZ2oS1k3fDJZHS33CZLcN7svaUuxQCHYcdwX9QJy2KREORbyYlAYkTO-gicuSvfeYgMAnbleQyPmYv6VgirPmiQbpFRNZwQHVdY07qutMwpkIAmPz4O_yxj9Qsr4CwM89m2UnYUGEPYrCOjiO6pZBitbpU',
+      'imageUrl':
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuAjTYfVvLZoo3X2a5eEymwbd1ngX9tIz_lf0KGqqghj3giXJ4331bNdfvpcizq3Mwg6CDbYY2AMdTu_d0iOrJ29EmTewcQ6xz6P9s9YbZ4SvSOFkA8SSlZ2oS1k3fDJZHS33CZLcN7svaUuxQCHYcdwX9QJy2KREORbyYlAYkTO-gicuSvfeYgMAnbleQyPmYv6VgirPmiQbpFRNZwQHVdY07qutMwpkIAmPz4O_yxj9Qsr4CwM89m2UnYUGEPYrCOjiO6pZBitbpU',
     },
     {
       'name': 'Liam Johnson',
@@ -29,7 +30,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       'section': 'B',
       'points': 9320,
       'rank': 5,
-      'imageUrl': 'https://cdn.usegalileo.ai/stability/8c5c3e1f-7f45-4b2b-b8c9-4e1f7a3c9b2d.png',
+      'imageUrl':
+          'https://cdn.usegalileo.ai/stability/8c5c3e1f-7f45-4b2b-b8c9-4e1f7a3c9b2d.png',
     },
     {
       'name': 'Emma Davis',
@@ -38,7 +40,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       'section': 'A',
       'points': 9280,
       'rank': 6,
-      'imageUrl': 'https://cdn.usegalileo.ai/stability/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d.png',
+      'imageUrl':
+          'https://cdn.usegalileo.ai/stability/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d.png',
     },
     {
       'name': 'Noah Martinez',
@@ -47,7 +50,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       'section': 'C',
       'points': 9150,
       'rank': 7,
-      'imageUrl': 'https://cdn.usegalileo.ai/stability/9d8c7b6a-5e4f-3d2c-1b0a-9e8d7c6b5a4f.png',
+      'imageUrl':
+          'https://cdn.usegalileo.ai/stability/9d8c7b6a-5e4f-3d2c-1b0a-9e8d7c6b5a4f.png',
     },
     {
       'name': 'Isabella Brown',
@@ -56,14 +60,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       'section': 'A',
       'points': 9080,
       'rank': 8,
-      'imageUrl': 'https://cdn.usegalileo.ai/stability/7f6e5d4c-3b2a-1f0e-9d8c-7b6a5f4e3d2c.png',
+      'imageUrl':
+          'https://cdn.usegalileo.ai/stability/7f6e5d4c-3b2a-1f0e-9d8c-7b6a5f4e3d2c.png',
     },
   ];
 
   List<Map<String, dynamic>> get _filteredStudents {
     return _allStudents.where((student) {
-      final matchesStandard = _selectedStandard == 'all' || student['standard'] == _selectedStandard;
-      final matchesSection = _selectedSection == 'all' || student['section'] == _selectedSection;
+      final matchesStandard =
+          _selectedStandard == 'all' ||
+          student['standard'] == _selectedStandard;
+      final matchesSection =
+          _selectedSection == 'all' || student['section'] == _selectedSection;
       return matchesStandard && matchesSection;
     }).toList();
   }
@@ -96,9 +104,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Widget _buildHeader() {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF6F7F8),
-      ),
+      decoration: const BoxDecoration(color: Color(0xFFF6F7F8)),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -158,7 +164,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 rank: 2,
                 name: 'Benjamin C.',
                 points: '9,750 pts',
-                imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC7VrBk4py2Pa8Tva_PYg2dTtl5NhtAL6zP5M_wvOkH_MX1v0BjyIliNK3iiZ6nXyoxv3cXY0NLh9Jn-GDVdxD9gcn0VoiEyTybu3qa2TQUPrr-G2Cq9Gy3ym5LuJIn-cnPlj3Kmg-D-0_ICHmfm6GGOwWkH2mNS0hq2ToZGdB7_v7ZKNFHeogDQ8WomcswDJ2MfTRLPo09_YLdy8_bjqOJHF-K7TcUoZHOWkDBWiEU_Cml_xWRXZO0uQrdV6Q8dLFsZacF9sBrLR0',
+                imageUrl:
+                    'https://lh3.googleusercontent.com/aida-public/AB6AXuC7VrBk4py2Pa8Tva_PYg2dTtl5NhtAL6zP5M_wvOkH_MX1v0BjyIliNK3iiZ6nXyoxv3cXY0NLh9Jn-GDVdxD9gcn0VoiEyTybu3qa2TQUPrr-G2Cq9Gy3ym5LuJIn-cnPlj3Kmg-D-0_ICHmfm6GGOwWkH2mNS0hq2ToZGdB7_v7ZKNFHeogDQ8WomcswDJ2MfTRLPo09_YLdy8_bjqOJHF-K7TcUoZHOWkDBWiEU_Cml_xWRXZO0uQrdV6Q8dLFsZacF9sBrLR0',
                 borderColor: const Color(0xFFC0C0C0), // Silver
                 badgeColor: const Color(0xFFC0C0C0),
                 size: 80,
@@ -168,7 +175,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 rank: 1,
                 name: 'Olivia Chen',
                 points: '9,980 pts',
-                imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDp7J7VZr4TSqVWQZF56-dR1ee2Zc75CnuSGw2L0xAGgTIF9zBAy503NQ3ZMWVbXvSUERLmRBnqOS4RWfQStI1i91G-JiYF95XVUGSp4JCUrr6lP0lD2I6q_FqwEjSwIGO3nprCfKUHraH_aUVJ2MO4Vj_lADwscOevuRw8tfvZ2_9Hh1W2QGoVzFBwLYW-OqVaP1g8SeDEYUJl2qJ4ZQ6pr4ZpE1ExOlJaProRBqU8efyha7p30aOHsG7q3nIjDrNTIJbT-3VJgio',
+                imageUrl:
+                    'https://lh3.googleusercontent.com/aida-public/AB6AXuDp7J7VZr4TSqVWQZF56-dR1ee2Zc75CnuSGw2L0xAGgTIF9zBAy503NQ3ZMWVbXvSUERLmRBnqOS4RWfQStI1i91G-JiYF95XVUGSp4JCUrr6lP0lD2I6q_FqwEjSwIGO3nprCfKUHraH_aUVJ2MO4Vj_lADwscOevuRw8tfvZ2_9Hh1W2QGoVzFBwLYW-OqVaP1g8SeDEYUJl2qJ4ZQ6pr4ZpE1ExOlJaProRBqU8efyha7p30aOHsG7q3nIjDrNTIJbT-3VJgio',
                 borderColor: const Color(0xFFFFD700), // Gold
                 badgeColor: const Color(0xFFFFD700),
                 size: 96,
@@ -178,7 +186,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 rank: 3,
                 name: 'Sophia R.',
                 points: '9,540 pts',
-                imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAhfbXtIdj2F6GnDrpBGuvLlf8bGVgaiW2Jbs4Q8fsCgAoBVkaHHfdPp1VrkBLGmPPk0YlSr1ETmZFLw6NEqWcm9dMTnxRDg4GupixNU1z39aKPz435OU-R-Hd6kfviED36R6cL0pC5CE4eSRArCUbYeiq6Pt_MgEpGh3dFxVYlRBm_BXolNw-3m085kYFhDQdHD12L-z8DlTarPFfTjh5NNJCLXXFhCm9Q0QoMrNNX_Tz1aPxxMIGioyZTCin9_cDXjRT5Hzo90mU',
+                imageUrl:
+                    'https://lh3.googleusercontent.com/aida-public/AB6AXuAhfbXtIdj2F6GnDrpBGuvLlf8bGVgaiW2Jbs4Q8fsCgAoBVkaHHfdPp1VrkBLGmPPk0YlSr1ETmZFLw6NEqWcm9dMTnxRDg4GupixNU1z39aKPz435OU-R-Hd6kfviED36R6cL0pC5CE4eSRArCUbYeiq6Pt_MgEpGh3dFxVYlRBm_BXolNw-3m085kYFhDQdHD12L-z8DlTarPFfTjh5NNJCLXXFhCm9Q0QoMrNNX_Tz1aPxxMIGioyZTCin9_cDXjRT5Hzo90mU',
                 borderColor: const Color(0xFFCD7F32), // Bronze
                 badgeColor: const Color(0xFFCD7F32),
                 size: 80,
@@ -228,7 +237,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
                         color: Colors.grey[300],
-                        child: Icon(Icons.person, size: size * 0.5, color: Colors.grey[600]),
+                        child: Icon(
+                          Icons.person,
+                          size: size * 0.5,
+                          color: Colors.grey[600],
+                        ),
                       );
                     },
                   ),
@@ -243,7 +256,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   decoration: BoxDecoration(
                     color: badgeColor,
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFF6F7F8), width: 2),
+                    border: Border.all(
+                      color: const Color(0xFFF6F7F8),
+                      width: 2,
+                    ),
                   ),
                   child: Center(
                     child: Text(
@@ -271,10 +287,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           const SizedBox(height: 4),
           Text(
             points,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF64748B),
-            ),
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
           ),
         ],
       ),
@@ -311,13 +324,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     child: DropdownButton<String>(
                       value: _selectedStandard,
                       isExpanded: true,
-                      icon: const Icon(Icons.expand_more, color: Color(0xFF64748B)),
+                      icon: const Icon(
+                        Icons.expand_more,
+                        color: Color(0xFF64748B),
+                      ),
                       style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF0F172A),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'all', child: Text('All Standards')),
+                        DropdownMenuItem(
+                          value: 'all',
+                          child: Text('All Standards'),
+                        ),
                         DropdownMenuItem(value: '10', child: Text('10')),
                         DropdownMenuItem(value: '11', child: Text('11')),
                         DropdownMenuItem(value: '12', child: Text('12')),
@@ -359,13 +378,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     child: DropdownButton<String>(
                       value: _selectedSection,
                       isExpanded: true,
-                      icon: const Icon(Icons.expand_more, color: Color(0xFF64748B)),
+                      icon: const Icon(
+                        Icons.expand_more,
+                        color: Color(0xFF64748B),
+                      ),
                       style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF0F172A),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'all', child: Text('All Sections')),
+                        DropdownMenuItem(
+                          value: 'all',
+                          child: Text('All Sections'),
+                        ),
                         DropdownMenuItem(value: 'A', child: Text('A')),
                         DropdownMenuItem(value: 'B', child: Text('B')),
                         DropdownMenuItem(value: 'C', child: Text('C')),
@@ -438,7 +463,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                             color: Colors.grey[300],
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(Icons.person, size: 24, color: Colors.grey[600]),
+                          child: Icon(
+                            Icons.person,
+                            size: 24,
+                            color: Colors.grey[600],
+                          ),
                         );
                       },
                     ),
@@ -489,9 +518,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       height: 80,
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
-        ),
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -517,7 +544,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index, VoidCallback onTap) {
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    int index,
+    VoidCallback onTap,
+  ) {
     final isSelected = _selectedNavIndex == index;
     return Expanded(
       child: InkWell(
@@ -528,7 +560,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             Icon(
               icon,
               size: 24,
-              color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF64748B),
+              color: isSelected
+                  ? const Color(0xFF6366F1)
+                  : const Color(0xFF64748B),
             ),
             const SizedBox(height: 4),
             Text(
@@ -536,7 +570,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF64748B),
+                color: isSelected
+                    ? const Color(0xFF6366F1)
+                    : const Color(0xFF64748B),
               ),
             ),
           ],

@@ -16,7 +16,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   String? _selectedSchool;
   bool _isPasswordVisible = false;
   bool _isLoading = false;
@@ -51,7 +51,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
       _isLoadingSchools = true;
       _schoolLoadError = null;
     });
-    
+
     try {
       final schools = await _schoolService.fetchSchools();
       if (mounted) {
@@ -59,7 +59,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           _schools = schools;
           _isLoadingSchools = false;
         });
-        
+
         if (schools.isEmpty) {
           setState(() {
             _schoolLoadError = 'No schools found. Please contact admin.';
@@ -108,25 +108,27 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         }
       } else {
         String errorMsg = authProvider.errorMessage ?? 'Login failed';
-        
+
         // Provide user-friendly error messages
         if (errorMsg.contains('network')) {
-          errorMsg = 'Network error. Please check your internet connection and try again.';
-        } else if (errorMsg.contains('user-not-found') || errorMsg.contains('wrong-password')) {
+          errorMsg =
+              'Network error. Please check your internet connection and try again.';
+        } else if (errorMsg.contains('user-not-found') ||
+            errorMsg.contains('wrong-password')) {
           errorMsg = 'Invalid email or password';
         } else if (errorMsg.contains('too-many-requests')) {
           errorMsg = 'Too many failed attempts. Please try again later.';
         }
-        
+
         _showErrorSnackBar(errorMsg);
       }
     } catch (e) {
       String errorMsg = 'Login failed: ${e.toString()}';
-      
+
       if (errorMsg.contains('network')) {
         errorMsg = 'Network error. Please check your internet connection.';
       }
-      
+
       _showErrorSnackBar(errorMsg);
     } finally {
       if (mounted) {
@@ -153,7 +155,9 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final success = await authProvider.resetPassword(_emailController.text.trim());
+    final success = await authProvider.resetPassword(
+      _emailController.text.trim(),
+    );
 
     if (success) {
       if (mounted) {
@@ -162,7 +166,9 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
             content: const Text('Password reset email sent! Check your inbox.'),
             backgroundColor: Colors.green.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -192,7 +198,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
             children: [
               // Header with Logo
               _buildHeader(),
-              
+
               // Main Content (scrollable)
               Expanded(
                 child: SingleChildScrollView(
@@ -200,41 +206,41 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 20),
-                      
+
                       // Welcome Text
                       _buildWelcomeText(),
-                      
+
                       const SizedBox(height: 40),
-                      
+
                       // School Dropdown
                       _buildSchoolDropdown(),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Email Field
                       _buildEmailField(),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Password Field
                       _buildPasswordField(),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Forgot Password Link
                       _buildForgotPasswordLink(),
-                      
+
                       const SizedBox(height: 40),
-                      
+
                       // Login Button
                       _buildLoginButton(),
-                      
+
                       const SizedBox(height: 20),
                     ],
                   ),
                 ),
               ),
-              
+
               // Footer
               _buildFooter(),
             ],
@@ -269,9 +275,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
               ),
             ],
           ),
-          child: CustomPaint(
-            painter: _LogoPainter(),
-          ),
+          child: CustomPaint(painter: _LogoPainter()),
         ),
       ),
     );
@@ -292,10 +296,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         const SizedBox(height: 8),
         Text(
           'Enter your credentials to access your portal.',
-          style: TextStyle(
-            fontSize: 15,
-            color: brandBrownLight,
-          ),
+          style: TextStyle(fontSize: 15, color: brandBrownLight),
           textAlign: TextAlign.center,
         ),
       ],
@@ -331,8 +332,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           child: DropdownButtonFormField<String>(
             value: _selectedSchool,
             decoration: InputDecoration(
-              hintText: _isLoadingSchools 
-                  ? 'Loading schools...' 
+              hintText: _isLoadingSchools
+                  ? 'Loading schools...'
                   : 'Choose your school',
               hintStyle: TextStyle(color: brandBrownLight),
               filled: true,
@@ -349,9 +350,12 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                 borderRadius: BorderRadius.circular(12),
                 borderSide: const BorderSide(color: brandOrange, width: 2),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
             ),
-            icon: _isLoadingSchools 
+            icon: _isLoadingSchools
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -363,17 +367,21 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                 : Icon(Icons.keyboard_arrow_down, color: brandBrownLight),
             dropdownColor: brandLightGray,
             items: _schools
-                .map((s) => DropdownMenuItem(
-                      value: s.id,
-                      child: Text(
-                        s.name,
-                        style: const TextStyle(color: brandBrownDark),
-                      ),
-                    ))
+                .map(
+                  (s) => DropdownMenuItem(
+                    value: s.id,
+                    child: Text(
+                      s.name,
+                      style: const TextStyle(color: brandBrownDark),
+                    ),
+                  ),
+                )
                 .toList(),
-            onChanged: _isLoadingSchools ? null : (value) {
-              setState(() => _selectedSchool = value);
-            },
+            onChanged: _isLoadingSchools
+                ? null
+                : (value) {
+                    setState(() => _selectedSchool = value);
+                  },
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return 'Please select your school';
@@ -428,7 +436,10 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
           ),
           validator: (value) {
             if (value == null || value.trim().isEmpty) {
@@ -486,7 +497,10 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
             suffixIcon: IconButton(
               icon: Icon(
                 _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
@@ -589,10 +603,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         children: [
           Text(
             "Don't have an account? ",
-            style: TextStyle(
-              fontSize: 14,
-              color: brandBrownLight,
-            ),
+            style: TextStyle(fontSize: 14, color: brandBrownLight),
           ),
           TextButton(
             onPressed: _handleSignUp,

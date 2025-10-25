@@ -16,7 +16,7 @@ class _TestsScreenState extends State<TestsScreen> {
   final List<String> _classFilters = [
     'All Classes',
     'Grade 10 - Math',
-    'Grade 11 - Physics'
+    'Grade 11 - Physics',
   ];
 
   @override
@@ -62,9 +62,7 @@ class _TestsScreenState extends State<TestsScreen> {
 
   Widget _buildHeader() {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-      ),
+      decoration: const BoxDecoration(color: Colors.white),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -113,7 +111,10 @@ class _TestsScreenState extends State<TestsScreen> {
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
         ),
         onChanged: (value) {
           setState(() {});
@@ -369,9 +370,12 @@ class _TestsScreenState extends State<TestsScreen> {
             'name': title,
             'class': subtitle,
             'status': status,
-            'endTime': footerText.contains('Ends in') 
-                ? footerText.replaceAll('Ends in: ', '') 
-                : footerText.replaceAll('28 Oct 2023, 10:00 AM', '24 Oct 2023, 10:00 AM'),
+            'endTime': footerText.contains('Ends in')
+                ? footerText.replaceAll('Ends in: ', '')
+                : footerText.replaceAll(
+                    '28 Oct 2023, 10:00 AM',
+                    '24 Oct 2023, 10:00 AM',
+                  ),
           },
         );
       },
@@ -390,121 +394,124 @@ class _TestsScreenState extends State<TestsScreen> {
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
-        children: [
-          // Header
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2937),
+          children: [
+            // Header
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2937),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF6B7280),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: statusBgColor,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: statusColor,
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Footer
-          Container(
-            padding: const EdgeInsets.only(top: 12),
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Color(0xFFF3F4F6), width: 1),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(footerIcon, size: 18, color: footerIconColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      footerText,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF4B5563),
-                      ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusBgColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: statusColor,
                     ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    if (showStatsButton)
-                      IconButton(
-                        icon: const Icon(Icons.bar_chart_outlined),
-                        iconSize: 20,
-                        color: const Color(0xFF6B7280),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('View stats for $title')),
-                          );
-                        },
-                        padding: const EdgeInsets.all(8),
-                        constraints: const BoxConstraints(),
-                      ),
-                    if (showEditButton)
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        iconSize: 20,
-                        color: const Color(0xFF6B7280),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Edit $title')),
-                          );
-                        },
-                        padding: const EdgeInsets.all(8),
-                        constraints: const BoxConstraints(),
-                      ),
-                    if (showDeleteButton)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        iconSize: 20,
-                        color: const Color(0xFF6B7280),
-                        onPressed: () {
-                          _showDeleteDialog(title);
-                        },
-                        padding: const EdgeInsets.all(8),
-                        constraints: const BoxConstraints(),
-                      ),
-                  ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            // Footer
+            Container(
+              padding: const EdgeInsets.only(top: 12),
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Color(0xFFF3F4F6), width: 1),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(footerIcon, size: 18, color: footerIconColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        footerText,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF4B5563),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      if (showStatsButton)
+                        IconButton(
+                          icon: const Icon(Icons.bar_chart_outlined),
+                          iconSize: 20,
+                          color: const Color(0xFF6B7280),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('View stats for $title')),
+                            );
+                          },
+                          padding: const EdgeInsets.all(8),
+                          constraints: const BoxConstraints(),
+                        ),
+                      if (showEditButton)
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          iconSize: 20,
+                          color: const Color(0xFF6B7280),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Edit $title')),
+                            );
+                          },
+                          padding: const EdgeInsets.all(8),
+                          constraints: const BoxConstraints(),
+                        ),
+                      if (showDeleteButton)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          iconSize: 20,
+                          color: const Color(0xFF6B7280),
+                          onPressed: () {
+                            _showDeleteDialog(title);
+                          },
+                          padding: const EdgeInsets.all(8),
+                          constraints: const BoxConstraints(),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -533,9 +540,7 @@ class _TestsScreenState extends State<TestsScreen> {
         height: 80,
         decoration: const BoxDecoration(
           color: Colors.white,
-          border: Border(
-            top: BorderSide(color: Color(0xFFE5E7EB), width: 1),
-          ),
+          border: Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
         ),
         child: SafeArea(
           top: false,
@@ -549,9 +554,14 @@ class _TestsScreenState extends State<TestsScreen> {
                 Navigator.pushReplacementNamed(context, '/classes');
               }),
               _buildNavItem(Icons.quiz, 'Tests', true, () {}),
-              _buildNavItem(Icons.leaderboard_outlined, 'Leaderboard', false, () {
-                Navigator.pushReplacementNamed(context, '/leaderboard');
-              }),
+              _buildNavItem(
+                Icons.leaderboard_outlined,
+                'Leaderboard',
+                false,
+                () {
+                  Navigator.pushReplacementNamed(context, '/leaderboard');
+                },
+              ),
               _buildNavItem(Icons.person_outline, 'Profile', false, () {
                 Navigator.pushReplacementNamed(context, '/profile');
               }),
@@ -562,7 +572,12 @@ class _TestsScreenState extends State<TestsScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isSelected, VoidCallback onTap) {
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
     return Expanded(
       child: InkWell(
         onTap: onTap,
@@ -572,7 +587,9 @@ class _TestsScreenState extends State<TestsScreen> {
             Icon(
               icon,
               size: 24,
-              color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF6B7280),
+              color: isSelected
+                  ? const Color(0xFF6366F1)
+                  : const Color(0xFF6B7280),
             ),
             const SizedBox(height: 4),
             Text(
@@ -580,7 +597,9 @@ class _TestsScreenState extends State<TestsScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF6B7280),
+                color: isSelected
+                    ? const Color(0xFF6366F1)
+                    : const Color(0xFF6B7280),
               ),
             ),
           ],
@@ -647,14 +666,11 @@ class _TestsScreenState extends State<TestsScreen> {
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('$testName deleted')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('$testName deleted')));
               },
-              child: const Text(
-                'Delete',
-                style: TextStyle(color: Colors.red),
-              ),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
             ),
           ],
         );

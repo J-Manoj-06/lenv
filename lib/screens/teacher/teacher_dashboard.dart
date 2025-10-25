@@ -1,96 +1,52 @@
-/*
-import 'package:flutter/material.dart';import 'package:flutter/material.dart';
-
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/teacher_service.dart';
 
-/// Minimal teacher dashboard screen to restore app routing.import '../../providers/auth_provider.dart';
-
-/// You can replace its content later with the full dashboard UI.import '../../services/teacher_service.dart';
-
-class TeacherDashboardScreen extends StatelessWidget {
-
-  const TeacherDashboardScreen({Key? key}) : super(key: key);class TeacherDashboardScreen extends StatefulWidget {
-
+class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({Key? key}) : super(key: key);
 
   @override
+  State<TeacherDashboardScreen> createState() => _TeacherDashboardScreenState();
+}
 
-  Widget build(BuildContext context) {  @override
+class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
+  String? selectedClass;
+  int selectedNavIndex = 0;
 
-    return Scaffold(  State<TeacherDashboardScreen> createState() => _TeacherDashboardScreenState();
+  final TeacherService _teacherService = TeacherService();
+  Map<String, dynamic>? _teacherData;
+  List<Map<String, dynamic>> _students = [];
+  List<String> _classes = [];
+  bool _isLoading = true;
+  String? _error;
 
-      appBar: AppBar(}
+  @override
+  void initState() {
+    super.initState();
+    _loadTeacherData();
+  }
 
-        title: const Text('Teacher Dashboard'),
+  Future<void> _loadTeacherData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
 
-      ),class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
 
-      body: Center(  String? selectedClass;
-
-        child: Column(  int selectedNavIndex = 0;
-
-          mainAxisAlignment: MainAxisAlignment.center,
-
-          children: [  final TeacherService _teacherService = TeacherService();
-
-            const Icon(Icons.school, size: 48, color: Color(0xFF6366F1)),  Map<String, dynamic>? _teacherData;
-
-            const SizedBox(height: 12),  List<Map<String, dynamic>> _students = [];
-
-            const Text(  List<String> _classes = [];
-
-              'Teacher Dashboard',  bool _isLoading = true;
-
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),  String? _error;
-
-            ),
-
-            const SizedBox(height: 8),  @override
-
-            Text(  void initState() {
-
-              'This is a placeholder screen. The full dashboard\nUI can be restored once routing compiles cleanly.',    super.initState();
-
-              textAlign: TextAlign.center,    _loadTeacherData();
-
-              style: TextStyle(color: Colors.grey[600]),  }
-
-            ),
-
-            const SizedBox(height: 24),  Future<void> _loadTeacherData() async {
-
-            ElevatedButton.icon(    try {
-
-              onPressed: () {      setState(() {
-
-                Navigator.pushNamed(context, '/classes');        _isLoading = true;
-
-              },        _error = null;
-
-              icon: const Icon(Icons.class_outlined),      });
-
-              label: const Text('Go to Classes'),
-
-            ),      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-          ],      final currentUser = authProvider.currentUser;
-
-        ),
-
-      ),      if (currentUser == null || currentUser.email == null) {
-
-    );        setState(() {
-
-  }          _error = 'No user logged in';
-
-}          _isLoading = false;
-
+      if (currentUser == null) {
+        setState(() {
+          _error = 'No user logged in';
+          _isLoading = false;
         });
         return;
       }
 
       // Fetch teacher data
-      final teacherData = await _teacherService.getTeacherByEmail(currentUser.email!);
+      final teacherData = await _teacherService.getTeacherByEmail(currentUser.email);
 
       if (teacherData == null) {
         setState(() {
@@ -121,9 +77,10 @@ class TeacherDashboardScreen extends StatelessWidget {
         _isLoading = false;
       });
     } catch (e) {
-      print('� Error loading teacher data: $e');
+      // ignore: avoid_print
+      print('Error loading teacher data: $e');
       setState(() {
-        _error = 'Failed to load data: $e';
+        _error = 'Failed to load data';
         _isLoading = false;
       });
     }
@@ -131,9 +88,6 @@ class TeacherDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final currentUser = authProvider.currentUser;
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: _isLoading
@@ -155,28 +109,28 @@ class TeacherDashboardScreen extends StatelessWidget {
                   ),
                 )
               : Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildQuickActions(),
-                  const SizedBox(height: 24),
-                  _buildClassSummary(),
-                  const SizedBox(height: 24),
-                  _buildAlerts(),
-                  const SizedBox(height: 24),
-                  _buildRecentActivity(),
-                  const SizedBox(height: 80),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+                  children: [
+                    _buildHeader(),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildQuickActions(),
+                            const SizedBox(height: 24),
+                            _buildClassSummary(),
+                            const SizedBox(height: 24),
+                            _buildAlerts(),
+                            const SizedBox(height: 24),
+                            _buildRecentActivity(),
+                            const SizedBox(height: 80),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -397,9 +351,9 @@ class TeacherDashboardScreen extends StatelessWidget {
                 color: const Color(0xFF6366F1).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                icon,
-                color: const Color(0xFF6366F1),
+              child: const Icon(
+                Icons.bar_chart,
+                color: Color(0xFF6366F1),
                 size: 24,
               ),
             ),
@@ -435,7 +389,10 @@ class TeacherDashboardScreen extends StatelessWidget {
 
         filteredStudents = _students.where((student) {
           final studentClassName = student['className']?.toString() ?? '';
-          final studentGrade = studentClassName.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
+          final studentGrade = studentClassName
+              .replaceAll('Grade ', '')
+              .replaceAll('grade ', '')
+              .trim();
           final studentSection = student['section']?.toString() ?? '';
 
           return studentGrade == selectedGrade && studentSection == selectedSection;
@@ -759,49 +716,6 @@ class TeacherDashboardScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-*/
-
-import 'package:flutter/material.dart';
-
-/// Minimal teacher dashboard screen to restore app routing.
-/// You can replace its content later with the full dashboard UI.
-class TeacherDashboardScreen extends StatelessWidget {
-  const TeacherDashboardScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Teacher Dashboard')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.school, size: 48, color: Color(0xFF6366F1)),
-            const SizedBox(height: 12),
-            const Text(
-              'Teacher Dashboard',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'This is a placeholder screen. The full dashboard\\nUI can be restored once routing compiles cleanly.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pushNamed(context, '/classes');
-              },
-              icon: const Icon(Icons.class_outlined),
-              label: const Text('Go to Classes'),
-            ),
-          ],
-        ),
       ),
     );
   }

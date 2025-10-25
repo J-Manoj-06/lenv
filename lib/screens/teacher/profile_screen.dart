@@ -44,9 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFFF6F7F8),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
       ),
       child: SafeArea(
         bottom: false,
@@ -69,9 +67,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               IconButton(
                 icon: const Icon(Icons.settings_outlined),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Settings')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Settings')));
                 },
                 color: const Color(0xFF0F172A),
               ),
@@ -121,19 +119,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const Text(
             'Senior Professor, Computer Science',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Color(0xFF64748B),
-            ),
+            style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 2),
           const Text(
             'LearnQ University',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Color(0xFF64748B),
-            ),
+            style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
           ),
         ],
       ),
@@ -229,7 +221,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: isPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                color: isPositive
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFEF4444),
               ),
             ),
           if (showProgress) ...[
@@ -240,7 +234,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 value: progressValue,
                 minHeight: 6,
                 backgroundColor: const Color(0xFFE2E8F0),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  Color(0xFF6366F1),
+                ),
               ),
             ),
           ],
@@ -328,7 +324,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final settingsItems = [
       {'icon': Icons.lock_outline, 'label': 'Change Password'},
       {'icon': Icons.notifications_outlined, 'label': 'Manage Notifications'},
-      {'icon': Icons.schedule_outlined, 'label': 'Set Availability / Office Hours'},
+      {
+        'icon': Icons.schedule_outlined,
+        'label': 'Set Availability / Office Hours',
+      },
     ];
 
     return Padding(
@@ -494,10 +493,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           child: const Text(
             'Logout',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
       ),
@@ -509,9 +505,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       height: 80,
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
-        ),
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -537,7 +531,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index, VoidCallback onTap) {
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    int index,
+    VoidCallback onTap,
+  ) {
     final isSelected = _selectedNavIndex == index;
     return Expanded(
       child: InkWell(
@@ -548,7 +547,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icon(
               icon,
               size: 24,
-              color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF64748B),
+              color: isSelected
+                  ? const Color(0xFF6366F1)
+                  : const Color(0xFF64748B),
             ),
             const SizedBox(height: 4),
             Text(
@@ -556,7 +557,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF64748B),
+                color: isSelected
+                    ? const Color(0xFF6366F1)
+                    : const Color(0xFF64748B),
               ),
             ),
           ],
@@ -585,10 +588,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SnackBar(content: Text('Logged out successfully')),
                 );
               },
-              child: const Text(
-                'Logout',
-                style: TextStyle(color: Colors.red),
-              ),
+              child: const Text('Logout', style: TextStyle(color: Colors.red)),
             ),
           ],
         );

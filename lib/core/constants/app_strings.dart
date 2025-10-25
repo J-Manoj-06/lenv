@@ -2,13 +2,13 @@ class AppStrings {
   // App Info
   static const String appName = 'LenV';
   static const String appTagline = 'Educational Ecosystem for Excellence';
-  
+
   // Role Names
   static const String roleInstitute = 'Institute';
   static const String roleTeacher = 'Teacher';
   static const String roleStudent = 'Student';
   static const String roleParent = 'Parent';
-  
+
   // Auth Strings
   static const String login = 'Login';
   static const String register = 'Register';
@@ -21,7 +21,7 @@ class AppStrings {
   static const String signUp = 'Sign Up';
   static const String signIn = 'Sign In';
   static const String logout = 'Logout';
-  
+
   // Common Strings
   static const String dashboard = 'Dashboard';
   static const String profile = 'Profile';
@@ -36,39 +36,40 @@ class AppStrings {
   static const String delete = 'Delete';
   static const String edit = 'Edit';
   static const String submit = 'Submit';
-  
+
   // Institute Strings
   static const String manageTeachers = 'Manage Teachers';
   static const String manageStudents = 'Manage Students';
   static const String announcements = 'Announcements';
   static const String overallPerformance = 'Overall Performance';
-  
+
   // Teacher Strings
   static const String createTest = 'Create Test';
   static const String evaluateTest = 'Evaluate Test';
   static const String myTests = 'My Tests';
   static const String studentProgress = 'Student Progress';
-  
+
   // Student Strings
   static const String takeTest = 'Take Test';
   static const String myResults = 'My Results';
   static const String rewards = 'Rewards';
   static const String availableTests = 'Available Tests';
-  
+
   // Parent Strings
   static const String childProgress = 'Child Progress';
   static const String sendReward = 'Send Reward';
   static const String viewReports = 'View Reports';
   static const String myChildren = 'My Children';
-  
+
   // Error Messages
   static const String errorGeneric = 'Something went wrong. Please try again.';
   static const String errorNetwork = 'Network error. Check your connection.';
   static const String errorAuth = 'Authentication failed. Please try again.';
   static const String errorInvalidEmail = 'Please enter a valid email address.';
   static const String errorPasswordMismatch = 'Passwords do not match.';
-  static const String errorWeakPassword = 'Password should be at least 6 characters.';
-  
+  static const String errorWeakPassword =
+      'Password should be at least 6 characters.';
+
   // Success Messages
   static const String successLogin = 'Login successful!';
   static const String successRegister = 'Registration successful!';

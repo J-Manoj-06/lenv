@@ -5,11 +5,7 @@ class ChartDataPoint {
   final double value;
   final DateTime? date;
 
-  ChartDataPoint({
-    required this.label,
-    required this.value,
-    this.date,
-  });
+  ChartDataPoint({required this.label, required this.value, this.date});
 }
 
 class ChartService {
@@ -25,7 +21,9 @@ class ChartService {
   }
 
   // Get subject-wise performance
-  Map<String, double> getSubjectWisePerformance(List<TestSubmission> submissions) {
+  Map<String, double> getSubjectWisePerformance(
+    List<TestSubmission> submissions,
+  ) {
     // This is a simplified version. You can enhance it based on test subjects
     // Group scores by subject (you'll need to add subject info to TestSubmission)
     // For now, returning a placeholder
@@ -38,18 +36,22 @@ class ChartService {
   }
 
   // Calculate average score over time period
-  double calculateAverageScore(List<TestSubmission> submissions, {int? lastNTests}) {
+  double calculateAverageScore(
+    List<TestSubmission> submissions, {
+    int? lastNTests,
+  }) {
     if (submissions.isEmpty) return 0.0;
-    
-    final relevantSubmissions = lastNTests != null && lastNTests < submissions.length
+
+    final relevantSubmissions =
+        lastNTests != null && lastNTests < submissions.length
         ? submissions.take(lastNTests).toList()
         : submissions;
-    
+
     final totalPercentage = relevantSubmissions.fold<double>(
       0.0,
       (sum, submission) => sum + submission.percentage,
     );
-    
+
     return totalPercentage / relevantSubmissions.length;
   }
 
@@ -85,8 +87,9 @@ class ChartService {
     final monthlyData = <String, List<double>>{};
 
     for (final submission in submissions) {
-      final monthKey = '${submission.submittedAt.year}-${submission.submittedAt.month.toString().padLeft(2, '0')}';
-      
+      final monthKey =
+          '${submission.submittedAt.year}-${submission.submittedAt.month.toString().padLeft(2, '0')}';
+
       if (!monthlyData.containsKey(monthKey)) {
         monthlyData[monthKey] = [];
       }
@@ -95,10 +98,7 @@ class ChartService {
 
     return monthlyData.entries.map((entry) {
       final average = entry.value.reduce((a, b) => a + b) / entry.value.length;
-      return ChartDataPoint(
-        label: entry.key,
-        value: average,
-      );
+      return ChartDataPoint(label: entry.key, value: average);
     }).toList();
   }
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/common/splash_screen.dart';
 import '../screens/common/role_selection_screen.dart';
 import '../screens/teacher/teacher_login_screen.dart';
-import '../screens/teacher/teacher_dashboard_screen.dart';
+import '../screens/teacher/teacher_dashboard.dart';
 import '../screens/teacher/create_test_screen.dart';
 import '../screens/teacher/ai_test_generator_screen.dart';
 import '../screens/teacher/classes_screen.dart';

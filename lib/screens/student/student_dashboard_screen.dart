@@ -24,7 +24,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
   @override
   void initState() {
     super.initState();
-    
+
     // Float animations for background icons
     _floatController1 = AnimationController(
       duration: const Duration(seconds: 3),
@@ -51,12 +51,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
+
     // Load Firebase data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadDashboardData();
     });
-    
+
     // Start progress animation
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) {
@@ -67,8 +67,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
 
   Future<void> _loadDashboardData() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final studentProvider = Provider.of<StudentProvider>(context, listen: false);
-    
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+
     if (authProvider.currentUser != null) {
       await studentProvider.loadDashboardData(authProvider.currentUser!.uid);
     }
@@ -86,7 +89,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
 
   void _onNavItemTapped(int index) {
     setState(() => _selectedIndex = index);
-    
+
     // Navigate based on index
     switch (index) {
       case 0: // Home - already here
@@ -109,12 +112,15 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Consumer<StudentProvider>(
       builder: (context, studentProvider, child) {
-        if (studentProvider.isLoading && studentProvider.currentStudent == null) {
+        if (studentProvider.isLoading &&
+            studentProvider.currentStudent == null) {
           return Scaffold(
-            backgroundColor: isDark ? const Color(0xFF111827) : const Color(0xFFF3F4F6),
+            backgroundColor: isDark
+                ? const Color(0xFF111827)
+                : const Color(0xFFF3F4F6),
             body: const Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
@@ -124,9 +130,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
         }
 
         final student = studentProvider.currentStudent;
-        
+
         return Scaffold(
-          backgroundColor: isDark ? const Color(0xFF111827) : const Color(0xFFF3F4F6),
+          backgroundColor: isDark
+              ? const Color(0xFF111827)
+              : const Color(0xFFF3F4F6),
           body: RefreshIndicator(
             onRefresh: () => _loadDashboardData(),
             color: const Color(0xFFF59E0B),
@@ -134,14 +142,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
               children: [
                 // Background floating icons
                 _buildFloatingBackground(),
-                
+
                 // Main content
                 SafeArea(
                   child: Column(
                     children: [
                       // Header
                       _buildHeader(isDark, student),
-                      
+
                       // Scrollable content
                       Expanded(
                         child: SingleChildScrollView(
@@ -150,8 +158,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // Welcome text
-                              _buildWelcomeText(isDark, student?.name ?? 'Student'),
-                              
+                              _buildWelcomeText(
+                                isDark,
+                                student?.name ?? 'Student',
+                              ),
+
                               // Daily Challenge Card
                               if (studentProvider.todayChallenge != null)
                                 _buildDailyChallengeCard(
@@ -159,21 +170,23 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                                   studentProvider.todayChallenge!,
                                   studentProvider.hasAttemptedChallenge,
                                 ),
-                              
+
                               // Monthly Target Card
                               _buildMonthlyTargetCard(
                                 isDark,
                                 student?.monthlyProgress ?? 0,
                                 student?.monthlyTarget ?? 90,
                               ),
-                              
+
                               // Stats Grid
                               _buildStatsGrid(isDark, student),
-                              
+
                               // SWOT Reports
                               _buildSwotReports(isDark),
-                              
-                              const SizedBox(height: 100), // Space for bottom nav
+
+                              const SizedBox(
+                                height: 100,
+                              ), // Space for bottom nav
                             ],
                           ),
                         ),
@@ -181,7 +194,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                     ],
                   ),
                 ),
-                
+
                 // Bottom Navigation
                 Positioned(
                   left: 0,
@@ -205,7 +218,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
           animation: _floatController1,
           builder: (context, child) {
             return Positioned(
-              top: MediaQuery.of(context).size.height * 0.25 + 
+              top:
+                  MediaQuery.of(context).size.height * 0.25 +
                   (_floatController1.value * 20 - 10),
               left: MediaQuery.of(context).size.width * 0.25,
               child: Opacity(
@@ -219,13 +233,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
             );
           },
         ),
-        
+
         // Bottom right - trophy icon
         AnimatedBuilder(
           animation: _floatController2,
           builder: (context, child) {
             return Positioned(
-              bottom: MediaQuery.of(context).size.height * 0.25 + 
+              bottom:
+                  MediaQuery.of(context).size.height * 0.25 +
                   (_floatController2.value * 20 - 10),
               right: MediaQuery.of(context).size.width * 0.25,
               child: Opacity(
@@ -239,7 +254,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
             );
           },
         ),
-        
+
         // Top right - trophy icon (small)
         AnimatedBuilder(
           animation: _floatController3,
@@ -258,7 +273,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
             );
           },
         ),
-        
+
         // Bottom left - lightbulb icon
         AnimatedBuilder(
           animation: _floatController4,
@@ -318,7 +333,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                   )
                 : const Icon(Icons.person, color: Colors.white, size: 24),
           ),
-          
+
           // LenV Title
           Text(
             'LenV',
@@ -328,13 +343,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
               color: isDark ? Colors.white : Colors.grey.shade900,
             ),
           ),
-          
+
           // Settings Button
           Container(
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: isDark 
+              color: isDark
                   ? Colors.grey.shade800.withOpacity(0.5)
                   : Colors.grey.shade200,
               shape: BoxShape.circle,
@@ -377,14 +392,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
         child: Transform(
           transform: Matrix4.identity()
             ..setEntry(3, 2, 0.001)
-            ..rotateY(math.sin(DateTime.now().millisecondsSinceEpoch / 1000) * 0.1),
+            ..rotateY(
+              math.sin(DateTime.now().millisecondsSinceEpoch / 1000) * 0.1,
+            ),
           alignment: Alignment.center,
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: hasAttempted 
+                colors: hasAttempted
                     ? [Colors.grey.shade400, Colors.grey.shade500]
                     : [const Color(0xFFFB923C), const Color(0xFFF59E0B)],
               ),
@@ -433,7 +450,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
-                    hasAttempted ? '${challenge.points} points earned!' : 'Tap to answer (+${challenge.points} points)',
+                    hasAttempted
+                        ? '${challenge.points} points earned!'
+                        : 'Tap to answer (+${challenge.points} points)',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -463,22 +482,30 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            ...challenge.options.map<Widget>((option) => ListTile(
-              title: Text(option),
-              onTap: () {
-                Navigator.pop(context);
-                _submitChallengeAnswer(option, challenge.correctAnswer);
-              },
-            )),
+            ...challenge.options.map<Widget>(
+              (option) => ListTile(
+                title: Text(option),
+                onTap: () {
+                  Navigator.pop(context);
+                  _submitChallengeAnswer(option, challenge.correctAnswer);
+                },
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _submitChallengeAnswer(String answer, String correctAnswer) async {
+  Future<void> _submitChallengeAnswer(
+    String answer,
+    String correctAnswer,
+  ) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final studentProvider = Provider.of<StudentProvider>(context, listen: false);
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
 
     if (authProvider.currentUser == null) return;
 
@@ -491,8 +518,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isCorrect 
-                ? '🎉 Correct! You earned points!' 
+            isCorrect
+                ? '🎉 Correct! You earned points!'
                 : '❌ Incorrect. The correct answer is: $correctAnswer',
           ),
           backgroundColor: isCorrect ? Colors.green : Colors.red,
@@ -504,15 +531,15 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
 
   Widget _buildMonthlyTargetCard(bool isDark, double progress, double target) {
     final percentage = target > 0 ? (progress / target * 100).clamp(0, 100) : 0;
-    final testsNeeded = target > 0 ? (target - progress).clamp(0, target).toInt() : 0;
-    
+    final testsNeeded = target > 0
+        ? (target - progress).clamp(0, target).toInt()
+        : 0;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark 
-              ? Colors.grey.shade800.withOpacity(0.5)
-              : Colors.white,
+          color: isDark ? Colors.grey.shade800.withOpacity(0.5) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -577,7 +604,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                   child: LinearProgressIndicator(
                     value: _progressController.value * (percentage / 100),
                     minHeight: 8,
-                    backgroundColor: isDark 
+                    backgroundColor: isDark
                         ? Colors.grey.shade700
                         : Colors.grey.shade200,
                     valueColor: const AlwaysStoppedAnimation<Color>(
@@ -589,7 +616,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              testsNeeded > 0 
+              testsNeeded > 0
                   ? 'Complete $testsNeeded more test${testsNeeded > 1 ? 's' : ''} to reach your goal!'
                   : '🎉 Goal achieved! Keep it up!',
               style: TextStyle(
@@ -672,9 +699,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: isDark 
-              ? Colors.grey.shade800.withOpacity(0.5)
-              : Colors.white,
+          color: isDark ? Colors.grey.shade800.withOpacity(0.5) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -698,15 +723,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                         letterSpacing: 1.2,
                       ),
                     ),
-                    Icon(
-                      icon,
-                      color: iconColor,
-                      size: 20,
-                    ),
+                    Icon(icon, color: iconColor, size: 20),
                   ],
                 ),
                 const Spacer(),
@@ -728,7 +751,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                 ),
               ],
             ),
-            
+
             // Notification badge
             if (showBadge)
               Positioned(
@@ -764,7 +787,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
         },
         child: Container(
           decoration: BoxDecoration(
-            color: isDark 
+            color: isDark
                 ? Colors.grey.shade800.withOpacity(0.5)
                 : Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -820,7 +843,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                       'Analyze your performance',
                       style: TextStyle(
                         fontSize: 14,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                       ),
                     ),
                   ],
@@ -841,12 +866,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
   Widget _buildBottomNav(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark 
+        color: isDark
             ? Colors.grey.shade800.withOpacity(0.5)
             : Colors.white.withOpacity(0.7),
         border: Border(
           top: BorderSide(
-            color: isDark 
+            color: isDark
                 ? Colors.grey.shade700.withOpacity(0.8)
                 : Colors.grey.shade200.withOpacity(0.8),
           ),
@@ -911,8 +936,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
     final color = isSelected
         ? const Color(0xFFF59E0B)
         : isDark
-            ? Colors.grey.shade400
-            : Colors.grey.shade600;
+        ? Colors.grey.shade400
+        : Colors.grey.shade600;
 
     return InkWell(
       onTap: () => _onNavItemTapped(index),

@@ -6,12 +6,8 @@ class SendRewardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Send Reward'),
-      ),
-      body: const Center(
-        child: Text('Send Reward - Coming Soon'),
-      ),
+      appBar: AppBar(title: const Text('Send Reward')),
+      body: const Center(child: Text('Send Reward - Coming Soon')),
     );
   }
 }

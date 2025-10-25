@@ -15,20 +15,26 @@ class AuthService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // Sign in with email and password - ROLE BASED
-  Future<UserModel?> signInWithEmailPassword(String email, String password) async {
+  Future<UserModel?> signInWithEmailPassword(
+    String email,
+    String password,
+  ) async {
     try {
       final UserCredential result = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-      
+
       if (result.user != null) {
         // Try to find user in role-based collections first
-        final userFromRoleCollections = await _getUserFromRoleCollections(result.user!.uid, email);
+        final userFromRoleCollections = await _getUserFromRoleCollections(
+          result.user!.uid,
+          email,
+        );
         if (userFromRoleCollections != null) {
           return userFromRoleCollections;
         }
-        
+
         // Fallback to users collection
         return await _firestoreService.getUser(result.user!.uid);
       }
@@ -39,15 +45,19 @@ class AuthService {
   }
 
   // Search for user in role-based collections (teachers, students, principals, parents)
-  Future<UserModel?> _getUserFromRoleCollections(String uid, String email) async {
+  Future<UserModel?> _getUserFromRoleCollections(
+    String uid,
+    String email,
+  ) async {
     try {
       print('🔍 Searching for user with email: $email');
-      
+
       // Define collection-role mapping
       final collections = {
         'teachers': UserRole.teacher,
         'students': UserRole.student,
-        'principals': UserRole.institute, // Using 'institute' role for principals
+        'principals':
+            UserRole.institute, // Using 'institute' role for principals
         'parents': UserRole.parent,
       };
 
@@ -55,9 +65,9 @@ class AuthService {
       for (var entry in collections.entries) {
         final collectionName = entry.key;
         final role = entry.value;
-        
+
         print('  Checking $collectionName collection...');
-        
+
         // Try searching by 'email' field first
         var querySnapshot = await _firestore
             .collection(collectionName)
@@ -79,22 +89,31 @@ class AuthService {
           print('  ✅ Found user in $collectionName');
           final data = querySnapshot.docs.first.data();
           print('  📄 Document data: $data');
-          
+
           // Convert Firestore document to UserModel
           return UserModel(
             uid: uid, // Use Firebase Auth UID
             email: email,
-            name: data['teacherName'] ?? data['studentName'] ?? data['principalName'] ?? data['parentName'] ?? data['name'] ?? 'Unknown',
+            name:
+                data['teacherName'] ??
+                data['studentName'] ??
+                data['principalName'] ??
+                data['parentName'] ??
+                data['name'] ??
+                'Unknown',
             role: role,
             phone: data['phone']?.toString(),
-            profileImage: data['photoUrl']?.toString() ?? data['profileImage']?.toString(),
+            profileImage:
+                data['photoUrl']?.toString() ??
+                data['profileImage']?.toString(),
             instituteId: data['schoolId'] ?? data['schoolCode'],
-            createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            createdAt:
+                (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
             isActive: data['isActive'] ?? true,
           );
         }
       }
-      
+
       print('  ⚠️ User not found in any role collection');
       return null;
     } catch (e, stackTrace) {

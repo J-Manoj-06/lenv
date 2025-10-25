@@ -25,11 +25,7 @@ class StudentService {
 
   // Stream of student data (real-time updates)
   Stream<StudentModel?> getStudentStream(String uid) {
-    return _firestore
-        .collection('users')
-        .doc(uid)
-        .snapshots()
-        .map((doc) {
+    return _firestore.collection('users').doc(uid).snapshots().map((doc) {
       if (!doc.exists) return null;
       return StudentModel.fromFirestore(doc);
     });
@@ -47,13 +43,14 @@ class StudentService {
   }) async {
     try {
       final Map<String, dynamic> updates = {};
-      
+
       if (rewardPoints != null) updates['rewardPoints'] = rewardPoints;
       if (classRank != null) updates['classRank'] = classRank;
       if (monthlyProgress != null) updates['monthlyProgress'] = monthlyProgress;
       if (pendingTests != null) updates['pendingTests'] = pendingTests;
       if (completedTests != null) updates['completedTests'] = completedTests;
-      if (newNotifications != null) updates['newNotifications'] = newNotifications;
+      if (newNotifications != null)
+        updates['newNotifications'] = newNotifications;
 
       if (updates.isNotEmpty) {
         await _firestore.collection('users').doc(uid).update(updates);
@@ -89,7 +86,10 @@ class StudentService {
   }
 
   // Get student notifications
-  Future<List<NotificationModel>> getStudentNotifications(String studentId, {int limit = 10}) async {
+  Future<List<NotificationModel>> getStudentNotifications(
+    String studentId, {
+    int limit = 10,
+  }) async {
     try {
       final snapshot = await _firestore
           .collection('notifications')
@@ -126,10 +126,9 @@ class StudentService {
   // Mark notification as read
   Future<void> markNotificationAsRead(String notificationId) async {
     try {
-      await _firestore
-          .collection('notifications')
-          .doc(notificationId)
-          .update({'isRead': true});
+      await _firestore.collection('notifications').doc(notificationId).update({
+        'isRead': true,
+      });
     } catch (e) {
       print('Error marking notification as read: $e');
     }
@@ -166,11 +165,12 @@ class StudentService {
           .collection('dailyChallenges')
           .doc(challengeId)
           .get();
-      
+
       if (!challengeDoc.exists) return false;
-      
+
       final challenge = DailyChallengeModel.fromFirestore(challengeDoc);
-      final isCorrect = answer.toLowerCase() == challenge.correctAnswer.toLowerCase();
+      final isCorrect =
+          answer.toLowerCase() == challenge.correctAnswer.toLowerCase();
 
       // Record the attempt
       await _firestore.collection('challengeAttempts').add({
@@ -184,7 +184,10 @@ class StudentService {
 
       // If correct, update student points
       if (isCorrect) {
-        final studentDoc = await _firestore.collection('users').doc(studentId).get();
+        final studentDoc = await _firestore
+            .collection('users')
+            .doc(studentId)
+            .get();
         final currentPoints = studentDoc.data()?['rewardPoints'] ?? 0;
         await _firestore.collection('users').doc(studentId).update({
           'rewardPoints': currentPoints + challenge.points,
@@ -203,11 +206,14 @@ class StudentService {
     try {
       final today = DateTime.now();
       final startOfDay = DateTime(today.year, today.month, today.day);
-      
+
       final snapshot = await _firestore
           .collection('challengeAttempts')
           .where('studentId', isEqualTo: studentId)
-          .where('attemptedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where(
+            'attemptedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+          )
           .limit(1)
           .get();
 
@@ -245,7 +251,10 @@ class StudentService {
       final snapshot = await _firestore
           .collection('testResults')
           .where('studentId', isEqualTo: studentId)
-          .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+          .where(
+            'completedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
+          )
           .get();
 
       if (snapshot.docs.isEmpty) return 0.0;
@@ -266,7 +275,10 @@ class StudentService {
   // Get a specific test result by its document id
   Future<TestResultModel?> getTestResultById(String resultId) async {
     try {
-      final doc = await _firestore.collection('testResults').doc(resultId).get();
+      final doc = await _firestore
+          .collection('testResults')
+          .doc(resultId)
+          .get();
       if (!doc.exists) return null;
       return TestResultModel.fromFirestore(doc);
     } catch (e) {

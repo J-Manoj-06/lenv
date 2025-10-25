@@ -4,7 +4,7 @@ import '../services/firestore_service.dart';
 
 class TestProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
-  
+
   List<TestModel> _tests = [];
   TestModel? _selectedTest;
   bool _isLoading = false;
@@ -39,18 +39,20 @@ class TestProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    _firestoreService.getTestsByTeacher(teacherId).listen(
-      (tests) {
-        _tests = tests;
-        _isLoading = false;
-        notifyListeners();
-      },
-      onError: (error) {
-        _errorMessage = error.toString();
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
+    _firestoreService
+        .getTestsByTeacher(teacherId)
+        .listen(
+          (tests) {
+            _tests = tests;
+            _isLoading = false;
+            notifyListeners();
+          },
+          onError: (error) {
+            _errorMessage = error.toString();
+            _isLoading = false;
+            notifyListeners();
+          },
+        );
   }
 
   // Load available tests for student
@@ -58,18 +60,20 @@ class TestProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    _firestoreService.getAvailableTestsForStudent(studentId).listen(
-      (tests) {
-        _tests = tests;
-        _isLoading = false;
-        notifyListeners();
-      },
-      onError: (error) {
-        _errorMessage = error.toString();
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
+    _firestoreService
+        .getAvailableTestsForStudent(studentId)
+        .listen(
+          (tests) {
+            _tests = tests;
+            _isLoading = false;
+            notifyListeners();
+          },
+          onError: (error) {
+            _errorMessage = error.toString();
+            _isLoading = false;
+            notifyListeners();
+          },
+        );
   }
 
   // Select test

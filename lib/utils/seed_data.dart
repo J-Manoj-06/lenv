@@ -10,7 +10,7 @@ class FirestoreSeedData {
   static Future<void> seedSchools() async {
     try {
       print('🏫 Seeding schools data...');
-      
+
       final schools = [
         {
           'id': 'sunrise',
@@ -27,7 +27,10 @@ class FirestoreSeedData {
       ];
 
       for (var school in schools) {
-        await _firestore.collection('schools').doc(school['id'] as String).set(school);
+        await _firestore
+            .collection('schools')
+            .doc(school['id'] as String)
+            .set(school);
         print('  ✓ Created school: ${school['name']}');
       }
 
@@ -95,7 +98,8 @@ class FirestoreSeedData {
   /// Create today's daily challenge
   static Future<void> _seedDailyChallenge() async {
     final today = DateTime.now();
-    final dateKey = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final dateKey =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
     await _firestore.collection('dailyChallenges').doc(dateKey).set({
       'date': Timestamp.fromDate(DateTime(today.year, today.month, today.day)),
@@ -118,7 +122,9 @@ class FirestoreSeedData {
         'message': 'Mathematics Quiz #5 is now available. Due: Tomorrow',
         'type': 'test',
         'isRead': false,
-        'createdAt': Timestamp.fromDate(DateTime.now().subtract(const Duration(hours: 2))),
+        'createdAt': Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(hours: 2)),
+        ),
       },
       {
         'studentId': studentUid,
@@ -126,7 +132,9 @@ class FirestoreSeedData {
         'message': 'Don\'t forget to complete today\'s daily challenge!',
         'type': 'challenge',
         'isRead': false,
-        'createdAt': Timestamp.fromDate(DateTime.now().subtract(const Duration(hours: 5))),
+        'createdAt': Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(hours: 5)),
+        ),
       },
       {
         'studentId': studentUid,
@@ -134,7 +142,9 @@ class FirestoreSeedData {
         'message': '🎉 You earned the "5-Day Streak" badge!',
         'type': 'achievement',
         'isRead': false,
-        'createdAt': Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 1))),
+        'createdAt': Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(days: 1)),
+        ),
       },
       {
         'studentId': studentUid,
@@ -142,7 +152,9 @@ class FirestoreSeedData {
         'message': 'Your score for Science Quiz #3 is now available',
         'type': 'result',
         'isRead': true,
-        'createdAt': Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 2))),
+        'createdAt': Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(days: 2)),
+        ),
       },
     ];
 
@@ -162,7 +174,9 @@ class FirestoreSeedData {
         'duration': 45,
         'totalQuestions': 20,
         'totalPoints': 100,
-        'dueDate': Timestamp.fromDate(DateTime.now().add(const Duration(days: 1))),
+        'dueDate': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 1)),
+        ),
         'status': 'active',
         'createdAt': FieldValue.serverTimestamp(),
       },
@@ -174,7 +188,9 @@ class FirestoreSeedData {
         'duration': 60,
         'totalQuestions': 25,
         'totalPoints': 100,
-        'dueDate': Timestamp.fromDate(DateTime.now().add(const Duration(days: 3))),
+        'dueDate': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 3)),
+        ),
         'status': 'active',
         'createdAt': FieldValue.serverTimestamp(),
       },
@@ -186,7 +202,9 @@ class FirestoreSeedData {
         'duration': 90,
         'totalQuestions': 5,
         'totalPoints': 100,
-        'dueDate': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+        'dueDate': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 7)),
+        ),
         'status': 'active',
         'createdAt': FieldValue.serverTimestamp(),
       },
@@ -208,7 +226,9 @@ class FirestoreSeedData {
         'score': 88,
         'totalPoints': 100,
         'percentage': 88.0,
-        'completedAt': Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 3))),
+        'completedAt': Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(days: 3)),
+        ),
         'createdAt': FieldValue.serverTimestamp(),
         // Detailed breakdown for UI
         'questions': [
@@ -253,7 +273,9 @@ class FirestoreSeedData {
         'score': 92,
         'totalPoints': 100,
         'percentage': 92.0,
-        'completedAt': Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 7))),
+        'completedAt': Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(days: 7)),
+        ),
         'createdAt': FieldValue.serverTimestamp(),
         'questions': [
           {
@@ -289,7 +311,9 @@ class FirestoreSeedData {
         'score': 75,
         'totalPoints': 100,
         'percentage': 75.0,
-        'completedAt': Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 10))),
+        'completedAt': Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(days: 10)),
+        ),
         'createdAt': FieldValue.serverTimestamp(),
         'questions': [
           {

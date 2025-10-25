@@ -83,7 +83,10 @@ class RoleSelectionScreen extends StatelessWidget {
                                 icon: Icons.school_rounded,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.student);
-                                  Navigator.pushNamed(context, '/student-login');
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/student-login',
+                                  );
                                 },
                               ),
                             ),
@@ -96,7 +99,10 @@ class RoleSelectionScreen extends StatelessWidget {
                                 icon: Icons.menu_book_rounded,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.teacher);
-                                  Navigator.pushNamed(context, '/teacher-login');
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/teacher-login',
+                                  );
                                 },
                               ),
                             ),
@@ -213,7 +219,9 @@ class RoleSelectionScreen extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF2D2D2D), // Dark gray text for better readability
+                color: Color(
+                  0xFF2D2D2D,
+                ), // Dark gray text for better readability
               ),
             ),
           ],

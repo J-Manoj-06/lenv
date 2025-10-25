@@ -96,7 +96,11 @@ class StudentPerformanceScreen extends StatelessWidget {
                             color: Colors.grey[300],
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(Icons.person, size: 32, color: Colors.grey[600]),
+                          child: Icon(
+                            Icons.person,
+                            size: 32,
+                            color: Colors.grey[600],
+                          ),
                         );
                       },
                     ),
@@ -201,10 +205,7 @@ class StudentPerformanceScreen extends StatelessWidget {
           const SizedBox(height: 4),
           const Text(
             'vs. last 6 months',
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 24),
           _buildChart(),
@@ -212,12 +213,30 @@ class StudentPerformanceScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text('Jan', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-              Text('Feb', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-              Text('Mar', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-              Text('Apr', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-              Text('May', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-              Text('Jun', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+              Text(
+                'Jan',
+                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              ),
+              Text(
+                'Feb',
+                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              ),
+              Text(
+                'Mar',
+                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              ),
+              Text(
+                'Apr',
+                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              ),
+              Text(
+                'May',
+                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              ),
+              Text(
+                'Jun',
+                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              ),
             ],
           ),
         ],
@@ -350,9 +369,9 @@ class StudentPerformanceScreen extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Viewing test: $title')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Viewing test: $title')));
       },
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -384,7 +403,10 @@ class StudentPerformanceScreen extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: badgeBgColor,
                     borderRadius: BorderRadius.circular(20),
@@ -399,10 +421,7 @@ class StudentPerformanceScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right,
-                  color: Colors.grey[400],
-                ),
+                Icon(Icons.chevron_right, color: Colors.grey[400]),
               ],
             ),
           ],
@@ -412,11 +431,7 @@ class StudentPerformanceScreen extends StatelessWidget {
   }
 
   Widget _buildAreasForImprovement() {
-    final areas = [
-      'Cellular Respiration',
-      'Genetics',
-      'Lab Reports',
-    ];
+    final areas = ['Cellular Respiration', 'Genetics', 'Lab Reports'];
 
     return Container(
       decoration: BoxDecoration(
@@ -448,7 +463,10 @@ class StudentPerformanceScreen extends StatelessWidget {
             runSpacing: 8,
             children: areas.map((area) {
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFED7AA),
                   borderRadius: BorderRadius.circular(20),

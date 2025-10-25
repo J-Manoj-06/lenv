@@ -20,7 +20,10 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _currentUser = await _authService.signInWithEmailPassword(email, password);
+      _currentUser = await _authService.signInWithEmailPassword(
+        email,
+        password,
+      );
       _isLoading = false;
       notifyListeners();
       return _currentUser != null;

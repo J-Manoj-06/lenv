@@ -30,9 +30,11 @@ class FirestoreService {
         .where('role', isEqualTo: role.toString().split('.').last)
         .where('instituteId', isEqualTo: instituteId)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => UserModel.fromJson(doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => UserModel.fromJson(doc.data()))
+              .toList(),
+        );
   }
 
   // Test Operations
@@ -63,9 +65,11 @@ class FirestoreService {
         .where('teacherId', isEqualTo: teacherId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => TestModel.fromJson(doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => TestModel.fromJson(doc.data()))
+              .toList(),
+        );
   }
 
   Stream<List<TestModel>> getAvailableTestsForStudent(String studentId) {
@@ -74,9 +78,11 @@ class FirestoreService {
         .where('assignedStudentIds', arrayContains: studentId)
         .where('status', isEqualTo: 'published')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => TestModel.fromJson(doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => TestModel.fromJson(doc.data()))
+              .toList(),
+        );
   }
 
   // Reward Operations
@@ -95,9 +101,11 @@ class FirestoreService {
         .where('studentId', isEqualTo: studentId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => RewardModel.fromJson(doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => RewardModel.fromJson(doc.data()))
+              .toList(),
+        );
   }
 
   // Performance Operations
@@ -117,11 +125,7 @@ class FirestoreService {
   }
 
   Stream<PerformanceModel?> getPerformanceStream(String studentId) {
-    return _db
-        .collection('performances')
-        .doc(studentId)
-        .snapshots()
-        .map((doc) {
+    return _db.collection('performances').doc(studentId).snapshots().map((doc) {
       if (doc.exists) {
         return PerformanceModel.fromJson(doc.data()!);
       }
@@ -135,8 +139,10 @@ class FirestoreService {
         .collection('performances')
         .where('instituteId', isEqualTo: instituteId)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => PerformanceModel.fromJson(doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => PerformanceModel.fromJson(doc.data()))
+              .toList(),
+        );
   }
 }

@@ -8,10 +8,12 @@ class StudentTestResultScreen extends StatefulWidget {
   const StudentTestResultScreen({super.key, required this.resultId});
 
   @override
-  State<StudentTestResultScreen> createState() => _StudentTestResultScreenState();
+  State<StudentTestResultScreen> createState() =>
+      _StudentTestResultScreenState();
 }
 
-class _StudentTestResultScreenState extends State<StudentTestResultScreen> with SingleTickerProviderStateMixin {
+class _StudentTestResultScreenState extends State<StudentTestResultScreen>
+    with SingleTickerProviderStateMixin {
   final StudentService _service = StudentService();
   late Future<TestResultModel?> _future;
   late AnimationController _ringController;
@@ -20,7 +22,10 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
   void initState() {
     super.initState();
     _future = _service.getTestResultById(widget.resultId);
-    _ringController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..forward();
+    _ringController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..forward();
   }
 
   @override
@@ -66,27 +71,47 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
                 const SizedBox(height: 16),
                 _buildTrophyBanner(pct),
                 const SizedBox(height: 16),
-                Text('${result.testTitle} • ${result.subject} • $dateStr',
-                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                Text(
+                  '${result.testTitle} • ${result.subject} • $dateStr',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
                 const SizedBox(height: 24),
-                Text('Question Breakdown',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                Text(
+                  'Question Breakdown',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 ...result.questions.map((q) => _buildQuestionTile(isDark, q)),
                 const SizedBox(height: 24),
-                Text('Badges Earned',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                Text(
+                  'Badges Earned',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
-                  children: result.badges
-                      .map((b) => _badgeChip(b))
-                      .toList(),
+                  children: result.badges.map((b) => _badgeChip(b)).toList(),
                 ),
                 const SizedBox(height: 24),
-                Text('SWOT Summary',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                Text(
+                  'SWOT Summary',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 _buildSwotGrid(isDark, result.swot),
               ],
@@ -132,7 +157,7 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
                   color: isDark ? Colors.white : Colors.black,
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -149,21 +174,38 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
             color: const Color(0xFFFFEDD5),
             borderRadius: BorderRadius.circular(999),
             boxShadow: const [
-              BoxShadow(color: Color(0xFFFFF3C4), blurRadius: 20, spreadRadius: 5),
+              BoxShadow(
+                color: Color(0xFFFFF3C4),
+                blurRadius: 20,
+                spreadRadius: 5,
+              ),
             ],
           ),
           padding: const EdgeInsets.all(6),
           child: Container(
             decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFF2800D)]),
+              gradient: LinearGradient(
+                colors: [Color(0xFFF59E0B), Color(0xFFF2800D)],
+              ),
               shape: BoxShape.circle,
             ),
             padding: const EdgeInsets.all(12),
-            child: const Icon(Icons.emoji_events, color: Colors.white, size: 32),
+            child: const Icon(
+              Icons.emoji_events,
+              color: Colors.white,
+              size: 32,
+            ),
           ),
         ),
         const SizedBox(width: 12),
-        const Text('Top Scorer!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFF97316))),
+        const Text(
+          'Top Scorer!',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFF97316),
+          ),
+        ),
       ],
     );
   }
@@ -174,11 +216,22 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
     return Card(
       color: isDark ? Colors.grey.shade900 : Colors.white,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+        ),
+      ),
       child: ExpansionTile(
         initiallyExpanded: q.index == 1,
         leading: Icon(icon, color: iconColor),
-        title: Text(q.questionTitle, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w600)),
+        title: Text(
+          q.questionTitle,
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
           _kvRow(isDark, 'Your Answer', q.yourAnswer),
@@ -195,8 +248,17 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
       child: RichText(
         text: TextSpan(
           children: [
-            TextSpan(text: '$k: ', style: TextStyle(fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black)),
-            TextSpan(text: v, style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+            TextSpan(
+              text: '$k: ',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+            TextSpan(
+              text: v,
+              style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+            ),
           ],
         ),
       ),
@@ -206,9 +268,17 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
   Widget _badgeChip(String label) {
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFF2800D)]),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF59E0B), Color(0xFFF2800D)],
+        ),
         borderRadius: BorderRadius.circular(999),
-        boxShadow: const [BoxShadow(color: Color(0x33F59E0B), blurRadius: 8, offset: Offset(0, 2))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33F59E0B),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Row(
@@ -216,7 +286,13 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
         children: [
           const Icon(Icons.workspace_premium, color: Colors.white, size: 18),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -226,7 +302,12 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
     return GridView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.8,
+      ),
       children: [
         _swotCell(isDark, 'Strengths', swot.strengths, Colors.green),
         _swotCell(isDark, 'Weaknesses', swot.weaknesses, Colors.red),
@@ -241,15 +322,27 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
       decoration: BoxDecoration(
         color: isDark ? Colors.grey.shade900 : const Color(0xFFFAFAFA),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+        ),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+          Text(
+            title,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 6),
-          Text(value, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            value,
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -259,7 +352,11 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
     return Container(
       decoration: BoxDecoration(
         color: isDark ? Colors.black : Colors.white,
-        border: Border(top: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300)),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+          ),
+        ),
       ),
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -268,7 +365,11 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen> with 
           _NavItem(icon: Icons.home, label: 'Home', selected: false),
           _NavItem(icon: Icons.description, label: 'Tests', selected: true),
           _NavItem(icon: Icons.emoji_events, label: 'Rewards', selected: false),
-          _NavItem(icon: Icons.leaderboard, label: 'Leaderboard', selected: false),
+          _NavItem(
+            icon: Icons.leaderboard,
+            label: 'Leaderboard',
+            selected: false,
+          ),
           _NavItem(icon: Icons.person, label: 'Profile', selected: false),
         ],
       ),
@@ -280,7 +381,11 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
-  const _NavItem({required this.icon, required this.label, required this.selected});
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -290,7 +395,14 @@ class _NavItem extends StatelessWidget {
       children: [
         Icon(icon, color: color),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }

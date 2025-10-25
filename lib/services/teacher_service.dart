@@ -21,7 +21,7 @@ class TeacherService {
         print('   section: ${data['section']}');
         return data;
       }
-      
+
       print('⚠️ No teacher found with email: $email');
       return null;
     } catch (e) {
@@ -44,14 +44,20 @@ class TeacherService {
         return [];
       }
 
-      print('📚 Fetching students for classes: $classesHandled and sections: $sections');
-      
+      print(
+        '📚 Fetching students for classes: $classesHandled and sections: $sections',
+      );
+
       // Keep the full className format as it appears in Firestore (e.g., "Grade 5")
       String className = classesHandled[0].toString();
-      
+
       // Parse sections from string
       final sectionsStr = sections ?? '';
-      final sectionList = sectionsStr.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      final sectionList = sectionsStr
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
 
       print('  Class: $className, Sections: $sectionList');
 
@@ -61,20 +67,22 @@ class TeacherService {
       // NOTE: Using 'schoolCode' and 'className' to match actual Firestore field names
       for (var section in sectionList) {
         if (section.isEmpty) continue;
-        
+
         print('  🔍 Querying section: $section');
         print('     WHERE schoolCode == "$schoolId"');
         print('     AND className == "$className"');
         print('     AND section == "$section"');
-        
+
         final querySnapshot = await _firestore
             .collection('students')
             .where('schoolCode', isEqualTo: schoolId)
             .where('className', isEqualTo: className)
             .where('section', isEqualTo: section)
             .get();
-        
-        print('     ✅ Found ${querySnapshot.docs.length} students in section $section');
+
+        print(
+          '     ✅ Found ${querySnapshot.docs.length} students in section $section',
+        );
 
         for (var doc in querySnapshot.docs) {
           final studentData = doc.data();
@@ -106,9 +114,13 @@ class TeacherService {
       }
 
       print('📚 Fetching students for subjects: $subjectsHandled');
-      
-      final students = await getStudentsByTeacher(schoolId, classesHandled, sections);
-      
+
+      final students = await getStudentsByTeacher(
+        schoolId,
+        classesHandled,
+        sections,
+      );
+
       // Filter students who take the teacher's subjects
       // (In a real system, you'd have a student-subject mapping)
       print('✅ Found ${students.length} students taking subjects');
@@ -126,12 +138,18 @@ class TeacherService {
     String? sections,
   ) async {
     try {
-      final students = await getStudentsByTeacher(schoolId, classesHandled, sections);
-      
+      final students = await getStudentsByTeacher(
+        schoolId,
+        classesHandled,
+        sections,
+      );
+
       return {
         'totalStudents': students.length,
         'activeStudents': students.where((s) => s['isActive'] == true).length,
-        'grades': classesHandled?.isNotEmpty == true ? classesHandled![0] : 'N/A',
+        'grades': classesHandled?.isNotEmpty == true
+            ? classesHandled![0]
+            : 'N/A',
         'sections': sections ?? 'N/A',
       };
     } catch (e) {
@@ -148,29 +166,38 @@ class TeacherService {
   /// Get teacher's classes formatted for dropdown
   /// Input: classesHandled=["Grade 5"], sections="A, B, C"
   /// Output: ["5 - A", "5 - B", "5 - C"]
-  List<String> getTeacherClasses(List<dynamic>? classesHandled, String? sections) {
+  List<String> getTeacherClasses(
+    List<dynamic>? classesHandled,
+    String? sections,
+  ) {
     try {
       if (classesHandled == null || classesHandled.isEmpty) {
         print('⚠️ No classesHandled data');
         return [];
       }
-      
-      print('📋 Formatting classes from: $classesHandled and sections: $sections');
-      
+
+      print(
+        '📋 Formatting classes from: $classesHandled and sections: $sections',
+      );
+
       // Extract grade/standard (could be "Grade 5" or just "5")
       String grade = classesHandled[0].toString();
       grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
-      
+
       // Use the separate sections parameter instead of classesHandled[1]
       final sectionsStr = sections ?? '';
-      final sectionList = sectionsStr.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      final sectionList = sectionsStr
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
 
       print('  Grade: $grade');
       print('  Sections: $sectionList');
 
       final result = sectionList.map((section) => '$grade - $section').toList();
       print('✅ Formatted classes: $result');
-      
+
       return result;
     } catch (e) {
       print('❌ Error formatting classes: $e');

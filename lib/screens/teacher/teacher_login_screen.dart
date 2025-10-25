@@ -16,7 +16,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   String? _selectedSchool;
   bool _isPasswordVisible = false;
   bool _isLoading = false;
@@ -44,7 +44,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
       _isLoadingSchools = true;
       _schoolLoadError = null;
     });
-    
+
     try {
       final schools = await _schoolService.fetchSchools();
       if (mounted) {
@@ -52,7 +52,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
           _schools = schools;
           _isLoadingSchools = false;
         });
-        
+
         if (schools.isEmpty) {
           setState(() {
             _schoolLoadError = 'No schools found. Please contact admin.';
@@ -101,25 +101,27 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
         }
       } else {
         String errorMsg = authProvider.errorMessage ?? 'Login failed';
-        
+
         // Provide user-friendly error messages
         if (errorMsg.contains('network')) {
-          errorMsg = 'Network error. Please check your internet connection and try again.';
-        } else if (errorMsg.contains('user-not-found') || errorMsg.contains('wrong-password')) {
+          errorMsg =
+              'Network error. Please check your internet connection and try again.';
+        } else if (errorMsg.contains('user-not-found') ||
+            errorMsg.contains('wrong-password')) {
           errorMsg = 'Invalid email or password';
         } else if (errorMsg.contains('too-many-requests')) {
           errorMsg = 'Too many failed attempts. Please try again later.';
         }
-        
+
         _showErrorSnackBar(errorMsg);
       }
     } catch (e) {
       String errorMsg = 'Login failed: ${e.toString()}';
-      
+
       if (errorMsg.contains('network')) {
         errorMsg = 'Network error. Please check your internet connection.';
       }
-      
+
       _showErrorSnackBar(errorMsg);
     } finally {
       if (mounted) {
@@ -146,7 +148,9 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final success = await authProvider.resetPassword(_emailController.text.trim());
+    final success = await authProvider.resetPassword(
+      _emailController.text.trim(),
+    );
 
     if (success) {
       if (mounted) {
@@ -155,7 +159,9 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
             content: const Text('Password reset email sent! Check your inbox.'),
             backgroundColor: Colors.green.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -188,29 +194,29 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
                     children: [
                       // Logo and Title
                       _buildHeader(),
-                      
+
                       const SizedBox(height: 32),
-                      
+
                       // School Dropdown
                       _buildSchoolDropdown(),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Email Field
                       _buildEmailField(),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Password Field
                       _buildPasswordField(),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Login Button
                       _buildLoginButton(),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Forgot Password Link
                       _buildForgotPasswordLink(),
                     ],
@@ -249,15 +255,11 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
               ),
             ],
           ),
-          child: const Icon(
-            Icons.school,
-            color: Colors.white,
-            size: 40,
-          ),
+          child: const Icon(Icons.school, color: Colors.white, size: 40),
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // LenV Title
         const Text(
           'LenV',
@@ -267,9 +269,9 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
             color: Color(0xFF1F2937), // Gray 800
           ),
         ),
-        
+
         const SizedBox(height: 8),
-        
+
         // Teacher Login Subtitle
         Text(
           'Teacher Login',
@@ -298,8 +300,8 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
         DropdownButtonFormField<String>(
           value: _selectedSchool,
           decoration: InputDecoration(
-            hintText: _isLoadingSchools 
-                ? 'Loading schools...' 
+            hintText: _isLoadingSchools
+                ? 'Loading schools...'
                 : 'Select your school',
             hintStyle: TextStyle(color: Colors.grey[400]),
             filled: true,
@@ -316,9 +318,12 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
           ),
-          icon: _isLoadingSchools 
+          icon: _isLoadingSchools
               ? const SizedBox(
                   width: 20,
                   height: 20,
@@ -326,14 +331,13 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
                 )
               : const Icon(Icons.arrow_drop_down, color: Color(0xFF6366F1)),
           items: _schools
-              .map((s) => DropdownMenuItem(
-                    value: s.id,
-                    child: Text(s.name),
-                  ))
+              .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
               .toList(),
-          onChanged: _isLoadingSchools ? null : (value) {
-            setState(() => _selectedSchool = value);
-          },
+          onChanged: _isLoadingSchools
+              ? null
+              : (value) {
+                  setState(() => _selectedSchool = value);
+                },
           validator: (value) {
             if (value == null || value.isEmpty) {
               return 'Please select your school';
@@ -374,7 +378,10 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF6366F1)),
       ),
       validator: (value) {
@@ -418,11 +425,16 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF6366F1)),
         suffixIcon: IconButton(
           icon: Icon(
-            _isPasswordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            _isPasswordVisible
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
             color: Colors.grey[600],
           ),
           onPressed: () {
@@ -468,10 +480,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
               )
             : const Text(
                 'Login',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
       ),
     );
@@ -480,15 +489,10 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   Widget _buildForgotPasswordLink() {
     return TextButton(
       onPressed: _handleForgotPassword,
-      style: TextButton.styleFrom(
-        foregroundColor: Colors.grey[600],
-      ),
+      style: TextButton.styleFrom(foregroundColor: Colors.grey[600]),
       child: Text(
         'Forgot Password?',
-        style: TextStyle(
-          fontSize: 14,
-          color: Colors.grey[600],
-        ),
+        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
       ),
     );
   }

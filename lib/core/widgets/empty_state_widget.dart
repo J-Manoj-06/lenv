@@ -22,27 +22,16 @@ class EmptyStateWidget extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null)
-              Icon(
-                icon,
-                size: 80,
-                color: Colors.grey.shade400,
-              ),
+            if (icon != null) Icon(icon, size: 80, color: Colors.grey.shade400),
             const SizedBox(height: 16),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
             ),
             if (actionText != null && onAction != null) ...[
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: onAction,
-                child: Text(actionText!),
-              ),
+              ElevatedButton(onPressed: onAction, child: Text(actionText!)),
             ],
           ],
         ),

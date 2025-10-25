@@ -4,7 +4,7 @@ import '../services/firestore_service.dart';
 
 class RewardProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
-  
+
   List<RewardModel> _rewards = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -37,18 +37,20 @@ class RewardProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    _firestoreService.getRewardsByStudent(studentId).listen(
-      (rewards) {
-        _rewards = rewards;
-        _isLoading = false;
-        notifyListeners();
-      },
-      onError: (error) {
-        _errorMessage = error.toString();
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
+    _firestoreService
+        .getRewardsByStudent(studentId)
+        .listen(
+          (rewards) {
+            _rewards = rewards;
+            _isLoading = false;
+            notifyListeners();
+          },
+          onError: (error) {
+            _errorMessage = error.toString();
+            _isLoading = false;
+            notifyListeners();
+          },
+        );
   }
 
   // Accept reward

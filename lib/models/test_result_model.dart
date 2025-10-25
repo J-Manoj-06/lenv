@@ -29,13 +29,13 @@ class QuestionResult {
   }
 
   Map<String, dynamic> toMap() => {
-        'index': index,
-        'questionTitle': questionTitle,
-        'yourAnswer': yourAnswer,
-        'correctAnswer': correctAnswer,
-        'notes': notes,
-        'isCorrect': isCorrect,
-      };
+    'index': index,
+    'questionTitle': questionTitle,
+    'yourAnswer': yourAnswer,
+    'correctAnswer': correctAnswer,
+    'notes': notes,
+    'isCorrect': isCorrect,
+  };
 }
 
 class SwotSummary {
@@ -62,11 +62,11 @@ class SwotSummary {
   }
 
   Map<String, dynamic> toMap() => {
-        'strengths': strengths,
-        'weaknesses': weaknesses,
-        'opportunities': opportunities,
-        'threats': threats,
-      };
+    'strengths': strengths,
+    'weaknesses': weaknesses,
+    'opportunities': opportunities,
+    'threats': threats,
+  };
 }
 
 class TestResultModel {
@@ -98,7 +98,9 @@ class TestResultModel {
     required this.swot,
   });
 
-  factory TestResultModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory TestResultModel.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data() ?? {};
     return TestResultModel(
       id: doc.id,
@@ -109,26 +111,31 @@ class TestResultModel {
       score: (data['score'] ?? 0) as int,
       totalPoints: (data['totalPoints'] ?? 0) as int,
       percentage: (data['percentage'] ?? 0).toDouble(),
-      completedAt: (data['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      completedAt:
+          (data['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       questions: ((data['questions'] ?? []) as List)
-          .map((q) => QuestionResult.fromMap(Map<String, dynamic>.from(q as Map)))
+          .map(
+            (q) => QuestionResult.fromMap(Map<String, dynamic>.from(q as Map)),
+          )
           .toList(),
-      badges: ((data['badges'] ?? []) as List).map((e) => e.toString()).toList(),
+      badges: ((data['badges'] ?? []) as List)
+          .map((e) => e.toString())
+          .toList(),
       swot: SwotSummary.fromMap(data['swot'] as Map<String, dynamic>?),
     );
   }
 
   Map<String, dynamic> toFirestore() => {
-        'studentId': studentId,
-        'testId': testId,
-        'testTitle': testTitle,
-        'subject': subject,
-        'score': score,
-        'totalPoints': totalPoints,
-        'percentage': percentage,
-        'completedAt': Timestamp.fromDate(completedAt),
-        'questions': questions.map((q) => q.toMap()).toList(),
-        'badges': badges,
-        'swot': swot.toMap(),
-      };
+    'studentId': studentId,
+    'testId': testId,
+    'testTitle': testTitle,
+    'subject': subject,
+    'score': score,
+    'totalPoints': totalPoints,
+    'percentage': percentage,
+    'completedAt': Timestamp.fromDate(completedAt),
+    'questions': questions.map((q) => q.toMap()).toList(),
+    'badges': badges,
+    'swot': swot.toMap(),
+  };
 }

@@ -13,7 +13,7 @@ class ClassesScreen extends StatefulWidget {
 class _ClassesScreenState extends State<ClassesScreen> {
   bool isGridView = true;
   int selectedNavIndex = 1; // Classes is selected
-  
+
   final TeacherService _teacherService = TeacherService();
   List<ClassItem> _classes = [];
   bool _isLoading = true;
@@ -44,8 +44,10 @@ class _ClassesScreenState extends State<ClassesScreen> {
       }
 
       // Fetch teacher data
-      final teacherData = await _teacherService.getTeacherByEmail(currentUser.email);
-      
+      final teacherData = await _teacherService.getTeacherByEmail(
+        currentUser.email,
+      );
+
       if (teacherData == null) {
         setState(() {
           _error = 'Teacher data not found';
@@ -62,27 +64,33 @@ class _ClassesScreenState extends State<ClassesScreen> {
 
       // Get students for each class and create ClassItem objects
       final classes = <ClassItem>[];
-      final grade = teacherData['classesHandled']?[0]?.toString().replaceAll('Grade ', '').trim() ?? '';
-      final schoolId = currentUser.instituteId ?? teacherData['schoolCode'] ?? '';
+      final grade =
+          teacherData['classesHandled']?[0]
+              ?.toString()
+              .replaceAll('Grade ', '')
+              .trim() ??
+          '';
+      final schoolId =
+          currentUser.instituteId ?? teacherData['schoolCode'] ?? '';
 
       for (var className in classNames) {
         // Extract section from className (e.g., "5 - A" -> "A")
         final section = className.split(' - ').last.trim();
-        
-        // Query students for this specific class and section
-        final students = await _teacherService.getStudentsByTeacher(
-          schoolId,
-          [grade],
-          section,
-        );
 
-        classes.add(ClassItem(
-          name: 'Grade $className',
-          studentCount: students.length,
-          averageScore: 0, // Will calculate from test results later
-          section: section,
-          grade: grade,
-        ));
+        // Query students for this specific class and section
+        final students = await _teacherService.getStudentsByTeacher(schoolId, [
+          grade,
+        ], section);
+
+        classes.add(
+          ClassItem(
+            name: 'Grade $className',
+            studentCount: students.length,
+            averageScore: 0, // Will calculate from test results later
+            section: section,
+            grade: grade,
+          ),
+        );
       }
 
       setState(() {
@@ -121,30 +129,28 @@ class _ClassesScreenState extends State<ClassesScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text(_error!),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadClasses,
-                        child: const Text('Retry'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(_error!),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadClasses,
+                    child: const Text('Retry'),
                   ),
-                )
-              : Column(
-                  children: [
-                    _buildHeader(),
-                    _buildViewToggle(),
-                    Expanded(
-                      child: _buildClassesList(),
-                    ),
-                  ],
-                ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                _buildHeader(),
+                _buildViewToggle(),
+                Expanded(child: _buildClassesList()),
+              ],
+            ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -399,7 +405,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.group, size: 16, color: Color(0xFF6B7280)),
+                      const Icon(
+                        Icons.group,
+                        size: 16,
+                        color: Color(0xFF6B7280),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${classItem.studentCount} Students',
@@ -420,7 +430,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
                         _enterClass(classItem);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1), // Indigo color
+                        backgroundColor: const Color(
+                          0xFF6366F1,
+                        ), // Indigo color
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(
@@ -463,7 +475,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
         children: [
           // Gradient section indicator
           ClipRRect(
-            borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(16),
+            ),
             child: Container(
               width: 100,
               height: 120,
@@ -504,7 +518,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.group, size: 14, color: Color(0xFF6B7280)),
+                      const Icon(
+                        Icons.group,
+                        size: 14,
+                        color: Color(0xFF6B7280),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${classItem.studentCount} Students',
@@ -553,9 +571,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF4F7F9).withOpacity(0.8),
-        border: Border(
-          top: BorderSide(color: Colors.grey[200]!),
-        ),
+        border: Border(top: BorderSide(color: Colors.grey[200]!)),
       ),
       child: SafeArea(
         child: SizedBox(
@@ -563,10 +579,18 @@ class _ClassesScreenState extends State<ClassesScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(icon: Icons.dashboard, label: 'Dashboard', index: 0),
+              _buildNavItem(
+                icon: Icons.dashboard,
+                label: 'Dashboard',
+                index: 0,
+              ),
               _buildNavItem(icon: Icons.school, label: 'Classes', index: 1),
               _buildNavItem(icon: Icons.quiz, label: 'Tests', index: 2),
-              _buildNavItem(icon: Icons.leaderboard, label: 'Leaderboard', index: 3),
+              _buildNavItem(
+                icon: Icons.leaderboard,
+                label: 'Leaderboard',
+                index: 3,
+              ),
               _buildNavItem(icon: Icons.person, label: 'Profile', index: 4),
             ],
           ),
@@ -581,7 +605,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
     required int index,
   }) {
     final isSelected = selectedNavIndex == index;
-    final color = isSelected ? const Color(0xFF6366F1) : const Color(0xFF6B7280);
+    final color = isSelected
+        ? const Color(0xFF6366F1)
+        : const Color(0xFF6B7280);
 
     return InkWell(
       onTap: () {
@@ -622,7 +648,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Add New Class'),
-        content: const Text('This feature will allow you to create a new class.'),
+        content: const Text(
+          'This feature will allow you to create a new class.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -646,11 +674,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
   }
 
   void _enterClass(ClassItem classItem) {
-    Navigator.pushNamed(
-      context,
-      '/student-list',
-      arguments: classItem.name,
-    );
+    Navigator.pushNamed(context, '/student-list', arguments: classItem.name);
   }
 }
 

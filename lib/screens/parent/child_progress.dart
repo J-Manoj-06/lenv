@@ -6,12 +6,8 @@ class ChildProgressScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Child Progress'),
-      ),
-      body: const Center(
-        child: Text('Child Progress - Coming Soon'),
-      ),
+      appBar: AppBar(title: const Text('Child Progress')),
+      body: const Center(child: Text('Child Progress - Coming Soon')),
     );
   }
 }

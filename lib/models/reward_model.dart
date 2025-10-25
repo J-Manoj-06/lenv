@@ -1,18 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum RewardType {
-  badge,
-  points,
-  certificate,
-  gift,
-  custom,
-}
+enum RewardType { badge, points, certificate, gift, custom }
 
-enum RewardStatus {
-  pending,
-  accepted,
-  rejected,
-}
+enum RewardStatus { pending, accepted, rejected }
 
 class RewardModel {
   final String id;

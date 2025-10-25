@@ -1,19 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum TestStatus {
-  draft,
-  published,
-  ongoing,
-  completed,
-  archived,
-}
+enum TestStatus { draft, published, ongoing, completed, archived }
 
-enum QuestionType {
-  multipleChoice,
-  trueFalse,
-  shortAnswer,
-  essay,
-}
+enum QuestionType { multipleChoice, trueFalse, shortAnswer, essay }
 
 class Question {
   final String id;
@@ -51,7 +40,9 @@ class Question {
         orElse: () => QuestionType.multipleChoice,
       ),
       question: json['question'] ?? '',
-      options: json['options'] != null ? List<String>.from(json['options']) : null,
+      options: json['options'] != null
+          ? List<String>.from(json['options'])
+          : null,
       correctAnswer: json['correctAnswer'],
       points: json['points'] ?? 1,
     );
@@ -127,8 +118,8 @@ class TestModel {
       subject: json['subject'] ?? '',
       questions: json['questions'] != null
           ? (json['questions'] as List)
-              .map((q) => Question.fromJson(q))
-              .toList()
+                .map((q) => Question.fromJson(q))
+                .toList()
           : [],
       totalPoints: json['totalPoints'] ?? 0,
       duration: json['duration'] ?? 60,

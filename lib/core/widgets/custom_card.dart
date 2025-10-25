@@ -25,9 +25,7 @@ class CustomCard extends StatelessWidget {
       color: color ?? AppColors.cardBackground,
       elevation: elevation ?? 2,
       margin: margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),

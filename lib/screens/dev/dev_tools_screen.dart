@@ -72,7 +72,9 @@ class _DevToolsScreenState extends State<DevToolsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Clear Data'),
-        content: const Text('Are you sure you want to delete all test data? This cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to delete all test data? This cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -159,7 +161,9 @@ class _DevToolsScreenState extends State<DevToolsScreen> {
       }
       final id = snap.docs.first.id;
       if (mounted) {
-        Navigator.of(context).pushNamed('/student-test-result', arguments: {'resultId': id});
+        Navigator.of(
+          context,
+        ).pushNamed('/student-test-result', arguments: {'resultId': id});
       }
     } catch (e) {
       setState(() {
@@ -288,8 +292,8 @@ class _DevToolsScreenState extends State<DevToolsScreen> {
                 color: _statusMessage.contains('✅')
                     ? Colors.green.shade50
                     : _statusMessage.contains('❌')
-                        ? Colors.red.shade50
-                        : Colors.blue.shade50,
+                    ? Colors.red.shade50
+                    : Colors.blue.shade50,
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Text(

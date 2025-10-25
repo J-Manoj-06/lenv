@@ -262,7 +262,10 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
           ),
         ),
       ],
@@ -296,13 +299,13 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
             value: value,
             decoration: const InputDecoration(
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
             ),
             items: items.map((String item) {
-              return DropdownMenuItem<String>(
-                value: item,
-                child: Text(item),
-              );
+              return DropdownMenuItem<String>(value: item, child: Text(item));
             }).toList(),
             onChanged: onChanged,
           ),
@@ -336,10 +339,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
               )
             : const Text(
                 'Generate',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
       ),
     );
@@ -349,16 +349,11 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     return Center(
       child: Column(
         children: [
-          const CircularProgressIndicator(
-            color: Color(0xFF6366F1),
-          ),
+          const CircularProgressIndicator(color: Color(0xFF6366F1)),
           const SizedBox(height: 16),
           Text(
             'Generating questions with AI...',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
         ],
       ),
@@ -378,10 +373,12 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        ...generatedQuestions.map((question) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _buildQuestionCard(question),
-            )),
+        ...generatedQuestions.map(
+          (question) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildQuestionCard(question),
+          ),
+        ),
       ],
     );
   }
@@ -418,10 +415,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Suggested Answer: ${question.answer}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -440,13 +434,13 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                           question.difficulty == 'Easy'
                               ? const Color(0xFFFEF3C7)
                               : question.difficulty == 'Medium'
-                                  ? const Color(0xFFD1FAE5)
-                                  : const Color(0xFFFEE2E2),
+                              ? const Color(0xFFD1FAE5)
+                              : const Color(0xFFFEE2E2),
                           question.difficulty == 'Easy'
                               ? const Color(0xFF92400E)
                               : question.difficulty == 'Medium'
-                                  ? const Color(0xFF065F46)
-                                  : const Color(0xFF991B1B),
+                              ? const Color(0xFF065F46)
+                              : const Color(0xFF991B1B),
                         ),
                       ],
                     ),
@@ -481,17 +475,17 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF374151),
                     side: BorderSide(color: Colors.grey[300]!),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   child: const Text(
                     'Reject',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -504,7 +498,10 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6366F1),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -512,10 +509,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                   ),
                   child: const Text(
                     'Accept',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
               ],
@@ -568,30 +562,17 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
             'Subject: ${_subjectController.text}, Topics: ${_topicsController.text}, Difficulty: $selectedDifficulty...',
           ),
           const SizedBox(height: 8),
-          _buildMetadataRow(
-            'Generated:',
-            'Oct 26, 2023, 2:30 PM',
-          ),
+          _buildMetadataRow('Generated:', 'Oct 26, 2023, 2:30 PM'),
           const SizedBox(height: 8),
-          _buildMetadataRow(
-            'Token Estimate:',
-            '~1500 tokens',
-          ),
+          _buildMetadataRow('Token Estimate:', '~1500 tokens'),
           const SizedBox(height: 16),
           Row(
             children: [
-              Icon(
-                Icons.security,
-                size: 16,
-                color: Colors.grey[500],
-              ),
+              Icon(Icons.security, size: 16, color: Colors.grey[500]),
               const SizedBox(width: 4),
               Text(
                 'API key stored server-side',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
               ),
             ],
           ),
@@ -615,10 +596,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                   ),
                   child: const Text(
                     'Save as Draft',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
               ),
@@ -639,10 +617,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                   ),
                   child: const Text(
                     'Assign',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
               ),
@@ -656,10 +631,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   Widget _buildMetadataRow(String label, String value) {
     return RichText(
       text: TextSpan(
-        style: const TextStyle(
-          fontSize: 14,
-          color: Color(0xFF6B7280),
-        ),
+        style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
         children: [
           TextSpan(
             text: label,
@@ -676,9 +648,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Colors.grey[200]!),
-        ),
+        border: Border(top: BorderSide(color: Colors.grey[200]!)),
       ),
       child: SafeArea(
         child: SizedBox(
@@ -686,7 +656,11 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(icon: Icons.dashboard, label: 'Dashboard', index: 0),
+              _buildNavItem(
+                icon: Icons.dashboard,
+                label: 'Dashboard',
+                index: 0,
+              ),
               _buildNavItem(icon: Icons.school, label: 'Classes', index: 1),
               _buildNavItem(icon: Icons.group, label: 'Students', index: 2),
               _buildNavItem(icon: Icons.chat, label: 'Messages', index: 3),
@@ -704,7 +678,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     required int index,
   }) {
     final isSelected = selectedNavIndex == index;
-    final color = isSelected ? const Color(0xFF6366F1) : const Color(0xFF6B7280);
+    final color = isSelected
+        ? const Color(0xFF6366F1)
+        : const Color(0xFF6B7280);
 
     return InkWell(
       onTap: () {
@@ -739,7 +715,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Assign Test'),
-        content: const Text('Are you sure you want to assign this AI-generated test to students?'),
+        content: const Text(
+          'Are you sure you want to assign this AI-generated test to students?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

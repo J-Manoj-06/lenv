@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 class StudentListScreen extends StatefulWidget {
   final String className;
 
-  const StudentListScreen({
-    Key? key,
-    required this.className,
-  }) : super(key: key);
+  const StudentListScreen({Key? key, required this.className})
+    : super(key: key);
 
   @override
   State<StudentListScreen> createState() => _StudentListScreenState();
@@ -29,31 +27,36 @@ class _StudentListScreenState extends State<StudentListScreen> {
       name: 'Amelia Chen',
       status: 'Top Performer',
       score: 95,
-      imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBNNwdeelqVWPSumDjluySpYCZNgCwTpg9N7C_QxTdZ85vN5Hyx0szIlrfuNhk69qKtqhjviB3CX03WkIp_FtyysSsT_y5oDbxo5JN_ZEz34Eg0iQBtg8xp8D2UWAsSIaKuYTlIazZjMfdq8ECFGS8KwSvbYH4nMfy_MB5dY2oCKZAjMrXI65Dr6wM88xXAILaibwI6gsyEZzM7glJEpo8otKL6L0UJaHWUuRtuSSZjt7_k-LnmfMnfWkQ8MVBKB6BProqnC05GKCg',
+      imageUrl:
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuBNNwdeelqVWPSumDjluySpYCZNgCwTpg9N7C_QxTdZ85vN5Hyx0szIlrfuNhk69qKtqhjviB3CX03WkIp_FtyysSsT_y5oDbxo5JN_ZEz34Eg0iQBtg8xp8D2UWAsSIaKuYTlIazZjMfdq8ECFGS8KwSvbYH4nMfy_MB5dY2oCKZAjMrXI65Dr6wM88xXAILaibwI6gsyEZzM7glJEpo8otKL6L0UJaHWUuRtuSSZjt7_k-LnmfMnfWkQ8MVBKB6BProqnC05GKCg',
     ),
     Student(
       name: 'Ben Carter',
       status: 'On Track',
       score: 88,
-      imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuArzYjI0rZnh0sXu-ekZZPYNWgTHvFb_Tl230Q6mmN8A16WDebC5Gzqm8Z7ipPnaPz5IZ6rLza4xd4FGSyi5wHoDBr2EEvjRpR2sNiWp6N0HTZx3YQxQ6CGlCY0VqVFpTdga-0A8epgKoOg3cXUz7v7p9fM4pQqPirE1K7Rli9Eeo-xnYGbUrPrklfPJjAXJ9P3yVm3siWotbzulR2EoUJKvFpJBBAM-0OehjUfU4hBqaAl6y3zt66-jWb1bxEAAFDu23M9TIpApNc',
+      imageUrl:
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuArzYjI0rZnh0sXu-ekZZPYNWgTHvFb_Tl230Q6mmN8A16WDebC5Gzqm8Z7ipPnaPz5IZ6rLza4xd4FGSyi5wHoDBr2EEvjRpR2sNiWp6N0HTZx3YQxQ6CGlCY0VqVFpTdga-0A8epgKoOg3cXUz7v7p9fM4pQqPirE1K7Rli9Eeo-xnYGbUrPrklfPJjAXJ9P3yVm3siWotbzulR2EoUJKvFpJBBAM-0OehjUfU4hBqaAl6y3zt66-jWb1bxEAAFDu23M9TIpApNc',
     ),
     Student(
       name: 'Chloe Davis',
       status: 'Needs Attention',
       score: 72,
-      imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBepAZ1dNAQdbtYeWQq4IQemSmjHTWP_QG9NrWQuiDfVD3bbuRAtOzCk8Y9gizbNG4PbvsEX9jW1fjhXbDySdr5xxegyexGc1Sqtf30tJG6AE9w7po09VtI5g4OX8DX7eydfHpTIqOkWGZYXarpWJUZUAFPmgJgcyjtgXePe0mygM2dwpgUc84Iay5keAI75foshZ08eYvvFIoWejuXnp_Z7Kx8TRZx1ptScIIdcLZCs4KFbrVY86rGeebaonzoqmxCj7MttsSsXN8',
+      imageUrl:
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuBepAZ1dNAQdbtYeWQq4IQemSmjHTWP_QG9NrWQuiDfVD3bbuRAtOzCk8Y9gizbNG4PbvsEX9jW1fjhXbDySdr5xxegyexGc1Sqtf30tJG6AE9w7po09VtI5g4OX8DX7eydfHpTIqOkWGZYXarpWJUZUAFPmgJgcyjtgXePe0mygM2dwpgUc84Iay5keAI75foshZ08eYvvFIoWejuXnp_Z7Kx8TRZx1ptScIIdcLZCs4KFbrVY86rGeebaonzoqmxCj7MttsSsXN8',
     ),
     Student(
       name: 'David Evans',
       status: 'Needs Help',
       score: 58,
-      imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD4NPkptAr_0FzuHWP96K9ReqSh3o66JrfebpANQbtwXdC4cdX9hEiPqkBYVyClMh_5vB8W9J3wpf2g2KV8ILyszB9mFnEBeKaMPPsY1O4of2GZ7MjBNvY3tjvIAe_Y-4SCkSxv1ZJeT4ppxzQEoJB7P0uIa2d4vT7l39Dc7j5W8U5lZuOL_SmTb9Np_GpoZ0oX3Uvys4RD_5wGcXdFbnEhR7CBzz5ErPZMFvS1rqsF4sm9lPOxdqp0MyKMXbiWdc0QHDokQ6j-vd4',
+      imageUrl:
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuD4NPkptAr_0FzuHWP96K9ReqSh3o66JrfebpANQbtwXdC4cdX9hEiPqkBYVyClMh_5vB8W9J3wpf2g2KV8ILyszB9mFnEBeKaMPPsY1O4of2GZ7MjBNvY3tjvIAe_Y-4SCkSxv1ZJeT4ppxzQEoJB7P0uIa2d4vT7l39Dc7j5W8U5lZuOL_SmTb9Np_GpoZ0oX3Uvys4RD_5wGcXdFbnEhR7CBzz5ErPZMFvS1rqsF4sm9lPOxdqp0MyKMXbiWdc0QHDokQ6j-vd4',
     ),
     Student(
       name: 'Fatima Khan',
       status: 'On Track',
       score: 85,
-      imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDBvrUYr0Ezy8Vk88SN4ZRcdRWrqI6RpuKanO-HLd0JLWdVEAFpHewAcn6jU_ent8j5rlMy4zbH7CVGSbywIVrXtzPWtptjS-xyazPEjYfrK-Ts5W81JjwiRz0zRXY7Fd2aVNSYPnFxdcVBk_aMIRHDy3U_otB_gbwNUrUIdU8G0QCTJi6yGhq2vtLdUn29jHHtI9aStsl-WGzyGOpywzTMW0blDTZ9Da7ufmtcaM1YSq_7Qf3J08XZYucdkJO4zTn9_xfd-TQ9Yao',
+      imageUrl:
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuDBvrUYr0Ezy8Vk88SN4ZRcdRWrqI6RpuKanO-HLd0JLWdVEAFpHewAcn6jU_ent8j5rlMy4zbH7CVGSbywIVrXtzPWtptjS-xyazPEjYfrK-Ts5W81JjwiRz0zRXY7Fd2aVNSYPnFxdcVBk_aMIRHDy3U_otB_gbwNUrUIdU8G0QCTJi6yGhq2vtLdUn29jHHtI9aStsl-WGzyGOpywzTMW0blDTZ9Da7ufmtcaM1YSq_7Qf3J08XZYucdkJO4zTn9_xfd-TQ9Yao',
     ),
   ];
 
@@ -68,9 +71,11 @@ class _StudentListScreenState extends State<StudentListScreen> {
     // Apply search
     if (_searchController.text.isNotEmpty) {
       filtered = filtered
-          .where((s) => s.name
-              .toLowerCase()
-              .contains(_searchController.text.toLowerCase()))
+          .where(
+            (s) => s.name.toLowerCase().contains(
+              _searchController.text.toLowerCase(),
+            ),
+          )
           .toList();
     }
 
@@ -92,9 +97,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
           _buildHeader(),
           _buildSearchBar(),
           _buildFilterChips(),
-          Expanded(
-            child: _buildStudentList(),
-          ),
+          Expanded(child: _buildStudentList()),
         ],
       ),
     );
@@ -104,9 +107,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF6F7F8).withOpacity(0.85),
-        border: const Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB)),
-        ),
+        border: const Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
       child: SafeArea(
         bottom: false,
@@ -164,7 +165,10 @@ class _StudentListScreenState extends State<StudentListScreen> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
         ),
       ),
     );
@@ -222,10 +226,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
             const SizedBox(height: 16),
             Text(
               'No students found',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -319,10 +320,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 ),
               ),
               // Chevron icon
-              Icon(
-                Icons.chevron_right,
-                color: Colors.grey[400],
-              ),
+              Icon(Icons.chevron_right, color: Colors.grey[400]),
             ],
           ),
         ),

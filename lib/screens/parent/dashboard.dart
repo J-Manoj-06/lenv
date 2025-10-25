@@ -6,12 +6,8 @@ class ParentDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Parent Dashboard'),
-      ),
-      body: const Center(
-        child: Text('Parent Dashboard - Coming Soon'),
-      ),
+      appBar: AppBar(title: const Text('Parent Dashboard')),
+      body: const Center(child: Text('Parent Dashboard - Coming Soon')),
     );
   }
 }
