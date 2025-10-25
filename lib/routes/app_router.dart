@@ -61,6 +61,7 @@ class AppRouter {
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
           builder: (_) => StudentPerformanceScreen(
+            studentId: args['studentId'] ?? '',
             studentName: args['name'] ?? 'Student',
             studentClass: args['class'] ?? 'Grade 8 - Science',
             imageUrl: args['imageUrl'] ?? '',

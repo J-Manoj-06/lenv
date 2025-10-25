@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../models/test_model.dart' as tm;
+import '../../models/user_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/test_provider.dart';
+import '../../services/teacher_service.dart';
 
 class CreateTestScreen extends StatefulWidget {
   const CreateTestScreen({Key? key}) : super(key: key);
@@ -12,9 +18,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   final _totalMarksController = TextEditingController();
   final _timeLimitController = TextEditingController();
 
-  String selectedSubject = 'Mathematics';
-  String selectedClass = 'Grade 8';
-  String selectedSection = 'Section A';
+  String? selectedSubject;
+  String? selectedClass;
+  String? selectedSection; // Display format: "Section A"
   bool aiAssistanceEnabled = true;
   int selectedNavIndex = 0;
 
@@ -28,10 +34,12 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     ),
     Question(id: 2, type: QuestionType.shortAnswer, questionText: ''),
   ];
+  // Dynamic lists populated from teacher profile
+  List<String> subjects = [];
+  List<String> classes = [];
+  List<String> sections = [];
 
-  final List<String> subjects = ['Mathematics', 'Science', 'History'];
-  final List<String> classes = ['Grade 8', 'Grade 9', 'Grade 10'];
-  final List<String> sections = ['Section A', 'Section B', 'Section C'];
+  bool _loadingMeta = true;
 
   @override
   void dispose() {
@@ -39,6 +47,58 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     _totalMarksController.dispose();
     _timeLimitController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTeacherMeta();
+  }
+
+  Future<void> _loadTeacherMeta() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) {
+      setState(() => _loadingMeta = false);
+      return;
+    }
+
+    try {
+      final svc = TeacherService();
+      final data = await svc.getTeacherByEmail(user.email);
+      final List<String> subjs = (data?['subjectsHandled'] is List)
+          ? List<String>.from(data!['subjectsHandled'] as List)
+          : <String>[];
+      final List<String> clzs = (data?['classesHandled'] is List)
+          ? List<String>.from(data!['classesHandled'] as List)
+          : <String>[];
+      // sections may be list or comma-separated string
+      List<String> secs = [];
+      final rawSections = data?['sections'] ?? data?['section'];
+      if (rawSections is List) {
+        secs = rawSections.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      } else if (rawSections is String) {
+        secs = rawSections
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
+      }
+      // Display sections as "Section X"
+      final sectionDisplay = secs.map((s) => 'Section $s').toList();
+
+      setState(() {
+        subjects = subjs;
+        classes = clzs;
+        sections = sectionDisplay;
+        selectedSubject = subjects.isNotEmpty ? subjects.first : null;
+        selectedClass = classes.isNotEmpty ? classes.first : null;
+        selectedSection = sections.isNotEmpty ? sections.first : null;
+        _loadingMeta = false;
+      });
+    } catch (e) {
+      setState(() => _loadingMeta = false);
+    }
   }
 
   @override
@@ -58,7 +118,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                   children: [
                     _buildSectionHeader('METADATA'),
                     const SizedBox(height: 16),
-                    _buildMetadataCard(),
+                    _loadingMeta
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildMetadataCard(),
                     const SizedBox(height: 32),
                     _buildSectionHeader('QUESTIONS'),
                     const SizedBox(height: 16),
@@ -166,11 +228,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                   label: 'Subject',
                   value: selectedSubject,
                   items: subjects,
-                  onChanged: (value) {
-                    setState(() {
-                      selectedSubject = value!;
-                    });
-                  },
+                  onChanged: subjects.isEmpty
+                      ? null
+                      : (value) {
+                          setState(() {
+                            selectedSubject = value;
+                          });
+                        },
                 ),
               ),
               const SizedBox(width: 16),
@@ -179,11 +243,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                   label: 'Class',
                   value: selectedClass,
                   items: classes,
-                  onChanged: (value) {
-                    setState(() {
-                      selectedClass = value!;
-                    });
-                  },
+                  onChanged: classes.isEmpty
+                      ? null
+                      : (value) {
+                          setState(() {
+                            selectedClass = value;
+                          });
+                        },
                 ),
               ),
             ],
@@ -194,11 +260,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             label: 'Section',
             value: selectedSection,
             items: sections,
-            onChanged: (value) {
-              setState(() {
-                selectedSection = value!;
-              });
-            },
+            onChanged: sections.isEmpty
+                ? null
+                : (value) {
+                    setState(() {
+                      selectedSection = value;
+                    });
+                  },
           ),
           const SizedBox(height: 16),
           // Total Marks and Time Limit
@@ -309,9 +377,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
 
   Widget _buildDropdown({
     required String label,
-    required String value,
+    required String? value,
     required List<String> items,
-    required void Function(String?) onChanged,
+    required void Function(String?)? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,7 +399,8 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             border: Border.all(color: Colors.grey[300]!),
           ),
           child: DropdownButtonFormField<String>(
-            value: value,
+            value: (value != null && items.contains(value)) ? value : null,
+            isExpanded: true,
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(
@@ -340,7 +409,15 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               ),
             ),
             items: items.map((String item) {
-              return DropdownMenuItem<String>(value: item, child: Text(item));
+              return DropdownMenuItem<String>(
+                value: item,
+                child: Text(
+                  item,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  softWrap: false,
+                ),
+              );
             }).toList(),
             onChanged: onChanged,
           ),
@@ -659,10 +736,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        // Save draft
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Draft saved!')),
-                        );
+                        _saveTest(publish: false);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFE5E7EB),
@@ -683,7 +757,6 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        // Publish and assign
                         _showPublishDialog();
                       },
                       style: ElevatedButton.styleFrom(
@@ -799,12 +872,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.pop(context); // Go back to dashboard
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Test published successfully!')),
-              );
+              await _saveTest(publish: true);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF6366F1),
@@ -834,4 +904,119 @@ class Question {
     this.options,
     this.correctAnswerIndex,
   });
+}
+
+extension on _CreateTestScreenState {
+  Future<void> _saveTest({required bool publish}) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final testProv = Provider.of<TestProvider>(context, listen: false);
+    final user = auth.currentUser;
+
+    if (user == null || user.role != UserRole.teacher) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login as a teacher to continue')),
+      );
+      return;
+    }
+
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a test title')),
+      );
+      return;
+    }
+
+    if (selectedSubject == null || selectedSubject!.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a subject')),
+      );
+      return;
+    }
+    if (selectedClass == null || selectedClass!.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a class')),
+      );
+      return;
+    }
+    if (selectedSection == null || selectedSection!.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a section')),
+      );
+      return;
+    }
+
+    // Normalize fields
+  final normalizedSection = selectedSection!
+    .replaceAll('Section ', '')
+    .trim();
+    final duration = int.tryParse(_timeLimitController.text.trim()) ?? 60;
+    final now = DateTime.now();
+    final startDate = now;
+    final endDate = now.add(Duration(minutes: duration));
+    final status = publish ? tm.TestStatus.published : tm.TestStatus.draft;
+
+    // Map local questions to model questions
+    final modelQuestions = questions.map((q) {
+      return tm.Question(
+        id: q.id.toString(),
+        type: q.type == QuestionType.multipleChoice
+            ? tm.QuestionType.multipleChoice
+            : tm.QuestionType.shortAnswer,
+        question: q.questionText,
+        options: q.options,
+        correctAnswer: (q.type == QuestionType.multipleChoice &&
+                q.correctAnswerIndex != null &&
+                q.options != null &&
+                q.correctAnswerIndex! >= 0 &&
+                q.correctAnswerIndex! < q.options!.length)
+            ? q.options![q.correctAnswerIndex!]
+            : null,
+        points: 1,
+      );
+    }).toList();
+
+    final totalPoints = int.tryParse(_totalMarksController.text.trim()) ??
+        modelQuestions.fold<int>(0, (sum, q) => sum + q.points);
+
+    final test = tm.TestModel(
+      id: '',
+      title: _titleController.text.trim(),
+      description: '',
+      teacherId: user.uid,
+      teacherName: user.name,
+      instituteId: user.instituteId ?? '',
+  subject: selectedSubject!,
+  className: selectedClass!,
+      section: normalizedSection,
+      questions: modelQuestions,
+      totalPoints: totalPoints,
+      duration: duration,
+      startDate: startDate,
+      endDate: endDate,
+      status: status,
+      assignedStudentIds: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final ok = await testProv.createTest(test);
+    if (ok) {
+      if (publish) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Test published successfully!')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Draft saved!')),
+        );
+      }
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed: ${testProv.errorMessage ?? 'Unknown error'}')),
+      );
+    }
+  }
 }

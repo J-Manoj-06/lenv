@@ -56,20 +56,23 @@ class _ClassesScreenState extends State<ClassesScreen> {
         return;
       }
 
-      // Get formatted classes
+      // Use sections array if present, otherwise fallback to single string
+      final dynamic sections = teacherData['sections'] ?? teacherData['section'];
+
+      // Get formatted classes (e.g., ["4 - A", "4 - B"]) from classesHandled + sections
       final classNames = _teacherService.getTeacherClasses(
         teacherData['classesHandled'],
-        teacherData['section'],
+        sections,
       );
 
       // Get students for each class and create ClassItem objects
       final classes = <ClassItem>[];
-      final grade =
-          teacherData['classesHandled']?[0]
-              ?.toString()
-              .replaceAll('Grade ', '')
-              .trim() ??
-          '';
+    final grade = teacherData['classesHandled']?[0]
+        ?.toString()
+        .replaceAll('Grade ', '')
+        .replaceAll('grade ', '')
+        .trim() ??
+      '';
       final schoolId =
           currentUser.instituteId ?? teacherData['schoolCode'] ?? '';
 
@@ -77,10 +80,13 @@ class _ClassesScreenState extends State<ClassesScreen> {
         // Extract section from className (e.g., "5 - A" -> "A")
         final section = className.split(' - ').last.trim();
 
-        // Query students for this specific class and section
-        final students = await _teacherService.getStudentsByTeacher(schoolId, [
-          grade,
-        ], section);
+        // Query students for this specific class and section.
+        // Pass original classesHandled (e.g., ["Grade 4"]) and the selected section
+        final students = await _teacherService.getStudentsByTeacher(
+          schoolId,
+          teacherData['classesHandled'],
+          section,
+        );
 
         classes.add(
           ClassItem(

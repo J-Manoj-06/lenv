@@ -59,7 +59,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       }
 
       // Determine sections field (supports 'sections' array or 'section' string)
-      final dynamic sections = teacherData['sections'] ?? teacherData['section'];
+      final dynamic sections =
+          teacherData['sections'] ?? teacherData['section'];
 
       // Format classes for dropdown using sections
       final classes = _teacherService.getTeacherClasses(

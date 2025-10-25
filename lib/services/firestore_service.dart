@@ -39,7 +39,10 @@ class FirestoreService {
 
   // Test Operations
   Future<String> createTest(TestModel test) async {
-    final docRef = await _db.collection('tests').add(test.toJson());
+    final docRef = _db.collection('tests').doc();
+    final data = test.toJson();
+    data['id'] = docRef.id;
+    await docRef.set(data);
     return docRef.id;
   }
 

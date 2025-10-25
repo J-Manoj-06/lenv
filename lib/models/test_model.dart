@@ -57,6 +57,9 @@ class TestModel {
   final String teacherName;
   final String instituteId;
   final String subject;
+  // Targeting info for filtering in UI
+  final String? className; // e.g. "Grade 8"
+  final String? section;   // e.g. "A"
   final List<Question> questions;
   final int totalPoints;
   final int duration; // in minutes
@@ -75,6 +78,8 @@ class TestModel {
     required this.teacherName,
     required this.instituteId,
     required this.subject,
+  this.className,
+  this.section,
     required this.questions,
     required this.totalPoints,
     required this.duration,
@@ -95,6 +100,8 @@ class TestModel {
       'teacherName': teacherName,
       'instituteId': instituteId,
       'subject': subject,
+  'className': className,
+  'section': section,
       'questions': questions.map((q) => q.toJson()).toList(),
       'totalPoints': totalPoints,
       'duration': duration,
@@ -116,6 +123,8 @@ class TestModel {
       teacherName: json['teacherName'] ?? '',
       instituteId: json['instituteId'] ?? '',
       subject: json['subject'] ?? '',
+  className: json['className'],
+  section: json['section'],
       questions: json['questions'] != null
           ? (json['questions'] as List)
                 .map((q) => Question.fromJson(q))

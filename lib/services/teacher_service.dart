@@ -16,10 +16,10 @@ class TeacherService {
       if (querySnapshot.docs.isNotEmpty) {
         final data = querySnapshot.docs.first.data();
         data['id'] = querySnapshot.docs.first.id;
-  print('✅ Teacher found: ${data['teacherName']}');
-  print('   classesHandled: ${data['classesHandled']}');
-  print('   section: ${data['section']}');
-  print('   sections: ${data['sections']}');
+        print('✅ Teacher found: ${data['teacherName']}');
+        print('   classesHandled: ${data['classesHandled']}');
+        print('   section: ${data['section']}');
+        print('   sections: ${data['sections']}');
         return data;
       }
 
@@ -35,7 +35,10 @@ class TeacherService {
   List<String> _normalizeSections(dynamic sections) {
     if (sections == null) return <String>[];
     if (sections is List) {
-      return sections.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      return sections
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
     }
     if (sections is String) {
       return sections
@@ -61,13 +64,15 @@ class TeacherService {
         return [];
       }
 
-      print('📚 Fetching students for classes: $classesHandled and sections: $sections');
+      print(
+        '📚 Fetching students for classes: $classesHandled and sections: $sections',
+      );
 
       // Keep the full className format as it appears in Firestore (e.g., "Grade 5")
       String className = classesHandled[0].toString();
 
-    // Normalize sections from string or list
-    final sectionList = _normalizeSections(sections);
+      // Normalize sections from string or list
+      final sectionList = _normalizeSections(sections);
 
       print('  Class: $className, Sections: $sectionList');
 
@@ -186,14 +191,16 @@ class TeacherService {
         return [];
       }
 
-      print('📋 Formatting classes from: $classesHandled and sections: $sections');
+      print(
+        '📋 Formatting classes from: $classesHandled and sections: $sections',
+      );
 
       // Extract grade/standard (could be "Grade 5" or just "5")
       String grade = classesHandled[0].toString();
       grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
 
-    // Normalize sections input (supports list or comma-separated string)
-    final sectionList = _normalizeSections(sections);
+      // Normalize sections input (supports list or comma-separated string)
+      final sectionList = _normalizeSections(sections);
 
       print('  Grade: $grade');
       print('  Sections: $sectionList');

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/teacher_service.dart';
 
 class StudentListScreen extends StatefulWidget {
   final String className;
@@ -12,74 +15,83 @@ class StudentListScreen extends StatefulWidget {
 
 class _StudentListScreenState extends State<StudentListScreen> {
   final _searchController = TextEditingController();
-  String selectedFilter = 'All';
 
-  final List<String> filters = [
-    'All',
-    'Top Performer',
-    'On Track',
-    'Needs Help',
-    'Needs Attention',
-  ];
+  final TeacherService _teacherService = TeacherService();
+  bool _isLoading = true;
+  String? _error;
+  List<Map<String, dynamic>> _students = [];
 
-  final List<Student> students = [
-    Student(
-      name: 'Amelia Chen',
-      status: 'Top Performer',
-      score: 95,
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuBNNwdeelqVWPSumDjluySpYCZNgCwTpg9N7C_QxTdZ85vN5Hyx0szIlrfuNhk69qKtqhjviB3CX03WkIp_FtyysSsT_y5oDbxo5JN_ZEz34Eg0iQBtg8xp8D2UWAsSIaKuYTlIazZjMfdq8ECFGS8KwSvbYH4nMfy_MB5dY2oCKZAjMrXI65Dr6wM88xXAILaibwI6gsyEZzM7glJEpo8otKL6L0UJaHWUuRtuSSZjt7_k-LnmfMnfWkQ8MVBKB6BProqnC05GKCg',
-    ),
-    Student(
-      name: 'Ben Carter',
-      status: 'On Track',
-      score: 88,
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuArzYjI0rZnh0sXu-ekZZPYNWgTHvFb_Tl230Q6mmN8A16WDebC5Gzqm8Z7ipPnaPz5IZ6rLza4xd4FGSyi5wHoDBr2EEvjRpR2sNiWp6N0HTZx3YQxQ6CGlCY0VqVFpTdga-0A8epgKoOg3cXUz7v7p9fM4pQqPirE1K7Rli9Eeo-xnYGbUrPrklfPJjAXJ9P3yVm3siWotbzulR2EoUJKvFpJBBAM-0OehjUfU4hBqaAl6y3zt66-jWb1bxEAAFDu23M9TIpApNc',
-    ),
-    Student(
-      name: 'Chloe Davis',
-      status: 'Needs Attention',
-      score: 72,
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuBepAZ1dNAQdbtYeWQq4IQemSmjHTWP_QG9NrWQuiDfVD3bbuRAtOzCk8Y9gizbNG4PbvsEX9jW1fjhXbDySdr5xxegyexGc1Sqtf30tJG6AE9w7po09VtI5g4OX8DX7eydfHpTIqOkWGZYXarpWJUZUAFPmgJgcyjtgXePe0mygM2dwpgUc84Iay5keAI75foshZ08eYvvFIoWejuXnp_Z7Kx8TRZx1ptScIIdcLZCs4KFbrVY86rGeebaonzoqmxCj7MttsSsXN8',
-    ),
-    Student(
-      name: 'David Evans',
-      status: 'Needs Help',
-      score: 58,
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuD4NPkptAr_0FzuHWP96K9ReqSh3o66JrfebpANQbtwXdC4cdX9hEiPqkBYVyClMh_5vB8W9J3wpf2g2KV8ILyszB9mFnEBeKaMPPsY1O4of2GZ7MjBNvY3tjvIAe_Y-4SCkSxv1ZJeT4ppxzQEoJB7P0uIa2d4vT7l39Dc7j5W8U5lZuOL_SmTb9Np_GpoZ0oX3Uvys4RD_5wGcXdFbnEhR7CBzz5ErPZMFvS1rqsF4sm9lPOxdqp0MyKMXbiWdc0QHDokQ6j-vd4',
-    ),
-    Student(
-      name: 'Fatima Khan',
-      status: 'On Track',
-      score: 85,
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDBvrUYr0Ezy8Vk88SN4ZRcdRWrqI6RpuKanO-HLd0JLWdVEAFpHewAcn6jU_ent8j5rlMy4zbH7CVGSbywIVrXtzPWtptjS-xyazPEjYfrK-Ts5W81JjwiRz0zRXY7Fd2aVNSYPnFxdcVBk_aMIRHDy3U_otB_gbwNUrUIdU8G0QCTJi6yGhq2vtLdUn29jHHtI9aStsl-WGzyGOpywzTMW0blDTZ9Da7ufmtcaM1YSq_7Qf3J08XZYucdkJO4zTn9_xfd-TQ9Yao',
-    ),
-  ];
+  // Parsed from widget.className (e.g., "Grade 4 - A")
+  late final String _classNameForQuery; // e.g., "Grade 4"
+  late final String _sectionForQuery; // e.g., "A"
 
-  List<Student> get filteredStudents {
-    List<Student> filtered = students;
+  @override
+  void initState() {
+    super.initState();
+    _parseArgs();
+    _loadStudents();
+  }
 
-    // Apply filter
-    if (selectedFilter != 'All') {
-      filtered = filtered.where((s) => s.status == selectedFilter).toList();
+  void _parseArgs() {
+    // Expect formats like: "Grade 4 - A" or "Grade 4-A"
+    final raw = widget.className.trim();
+    final parts = raw.split(' - ');
+    if (parts.length == 2) {
+      _classNameForQuery = parts[0].trim(); // keep "Grade 4" exactly
+      _sectionForQuery = parts[1].trim();
+    } else {
+      // Fallback: try removing leading "Grade " and take last token as section
+      _sectionForQuery = raw.split('-').last.trim();
+      final gradePart = raw.split('-').first.trim();
+      _classNameForQuery = gradePart.startsWith('Grade') ? gradePart : 'Grade ${gradePart}';
     }
+  }
 
-    // Apply search
-    if (_searchController.text.isNotEmpty) {
-      filtered = filtered
-          .where(
-            (s) => s.name.toLowerCase().contains(
-              _searchController.text.toLowerCase(),
-            ),
-          )
-          .toList();
+  Future<void> _loadStudents() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) {
+        setState(() {
+          _error = 'No user logged in';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // We only need school id and to pass a single class (e.g., ["Grade 4"]) and a single section (e.g., "A")
+      final schoolId = currentUser.instituteId ?? '';
+      final students = await _teacherService.getStudentsByTeacher(
+        schoolId,
+        [_classNameForQuery],
+        _sectionForQuery,
+      );
+
+      setState(() {
+        _students = students;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load students: $e';
+        _isLoading = false;
+      });
     }
+  }
 
-    return filtered;
+  List<Map<String, dynamic>> get _filteredStudents {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return _students;
+
+    return _students.where((s) {
+      final name = _displayName(s).toLowerCase();
+      return name.contains(query);
+    }).toList();
   }
 
   @override
@@ -92,14 +104,28 @@ class _StudentListScreenState extends State<StudentListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
-      body: Column(
-        children: [
-          _buildHeader(),
-          _buildSearchBar(),
-          _buildFilterChips(),
-          Expanded(child: _buildStudentList()),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 12),
+                      Text(_error!),
+                      const SizedBox(height: 12),
+                      ElevatedButton(onPressed: _loadStudents, child: const Text('Retry')),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: [
+                    _buildHeader(),
+                    _buildSearchBar(),
+                    Expanded(child: _buildStudentList()),
+                  ],
+                ),
     );
   }
 
@@ -174,48 +200,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
   }
 
-  Widget _buildFilterChips() {
-    return SizedBox(
-      height: 50,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        itemCount: filters.length,
-        itemBuilder: (context, index) {
-          final filter = filters[index];
-          final isSelected = selectedFilter == filter;
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: Text(filter),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  selectedFilter = filter;
-                });
-              },
-              backgroundColor: Colors.white,
-              selectedColor: const Color(0xFF6366F1),
-              labelStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: isSelected ? Colors.white : const Color(0xFF374151),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              side: BorderSide.none,
-            ),
-          );
-        },
-      ),
-    );
-  }
 
   Widget _buildStudentList() {
-    final students = filteredStudents;
+    final students = _filteredStudents;
 
     if (students.isEmpty) {
       return Center(
@@ -245,7 +232,25 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
   }
 
-  Widget _buildStudentCard(Student student) {
+  String _displayName(Map<String, dynamic> s) {
+    final first = (s['firstName'] ?? '').toString().trim();
+    final last = (s['lastName'] ?? '').toString().trim();
+    final fallback = [first, last].where((e) => e.isNotEmpty).join(' ').trim();
+    return (s['name'] ?? s['studentName'] ?? s['fullName'] ?? fallback).toString().trim();
+  }
+
+  int _score(Map<String, dynamic> s) {
+    final v = s['score'] ?? s['averageScore'] ?? 0;
+    if (v is int) return v;
+    if (v is double) return v.round();
+    return int.tryParse(v.toString()) ?? 0;
+  }
+
+  String? _avatar(Map<String, dynamic> s) {
+    return (s['imageUrl'] ?? s['photoUrl'] ?? s['avatar'])?.toString();
+  }
+
+  Widget _buildStudentCard(Map<String, dynamic> student) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -270,23 +275,17 @@ class _StudentListScreenState extends State<StudentListScreen> {
               // Student avatar
               ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                child: Image.network(
-                  student.imageUrl,
-                  width: 48,
-                  height: 48,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.person, color: Colors.grey[600]),
-                    );
-                  },
-                ),
+                child: (_avatar(student) != null && _avatar(student)!.isNotEmpty)
+                    ? Image.network(
+                        _avatar(student)!,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return _avatarPlaceholder();
+                        },
+                      )
+                    : _avatarPlaceholder(),
               ),
               const SizedBox(width: 16),
               // Student info
@@ -295,7 +294,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      student.name,
+                      _displayName(student),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -305,15 +304,17 @@ class _StudentListScreenState extends State<StudentListScreen> {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        _buildStatusBadge(student.status),
+                        Text('Section: $_sectionForQuery',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF6B7280),
+                            )),
                         const SizedBox(width: 8),
-                        Text(
-                          '${student.score}%',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF6B7280),
-                          ),
-                        ),
+                        Text('${_score(student)}%',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF6B7280),
+                            )),
                       ],
                     ),
                   ],
@@ -325,6 +326,18 @@ class _StudentListScreenState extends State<StudentListScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _avatarPlaceholder() {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        shape: BoxShape.circle,
+      ),
+      child: Icon(Icons.person, color: Colors.grey[600]),
     );
   }
 
@@ -371,31 +384,18 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
   }
 
-  void _viewStudentDetails(Student student) {
+  void _viewStudentDetails(Map<String, dynamic> student) {
     Navigator.pushNamed(
       context,
       '/student-performance',
       arguments: {
-        'name': student.name,
-        'class': 'Grade 8 - Science',
-        'imageUrl': student.imageUrl,
-        'score': student.score,
+        'name': _displayName(student),
+        'class': widget.className,
+        'imageUrl': _avatar(student) ?? '',
+        'score': _score(student),
+        'studentId': (student['id'] ?? '').toString(),
       },
     );
   }
 }
 
-// Student model
-class Student {
-  final String name;
-  final String status;
-  final int score;
-  final String imageUrl;
-
-  Student({
-    required this.name,
-    required this.status,
-    required this.score,
-    required this.imageUrl,
-  });
-}

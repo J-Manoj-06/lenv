@@ -1,19 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../models/performance_model.dart';
+import '../../services/firestore_service.dart';
 
-class StudentPerformanceScreen extends StatelessWidget {
+class StudentPerformanceScreen extends StatefulWidget {
+  final String studentId;
   final String studentName;
   final String studentClass;
   final String imageUrl;
-  final int averageScore;
+  final int averageScore; // fallback if no performance yet
 
   const StudentPerformanceScreen({
     Key? key,
+    required this.studentId,
     required this.studentName,
     required this.studentClass,
     required this.imageUrl,
     required this.averageScore,
   }) : super(key: key);
+
+  @override
+  State<StudentPerformanceScreen> createState() => _StudentPerformanceScreenState();
+}
+
+class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
+  final _firestoreService = FirestoreService();
 
   @override
   Widget build(BuildContext context) {
@@ -23,17 +34,24 @@ class StudentPerformanceScreen extends StatelessWidget {
         children: [
           _buildHeader(context),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildPerformanceTrend(),
-                  const SizedBox(height: 24),
-                  _buildRecentTests(context),
-                  const SizedBox(height: 24),
-                  _buildAreasForImprovement(),
-                ],
-              ),
+            child: StreamBuilder<PerformanceModel?>(
+              stream: _firestoreService.getPerformanceStream(widget.studentId),
+              builder: (context, snapshot) {
+                final perf = snapshot.data;
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildPerformanceTrend(perf),
+                      const SizedBox(height: 24),
+                      _buildRecentTests(perf),
+                      const SizedBox(height: 24),
+                      _buildAreasForImprovement(perf),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -84,7 +102,7 @@ class StudentPerformanceScreen extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(32),
                     child: Image.network(
-                      imageUrl,
+                      widget.imageUrl,
                       width: 64,
                       height: 64,
                       fit: BoxFit.cover,
@@ -111,7 +129,7 @@ class StudentPerformanceScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          studentName,
+                          widget.studentName,
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -120,7 +138,7 @@ class StudentPerformanceScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          studentClass,
+                          widget.studentClass,
                           style: const TextStyle(
                             fontSize: 16,
                             color: Color(0xFF6B7280),
@@ -138,7 +156,13 @@ class StudentPerformanceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPerformanceTrend() {
+  Widget _buildPerformanceTrend(PerformanceModel? perf) {
+    final submissions = (perf?.submissions ?? [])
+      ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+    final lastSix = submissions.length <= 6
+        ? submissions
+        : submissions.sublist(submissions.length - 6);
+    final avg = perf?.averageScore ?? widget.averageScore.toDouble();
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -178,7 +202,7 @@ class StudentPerformanceScreen extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                '$averageScore%',
+                '${avg.round()}%',
                 style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
@@ -186,65 +210,43 @@ class StudentPerformanceScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Row(
-                children: const [
-                  Icon(Icons.trending_up, size: 16, color: Color(0xFF10B981)),
-                  SizedBox(width: 4),
-                  Text(
-                    '+3%',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF10B981),
-                    ),
-                  ),
-                ],
-              ),
+              _buildDeltaPill(lastSix),
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
-            'vs. last 6 months',
-            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+          Text(
+            lastSix.isEmpty ? 'No trend yet' : 'vs. last ${lastSix.length} tests',
+            style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 24),
-          _buildChart(),
+          _buildChart(lastSix),
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'Jan',
-                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-              ),
-              Text(
-                'Feb',
-                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-              ),
-              Text(
-                'Mar',
-                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-              ),
-              Text(
-                'Apr',
-                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-              ),
-              Text(
-                'May',
-                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-              ),
-              Text(
-                'Jun',
-                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-              ),
-            ],
-          ),
+          if (lastSix.isNotEmpty)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: lastSix
+                  .map((e) => Text(
+                        _shortDate(e.submittedAt),
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                      ))
+                  .toList(),
+            ),
+          if (lastSix.isEmpty)
+            const Center(
+              child: Text('No chart data yet', style: TextStyle(color: Color(0xFF6B7280))),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildChart() {
+  Widget _buildChart(List<TestSubmission> points) {
+    if (points.isEmpty) return const SizedBox(height: 160);
+    final spots = points
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value.percentage))
+        .toList();
     return SizedBox(
       height: 160,
       child: LineChart(
@@ -253,19 +255,12 @@ class StudentPerformanceScreen extends StatelessWidget {
           titlesData: FlTitlesData(show: false),
           borderData: FlBorderData(show: false),
           minX: 0,
-          maxX: 5,
+          maxX: (spots.length - 1).toDouble(),
           minY: 0,
           maxY: 100,
           lineBarsData: [
             LineChartBarData(
-              spots: const [
-                FlSpot(0, 73),
-                FlSpot(1, 79),
-                FlSpot(2, 75),
-                FlSpot(3, 80),
-                FlSpot(4, 79),
-                FlSpot(5, 82),
-              ],
+              spots: spots,
               isCurved: true,
               color: const Color(0xFF6366F1),
               barWidth: 3,
@@ -289,7 +284,9 @@ class StudentPerformanceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRecentTests(BuildContext context) {
+  Widget _buildRecentTests(PerformanceModel? perf) {
+    final submissions = List<TestSubmission>.from(perf?.submissions ?? []);
+    submissions.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -316,43 +313,35 @@ class StudentPerformanceScreen extends StatelessWidget {
               ),
             ),
           ),
-          _buildTestItem(
-            context,
-            'Chapter 5: Photosynthesis',
-            'June 12, 2024',
-            92,
-            true,
-          ),
-          Divider(height: 1, color: Colors.grey[100]),
-          _buildTestItem(
-            context,
-            'Mid-Term Examination',
-            'May 20, 2024',
-            78,
-            false,
-          ),
-          Divider(height: 1, color: Colors.grey[100]),
-          _buildTestItem(
-            context,
-            'Quiz: Cell Structures',
-            'April 30, 2024',
-            55,
-            false,
-            isLast: true,
-          ),
+          if (submissions.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: Text(
+                'No tests yet',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+            )
+          else ...[
+            for (int i = 0; i < submissions.length && i < 5; i++) ...[
+              _buildTestItem(
+                submissions[i].testTitle,
+                _longDate(submissions[i].submittedAt),
+                submissions[i].percentage.round(),
+              ),
+              if (i < submissions.length - 1 && i < 4)
+                Divider(height: 1, color: Colors.grey[100]),
+            ],
+          ],
         ],
       ),
     );
   }
 
   Widget _buildTestItem(
-    BuildContext context,
     String title,
     String date,
     int score,
-    bool isHighScore, {
-    bool isLast = false,
-  }) {
+  ) {
     Color badgeBgColor;
     Color badgeTextColor;
 
@@ -368,11 +357,7 @@ class StudentPerformanceScreen extends StatelessWidget {
     }
 
     return InkWell(
-      onTap: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Viewing test: $title')));
-      },
+      onTap: () {},
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -430,9 +415,8 @@ class StudentPerformanceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAreasForImprovement() {
-    final areas = ['Cellular Respiration', 'Genetics', 'Lab Reports'];
-
+  Widget _buildAreasForImprovement(PerformanceModel? perf) {
+    final hasData = (perf?.submissions ?? []).isNotEmpty;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -458,32 +442,43 @@ class StudentPerformanceScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: areas.map((area) {
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFED7AA),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  area,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFC2410C),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
+          if (!hasData)
+            Text('No insights yet', style: TextStyle(color: Colors.grey[600]))
+          else
+            Text('Insights coming soon', style: TextStyle(color: Colors.grey[600]))
         ],
       ),
+    );
+  }
+
+  // Helpers
+  String _shortDate(DateTime dt) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[dt.month - 1]} ${dt.day}';
+  }
+
+  String _longDate(DateTime dt) {
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+
+  Widget _buildDeltaPill(List<TestSubmission> lastSix) {
+    if (lastSix.length < 2) return const SizedBox.shrink();
+    final first = lastSix.first.percentage;
+    final last = lastSix.last.percentage;
+    final delta = last - first;
+    final isUp = delta >= 0;
+    final color = isUp ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final sign = isUp ? '+' : '';
+    return Row(
+      children: [
+        Icon(isUp ? Icons.trending_up : Icons.trending_down, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(
+          '$sign${delta.toStringAsFixed(1)}%',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: color),
+        ),
+      ],
     );
   }
 }

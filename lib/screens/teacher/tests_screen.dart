@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../models/test_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/test_provider.dart';
 
 class TestsScreen extends StatefulWidget {
   const TestsScreen({Key? key}) : super(key: key);
@@ -12,12 +16,33 @@ class _TestsScreenState extends State<TestsScreen> {
   int _selectedTabIndex = 0;
   String _selectedClassFilter = 'All Classes';
 
+  @override
+  void initState() {
+    super.initState();
+    // Load tests for the current teacher after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final user = auth.currentUser;
+      if (user != null) {
+        Provider.of<TestProvider>(context, listen: false)
+            .loadTestsByTeacher(user.uid);
+      }
+    });
+  }
+
   final List<String> _tabs = ['All', 'Live', 'Scheduled', 'Past'];
-  final List<String> _classFilters = [
-    'All Classes',
-    'Grade 10 - Math',
-    'Grade 11 - Physics',
-  ];
+  List<String> _buildClassFilters(List<TestModel> tests) {
+    final set = <String>{'All Classes'};
+    for (final t in tests) {
+      final label = (t.className ?? '').isNotEmpty
+          ? (t.section != null && (t.section ?? '').isNotEmpty
+              ? '${t.className} - ${t.section}'
+              : t.className!)
+          : (t.subject.isNotEmpty ? t.subject : '');
+      if (label.isNotEmpty) set.add(label);
+    }
+    return set.toList();
+  }
 
   @override
   void dispose() {
@@ -27,6 +52,14 @@ class _TestsScreenState extends State<TestsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final testProv = Provider.of<TestProvider>(context);
+    final tests = testProv.tests;
+    final filters = _buildClassFilters(tests);
+    if (!filters.contains(_selectedClassFilter)) {
+      _selectedClassFilter = 'All Classes';
+    }
+
+    final filtered = _applyFilters(tests);
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
       body: Stack(
@@ -36,20 +69,21 @@ class _TestsScreenState extends State<TestsScreen> {
               _buildHeader(),
               _buildSearchBar(),
               _buildTabs(),
-              _buildClassFilters(),
+              _buildClassFiltersRow(filters),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  child: Column(
-                    children: [
-                      _buildLiveTestSection(),
-                      const SizedBox(height: 24),
-                      _buildUpcomingSection(),
-                      const SizedBox(height: 24),
-                      _buildCompletedSection(),
-                    ],
-                  ),
-                ),
+                child: testProv.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : filtered.isEmpty
+                        ? const Center(child: Text('No tests found'))
+                        : ListView.builder(
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                            itemCount: filtered.length,
+                            itemBuilder: (_, i) => Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: _buildTestCardFromModel(filtered[i]),
+                            ),
+                          ),
               ),
             ],
           ),
@@ -168,7 +202,7 @@ class _TestsScreenState extends State<TestsScreen> {
     );
   }
 
-  Widget _buildClassFilters() {
+  Widget _buildClassFiltersRow(List<String> classFilters) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -211,7 +245,7 @@ class _TestsScreenState extends State<TestsScreen> {
             ),
             const SizedBox(width: 12),
             // Individual class filters
-            ...(_classFilters.skip(1).map((className) {
+            ...(classFilters.skip(1).map((className) {
               return Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: InkWell(
@@ -247,105 +281,128 @@ class _TestsScreenState extends State<TestsScreen> {
     );
   }
 
-  Widget _buildLiveTestSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Live Test',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildTestCard(
-          title: 'Mid-Term Physics Exam',
-          subtitle: 'Grade 11 - Physics',
-          status: 'Live',
-          statusColor: const Color(0xFF10B981),
-          statusBgColor: const Color(0xFFD1FAE5),
-          footerIcon: Icons.timer_outlined,
-          footerText: 'Ends in: 45:32',
-          footerIconColor: const Color(0xFF6366F1),
-          showEditButton: true,
-          showDeleteButton: true,
-          showStatsButton: true,
-        ),
-      ],
+  List<TestModel> _applyFilters(List<TestModel> tests) {
+    final query = _searchController.text.trim().toLowerCase();
+    DateTime now = DateTime.now();
+    bool matchesTab(TestModel t) {
+      final isLive = t.startDate.isBefore(now) && t.endDate.isAfter(now);
+      final isScheduled = t.startDate.isAfter(now);
+      final isPast = t.endDate.isBefore(now);
+      switch (_selectedTabIndex) {
+        case 1:
+          return isLive;
+        case 2:
+          return isScheduled;
+        case 3:
+          return isPast;
+        default:
+          return true;
+      }
+    }
+
+    bool matchesClass(TestModel t) {
+      if (_selectedClassFilter == 'All Classes') return true;
+      final label = (t.className ?? '').isNotEmpty
+          ? (t.section != null && (t.section ?? '').isNotEmpty
+              ? '${t.className} - ${t.section}'
+              : t.className!)
+          : (t.subject.isNotEmpty ? t.subject : '');
+      return label == _selectedClassFilter;
+    }
+
+    bool matchesSearch(TestModel t) {
+      if (query.isEmpty) return true;
+      return t.title.toLowerCase().contains(query) ||
+          t.subject.toLowerCase().contains(query);
+    }
+
+    final filtered = tests
+        .where(matchesTab)
+        .where(matchesClass)
+        .where(matchesSearch)
+        .toList();
+    filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return filtered;
+  }
+
+  Widget _buildTestCardFromModel(TestModel t) {
+    final now = DateTime.now();
+    final isLive = t.startDate.isBefore(now) && t.endDate.isAfter(now);
+    final isScheduled = t.startDate.isAfter(now);
+    final statusText = isLive
+        ? 'Live'
+        : (isScheduled ? 'Scheduled' : 'Past');
+    final statusColor = isLive
+        ? const Color(0xFF10B981)
+        : (isScheduled ? const Color(0xFF6366F1) : const Color(0xFF1F2937));
+    final statusBg = isLive
+        ? const Color(0xFFD1FAE5)
+        : (isScheduled
+            ? const Color(0xFF6366F1).withOpacity(0.2)
+            : const Color(0xFFE5E7EB));
+
+    final subtitle = (t.className ?? '').isNotEmpty
+        ? (t.section != null && (t.section ?? '').isNotEmpty
+            ? '${t.className} - ${t.section}'
+            : t.className!)
+        : t.subject;
+
+    String footerText;
+    IconData footerIcon;
+    Color footerIconColor;
+    if (isLive) {
+      final remaining = t.endDate.difference(now);
+      final hh = remaining.inHours.toString().padLeft(2, '0');
+      final mm = (remaining.inMinutes % 60).toString().padLeft(2, '0');
+      final ss = (remaining.inSeconds % 60).toString().padLeft(2, '0');
+      footerText = 'Ends in: $hh:$mm:$ss';
+      footerIcon = Icons.timer_outlined;
+      footerIconColor = const Color(0xFF6366F1);
+    } else if (isScheduled) {
+      footerText = _formatDateTime(t.startDate);
+      footerIcon = Icons.calendar_today_outlined;
+      footerIconColor = const Color(0xFF6B7280);
+    } else {
+      footerText = 'Total: ${t.totalPoints} pts';
+      footerIcon = Icons.leaderboard_outlined;
+      footerIconColor = const Color(0xFF6366F1);
+    }
+
+    return _buildTestCard(
+      title: t.title,
+      subtitle: subtitle,
+      status: statusText,
+      statusColor: statusColor,
+      statusBgColor: statusBg,
+      footerIcon: footerIcon,
+      footerText: footerText,
+      footerIconColor: footerIconColor,
+      showEditButton: false,
+      showDeleteButton: true,
+      showStatsButton: !isScheduled,
+      onDelete: () async {
+        final prov = Provider.of<TestProvider>(context, listen: false);
+        final ok = await prov.deleteTest(t.id);
+        if (ok && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Deleted ${t.title}')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete: ${prov.errorMessage ?? 'Unknown error'}')),
+          );
+        }
+      },
     );
   }
 
-  Widget _buildUpcomingSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Upcoming',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildTestCard(
-          title: 'Algebra Weekly Quiz',
-          subtitle: 'Grade 10 - Math',
-          status: 'Scheduled',
-          statusColor: const Color(0xFF6366F1),
-          statusBgColor: const Color(0xFF6366F1).withOpacity(0.2),
-          footerIcon: Icons.calendar_today_outlined,
-          footerText: '28 Oct 2023, 10:00 AM',
-          footerIconColor: const Color(0xFF6B7280),
-          showEditButton: true,
-          showDeleteButton: true,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCompletedSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Completed',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildTestCard(
-          title: 'Calculus Pop Quiz',
-          subtitle: 'Grade 10 - Math',
-          status: 'Past',
-          statusColor: const Color(0xFF1F2937),
-          statusBgColor: const Color(0xFFE5E7EB),
-          footerIcon: Icons.leaderboard_outlined,
-          footerText: 'Avg. Score: 82%',
-          footerIconColor: const Color(0xFF6366F1),
-          showStatsButton: true,
-          showDeleteButton: true,
-        ),
-        const SizedBox(height: 16),
-        _buildTestCard(
-          title: 'Final Chemistry Paper',
-          subtitle: 'Grade 11 - Physics',
-          status: 'Past',
-          statusColor: const Color(0xFF1F2937),
-          statusBgColor: const Color(0xFFE5E7EB),
-          footerIcon: Icons.leaderboard_outlined,
-          footerText: 'Avg. Score: 76%',
-          footerIconColor: const Color(0xFF6366F1),
-          showStatsButton: true,
-          showDeleteButton: true,
-        ),
-      ],
-    );
+  String _formatDateTime(DateTime dt) {
+    final y = dt.year;
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y, $hh:$mm';
   }
 
   Widget _buildTestCard({
@@ -360,6 +417,7 @@ class _TestsScreenState extends State<TestsScreen> {
     bool showEditButton = false,
     bool showDeleteButton = false,
     bool showStatsButton = false,
+    Future<void> Function()? onDelete,
   }) {
     return InkWell(
       onTap: () {
@@ -501,7 +559,9 @@ class _TestsScreenState extends State<TestsScreen> {
                           iconSize: 20,
                           color: const Color(0xFF6B7280),
                           onPressed: () {
-                            _showDeleteDialog(title);
+                            if (onDelete != null) {
+                              _showDeleteDialogConfirm(title, onDelete);
+                            }
                           },
                           padding: const EdgeInsets.all(8),
                           constraints: const BoxConstraints(),
@@ -630,7 +690,8 @@ class _TestsScreenState extends State<TestsScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              ..._classFilters.map((className) {
+              ..._buildClassFilters(Provider.of<TestProvider>(context, listen: false).tests)
+                  .map((className) {
                 return ListTile(
                   title: Text(className),
                   trailing: _selectedClassFilter == className
@@ -651,7 +712,10 @@ class _TestsScreenState extends State<TestsScreen> {
     );
   }
 
-  void _showDeleteDialog(String testName) {
+  void _showDeleteDialogConfirm(
+    String testName,
+    Future<void> Function() onConfirm,
+  ) {
     showDialog(
       context: context,
       builder: (context) {
@@ -664,13 +728,12 @@ class _TestsScreenState extends State<TestsScreen> {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text('$testName deleted')));
+                await onConfirm();
               },
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              child:
+                  const Text('Delete', style: TextStyle(color: Colors.red)),
             ),
           ],
         );

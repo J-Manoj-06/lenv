@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../models/test_model.dart' as tm;
+import '../../models/user_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/test_provider.dart';
+import '../../services/teacher_service.dart';
 
 class AITestGeneratorScreen extends StatefulWidget {
   const AITestGeneratorScreen({Key? key}) : super(key: key);
@@ -13,8 +19,8 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   final _questionCountController = TextEditingController();
 
   String selectedDifficulty = 'Medium';
-  String selectedClass = 'Class 10';
-  String selectedSection = 'Section A';
+  String? selectedClass;
+  String? selectedSection; // Display: "Section A"
   int selectedNavIndex = 0;
 
   bool isGenerating = false;
@@ -23,8 +29,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   List<GeneratedQuestion> generatedQuestions = [];
 
   final List<String> difficulties = ['Easy', 'Medium', 'Hard'];
-  final List<String> classes = ['Class 9', 'Class 10', 'Class 11', 'Class 12'];
-  final List<String> sections = ['Section A', 'Section B', 'Section C'];
+  List<String> classes = [];
+  List<String> sections = [];
+  bool _loadingMeta = true;
 
   @override
   void dispose() {
@@ -32,6 +39,51 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     _topicsController.dispose();
     _questionCountController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTeacherMeta();
+  }
+
+  Future<void> _loadTeacherMeta() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) {
+      setState(() => _loadingMeta = false);
+      return;
+    }
+
+    try {
+      final svc = TeacherService();
+      final data = await svc.getTeacherByEmail(user.email);
+      final List<String> clzs = (data?['classesHandled'] is List)
+          ? List<String>.from(data!['classesHandled'] as List)
+          : <String>[];
+      List<String> secs = [];
+      final rawSections = data?['sections'] ?? data?['section'];
+      if (rawSections is List) {
+        secs = rawSections.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      } else if (rawSections is String) {
+        secs = rawSections
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
+      }
+      final sectionDisplay = secs.map((s) => 'Section $s').toList();
+
+      setState(() {
+        classes = clzs;
+        sections = sectionDisplay;
+        selectedClass = classes.isNotEmpty ? classes.first : null;
+        selectedSection = sections.isNotEmpty ? sections.first : null;
+        _loadingMeta = false;
+      });
+    } catch (e) {
+      setState(() => _loadingMeta = false);
+    }
   }
 
   void _generateQuestions() {
@@ -153,6 +205,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   }
 
   Widget _buildInputFields() {
+    if (_loadingMeta) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return Column(
       children: [
         _buildTextField(
@@ -200,11 +255,13 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                 label: 'Target Class',
                 value: selectedClass,
                 items: classes,
-                onChanged: (value) {
-                  setState(() {
-                    selectedClass = value!;
-                  });
-                },
+                onChanged: classes.isEmpty
+                    ? null
+                    : (value) {
+                        setState(() {
+                          selectedClass = value;
+                        });
+                      },
               ),
             ),
             const SizedBox(width: 16),
@@ -213,11 +270,13 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                 label: 'Section',
                 value: selectedSection,
                 items: sections,
-                onChanged: (value) {
-                  setState(() {
-                    selectedSection = value!;
-                  });
-                },
+                onChanged: sections.isEmpty
+                    ? null
+                    : (value) {
+                        setState(() {
+                          selectedSection = value;
+                        });
+                      },
               ),
             ),
           ],
@@ -274,9 +333,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
 
   Widget _buildDropdown({
     required String label,
-    required String value,
+    required String? value,
     required List<String> items,
-    required void Function(String?) onChanged,
+    required void Function(String?)? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,7 +355,8 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
             border: Border.all(color: Colors.grey[300]!),
           ),
           child: DropdownButtonFormField<String>(
-            value: value,
+            value: (value != null && items.contains(value)) ? value : null,
+            isExpanded: true,
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(
@@ -305,7 +365,15 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
               ),
             ),
             items: items.map((String item) {
-              return DropdownMenuItem<String>(value: item, child: Text(item));
+              return DropdownMenuItem<String>(
+                value: item,
+                child: Text(
+                  item,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  softWrap: false,
+                ),
+              );
             }).toList(),
             onChanged: onChanged,
           ),
@@ -724,13 +792,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.popUntil(context, (route) => route.isFirst);
-              Navigator.pushNamed(context, '/teacher-dashboard');
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Test assigned successfully!')),
-              );
+              await _saveGeneratedTest(publish: true);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF6366F1),
@@ -758,4 +822,82 @@ class GeneratedQuestion {
     required this.difficulty,
     required this.confidence,
   });
+}
+
+extension on _AITestGeneratorScreenState {
+  Future<void> _saveGeneratedTest({required bool publish}) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final testProv = Provider.of<TestProvider>(context, listen: false);
+    final user = auth.currentUser;
+
+    if (user == null || user.role != UserRole.teacher) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login as a teacher to continue')),
+      );
+      return;
+    }
+
+    if (_subjectController.text.trim().isEmpty || generatedQuestions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Generate questions before assigning')),
+      );
+      return;
+    }
+
+  final normalizedSection = (selectedSection ?? '')
+    .replaceAll('Section ', '')
+    .trim();
+    final duration = int.tryParse(_questionCountController.text.trim()) ?? 30; // fallback
+    final now = DateTime.now();
+    final startDate = now;
+    final endDate = now.add(Duration(minutes: duration));
+    final status = publish ? tm.TestStatus.published : tm.TestStatus.draft;
+
+    final modelQuestions = generatedQuestions.map((gq) {
+      return tm.Question(
+        id: gq.question.hashCode.toString(),
+        type: tm.QuestionType.shortAnswer,
+        question: gq.question,
+        options: null,
+        correctAnswer: gq.answer,
+        points: 1,
+      );
+    }).toList();
+
+    final test = tm.TestModel(
+      id: '',
+      title: '${_subjectController.text.trim()} - AI Generated Test',
+      description: 'Auto-generated by AI from topics: ${_topicsController.text.trim()}',
+      teacherId: user.uid,
+      teacherName: user.name,
+      instituteId: user.instituteId ?? '',
+      subject: _subjectController.text.trim(),
+      className: selectedClass,
+      section: normalizedSection,
+      questions: modelQuestions,
+      totalPoints: modelQuestions.fold<int>(0, (sum, q) => sum + q.points),
+      duration: duration,
+      startDate: startDate,
+      endDate: endDate,
+      status: status,
+      assignedStudentIds: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final ok = await testProv.createTest(test);
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Test created successfully')),
+      );
+      if (mounted) {
+        Navigator.popUntil(context, (route) => route.isFirst);
+        Navigator.pushNamed(context, '/teacher-dashboard');
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed: ${testProv.errorMessage ?? 'Unknown error'}')),
+      );
+    }
+  }
 }
