@@ -1,0 +1,86 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'firebase_options.dart';
+import 'core/theme/app_theme.dart';
+import 'providers/auth_provider.dart';
+import 'providers/role_provider.dart';
+import 'providers/test_provider.dart';
+import 'providers/reward_provider.dart';
+import 'providers/student_provider.dart';
+import 'routes/app_router.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase (with duplicate check for hot reload)
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase initialized successfully');
+    
+    // Enable offline persistence for Firestore
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    print('✅ Firestore offline persistence enabled');
+    
+    // Test Firestore connection
+    try {
+      print('🔥 Testing Firestore connection...');
+      final testQuery = await FirebaseFirestore.instance
+          .collection('schools')
+          .limit(1)
+          .get(const GetOptions(source: Source.server));
+      print('✅ Firestore connected! Found ${testQuery.docs.length} schools');
+      if (testQuery.docs.isNotEmpty) {
+        print('   Sample school: ${testQuery.docs.first.data()}');
+      }
+    } catch (firestoreError) {
+      print('❌ Firestore connection error: $firestoreError');
+      print('   This usually means:');
+      print('   1. Firestore rules deny access');
+      print('   2. Collection does not exist');
+      print('   3. Network/internet issue');
+      print('   App will use cached data if available');
+    }
+  } catch (e) {
+    // If Firebase is already initialized (e.g., hot reload), ignore the error
+    if (!e.toString().contains('duplicate-app')) {
+      print('❌ Firebase initialization error: $e');
+      rethrow;
+    } else {
+      print('ℹ️ Firebase already initialized (hot reload)');
+    }
+  }
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => RoleProvider()),
+        ChangeNotifierProvider(create: (_) => TestProvider()),
+        ChangeNotifierProvider(create: (_) => RewardProvider()),
+        ChangeNotifierProvider(create: (_) => StudentProvider()),
+      ],
+      child: MaterialApp(
+        title: 'LenV - Educational Ecosystem',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        onGenerateRoute: AppRouter.generateRoute,
+        initialRoute: '/',
+      ),
+    );
+  }
+}
