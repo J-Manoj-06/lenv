@@ -46,7 +46,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       }
 
       // Fetch teacher data
-      final teacherData = await _teacherService.getTeacherByEmail(currentUser.email);
+      final teacherData = await _teacherService.getTeacherByEmail(
+        currentUser.email,
+      );
 
       if (teacherData == null) {
         setState(() {
@@ -56,17 +58,20 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         return;
       }
 
-      // Format classes for dropdown (pass sections field separately)
+      // Determine sections field (supports 'sections' array or 'section' string)
+      final dynamic sections = teacherData['sections'] ?? teacherData['section'];
+
+      // Format classes for dropdown using sections
       final classes = _teacherService.getTeacherClasses(
         teacherData['classesHandled'],
-        teacherData['section'], // Pass the section field from Firestore
+        sections,
       );
 
       // Fetch students
       final students = await _teacherService.getStudentsByTeacher(
         currentUser.instituteId ?? teacherData['schoolCode'] ?? '',
         teacherData['classesHandled'],
-        teacherData['section'], // Pass the section field from Firestore
+        sections,
       );
 
       setState(() {
@@ -93,44 +98,44 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text(_error!),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadTeacherData,
-                        child: const Text('Retry'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(_error!),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadTeacherData,
+                    child: const Text('Retry'),
                   ),
-                )
-              : Column(
-                  children: [
-                    _buildHeader(),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildQuickActions(),
-                            const SizedBox(height: 24),
-                            _buildClassSummary(),
-                            const SizedBox(height: 24),
-                            _buildAlerts(),
-                            const SizedBox(height: 24),
-                            _buildRecentActivity(),
-                            const SizedBox(height: 80),
-                          ],
-                        ),
-                      ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildQuickActions(),
+                        const SizedBox(height: 24),
+                        _buildClassSummary(),
+                        const SizedBox(height: 24),
+                        _buildAlerts(),
+                        const SizedBox(height: 24),
+                        _buildRecentActivity(),
+                        const SizedBox(height: 80),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
+              ],
+            ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -161,10 +166,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.menu,
-                        color: Colors.grey[600],
-                      ),
+                      Icon(Icons.menu, color: Colors.grey[600]),
                       const SizedBox(width: 8),
                       Text(
                         'Hello, ${_teacherData?['teacherName'] ?? currentUser?.name ?? 'Teacher'}',
@@ -209,7 +211,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   value: selectedClass,
                   decoration: const InputDecoration(
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                   items: _classes.map((String className) {
                     return DropdownMenuItem<String>(
@@ -368,10 +373,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 ),
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.chevron_right, color: Colors.grey[400]),
           ],
         ),
       ),
@@ -395,7 +397,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               .trim();
           final studentSection = student['section']?.toString() ?? '';
 
-          return studentGrade == selectedGrade && studentSection == selectedSection;
+          return studentGrade == selectedGrade &&
+              studentSection == selectedSection;
         }).toList();
       }
     }
@@ -471,11 +474,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               color: iconBgColor,
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 24,
-            ),
+            child: Icon(icon, color: iconColor, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -492,10 +491,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 ),
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -562,10 +558,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 const SizedBox(height: 12),
                 Text(
                   'No pending alerts',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -604,18 +597,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           child: Center(
             child: Column(
               children: [
-                Icon(
-                  Icons.history,
-                  size: 48,
-                  color: Colors.grey[400],
-                ),
+                Icon(Icons.history, size: 48, color: Colors.grey[400]),
                 const SizedBox(height: 12),
                 Text(
                   'No recent activity',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -648,26 +634,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 label: 'Dashboard',
                 index: 0,
               ),
-              _buildNavItem(
-                icon: Icons.school,
-                label: 'Classes',
-                index: 1,
-              ),
-              _buildNavItem(
-                icon: Icons.quiz,
-                label: 'Tests',
-                index: 2,
-              ),
+              _buildNavItem(icon: Icons.school, label: 'Classes', index: 1),
+              _buildNavItem(icon: Icons.quiz, label: 'Tests', index: 2),
               _buildNavItem(
                 icon: Icons.leaderboard,
                 label: 'Leaderboard',
                 index: 3,
               ),
-              _buildNavItem(
-                icon: Icons.person,
-                label: 'Profile',
-                index: 4,
-              ),
+              _buildNavItem(icon: Icons.person, label: 'Profile', index: 4),
             ],
           ),
         ),
@@ -701,11 +675,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            color: color,
-            size: 24,
-          ),
+          Icon(icon, color: color, size: 24),
           const SizedBox(height: 4),
           Text(
             label,

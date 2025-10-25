@@ -16,9 +16,10 @@ class TeacherService {
       if (querySnapshot.docs.isNotEmpty) {
         final data = querySnapshot.docs.first.data();
         data['id'] = querySnapshot.docs.first.id;
-        print('✅ Teacher found: ${data['teacherName']}');
-        print('   classesHandled: ${data['classesHandled']}');
-        print('   section: ${data['section']}');
+  print('✅ Teacher found: ${data['teacherName']}');
+  print('   classesHandled: ${data['classesHandled']}');
+  print('   section: ${data['section']}');
+  print('   sections: ${data['sections']}');
         return data;
       }
 
@@ -30,13 +31,29 @@ class TeacherService {
     }
   }
 
+  /// Normalize sections input (supports string like "A, B" or list like ["A","B"]) to a String list
+  List<String> _normalizeSections(dynamic sections) {
+    if (sections == null) return <String>[];
+    if (sections is List) {
+      return sections.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+    }
+    if (sections is String) {
+      return sections
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    }
+    return <String>[];
+  }
+
   /// Get students by class sections that teacher handles
   /// classesHandled format: ["Grade 5"]
-  /// sections format: "A, B, C"
+  /// sections format: "A, B, C" OR ["A","B"]
   Future<List<Map<String, dynamic>>> getStudentsByTeacher(
     String schoolId,
     List<dynamic>? classesHandled,
-    String? sections,
+    dynamic sections,
   ) async {
     try {
       if (classesHandled == null || classesHandled.isEmpty) {
@@ -44,20 +61,13 @@ class TeacherService {
         return [];
       }
 
-      print(
-        '📚 Fetching students for classes: $classesHandled and sections: $sections',
-      );
+      print('📚 Fetching students for classes: $classesHandled and sections: $sections');
 
       // Keep the full className format as it appears in Firestore (e.g., "Grade 5")
       String className = classesHandled[0].toString();
 
-      // Parse sections from string
-      final sectionsStr = sections ?? '';
-      final sectionList = sectionsStr
-          .split(',')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
+    // Normalize sections from string or list
+    final sectionList = _normalizeSections(sections);
 
       print('  Class: $className, Sections: $sectionList');
 
@@ -104,7 +114,7 @@ class TeacherService {
   Future<List<Map<String, dynamic>>> getStudentsBySubject(
     String schoolId,
     List<dynamic>? classesHandled,
-    String? sections,
+    dynamic sections,
     List<dynamic>? subjectsHandled,
   ) async {
     try {
@@ -135,7 +145,7 @@ class TeacherService {
   Future<Map<String, dynamic>> getClassSummary(
     String schoolId,
     List<dynamic>? classesHandled,
-    String? sections,
+    dynamic sections,
   ) async {
     try {
       final students = await getStudentsByTeacher(
@@ -168,7 +178,7 @@ class TeacherService {
   /// Output: ["5 - A", "5 - B", "5 - C"]
   List<String> getTeacherClasses(
     List<dynamic>? classesHandled,
-    String? sections,
+    dynamic sections,
   ) {
     try {
       if (classesHandled == null || classesHandled.isEmpty) {
@@ -176,21 +186,14 @@ class TeacherService {
         return [];
       }
 
-      print(
-        '📋 Formatting classes from: $classesHandled and sections: $sections',
-      );
+      print('📋 Formatting classes from: $classesHandled and sections: $sections');
 
       // Extract grade/standard (could be "Grade 5" or just "5")
       String grade = classesHandled[0].toString();
       grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
 
-      // Use the separate sections parameter instead of classesHandled[1]
-      final sectionsStr = sections ?? '';
-      final sectionList = sectionsStr
-          .split(',')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
+    // Normalize sections input (supports list or comma-separated string)
+    final sectionList = _normalizeSections(sections);
 
       print('  Grade: $grade');
       print('  Sections: $sectionList');

@@ -22,37 +22,41 @@ class AppRouter {
     switch (settings.name) {
       case '/':
         return MaterialPageRoute(builder: (_) => const SplashScreen());
-      
+
       case '/role-selection':
         return MaterialPageRoute(builder: (_) => const RoleSelectionScreen());
-      
+
       case '/teacher-login':
         return MaterialPageRoute(builder: (_) => const TeacherLoginScreen());
-      
+
       case '/student-login':
         return MaterialPageRoute(builder: (_) => const StudentLoginScreen());
-      
+
       case '/student-dashboard':
-        return MaterialPageRoute(builder: (_) => const StudentDashboardScreen());
-      
+        return MaterialPageRoute(
+          builder: (_) => const StudentDashboardScreen(),
+        );
+
       case '/teacher-dashboard':
-        return MaterialPageRoute(builder: (_) => const TeacherDashboardScreen());
-      
+        return MaterialPageRoute(
+          builder: (_) => const TeacherDashboardScreen(),
+        );
+
       case '/create-test':
         return MaterialPageRoute(builder: (_) => const CreateTestScreen());
-      
+
       case '/ai-test-generator':
         return MaterialPageRoute(builder: (_) => const AITestGeneratorScreen());
-      
+
       case '/classes':
         return MaterialPageRoute(builder: (_) => const ClassesScreen());
-      
+
       case '/student-list':
         final className = settings.arguments as String? ?? 'Class';
         return MaterialPageRoute(
           builder: (_) => StudentListScreen(className: className),
         );
-      
+
       case '/student-performance':
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
@@ -63,10 +67,10 @@ class AppRouter {
             averageScore: args['score'] ?? 0,
           ),
         );
-      
+
       case '/tests':
         return MaterialPageRoute(builder: (_) => const TestsScreen());
-      
+
       case '/test-result':
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
@@ -77,13 +81,13 @@ class AppRouter {
             endTime: args['endTime'] ?? '',
           ),
         );
-      
+
       case '/leaderboard':
         return MaterialPageRoute(builder: (_) => const LeaderboardScreen());
-      
+
       case '/profile':
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
-      
+
       case '/dev-tools':
         return MaterialPageRoute(builder: (_) => const DevToolsScreen());
 
@@ -93,22 +97,22 @@ class AppRouter {
         if (resultId == null || resultId.isEmpty) {
           return MaterialPageRoute(
             builder: (_) => const Scaffold(
-              body: Center(child: Text('Missing resultId for student-test-result')),
+              body: Center(
+                child: Text('Missing resultId for student-test-result'),
+              ),
             ),
           );
         }
         return MaterialPageRoute(
           builder: (_) => StudentTestResultScreen(resultId: resultId),
         );
-      
+
       // Add more routes here as screens are created
-      
+
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
-            body: Center(
-              child: Text('No route defined for ${settings.name}'),
-            ),
+            body: Center(child: Text('No route defined for ${settings.name}')),
           ),
         );
     }
