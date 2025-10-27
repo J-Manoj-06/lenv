@@ -436,19 +436,15 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                 icon: Icons.assignment_outlined,
                 label: 'Tests',
                 isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-tests',
-                ),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/student-tests'),
               ),
               _NavItem(
                 icon: Icons.workspace_premium_outlined,
                 label: 'Rewards',
                 isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-rewards',
-                ),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/student-rewards'),
               ),
               _NavItem(
                 icon: Icons.leaderboard,
@@ -461,10 +457,8 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                 icon: Icons.person_outline,
                 label: 'Profile',
                 isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-profile',
-                ),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/student-profile'),
               ),
             ],
           ),

@@ -22,7 +22,7 @@ class TestProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-        await _firestoreService.createTestAndAssignToClass(test);
+      await _firestoreService.createTestAndAssignToClass(test);
       _isLoading = false;
       notifyListeners();
       return true;
@@ -56,12 +56,12 @@ class TestProvider with ChangeNotifier {
   }
 
   // Load available tests for student
-  void loadAvailableTests(String studentId) {
+  void loadAvailableTests(String studentId, {String? studentEmail}) {
     _isLoading = true;
     notifyListeners();
 
     _firestoreService
-        .getAvailableTestsForStudent(studentId)
+        .getAvailableTestsForStudent(studentId, studentEmail: studentEmail)
         .listen(
           (tests) {
             _tests = tests;

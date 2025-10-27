@@ -200,21 +200,21 @@ class TeacherService {
       print('  Sections: $sectionList');
 
       final List<String> result = [];
-      
+
       // Loop through ALL classes, not just the first one
       for (final classItem in classesHandled) {
         // Extract grade/standard (could be "Grade 5" or just "5")
         String grade = classItem.toString();
         grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
-        
+
         print('  Grade: $grade');
-        
+
         // Add all sections for this grade
         for (final section in sectionList) {
           result.add('$grade - $section');
         }
       }
-      
+
       print('✅ Formatted classes: $result');
       return result;
     } catch (e) {

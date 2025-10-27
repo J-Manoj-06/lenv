@@ -76,7 +76,7 @@ class FirestoreService {
         final currentUser = FirebaseAuth.instance.currentUser;
         final userEmail = currentUser?.email;
         print('   Firebase Auth email: $userEmail');
-        
+
         if (userEmail != null) {
           print(
             '   Found teacher email from Auth: $userEmail, querying teachers collection...',
@@ -148,9 +148,9 @@ class FirestoreService {
       // Look up Auth UIDs by checking users collection
       final studentUids = <String>[];
       final emailToUidMap = <String, String>{};
-      
+
       print('🔍 Starting UID lookup for ${emails.length} student emails...');
-      
+
       // Get UIDs from users collection
       for (final email in emails) {
         final userQuery = await _db
@@ -161,7 +161,7 @@ class FirestoreService {
         if (userQuery.docs.isNotEmpty) {
           final userDoc = userQuery.docs.first;
           final data = userDoc.data();
-          
+
           // Use the uid field if it exists and is not empty
           final uid = (data['uid'] as String?)?.trim();
           if (uid != null && uid.isNotEmpty) {
@@ -169,22 +169,32 @@ class FirestoreService {
             studentUids.add(uid);
             print('   ✅ $email → UID: $uid');
           } else {
-            print('   ⚠️ $email → uid field is EMPTY (student needs to log in first)');
+            print(
+              '   ⚠️ $email → uid field is EMPTY (student needs to log in first)',
+            );
           }
         } else {
           print('   ❌ No user document found for: $email');
         }
       }
-      print('✅ Mapping complete: ${studentUids.length} UIDs found out of ${emails.length} emails');
+      print(
+        '✅ Mapping complete: ${studentUids.length} UIDs found out of ${emails.length} emails',
+      );
       if (studentUids.length < emails.length) {
-        print('⚠️ ${emails.length - studentUids.length} students need to log in to update their UIDs');
+        print(
+          '⚠️ ${emails.length - studentUids.length} students need to log in to update their UIDs',
+        );
       }
 
-      // Update test document
+      // Update test document with BOTH UIDs and emails
+      // Emails serve as fallback for students who haven't logged in yet
       await _db.collection('tests').doc(testId).update({
         'assignedStudentIds': studentUids,
+        'assignedStudentEmails': emails,
       });
-      print('✅ Test document updated successfully');
+      print(
+        '✅ Test document updated with ${studentUids.length} UIDs and ${emails.length} emails',
+      );
 
       // Batch update users counters
       final batchSize = 500;
@@ -298,17 +308,82 @@ class FirestoreService {
         );
   }
 
-  Stream<List<TestModel>> getAvailableTestsForStudent(String studentId) {
-    return _db
+  Stream<List<TestModel>> getAvailableTestsForStudent(
+    String studentId, {
+    String? studentEmail,
+  }) async* {
+    print('🎓 Student Tests Query for $studentId:');
+    if (studentEmail != null) {
+      print('   Email: $studentEmail');
+    }
+
+    // First, try querying by UID
+    print('   Query: tests where assignedStudentIds arrayContains $studentId');
+    var byUidQuery = _db
         .collection('tests')
         .where('assignedStudentIds', arrayContains: studentId)
         .where('status', isEqualTo: 'published')
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => TestModel.fromJson(doc.data()))
-              .toList(),
+        .snapshots();
+
+    await for (var snapshot in byUidQuery) {
+      var tests = snapshot.docs
+          .map((doc) => TestModel.fromJson(doc.data()))
+          .toList();
+
+      print('   Found ${tests.length} tests with student in assignedStudentIds');
+
+      // If no tests found by UID and email is provided, try querying by email
+      if (tests.isEmpty && studentEmail != null && studentEmail.isNotEmpty) {
+        print(
+          '   Trying fallback query by email: assignedStudentEmails arrayContains $studentEmail',
         );
+        final byEmailSnapshot = await _db
+            .collection('tests')
+            .where('assignedStudentEmails', arrayContains: studentEmail)
+            .where('status', isEqualTo: 'published')
+            .get();
+
+        tests = byEmailSnapshot.docs
+            .map((doc) => TestModel.fromJson(doc.data()))
+            .toList();
+
+        print('   Found ${tests.length} tests with student email in assignedStudentEmails');
+      }
+
+      // Filter to only published tests
+      final publishedTests = tests
+          .where((test) => test.status == TestStatus.published)
+          .toList();
+      print('📝 After filtering by published status: ${publishedTests.length} tests');
+
+      // Debug: Check all published tests
+      final allPublishedSnapshot = await _db
+          .collection('tests')
+          .where('status', isEqualTo: 'published')
+          .get();
+      print('   🔍 Checking all ${allPublishedSnapshot.docs.length} published tests:');
+      for (var doc in allPublishedSnapshot.docs) {
+        final data = doc.data();
+        final assignedIds = data['assignedStudentIds'] as List<dynamic>? ?? [];
+        final assignedEmails =
+            data['assignedStudentEmails'] as List<dynamic>? ?? [];
+        final testTitle = data['title'] ?? 'Untitled';
+        print('      - "$testTitle": ${assignedIds.length} students assigned');
+
+        if (assignedIds.contains(studentId)) {
+          print('        ✓ Student IS in assignedStudentIds list');
+        } else if (studentEmail != null && assignedEmails.contains(studentEmail)) {
+          print('        ✓ Student email IS in assignedStudentEmails list');
+        } else {
+          print('        X Student not in list. First 3 IDs: (${assignedIds.take(3).join(', ')})');
+          if (assignedEmails.isNotEmpty && studentEmail != null) {
+            print('          First 3 emails: (${assignedEmails.take(3).join(', ')})');
+          }
+        }
+      }
+
+      yield publishedTests;
+    }
   }
 
   // Test Results Operations (for students)
@@ -406,5 +481,108 @@ class FirestoreService {
               .map((doc) => PerformanceModel.fromJson(doc.data()))
               .toList(),
         );
+  }
+
+  // UTILITY: Batch sync UIDs for all students in a specific class
+  // This is a one-time fix for students whose uid field is empty
+  Future<Map<String, dynamic>> batchSyncStudentUIDs({
+    required String schoolCode,
+    String? className,
+    String? section,
+  }) async {
+    print('🔧 Starting batch UID sync...');
+    print('   SchoolCode: $schoolCode');
+    if (className != null) print('   ClassName: $className');
+    if (section != null) print('   Section: $section');
+
+    try {
+      // Query students
+      var query = _db
+          .collection('students')
+          .where('schoolCode', isEqualTo: schoolCode);
+      
+      if (className != null && className.isNotEmpty) {
+        query = query.where('className', isEqualTo: className);
+      }
+      if (section != null && section.isNotEmpty) {
+        query = query.where('section', isEqualTo: section);
+      }
+
+      final studentsSnapshot = await query.get();
+      print('📋 Found ${studentsSnapshot.docs.length} students');
+
+      int updatedCount = 0;
+      int alreadyValidCount = 0;
+      int errorCount = 0;
+      final List<String> errors = [];
+
+      for (final studentDoc in studentsSnapshot.docs) {
+        final studentData = studentDoc.data();
+        final email = studentData['email'] as String?;
+        
+        if (email == null || email.isEmpty) {
+          print('   ⚠️ Student ${studentDoc.id} has no email, skipping');
+          errorCount++;
+          continue;
+        }
+
+        // Find user document by email
+        final userQuery = await _db
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (userQuery.docs.isEmpty) {
+          print('   ⚠️ No user doc found for $email, skipping');
+          errorCount++;
+          errors.add('No user doc for $email');
+          continue;
+        }
+
+        final userDoc = userQuery.docs.first;
+        final userData = userDoc.data();
+        final currentUid = (userData['uid'] as String?)?.trim();
+
+        // Check if uid is already valid (non-empty)
+        if (currentUid != null && currentUid.isNotEmpty) {
+          print('   ✅ $email already has UID: $currentUid');
+          alreadyValidCount++;
+          continue;
+        }
+
+        // Try to get Auth UID by attempting to sign in
+        // Since we can't do that here, we'll use the user document ID as UID
+        // This will be corrected when the student logs in
+        print('   🔄 $email → Setting UID to doc ID: ${userDoc.id}');
+        
+        await _db.collection('users').doc(userDoc.id).update({
+          'uid': userDoc.id,
+        });
+        
+        updatedCount++;
+      }
+
+      print('✅ Batch sync complete!');
+      print('   Updated: $updatedCount');
+      print('   Already valid: $alreadyValidCount');
+      print('   Errors: $errorCount');
+
+      return {
+        'success': true,
+        'totalStudents': studentsSnapshot.docs.length,
+        'updated': updatedCount,
+        'alreadyValid': alreadyValidCount,
+        'errors': errorCount,
+        'errorDetails': errors,
+      };
+    } catch (e, stackTrace) {
+      print('❌ Batch sync failed: $e');
+      print('Stack trace: $stackTrace');
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
   }
 }

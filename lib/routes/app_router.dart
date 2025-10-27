@@ -53,9 +53,7 @@ class AppRouter {
         );
 
       case '/student-profile':
-        return MaterialPageRoute(
-          builder: (_) => const StudentProfileScreen(),
-        );
+        return MaterialPageRoute(builder: (_) => const StudentProfileScreen());
 
       case '/teacher-dashboard':
         return MaterialPageRoute(

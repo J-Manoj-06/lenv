@@ -97,19 +97,18 @@ class AuthService {
                 .where('email', isEqualTo: email)
                 .limit(1)
                 .get();
-            
+
             if (userDocQuery.docs.isNotEmpty) {
               final userDoc = userDocQuery.docs.first;
               final userData = userDoc.data();
               final storedUid = (userData['uid'] as String?)?.trim();
-              
+
               // If uid is empty or doesn't match, update it
               if (storedUid == null || storedUid.isEmpty || storedUid != uid) {
                 print('  🔄 Updating users document with Auth UID: $uid');
-                await _firestore
-                    .collection('users')
-                    .doc(userDoc.id)
-                    .update({'uid': uid});
+                await _firestore.collection('users').doc(userDoc.id).update({
+                  'uid': uid,
+                });
                 print('  ✅ Users document updated successfully');
               }
             }

@@ -634,10 +634,8 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
                 icon: Icons.checklist,
                 label: 'Tests',
                 isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-tests',
-                ),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/student-tests'),
               ),
               _NavItem(
                 icon: Icons.emoji_events,
@@ -658,10 +656,8 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
                 icon: Icons.person_outline,
                 label: 'Profile',
                 isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-profile',
-                ),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/student-profile'),
               ),
             ],
           ),
@@ -797,7 +793,9 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
     if (reward.status != RewardStatus.pending) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('This reward is ${reward.status.toString().split('.').last}'),
+          content: Text(
+            'This reward is ${reward.status.toString().split('.').last}',
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -840,13 +838,10 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
 
     // Update reward status to accepted
     try {
-      await FirestoreService().updateReward(
-        reward.id,
-        {
-          'status': 'accepted',
-          'acceptedAt': FieldValue.serverTimestamp(),
-        },
-      );
+      await FirestoreService().updateReward(reward.id, {
+        'status': 'accepted',
+        'acceptedAt': FieldValue.serverTimestamp(),
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

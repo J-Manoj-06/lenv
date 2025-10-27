@@ -28,7 +28,10 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final testProvider = Provider.of<TestProvider>(context, listen: false);
       if (auth.currentUser != null) {
-        testProvider.loadAvailableTests(auth.currentUser!.uid);
+        testProvider.loadAvailableTests(
+          auth.currentUser!.uid,
+          studentEmail: auth.currentUser!.email,
+        );
       }
     });
   }
@@ -143,10 +146,8 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
                 icon: Icons.emoji_events,
                 label: 'Rewards',
                 isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-rewards',
-                ),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/student-rewards'),
               ),
               _NavItem(
                 icon: Icons.leaderboard,
@@ -161,10 +162,8 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
                 icon: Icons.person_outline,
                 label: 'Profile',
                 isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-profile',
-                ),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/student-profile'),
               ),
             ],
           ),
@@ -273,9 +272,13 @@ class _AllTestsTab extends StatelessWidget {
           .snapshots()
           .map((s) {
             print('🎓 Student Tests Query for $studentId:');
-            print('   Query: tests where assignedStudentIds arrayContains $studentId');
-            print('   Found ${s.docs.length} tests with student in assignedStudentIds');
-            
+            print(
+              '   Query: tests where assignedStudentIds arrayContains $studentId',
+            );
+            print(
+              '   Found ${s.docs.length} tests with student in assignedStudentIds',
+            );
+
             if (s.docs.isEmpty) {
               // Debug: Check all published tests to see if any have this student
               FirebaseFirestore.instance
@@ -283,24 +286,34 @@ class _AllTestsTab extends StatelessWidget {
                   .where('status', isEqualTo: 'published')
                   .get()
                   .then((allTests) {
-                    print('   🔍 Checking all ${allTests.docs.length} published tests:');
+                    print(
+                      '   🔍 Checking all ${allTests.docs.length} published tests:',
+                    );
                     for (var doc in allTests.docs.take(5)) {
                       final data = doc.data();
-                      final assignedIds = data['assignedStudentIds'] as List<dynamic>?;
+                      final assignedIds =
+                          data['assignedStudentIds'] as List<dynamic>?;
                       final title = data['title'];
-                      print('     - "$title": ${assignedIds?.length ?? 0} students assigned');
-                      if (assignedIds != null && assignedIds.contains(studentId)) {
+                      print(
+                        '     - "$title": ${assignedIds?.length ?? 0} students assigned',
+                      );
+                      if (assignedIds != null &&
+                          assignedIds.contains(studentId)) {
                         print('       ✓ THIS TEST HAS THE STUDENT!');
                       } else if (assignedIds != null) {
-                        print('       ✗ Student not in list. First 3 IDs: ${assignedIds.take(3)}');
+                        print(
+                          '       ✗ Student not in list. First 3 IDs: ${assignedIds.take(3)}',
+                        );
                       }
                     }
                   });
             }
-            
+
             final tests = s.docs.map((d) {
               final test = TestModel.fromJson(d.data());
-              print('   - Test: ${test.title}, Status: ${test.status}, ID: ${test.id}');
+              print(
+                '   - Test: ${test.title}, Status: ${test.status}, ID: ${test.id}',
+              );
               return test;
             }).toList();
             return tests;
@@ -317,15 +330,17 @@ class _AllTestsTab extends StatelessWidget {
             final pending = (pendingSnap.data ?? [])
                 .where((t) => t.status == TestStatus.published)
                 .toList();
-            
-            print('📝 After filtering by published status: ${pending.length} tests');
+
+            print(
+              '📝 After filtering by published status: ${pending.length} tests',
+            );
             if (pending.isNotEmpty) {
               print('   Available tests:');
               for (final t in pending) {
                 print('     - ${t.title} (${t.className} ${t.section})');
               }
             }
-            
+
             final completed = completedSnap.data ?? [];
 
             // Merge lists into a unified view model

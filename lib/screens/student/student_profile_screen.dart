@@ -55,11 +55,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               borderRadius: BorderRadius.circular(24),
             ),
             child: Center(
-              child: Icon(
-                Icons.school,
-                color: Colors.white,
-                size: 28,
-              ),
+              child: Icon(Icons.school, color: Colors.white, size: 28),
             ),
           ),
           // Title
@@ -160,10 +156,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           Text(
             '$className | Roll No. $rollNo',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Color(0xFF78716C),
-            ),
+            style: const TextStyle(fontSize: 16, color: Color(0xFF78716C)),
           ),
         ],
       ),
@@ -200,10 +193,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFFFED7AA),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFFFED7AA), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -273,11 +263,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                   ),
                   child: Row(
                     children: const [
-                      Icon(
-                        Icons.edit,
-                        size: 18,
-                        color: Color(0xFFF97316),
-                      ),
+                      Icon(Icons.edit, size: 18, color: Color(0xFFF97316)),
                       SizedBox(width: 6),
                       Text(
                         'Edit',
@@ -301,10 +287,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: const Color(0xFFFED7AA),
-                width: 1,
-              ),
+              border: Border.all(color: const Color(0xFFFED7AA), width: 1),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
@@ -315,28 +298,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             ),
             child: Column(
               children: [
-                _buildInfoRow(
-                  'Email',
-                  email,
-                  isFirst: true,
-                ),
-                _buildInfoRow(
-                  'Phone',
-                  phone,
-                ),
-                _buildInfoRow(
-                  'School Name',
-                  schoolName,
-                ),
-                _buildInfoRow(
-                  'Date of Birth',
-                  dateOfBirth,
-                ),
-                _buildInfoRow(
-                  'Guardian',
-                  guardianPhone,
-                  isLast: true,
-                ),
+                _buildInfoRow('Email', email, isFirst: true),
+                _buildInfoRow('Phone', phone),
+                _buildInfoRow('School Name', schoolName),
+                _buildInfoRow('Date of Birth', dateOfBirth),
+                _buildInfoRow('Guardian', guardianPhone, isLast: true),
               ],
             ),
           ),
@@ -345,17 +311,18 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value,
-      {bool isFirst = false, bool isLast = false}) {
+  Widget _buildInfoRow(
+    String label,
+    String value, {
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
     return Container(
       decoration: BoxDecoration(
         border: isLast
             ? null
             : const Border(
-                bottom: BorderSide(
-                  color: Color(0xFFFED7AA),
-                  width: 1,
-                ),
+                bottom: BorderSide(color: Color(0xFFFED7AA), width: 1),
               ),
       ),
       padding: const EdgeInsets.all(16),
@@ -365,10 +332,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             width: 120,
             child: Text(
               label,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF78716C),
-              ),
+              style: const TextStyle(fontSize: 14, color: Color(0xFF78716C)),
             ),
           ),
           Expanded(
@@ -392,10 +356,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFFFF7ED).withOpacity(0.9),
         border: const Border(
-          top: BorderSide(
-            color: Color(0xFFFED7AA),
-            width: 1,
-          ),
+          top: BorderSide(color: Color(0xFFFED7AA), width: 1),
         ),
       ),
       child: SafeArea(
@@ -419,19 +380,15 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 icon: Icons.quiz_outlined,
                 label: 'Tests',
                 isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-tests',
-                ),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/student-tests'),
               ),
               _NavItem(
                 icon: Icons.redeem_outlined,
                 label: 'Rewards',
                 isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-rewards',
-                ),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/student-rewards'),
               ),
               _NavItem(
                 icon: Icons.leaderboard_outlined,
@@ -457,15 +414,15 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   void _onChangePhoto() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Change photo coming soon!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Change photo coming soon!')));
   }
 
   void _onEditProfile() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit profile coming soon!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Edit profile coming soon!')));
   }
 }
 
@@ -495,8 +452,9 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color:
-                  isSelected ? const Color(0xFFF97316) : const Color(0xFF78716C),
+              color: isSelected
+                  ? const Color(0xFFF97316)
+                  : const Color(0xFF78716C),
               size: 24,
               fill: isFilled ? 1.0 : 0.0,
             ),
