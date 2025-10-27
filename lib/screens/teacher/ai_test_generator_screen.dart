@@ -5,7 +5,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/teacher_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart'; // not needed; assignment handled server-side
 
 class AITestGeneratorScreen extends StatefulWidget {
   const AITestGeneratorScreen({Key? key}) : super(key: key);
@@ -871,19 +871,17 @@ extension on _AITestGeneratorScreenState {
 
     // Pre-compute assigned students when publishing
     List<String> assignedIds = const [];
-    if (publish && (selectedClass ?? '').isNotEmpty && normalizedSection.isNotEmpty) {
+    if (publish &&
+        (selectedClass ?? '').isNotEmpty &&
+        normalizedSection.isNotEmpty) {
       try {
-        final teacherData = await TeacherService().getTeacherByEmail(user.email);
+        final teacherData = await TeacherService().getTeacherByEmail(
+          user.email,
+        );
         final schoolCode = teacherData?['schoolCode'] ?? user.instituteId ?? '';
-        if (schoolCode.isNotEmpty) {
-          final snap = await FirebaseFirestore.instance
-              .collection('students')
-              .where('schoolCode', isEqualTo: schoolCode)
-              .where('className', isEqualTo: selectedClass!)
-              .where('section', isEqualTo: normalizedSection)
-              .get();
-          assignedIds = snap.docs.map((d) => d.id).toList();
-        }
+        // Let FirestoreService handle assignment using Auth UIDs post-create
+        // to prevent mismatched IDs. Keep empty here; it will be set server-side.
+        assignedIds = const [];
       } catch (_) {
         assignedIds = const [];
       }

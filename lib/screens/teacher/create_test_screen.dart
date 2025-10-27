@@ -5,7 +5,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/teacher_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart'; // no longer needed: assignment computed server-side
 
 class CreateTestScreen extends StatefulWidget {
   const CreateTestScreen({Key? key}) : super(key: key);
@@ -984,25 +984,9 @@ extension on _CreateTestScreenState {
         int.tryParse(_totalMarksController.text.trim()) ??
         modelQuestions.fold<int>(0, (sum, q) => sum + q.points);
 
-    // When publishing, pre-compute assignedStudentIds from class/section
-    List<String> assignedIds = const [];
-    if (publish) {
-      try {
-        final teacherData = await TeacherService().getTeacherByEmail(user.email);
-        final schoolCode = teacherData?['schoolCode'] ?? user.instituteId ?? '';
-        if (schoolCode.isNotEmpty) {
-          final snap = await FirebaseFirestore.instance
-              .collection('students')
-              .where('schoolCode', isEqualTo: schoolCode)
-              .where('className', isEqualTo: selectedClass!)
-              .where('section', isEqualTo: normalizedSection)
-              .get();
-          assignedIds = snap.docs.map((d) => d.id).toList();
-        }
-      } catch (_) {
-        assignedIds = const [];
-      }
-    }
+    // Let the backend service compute correct assignedStudentIds using Auth UIDs
+    // to avoid race conditions or mismatched IDs from the students collection.
+    final List<String> assignedIds = const [];
 
     final test = tm.TestModel(
       id: '',

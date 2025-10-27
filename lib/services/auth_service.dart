@@ -90,6 +90,34 @@ class AuthService {
           final data = querySnapshot.docs.first.data();
           print('  📄 Document data: $data');
 
+          // UPDATE: Ensure the user document in 'users' collection has the correct Auth UID
+          try {
+            final userDocQuery = await _firestore
+                .collection('users')
+                .where('email', isEqualTo: email)
+                .limit(1)
+                .get();
+            
+            if (userDocQuery.docs.isNotEmpty) {
+              final userDoc = userDocQuery.docs.first;
+              final userData = userDoc.data();
+              final storedUid = (userData['uid'] as String?)?.trim();
+              
+              // If uid is empty or doesn't match, update it
+              if (storedUid == null || storedUid.isEmpty || storedUid != uid) {
+                print('  🔄 Updating users document with Auth UID: $uid');
+                await _firestore
+                    .collection('users')
+                    .doc(userDoc.id)
+                    .update({'uid': uid});
+                print('  ✅ Users document updated successfully');
+              }
+            }
+          } catch (e) {
+            print('  ⚠️ Failed to update users document: $e');
+            // Continue anyway - not critical
+          }
+
           // Convert Firestore document to UserModel
           return UserModel(
             uid: uid, // Use Firebase Auth UID

@@ -19,6 +19,7 @@ import '../screens/student/student_test_result_screen.dart';
 import '../screens/student/student_tests_screen.dart';
 import '../screens/student/student_rewards_screen.dart';
 import '../screens/student/student_leaderboard_screen.dart';
+import '../screens/student/student_profile_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -41,19 +42,20 @@ class AppRouter {
         );
 
       case '/student-tests':
-        return MaterialPageRoute(
-          builder: (_) => const StudentTestsScreen(),
-        );
+        return MaterialPageRoute(builder: (_) => const StudentTestsScreen());
 
       case '/student-rewards':
+        return MaterialPageRoute(builder: (_) => const StudentRewardsScreen());
+
+      case '/student-leaderboard':
         return MaterialPageRoute(
-          builder: (_) => const StudentRewardsScreen(),
+          builder: (_) => const StudentLeaderboardScreen(),
         );
 
-        case '/student-leaderboard':
-          return MaterialPageRoute(
-            builder: (_) => const StudentLeaderboardScreen(),
-          );
+      case '/student-profile':
+        return MaterialPageRoute(
+          builder: (_) => const StudentProfileScreen(),
+        );
 
       case '/teacher-dashboard':
         return MaterialPageRoute(

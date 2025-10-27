@@ -173,11 +173,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     );
   }
 
-  Widget _buildFilterChip(
-    String label,
-    bool isSelected,
-    VoidCallback onTap,
-  ) {
+  Widget _buildFilterChip(String label, bool isSelected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -195,7 +191,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? const Color(0xFFC2410C) : const Color(0xFF292524),
+                color: isSelected
+                    ? const Color(0xFFC2410C)
+                    : const Color(0xFF292524),
                 fontSize: 14,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
@@ -204,7 +202,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
             Icon(
               Icons.expand_more,
               size: 16,
-              color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF78716C),
+              color: isSelected
+                  ? const Color(0xFFEA580C)
+                  : const Color(0xFF78716C),
             ),
           ],
         ),
@@ -412,10 +412,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFFCFBF8).withOpacity(0.8),
         border: const Border(
-          top: BorderSide(
-            color: Color(0xFFE7E5E4),
-            width: 1,
-          ),
+          top: BorderSide(color: Color(0xFFE7E5E4), width: 1),
         ),
       ),
       child: SafeArea(
@@ -439,13 +436,19 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                 icon: Icons.assignment_outlined,
                 label: 'Tests',
                 isSelected: false,
-                onTap: () => Navigator.pushNamed(context, '/student-tests'),
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/student-tests',
+                ),
               ),
               _NavItem(
                 icon: Icons.workspace_premium_outlined,
                 label: 'Rewards',
                 isSelected: false,
-                onTap: () => Navigator.pushNamed(context, '/student-rewards'),
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/student-rewards',
+                ),
               ),
               _NavItem(
                 icon: Icons.leaderboard,
@@ -458,11 +461,10 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                 icon: Icons.person_outline,
                 label: 'Profile',
                 isSelected: false,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile coming soon!')),
-                  );
-                },
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/student-profile',
+                ),
               ),
             ],
           ),
@@ -473,9 +475,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
 
   void _showFilterDialog(String filterType) {
     // Placeholder for filter dialog
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$filterType filter coming soon!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$filterType filter coming soon!')));
   }
 }
 
@@ -505,7 +507,9 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF78716C),
+              color: isSelected
+                  ? const Color(0xFFEA580C)
+                  : const Color(0xFF78716C),
               size: 24,
               fill: isFilled ? 1.0 : 0.0,
             ),
@@ -515,7 +519,9 @@ class _NavItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF78716C),
+                color: isSelected
+                    ? const Color(0xFFEA580C)
+                    : const Color(0xFF78716C),
               ),
             ),
           ],

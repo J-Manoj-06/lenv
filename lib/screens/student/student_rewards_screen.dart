@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/reward_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
@@ -67,9 +68,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFCFAF8),
-      ),
+      decoration: const BoxDecoration(color: Color(0xFFFCFAF8)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -95,10 +94,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
           ),
           const Text(
             'Rewards',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(width: 40),
         ],
@@ -180,10 +176,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
             'My Rewards',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
         StreamBuilder<List<RewardModel>>(
@@ -193,9 +186,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
               return const Center(
                 child: Padding(
                   padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator(
-                    color: Color(0xFFF27F0D),
-                  ),
+                  child: CircularProgressIndicator(color: Color(0xFFF27F0D)),
                 ),
               );
             }
@@ -219,7 +210,9 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
             }
 
             return Column(
-              children: rewards.map((reward) => _buildRewardCard(reward)).toList(),
+              children: rewards
+                  .map((reward) => _buildRewardCard(reward))
+                  .toList(),
             );
           },
         ),
@@ -251,10 +244,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
             Text(
               'Complete tests and earn rewards!',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade500,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
             ),
           ],
         ),
@@ -426,57 +416,96 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   }
 
   Widget _buildRewardCatalog() {
-    // Sample catalog data - in production, this would come from Firestore
-    final catalogItems = [
-      {
-        'title': 'Extra Game Time',
-        'points': 50,
-        'available': false, // Insufficient points
-        'image':
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuCpZ6VqS2F8oNFeCVBMtr7yFM7urS79MqW_AVAJpmRcVSOGYd_G2sxsZhne0z3c-MfzHsozKeqPxc9Bqw9bSDQbHtY5_hdpaqZvcSWbS2it3bSqaRV11McuxUXr7A_7V17GqjuW9zoWWY3FPgHqPkLHNigFsRb1UWPucdBEwWrn57vxzK_wQA-PjYyKF9WIrzm-X8_PjlKAwY1xQaDulTJQCPybJUXU7-FT6UxksiTq8w4tmBrXHOm5Oc1rGkaTfvuqeYJCyQ9sWcc',
-      },
-      {
-        'title': 'Movie Night',
-        'points': 100,
-        'available': true,
-        'image':
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuBCmvl09BL1tM-y_GafQbgSCTc-17ncIF_BKN2EMmxc0qLaYbQuyhTBIHJyTKhVWKEgfN2hBoHD5m0yR_vjeONIkwf7N1VY52TC1tz4EgZFWk6swfTAET3QOSQfw_tYDEpYCnhmRH-cRL8jb_8m8jBGhIgVUujf5gwVyqjVwFe_u-sa-iV-PTKewCukNiKbftxCF0MWah8_8ElQamdoIy2Ldrh2n0G02dH3czsVa3Q9P6J4gEjDiSjTMG6TsgMYi-3xJAA4DaUwfGc',
-      },
-      {
-        'title': 'Ice Cream Treat',
-        'points': 75,
-        'available': true,
-        'image':
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuBNb08VMnGnPYyrJX93WRRkoXoE8HhWB0oKSPUq5migxAHqkssENBTagiYRBdh1b0FSMUsrnFoCEd7NJComtOcStRedTbPNZiyZYtR19b4BLy6ltHNq84AW7_6qCRYIZ2bQje7pZbIcgx8QBKgO-uefAW2BLxKyIQyfwNTAbWHahMEcABX-D0zWytBEuMbicpHk3vH47ZIX7NV_-OjgoJlhUUKqOl0Lu0O3YBFYd1_kpooLRsW1SkVhmpnAzopumwBxW6NFaBAd_aU',
-      },
-      {
-        'title': 'New Book',
-        'points': 150,
-        'available': true,
-        'image':
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuBNb08VMnGnPYyrJX93WRRkoXoE8HhWB0oKSPUq5migxAHqkssENBTagiYRBdh1b0FSMUsrnFoCEd7NJComtOcStRedTbPNZiyZYtR19b4BLy6ltHNq84AW7_6qCRYIZ2bQje7pZbIcgx8QBKgO-uefAW2BLxKyIQyfwNTAbWHahMEcABX-D0zWytBEuMbicpHk3vH47ZIX7NV_-OjgoJlhUUKqOl0Lu0O3YBFYd1_kpooLRsW1SkVhmpnAzopumwBxW6NFaBAd_aU',
-      },
-    ];
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final studentId = authProvider.currentUser?.uid ?? '';
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: catalogItems.length,
-      itemBuilder: (context, index) {
-        return _buildCatalogCard(catalogItems[index]);
+    return StreamBuilder<List<RewardModel>>(
+      stream: FirestoreService().getRewardCatalogForStudent(studentId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: CircularProgressIndicator(color: Color(0xFFF27F0D)),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.grey.shade300,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error loading catalog',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final catalogRewards = snapshot.data ?? [];
+
+        if (catalogRewards.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(48),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.card_giftcard_outlined,
+                    size: 64,
+                    color: Colors.grey.shade300,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No Rewards Available',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ask your parents to create rewards for you!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 0.75,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemCount: catalogRewards.length,
+          itemBuilder: (context, index) {
+            return _buildCatalogCard(catalogRewards[index]);
+          },
+        );
       },
     );
   }
 
-  Widget _buildCatalogCard(Map<String, dynamic> item) {
-    final bool isAvailable = item['available'] as bool;
-
+  Widget _buildCatalogCard(RewardModel reward) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -499,21 +528,35 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
             height: 96,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              image: DecorationImage(
-                image: NetworkImage(item['image']),
-                fit: BoxFit.cover,
-              ),
+              color: const Color(0xFFFCFAF8),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: reward.imageUrl != null && reward.imageUrl!.isNotEmpty
+                  ? Image.network(
+                      reward.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.card_giftcard,
+                        size: 48,
+                        color: Colors.grey.shade300,
+                      ),
+                    )
+                  : Icon(
+                      Icons.card_giftcard,
+                      size: 48,
+                      color: Colors.grey.shade300,
+                    ),
             ),
           ),
           const SizedBox(height: 8),
           // Title
           Text(
-            item['title'],
+            reward.title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           // Points
@@ -527,7 +570,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
               ),
               const SizedBox(width: 4),
               Text(
-                '${item['points']} pts',
+                '${reward.points ?? 0} pts',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -541,12 +584,10 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: isAvailable ? () => _redeemReward(item) : null,
+              onPressed: () => _redeemReward(reward),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF97316),
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: const Color(0xFFF97316).withOpacity(0.5),
-                disabledForegroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(
@@ -555,10 +596,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
               ),
               child: const Text(
                 'Redeem Now',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -572,10 +610,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(
-          top: BorderSide(
-            color: const Color(0xFFF4EDE7),
-            width: 1,
-          ),
+          top: BorderSide(color: const Color(0xFFF4EDE7), width: 1),
         ),
       ),
       child: SafeArea(
@@ -599,7 +634,10 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
                 icon: Icons.checklist,
                 label: 'Tests',
                 isSelected: false,
-                onTap: () => Navigator.pushNamed(context, '/student-tests'),
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/student-tests',
+                ),
               ),
               _NavItem(
                 icon: Icons.emoji_events,
@@ -611,21 +649,19 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
                 icon: Icons.leaderboard,
                 label: 'Leaderboard',
                 isSelected: false,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Leaderboard coming soon!')),
-                  );
-                },
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/student-leaderboard',
+                ),
               ),
               _NavItem(
                 icon: Icons.person_outline,
                 label: 'Profile',
                 isSelected: false,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile coming soon!')),
-                  );
-                },
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/student-profile',
+                ),
               ),
             ],
           ),
@@ -650,13 +686,10 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
           ElevatedButton(
             onPressed: () async {
               try {
-                await FirestoreService().updateReward(
-                  reward.id,
-                  {
-                    'status': RewardStatus.accepted.toString().split('.').last,
-                    'acceptedAt': DateTime.now(),
-                  },
-                );
+                await FirestoreService().updateReward(reward.id, {
+                  'status': RewardStatus.accepted.toString().split('.').last,
+                  'acceptedAt': DateTime.now(),
+                });
                 if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -708,17 +741,11 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
                 ),
               ),
             const SizedBox(height: 16),
-            Text(
-              reward.description,
-              style: const TextStyle(fontSize: 14),
-            ),
+            Text(reward.description, style: const TextStyle(fontSize: 14)),
             const SizedBox(height: 12),
             Text(
               'From: ${reward.senderName} (${reward.senderRole})',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
             if (reward.points != null)
               Padding(
@@ -765,28 +792,41 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
     );
   }
 
-  void _redeemReward(Map<String, dynamic> item) {
-    showDialog(
+  void _redeemReward(RewardModel reward) async {
+    // Check if reward status is pending (available for redemption)
+    if (reward.status != RewardStatus.pending) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('This reward is ${reward.status.toString().split('.').last}'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Redeem ${item['title']}?'),
-        content: Text(
-          'This will cost ${item['points']} points.\n\n${item['description']}',
+        title: Text('Redeem ${reward.title}?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('This will cost ${reward.points ?? 0} points.'),
+            if (reward.description.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(reward.description),
+            ],
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Reward redemption coming soon!'),
-                ),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF27F0D),
             ),
@@ -795,6 +835,37 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
         ],
       ),
     );
+
+    if (confirmed != true) return;
+
+    // Update reward status to accepted
+    try {
+      await FirestoreService().updateReward(
+        reward.id,
+        {
+          'status': 'accepted',
+          'acceptedAt': FieldValue.serverTimestamp(),
+        },
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${reward.title} redeemed successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to redeem reward: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -822,7 +893,9 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isSelected ? const Color(0xFFF27F0D) : const Color(0xFF9C7349),
+              color: isSelected
+                  ? const Color(0xFFF27F0D)
+                  : const Color(0xFF9C7349),
               size: 24,
             ),
             const SizedBox(height: 4),
@@ -831,7 +904,9 @@ class _NavItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? const Color(0xFFF27F0D) : const Color(0xFF9C7349),
+                color: isSelected
+                    ? const Color(0xFFF27F0D)
+                    : const Color(0xFF9C7349),
               ),
             ),
           ],

@@ -179,8 +179,8 @@ class TeacherService {
   }
 
   /// Get teacher's classes formatted for dropdown
-  /// Input: classesHandled=["Grade 5"], sections="A, B, C"
-  /// Output: ["5 - A", "5 - B", "5 - C"]
+  /// Input: classesHandled=["Grade 4", "Grade 5", "Grade 6"], sections=["A", "B"]
+  /// Output: ["4 - A", "4 - B", "5 - A", "5 - B", "6 - A", "6 - B"]
   List<String> getTeacherClasses(
     List<dynamic>? classesHandled,
     dynamic sections,
@@ -195,19 +195,27 @@ class TeacherService {
         '📋 Formatting classes from: $classesHandled and sections: $sections',
       );
 
-      // Extract grade/standard (could be "Grade 5" or just "5")
-      String grade = classesHandled[0].toString();
-      grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
-
       // Normalize sections input (supports list or comma-separated string)
       final sectionList = _normalizeSections(sections);
-
-      print('  Grade: $grade');
       print('  Sections: $sectionList');
 
-      final result = sectionList.map((section) => '$grade - $section').toList();
+      final List<String> result = [];
+      
+      // Loop through ALL classes, not just the first one
+      for (final classItem in classesHandled) {
+        // Extract grade/standard (could be "Grade 5" or just "5")
+        String grade = classItem.toString();
+        grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
+        
+        print('  Grade: $grade');
+        
+        // Add all sections for this grade
+        for (final section in sectionList) {
+          result.add('$grade - $section');
+        }
+      }
+      
       print('✅ Formatted classes: $result');
-
       return result;
     } catch (e) {
       print('❌ Error formatting classes: $e');

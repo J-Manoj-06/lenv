@@ -46,7 +46,9 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
     final studentId = auth.currentUser?.uid;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF111827) : const Color(0xFFF7F3EF),
+      backgroundColor: isDark
+          ? const Color(0xFF111827)
+          : const Color(0xFFF7F3EF),
       body: SafeArea(
         child: Column(
           children: [
@@ -58,16 +60,25 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: isDark ? Colors.grey.shade800 : const Color(0xFFE8DBCE),
+                    color: isDark
+                        ? Colors.grey.shade800
+                        : const Color(0xFFE8DBCE),
                   ),
                 ),
-                color: isDark ? Colors.black.withOpacity(0.1) : Colors.white.withOpacity(0.8),
+                color: isDark
+                    ? Colors.black.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.8),
               ),
               child: TabBar(
                 controller: _tabController,
                 labelColor: isDark ? Colors.white : const Color(0xFF1C140D),
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                unselectedLabelColor: isDark ? Colors.grey.shade500 : const Color(0xFF9C7349),
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                unselectedLabelColor: isDark
+                    ? Colors.grey.shade500
+                    : const Color(0xFF9C7349),
                 indicatorColor: const Color(0xFFF2800D),
                 indicatorWeight: 2,
                 tabs: const [
@@ -93,6 +104,119 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
           ],
         ),
       ),
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: const Color(0xFFF4EDE7), width: 1),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 64,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _NavItem(
+                icon: Icons.home_outlined,
+                label: 'Home',
+                isSelected: false,
+                onTap: () => Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/student-dashboard',
+                  (route) => false,
+                ),
+              ),
+              _NavItem(
+                icon: Icons.checklist,
+                label: 'Tests',
+                isSelected: true,
+                onTap: () {},
+              ),
+              _NavItem(
+                icon: Icons.emoji_events,
+                label: 'Rewards',
+                isSelected: false,
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/student-rewards',
+                ),
+              ),
+              _NavItem(
+                icon: Icons.leaderboard,
+                label: 'Leaderboard',
+                isSelected: false,
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/student-leaderboard',
+                ),
+              ),
+              _NavItem(
+                icon: Icons.person_outline,
+                label: 'Profile',
+                isSelected: false,
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/student-profile',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected
+                  ? const Color(0xFFF27F0D)
+                  : const Color(0xFF9C7349),
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected
+                    ? const Color(0xFFF27F0D)
+                    : const Color(0xFF9C7349),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -102,12 +226,17 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: isDark ? Colors.black.withOpacity(0.1) : Colors.white.withOpacity(0.8),
+      color: isDark
+          ? Colors.black.withOpacity(0.1)
+          : Colors.white.withOpacity(0.8),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : const Color(0xFF1C140D)),
+            icon: Icon(
+              Icons.arrow_back,
+              color: isDark ? Colors.white : const Color(0xFF1C140D),
+            ),
           ),
           const Expanded(
             child: Padding(
@@ -142,7 +271,40 @@ class _AllTestsTab extends StatelessWidget {
           .collection('tests')
           .where('assignedStudentIds', arrayContains: studentId)
           .snapshots()
-          .map((s) => s.docs.map((d) => TestModel.fromJson(d.data())).toList()),
+          .map((s) {
+            print('🎓 Student Tests Query for $studentId:');
+            print('   Query: tests where assignedStudentIds arrayContains $studentId');
+            print('   Found ${s.docs.length} tests with student in assignedStudentIds');
+            
+            if (s.docs.isEmpty) {
+              // Debug: Check all published tests to see if any have this student
+              FirebaseFirestore.instance
+                  .collection('tests')
+                  .where('status', isEqualTo: 'published')
+                  .get()
+                  .then((allTests) {
+                    print('   🔍 Checking all ${allTests.docs.length} published tests:');
+                    for (var doc in allTests.docs.take(5)) {
+                      final data = doc.data();
+                      final assignedIds = data['assignedStudentIds'] as List<dynamic>?;
+                      final title = data['title'];
+                      print('     - "$title": ${assignedIds?.length ?? 0} students assigned');
+                      if (assignedIds != null && assignedIds.contains(studentId)) {
+                        print('       ✓ THIS TEST HAS THE STUDENT!');
+                      } else if (assignedIds != null) {
+                        print('       ✗ Student not in list. First 3 IDs: ${assignedIds.take(3)}');
+                      }
+                    }
+                  });
+            }
+            
+            final tests = s.docs.map((d) {
+              final test = TestModel.fromJson(d.data());
+              print('   - Test: ${test.title}, Status: ${test.status}, ID: ${test.id}');
+              return test;
+            }).toList();
+            return tests;
+          }),
       builder: (context, pendingSnap) {
         return StreamBuilder<List<TestResultModel>>(
           stream: firestore.getTestResultsByStudent(studentId),
@@ -155,6 +317,15 @@ class _AllTestsTab extends StatelessWidget {
             final pending = (pendingSnap.data ?? [])
                 .where((t) => t.status == TestStatus.published)
                 .toList();
+            
+            print('📝 After filtering by published status: ${pending.length} tests');
+            if (pending.isNotEmpty) {
+              print('   Available tests:');
+              for (final t in pending) {
+                print('     - ${t.title} (${t.className} ${t.section})');
+              }
+            }
+            
             final completed = completedSnap.data ?? [];
 
             // Merge lists into a unified view model
@@ -212,9 +383,8 @@ class _PendingTab extends StatelessWidget {
         }
         return ListView.separated(
           padding: const EdgeInsets.all(16),
-          itemBuilder: (ctx, i) => _TestCard(
-            item: _TestListItem.pending(test: pending[i]),
-          ),
+          itemBuilder: (ctx, i) =>
+              _TestCard(item: _TestListItem.pending(test: pending[i])),
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemCount: pending.length,
         );
@@ -242,9 +412,8 @@ class _CompletedTab extends StatelessWidget {
         }
         return ListView.separated(
           padding: const EdgeInsets.all(16),
-          itemBuilder: (ctx, i) => _TestCard(
-            item: _TestListItem.completed(result: results[i]),
-          ),
+          itemBuilder: (ctx, i) =>
+              _TestCard(item: _TestListItem.completed(result: results[i])),
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemCount: results.length,
         );
@@ -266,14 +435,15 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.quiz_outlined,
-                size: 48, color: isDark ? Colors.white38 : Colors.black38),
+            Icon(
+              Icons.quiz_outlined,
+              size: 48,
+              color: isDark ? Colors.white38 : Colors.black38,
+            ),
             const SizedBox(height: 12),
             Text(
               message,
-              style: TextStyle(
-                color: isDark ? Colors.white70 : Colors.black54,
-              ),
+              style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
             ),
           ],
         ),
@@ -287,12 +457,10 @@ class _TestListItem {
   final TestResultModel? result;
   final bool isPending;
 
-  _TestListItem.pending({required this.test})
-      : result = null,
-        isPending = true;
+  _TestListItem.pending({required this.test}) : result = null, isPending = true;
   _TestListItem.completed({required this.result})
-      : test = null,
-        isPending = false;
+    : test = null,
+      isPending = false;
 }
 
 class _TestCard extends StatelessWidget {
@@ -329,9 +497,7 @@ class _TestCard extends StatelessWidget {
       buttonText = 'Start Test';
       onPressed = () {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Test attempt is coming soon.'),
-          ),
+          const SnackBar(content: Text('Test attempt is coming soon.')),
         );
       };
       leadingIcon = Icons.quiz;
@@ -411,7 +577,9 @@ class _TestCard extends StatelessWidget {
                           'Subject: ',
                           style: TextStyle(
                             fontSize: 13,
-                            color: isDark ? Colors.white70 : const Color(0xFF9C7349),
+                            color: isDark
+                                ? Colors.white70
+                                : const Color(0xFF9C7349),
                           ),
                         ),
                         Text(
@@ -419,7 +587,9 @@ class _TestCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white : const Color(0xFF1C140D),
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF1C140D),
                           ),
                         ),
                       ],
@@ -432,7 +602,9 @@ class _TestCard extends StatelessWidget {
                             'Assigned By: ',
                             style: TextStyle(
                               fontSize: 13,
-                              color: isDark ? Colors.white70 : const Color(0xFF9C7349),
+                              color: isDark
+                                  ? Colors.white70
+                                  : const Color(0xFF9C7349),
                             ),
                           ),
                           Text(
@@ -440,7 +612,9 @@ class _TestCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white : const Color(0xFF1C140D),
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF1C140D),
                             ),
                           ),
                         ],
@@ -450,7 +624,10 @@ class _TestCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: statusBg,
                   borderRadius: BorderRadius.circular(999),
@@ -497,7 +674,11 @@ class _TestCard extends StatelessWidget {
                   ),
                 ],
               ),
-              _PrimaryButton(label: buttonText, onPressed: onPressed, isPrimary: item.isPending),
+              _PrimaryButton(
+                label: buttonText,
+                onPressed: onPressed,
+                isPrimary: item.isPending,
+              ),
             ],
           ),
         ],
@@ -510,7 +691,11 @@ class _PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
   final bool isPrimary;
-  const _PrimaryButton({required this.label, required this.onPressed, this.isPrimary = true});
+  const _PrimaryButton({
+    required this.label,
+    required this.onPressed,
+    this.isPrimary = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -520,7 +705,12 @@ class _PrimaryButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         backgroundColor: isPrimary ? const Color(0xFFF2800D) : Colors.white,
         foregroundColor: isPrimary ? Colors.white : const Color(0xFF1C140D),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: isPrimary ? Colors.transparent : const Color(0xFFE8DBCE))),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: isPrimary ? Colors.transparent : const Color(0xFFE8DBCE),
+          ),
+        ),
         elevation: isPrimary ? 1 : 0,
       ),
       onPressed: onPressed,

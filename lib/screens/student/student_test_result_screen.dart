@@ -63,7 +63,10 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                            icon: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.black87,
+                            ),
                             onPressed: () => Navigator.pop(context),
                           ),
                           const Text(
@@ -116,8 +119,9 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                           Wrap(
                             spacing: 12,
                             runSpacing: 12,
-                            children:
-                                result.badges.map((b) => _badgeChip(b)).toList(),
+                            children: result.badges
+                                .map((b) => _badgeChip(b))
+                                .toList(),
                           ),
                           const SizedBox(height: 24),
                           const Text(
@@ -139,19 +143,25 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                                   onPressed: () {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Share feature coming soon!'),
+                                        content: Text(
+                                          'Share feature coming soon!',
+                                        ),
                                       ),
                                     );
                                   },
                                   icon: const Icon(Icons.share, size: 20),
                                   label: const Text(
                                     'Share',
-                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFFF97316),
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(999),
                                     ),
@@ -165,19 +175,25 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                                   onPressed: () {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Review feature coming soon!'),
+                                        content: Text(
+                                          'Review feature coming soon!',
+                                        ),
                                       ),
                                     );
                                   },
                                   icon: const Icon(Icons.rate_review, size: 20),
                                   label: const Text(
                                     'Review',
-                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.grey.shade300,
                                     foregroundColor: Colors.black87,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(999),
                                     ),
@@ -477,9 +493,7 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade300),
-        ),
+        border: Border(top: BorderSide(color: Colors.grey.shade300)),
       ),
       child: SafeArea(
         top: false,

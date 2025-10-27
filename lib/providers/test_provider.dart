@@ -22,7 +22,7 @@ class TestProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      await _firestoreService.createTest(test);
+        await _firestoreService.createTestAndAssignToClass(test);
       _isLoading = false;
       notifyListeners();
       return true;
