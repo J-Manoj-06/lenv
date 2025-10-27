@@ -56,38 +56,66 @@ class TeacherService {
   Future<List<Map<String, dynamic>>> getStudentsByTeacher(
     String schoolId,
     List<dynamic>? classesHandled,
-    dynamic sections,
-  ) async {
+    dynamic sections, {
+    List<dynamic>? classAssignments,
+  }) async {
     try {
-      if (classesHandled == null || classesHandled.isEmpty) {
-        print('⚠️ No classes handled by teacher');
+      final List<Map<String, dynamic>> allStudents = [];
+
+      // First, try using classesHandled + sections if available
+      if (classesHandled != null && classesHandled.isNotEmpty) {
+        print('📚 Fetching students for classes: $classesHandled and sections: $sections');
+
+        final sectionList = _normalizeSections(sections);
+        if (sectionList.isEmpty) {
+          print('⚠️ No sections provided, cannot query students');
+          return [];
+        }
+
+        for (final classItem in classesHandled) {
+          final className = classItem.toString(); // e.g., "Grade 5"
+          print('  Class: $className, Sections: $sectionList');
+
+          for (final section in sectionList) {
+            if (section.isEmpty) continue;
+
+            print('  🔍 Querying WHERE schoolCode == "$schoolId" AND className == "$className" AND section == "$section"');
+            final querySnapshot = await _firestore
+                .collection('students')
+                .where('schoolCode', isEqualTo: schoolId)
+                .where('className', isEqualTo: className)
+                .where('section', isEqualTo: section)
+                .get();
+
+            print('     ✅ Found ${querySnapshot.docs.length} students in $className - $section');
+            for (var doc in querySnapshot.docs) {
+              final studentData = doc.data();
+              studentData['id'] = doc.id;
+              allStudents.add(studentData);
+            }
+          }
+        }
+        print('✅ Found ${allStudents.length} students');
+        return allStudents;
+      }
+
+      // Fallback: Use classAssignments (e.g., "Grade 10: A, Science")
+      print('⚠️ No classesHandled; trying classAssignments fallback');
+      final formatted = getTeacherClasses(null, null, classAssignments: classAssignments);
+      if (formatted.isEmpty) {
+        print('⚠️ No formatted classes from assignments; returning empty');
         return [];
       }
 
-      print(
-        '📚 Fetching students for classes: $classesHandled and sections: $sections',
-      );
+      print('📚 Fetching students for formatted classes: $formatted');
+      for (final fc in formatted) {
+        // fc like "10 - A" -> className="Grade 10", section="A"
+        final parts = fc.split(' - ');
+        if (parts.length != 2) continue;
+        final className = 'Grade ${parts[0].trim()}';
+        final section = parts[1].trim();
 
-      // Keep the full className format as it appears in Firestore (e.g., "Grade 5")
-      String className = classesHandled[0].toString();
-
-      // Normalize sections from string or list
-      final sectionList = _normalizeSections(sections);
-
-      print('  Class: $className, Sections: $sectionList');
-
-      final List<Map<String, dynamic>> allStudents = [];
-
-      // Query students by school, className, and sections
-      // NOTE: Using 'schoolCode' and 'className' to match actual Firestore field names
-      for (var section in sectionList) {
-        if (section.isEmpty) continue;
-
-        print('  🔍 Querying section: $section');
-        print('     WHERE schoolCode == "$schoolId"');
-        print('     AND className == "$className"');
-        print('     AND section == "$section"');
-
+        print('  🔍 Querying WHERE schoolCode == "$schoolId" AND className == "$className" AND section == "$section"');
         final querySnapshot = await _firestore
             .collection('students')
             .where('schoolCode', isEqualTo: schoolId)
@@ -95,10 +123,7 @@ class TeacherService {
             .where('section', isEqualTo: section)
             .get();
 
-        print(
-          '     ✅ Found ${querySnapshot.docs.length} students in section $section',
-        );
-
+        print('     ✅ Found ${querySnapshot.docs.length} students in $className - $section');
         for (var doc in querySnapshot.docs) {
           final studentData = doc.data();
           studentData['id'] = doc.id;
@@ -106,7 +131,7 @@ class TeacherService {
         }
       }
 
-      print('✅ Found ${allStudents.length} students');
+      print('✅ Found ${allStudents.length} students (assignments fallback)');
       return allStudents;
     } catch (e) {
       print('❌ Error fetching students: $e');
@@ -181,45 +206,93 @@ class TeacherService {
   /// Get teacher's classes formatted for dropdown
   /// Input: classesHandled=["Grade 4", "Grade 5", "Grade 6"], sections=["A", "B"]
   /// Output: ["4 - A", "4 - B", "5 - A", "5 - B", "6 - A", "6 - B"]
+  /// 
+  /// OR fallback: classAssignments=["Grade 10: A, Science", "Grade 10: B, Science"]
+  /// Output: ["10 - A", "10 - B"]
   List<String> getTeacherClasses(
     List<dynamic>? classesHandled,
-    dynamic sections,
-  ) {
+    dynamic sections, {
+    List<dynamic>? classAssignments,
+  }) {
     try {
-      if (classesHandled == null || classesHandled.isEmpty) {
-        print('⚠️ No classesHandled data');
-        return [];
-      }
+      // Try primary format first: classesHandled + sections
+      if (classesHandled != null && classesHandled.isNotEmpty) {
+        print(
+          '📋 Formatting classes from: $classesHandled and sections: $sections',
+        );
 
-      print(
-        '📋 Formatting classes from: $classesHandled and sections: $sections',
-      );
+        // Normalize sections input (supports list or comma-separated string)
+        final sectionList = _normalizeSections(sections);
+        print('  Sections: $sectionList');
 
-      // Normalize sections input (supports list or comma-separated string)
-      final sectionList = _normalizeSections(sections);
-      print('  Sections: $sectionList');
-
-      final List<String> result = [];
-
-      // Loop through ALL classes, not just the first one
-      for (final classItem in classesHandled) {
-        // Extract grade/standard (could be "Grade 5" or just "5")
-        String grade = classItem.toString();
-        grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
-
-        print('  Grade: $grade');
-
-        // Add all sections for this grade
-        for (final section in sectionList) {
-          result.add('$grade - $section');
+        if (sectionList.isEmpty) {
+          print('⚠️ No sections data, trying classAssignments fallback');
+          return _parseFromClassAssignments(classAssignments);
         }
+
+        final List<String> result = [];
+
+        // Loop through ALL classes, not just the first one
+        for (final classItem in classesHandled) {
+          // Extract grade/standard (could be "Grade 5" or just "5")
+          String grade = classItem.toString();
+          grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
+
+          print('  Grade: $grade');
+
+          // Add all sections for this grade
+          for (final section in sectionList) {
+            result.add('$grade - $section');
+          }
+        }
+
+        print('✅ Formatted classes: $result');
+        return result;
       }
 
-      print('✅ Formatted classes: $result');
-      return result;
+      // Fallback: Parse from classAssignments
+      print('⚠️ No classesHandled data, trying classAssignments fallback');
+      return _parseFromClassAssignments(classAssignments);
     } catch (e) {
       print('❌ Error formatting classes: $e');
       return [];
     }
+  }
+
+  /// Parse classes from classAssignments format
+  /// Input: ["Grade 10: A, Science", "Grade 10: B, Science"]
+  /// Output: ["10 - A", "10 - B"]
+  List<String> _parseFromClassAssignments(List<dynamic>? classAssignments) {
+    if (classAssignments == null || classAssignments.isEmpty) {
+      print('⚠️ No classAssignments data available');
+      return [];
+    }
+
+    print('📋 Parsing from classAssignments: $classAssignments');
+
+    final Set<String> uniqueClasses = {};
+
+    for (final assignment in classAssignments) {
+      final assignmentStr = assignment.toString();
+      // Format: "Grade 10: A, Science" or "Grade 10: B, Science"
+      
+      final parts = assignmentStr.split(':');
+      if (parts.length < 2) continue;
+
+      final gradePart = parts[0].trim(); // "Grade 10"
+      final sectionPart = parts[1].split(',')[0].trim(); // "A" or "B"
+
+      // Extract just the number from "Grade 10" -> "10"
+      final grade = gradePart
+          .replaceAll('Grade ', '')
+          .replaceAll('grade ', '')
+          .trim();
+
+      uniqueClasses.add('$grade - $sectionPart');
+    }
+
+    final result = uniqueClasses.toList()..sort();
+    print('✅ Parsed classes: $result');
+    return result;
   }
 }

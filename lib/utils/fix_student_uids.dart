@@ -2,19 +2,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 /// Utility to fix all student UIDs in the users collection
-/// 
+///
 /// This function:
 /// 1. Reads all students from the 'students' collection
 /// 2. For each student, tries to sign in to get their Auth UID
 /// 3. Updates the 'users' collection with the correct UID
-/// 
+///
 /// WARNING: This requires knowing student passwords OR creating new accounts
 class StudentUIDFixer {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// Fix UIDs for students in a specific school
-  /// 
+  ///
   /// [schoolCode] - The school code to filter students
   /// [defaultPassword] - Default password used for student accounts (if known)
   /// [className] - Optional: Fix only students in this class
@@ -82,10 +82,9 @@ class StudentUIDFixer {
                 .get();
 
             if (userQuery.docs.isNotEmpty) {
-              await _db
-                  .collection('users')
-                  .doc(userQuery.docs.first.id)
-                  .update({'uid': authUID});
+              await _db.collection('users').doc(userQuery.docs.first.id).update(
+                {'uid': authUID},
+              );
               print('   ✅ Updated users collection for $email');
               successCount++;
             } else {
@@ -124,10 +123,7 @@ class StudentUIDFixer {
     } catch (e, stackTrace) {
       print('❌ Fix process failed: $e');
       print('Stack trace: $stackTrace');
-      return {
-        'success': false,
-        'error': e.toString(),
-      };
+      return {'success': false, 'error': e.toString()};
     }
   }
 }

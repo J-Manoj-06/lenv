@@ -103,14 +103,16 @@ class TeacherDashboardScreen extends StatelessWidget {
       // Format classes for dropdown (pass sections field separately)
       final classes = _teacherService.getTeacherClasses(
         teacherData['classesHandled'],
-        teacherData['section'], // Pass the section field from Firestore
+        teacherData['sections'] ?? teacherData['section'], // Try 'sections' first, then 'section'
+        classAssignments: teacherData['classAssignments'], // Fallback to classAssignments
       );
 
-      // Fetch students
+      // Fetch students (supports both classesHandled and classAssignments)
       final students = await _teacherService.getStudentsByTeacher(
         currentUser.instituteId ?? teacherData['schoolCode'] ?? '',
         teacherData['classesHandled'],
-        teacherData['section'], // Pass the section field from Firestore
+        teacherData['sections'] ?? teacherData['section'], // sections
+        classAssignments: teacherData['classAssignments'],
       );
 
       setState(() {
@@ -118,6 +120,32 @@ class TeacherDashboardScreen extends StatelessWidget {
         _classes = classes;
         _students = students;
         selectedClass = classes.isNotEmpty ? classes[0] : null;
+        
+          // Calculate student count per class (add Map<String, int> _classStudentCounts = {}; as class variable)
+          final classStudentCounts = <String, int>{};
+          for (var className in classes) {
+            final parts = className.split(' - ');
+            if (parts.length == 2) {
+              final selectedGrade = parts[0].trim();
+              final selectedSection = parts[1].trim();
+            
+              final count = students.where((student) {
+                final studentClassName = student['className']?.toString() ?? '';
+                final studentGrade = studentClassName
+                    .replaceAll('Grade ', '')
+                    .replaceAll('grade ', '')
+                    .trim();
+                final studentSection = student['section']?.toString() ?? '';
+              
+                return studentGrade == selectedGrade &&
+                    studentSection == selectedSection;
+              }).length;
+            
+              classStudentCounts[className] = count;
+            }
+          }
+          _classStudentCounts = classStudentCounts;
+        
         _isLoading = false;
       });
     } catch (e) {
@@ -258,10 +286,11 @@ class TeacherDashboardScreen extends StatelessWidget {
                     contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   items: _classes.map((String className) {
-                    return DropdownMenuItem<String>(
-                      value: className,
-                      child: Text(className),
-                    );
+                      final count = _classStudentCounts[className] ?? 0;
+                      return DropdownMenuItem<String>(
+                        value: className,
+                        child: Text('$className ($count students)'),
+                      );
                   }).toList(),
                   onChanged: (String? newValue) {
                     if (newValue != null) {

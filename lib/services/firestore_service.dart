@@ -330,7 +330,9 @@ class FirestoreService {
           .map((doc) => TestModel.fromJson(doc.data()))
           .toList();
 
-      print('   Found ${tests.length} tests with student in assignedStudentIds');
+      print(
+        '   Found ${tests.length} tests with student in assignedStudentIds',
+      );
 
       // If no tests found by UID and email is provided, try querying by email
       if (tests.isEmpty && studentEmail != null && studentEmail.isNotEmpty) {
@@ -347,21 +349,27 @@ class FirestoreService {
             .map((doc) => TestModel.fromJson(doc.data()))
             .toList();
 
-        print('   Found ${tests.length} tests with student email in assignedStudentEmails');
+        print(
+          '   Found ${tests.length} tests with student email in assignedStudentEmails',
+        );
       }
 
       // Filter to only published tests
       final publishedTests = tests
           .where((test) => test.status == TestStatus.published)
           .toList();
-      print('📝 After filtering by published status: ${publishedTests.length} tests');
+      print(
+        '📝 After filtering by published status: ${publishedTests.length} tests',
+      );
 
       // Debug: Check all published tests
       final allPublishedSnapshot = await _db
           .collection('tests')
           .where('status', isEqualTo: 'published')
           .get();
-      print('   🔍 Checking all ${allPublishedSnapshot.docs.length} published tests:');
+      print(
+        '   🔍 Checking all ${allPublishedSnapshot.docs.length} published tests:',
+      );
       for (var doc in allPublishedSnapshot.docs) {
         final data = doc.data();
         final assignedIds = data['assignedStudentIds'] as List<dynamic>? ?? [];
@@ -372,12 +380,17 @@ class FirestoreService {
 
         if (assignedIds.contains(studentId)) {
           print('        ✓ Student IS in assignedStudentIds list');
-        } else if (studentEmail != null && assignedEmails.contains(studentEmail)) {
+        } else if (studentEmail != null &&
+            assignedEmails.contains(studentEmail)) {
           print('        ✓ Student email IS in assignedStudentEmails list');
         } else {
-          print('        X Student not in list. First 3 IDs: (${assignedIds.take(3).join(', ')})');
+          print(
+            '        X Student not in list. First 3 IDs: (${assignedIds.take(3).join(', ')})',
+          );
           if (assignedEmails.isNotEmpty && studentEmail != null) {
-            print('          First 3 emails: (${assignedEmails.take(3).join(', ')})');
+            print(
+              '          First 3 emails: (${assignedEmails.take(3).join(', ')})',
+            );
           }
         }
       }
@@ -500,7 +513,7 @@ class FirestoreService {
       var query = _db
           .collection('students')
           .where('schoolCode', isEqualTo: schoolCode);
-      
+
       if (className != null && className.isNotEmpty) {
         query = query.where('className', isEqualTo: className);
       }
@@ -519,7 +532,7 @@ class FirestoreService {
       for (final studentDoc in studentsSnapshot.docs) {
         final studentData = studentDoc.data();
         final email = studentData['email'] as String?;
-        
+
         if (email == null || email.isEmpty) {
           print('   ⚠️ Student ${studentDoc.id} has no email, skipping');
           errorCount++;
@@ -555,11 +568,11 @@ class FirestoreService {
         // Since we can't do that here, we'll use the user document ID as UID
         // This will be corrected when the student logs in
         print('   🔄 $email → Setting UID to doc ID: ${userDoc.id}');
-        
+
         await _db.collection('users').doc(userDoc.id).update({
           'uid': userDoc.id,
         });
-        
+
         updatedCount++;
       }
 
@@ -579,10 +592,7 @@ class FirestoreService {
     } catch (e, stackTrace) {
       print('❌ Batch sync failed: $e');
       print('Stack trace: $stackTrace');
-      return {
-        'success': false,
-        'error': e.toString(),
-      };
+      return {'success': false, 'error': e.toString()};
     }
   }
 }

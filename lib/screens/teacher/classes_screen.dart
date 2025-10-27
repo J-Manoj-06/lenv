@@ -64,6 +64,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
       final classNames = _teacherService.getTeacherClasses(
         teacherData['classesHandled'],
         sections,
+        classAssignments: teacherData['classAssignments'], // Fallback
       );
 
       // Get students for each class and create ClassItem objects
@@ -88,6 +89,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
           schoolId,
           teacherData['classesHandled'],
           section,
+          classAssignments: teacherData['classAssignments'],
         );
 
         classes.add(

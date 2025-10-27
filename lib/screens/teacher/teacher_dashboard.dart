@@ -18,6 +18,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Map<String, dynamic>? _teacherData;
   List<Map<String, dynamic>> _students = [];
   List<String> _classes = [];
+    Map<String, int> _classStudentCounts = {};
   bool _isLoading = true;
   String? _error;
 
@@ -66,13 +67,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       final classes = _teacherService.getTeacherClasses(
         teacherData['classesHandled'],
         sections,
+        classAssignments: teacherData['classAssignments'], // Fallback
       );
 
-      // Fetch students
+      // Fetch students (supports both classesHandled and classAssignments)
       final students = await _teacherService.getStudentsByTeacher(
         currentUser.instituteId ?? teacherData['schoolCode'] ?? '',
         teacherData['classesHandled'],
         sections,
+        classAssignments: teacherData['classAssignments'],
       );
 
       setState(() {
@@ -80,6 +83,31 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         _classes = classes;
         _students = students;
         selectedClass = classes.isNotEmpty ? classes[0] : null;
+        
+          // Calculate student count per class
+          _classStudentCounts = {};
+          for (var className in classes) {
+            final parts = className.split(' - ');
+            if (parts.length == 2) {
+              final selectedGrade = parts[0].trim();
+              final selectedSection = parts[1].trim();
+            
+              final count = students.where((student) {
+                final studentClassName = student['className']?.toString() ?? '';
+                final studentGrade = studentClassName
+                    .replaceAll('Grade ', '')
+                    .replaceAll('grade ', '')
+                    .trim();
+                final studentSection = student['section']?.toString() ?? '';
+              
+                return studentGrade == selectedGrade &&
+                    studentSection == selectedSection;
+              }).length;
+            
+              _classStudentCounts[className] = count;
+            }
+          }
+        
         _isLoading = false;
       });
     } catch (e) {
@@ -218,9 +246,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     ),
                   ),
                   items: _classes.map((String className) {
+                    final count = _classStudentCounts[className] ?? 0;
                     return DropdownMenuItem<String>(
                       value: className,
-                      child: Text(className),
+                      child: Text('$className ($count students)'),
                     );
                   }).toList(),
                   onChanged: (String? newValue) {

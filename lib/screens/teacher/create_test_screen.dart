@@ -67,33 +67,54 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     try {
       final svc = TeacherService();
       final data = await svc.getTeacherByEmail(user.email);
-      final List<String> subjs = (data?['subjectsHandled'] is List)
+      
+      // Get subjects (fallback to parse from classAssignments if needed)
+      List<String> subjs = (data?['subjectsHandled'] is List)
           ? List<String>.from(data!['subjectsHandled'] as List)
           : <String>[];
-      final List<String> clzs = (data?['classesHandled'] is List)
-          ? List<String>.from(data!['classesHandled'] as List)
-          : <String>[];
-      // sections may be list or comma-separated string
-      List<String> secs = [];
-      final rawSections = data?['sections'] ?? data?['section'];
-      if (rawSections is List) {
-        secs = rawSections
-            .map((e) => e.toString().trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-      } else if (rawSections is String) {
-        secs = rawSections
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList();
+      if (subjs.isEmpty && data?['classAssignments'] is List) {
+        final Set<String> uniqueSubjects = {};
+        for (final assignment in (data!['classAssignments'] as List)) {
+          final s = assignment.toString(); // e.g., "Grade 10: A, Science"
+          final parts = s.split(':');
+          if (parts.length >= 2) {
+            final right = parts[1]; // " A, Science"
+            final commaParts = right.split(',');
+            if (commaParts.length >= 2) {
+              final subject = commaParts[1].trim();
+              if (subject.isNotEmpty) uniqueSubjects.add(subject);
+            }
+          }
+        }
+        subjs = uniqueSubjects.toList()..sort();
       }
-      // Display sections as "Section X"
-      final sectionDisplay = secs.map((s) => 'Section $s').toList();
+      
+      // Get formatted classes using the service (handles both formats)
+      final dynamic sectionsData = data?['sections'] ?? data?['section'];
+      final List<String> formattedClasses = svc.getTeacherClasses(
+        data?['classesHandled'],
+        sectionsData,
+        classAssignments: data?['classAssignments'],
+      );
+      
+      // Extract unique sections from formatted classes
+      // Format is "10 - A", "10 - B", etc.
+      final Set<String> uniqueSections = {};
+      final Set<String> uniqueGrades = {};
+      for (final cls in formattedClasses) {
+        final parts = cls.split(' - ');
+        if (parts.length == 2) {
+          uniqueSections.add(parts[1]); // Extract "A", "B", etc.
+          uniqueGrades.add(parts[0].trim()); // Extract just the standard (e.g., "10")
+        }
+      }
+      final sectionDisplay = uniqueSections.map((s) => 'Section $s').toList()..sort();
+      final List<String> gradeOnlyList = uniqueGrades.toList()..sort();
 
       setState(() {
         subjects = subjs;
-        classes = clzs;
+        // Show only the standard (grade) in the class dropdown
+        classes = gradeOnlyList;
         sections = sectionDisplay;
         selectedSubject = subjects.isNotEmpty ? subjects.first : null;
         selectedClass = classes.isNotEmpty ? classes.first : null;
@@ -949,11 +970,7 @@ extension on _CreateTestScreenState {
       return;
     }
 
-    // Normalize fields
-    final normalizedSection = selectedSection!
-        .replaceAll('Section ', '')
-        .trim();
-    final duration = int.tryParse(_timeLimitController.text.trim()) ?? 60;
+      final duration = int.tryParse(_timeLimitController.text.trim()) ?? 60;
     final now = DateTime.now();
     final startDate = now;
     final endDate = now.add(Duration(minutes: duration));
@@ -984,9 +1001,11 @@ extension on _CreateTestScreenState {
         int.tryParse(_totalMarksController.text.trim()) ??
         modelQuestions.fold<int>(0, (sum, q) => sum + q.points);
 
-    // Let the backend service compute correct assignedStudentIds using Auth UIDs
-    // to avoid race conditions or mismatched IDs from the students collection.
-    final List<String> assignedIds = const [];
+    // Build className and section from separate dropdowns
+    final gradeClassName = 'Grade ${selectedClass!.trim()}';
+    final normalizedSection = (selectedSection ?? '')
+      .replaceAll('Section ', '')
+      .trim();
 
     final test = tm.TestModel(
       id: '',
@@ -996,15 +1015,15 @@ extension on _CreateTestScreenState {
       teacherName: user.name,
       instituteId: user.instituteId ?? '',
       subject: selectedSubject!,
-      className: selectedClass!,
-      section: normalizedSection,
+  className: gradeClassName,
+  section: normalizedSection,
       questions: modelQuestions,
       totalPoints: totalPoints,
       duration: duration,
       startDate: startDate,
       endDate: endDate,
       status: status,
-      assignedStudentIds: assignedIds,
+        assignedStudentIds: const [],
       createdAt: now,
       updatedAt: now,
     );
