@@ -8,6 +8,7 @@ import '../../models/test_result_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/firestore_service.dart';
+import 'test_rules_screen.dart';
 
 class StudentTestsScreen extends StatefulWidget {
   const StudentTestsScreen({super.key});
@@ -511,8 +512,9 @@ class _TestCard extends StatelessWidget {
       dateValue = fmt.format(t.endDate);
       buttonText = 'Start Test';
       onPressed = () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Test attempt is coming soon.')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => TestRulesScreen(test: t)),
         );
       };
       leadingIcon = Icons.quiz;

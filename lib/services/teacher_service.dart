@@ -64,7 +64,9 @@ class TeacherService {
 
       // First, try using classesHandled + sections if available
       if (classesHandled != null && classesHandled.isNotEmpty) {
-        print('📚 Fetching students for classes: $classesHandled and sections: $sections');
+        print(
+          '📚 Fetching students for classes: $classesHandled and sections: $sections',
+        );
 
         final sectionList = _normalizeSections(sections);
         if (sectionList.isEmpty) {
@@ -79,7 +81,9 @@ class TeacherService {
           for (final section in sectionList) {
             if (section.isEmpty) continue;
 
-            print('  🔍 Querying WHERE schoolCode == "$schoolId" AND className == "$className" AND section == "$section"');
+            print(
+              '  🔍 Querying WHERE schoolCode == "$schoolId" AND className == "$className" AND section == "$section"',
+            );
             final querySnapshot = await _firestore
                 .collection('students')
                 .where('schoolCode', isEqualTo: schoolId)
@@ -87,7 +91,9 @@ class TeacherService {
                 .where('section', isEqualTo: section)
                 .get();
 
-            print('     ✅ Found ${querySnapshot.docs.length} students in $className - $section');
+            print(
+              '     ✅ Found ${querySnapshot.docs.length} students in $className - $section',
+            );
             for (var doc in querySnapshot.docs) {
               final studentData = doc.data();
               studentData['id'] = doc.id;
@@ -101,7 +107,11 @@ class TeacherService {
 
       // Fallback: Use classAssignments (e.g., "Grade 10: A, Science")
       print('⚠️ No classesHandled; trying classAssignments fallback');
-      final formatted = getTeacherClasses(null, null, classAssignments: classAssignments);
+      final formatted = getTeacherClasses(
+        null,
+        null,
+        classAssignments: classAssignments,
+      );
       if (formatted.isEmpty) {
         print('⚠️ No formatted classes from assignments; returning empty');
         return [];
@@ -115,7 +125,9 @@ class TeacherService {
         final className = 'Grade ${parts[0].trim()}';
         final section = parts[1].trim();
 
-        print('  🔍 Querying WHERE schoolCode == "$schoolId" AND className == "$className" AND section == "$section"');
+        print(
+          '  🔍 Querying WHERE schoolCode == "$schoolId" AND className == "$className" AND section == "$section"',
+        );
         final querySnapshot = await _firestore
             .collection('students')
             .where('schoolCode', isEqualTo: schoolId)
@@ -123,7 +135,9 @@ class TeacherService {
             .where('section', isEqualTo: section)
             .get();
 
-        print('     ✅ Found ${querySnapshot.docs.length} students in $className - $section');
+        print(
+          '     ✅ Found ${querySnapshot.docs.length} students in $className - $section',
+        );
         for (var doc in querySnapshot.docs) {
           final studentData = doc.data();
           studentData['id'] = doc.id;
@@ -206,7 +220,7 @@ class TeacherService {
   /// Get teacher's classes formatted for dropdown
   /// Input: classesHandled=["Grade 4", "Grade 5", "Grade 6"], sections=["A", "B"]
   /// Output: ["4 - A", "4 - B", "5 - A", "5 - B", "6 - A", "6 - B"]
-  /// 
+  ///
   /// OR fallback: classAssignments=["Grade 10: A, Science", "Grade 10: B, Science"]
   /// Output: ["10 - A", "10 - B"]
   List<String> getTeacherClasses(
@@ -236,7 +250,10 @@ class TeacherService {
         for (final classItem in classesHandled) {
           // Extract grade/standard (could be "Grade 5" or just "5")
           String grade = classItem.toString();
-          grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '').trim();
+          grade = grade
+              .replaceAll('Grade ', '')
+              .replaceAll('grade ', '')
+              .trim();
 
           print('  Grade: $grade');
 
@@ -275,7 +292,7 @@ class TeacherService {
     for (final assignment in classAssignments) {
       final assignmentStr = assignment.toString();
       // Format: "Grade 10: A, Science" or "Grade 10: B, Science"
-      
+
       final parts = assignmentStr.split(':');
       if (parts.length < 2) continue;
 

@@ -163,6 +163,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                                 student?.name ?? 'Student',
                               ),
 
+                              // Search Rewards CTA
+                              _buildSearchRewardsCTA(isDark),
+
                               // Daily Challenge Card
                               if (studentProvider.todayChallenge != null)
                                 _buildDailyChallengeCard(
@@ -379,6 +382,28 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
           fontSize: 28,
           fontWeight: FontWeight.bold,
           color: isDark ? Colors.white : Colors.grey.shade900,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchRewardsCTA(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => Navigator.pushNamed(context, '/search-rewards'),
+          icon: const Text('🎁'),
+          label: const Text('Search Rewards'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1777FF),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
         ),
       ),
     );

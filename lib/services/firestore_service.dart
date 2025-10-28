@@ -5,6 +5,9 @@ import '../models/test_model.dart';
 import '../models/reward_model.dart';
 import '../models/performance_model.dart';
 import '../models/test_result_model.dart';
+import '../models/product_model.dart';
+import '../models/reward_points_model.dart';
+import '../models/reward_request_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -81,6 +84,13 @@ class FirestoreService {
           print(
             '   Found teacher email from Auth: $userEmail, querying teachers collection...',
           );
+          // Pre-assignment audit: count how many students have UID for this teacher
+          try {
+            await countStudentsUidByTeacherEmail(userEmail);
+          } catch (e) {
+            // ignore: avoid_print
+            print('   (audit) Failed to count UIDs for $userEmail: $e');
+          }
           final teacherQuery = await _db
               .collection('teachers')
               .where('email', isEqualTo: userEmail)
@@ -292,6 +302,170 @@ class FirestoreService {
 
   Future<void> deleteTest(String testId) async {
     await _db.collection('tests').doc(testId).delete();
+  }
+
+  /// Utility: Count students for a teacher email whose user docs have a populated uid
+  /// Returns a summary map with totals and prints detailed logs.
+  Future<Map<String, dynamic>> countStudentsUidByTeacherEmail(
+    String teacherEmail,
+  ) async {
+    print('🔎 Counting students with UID for teacher: $teacherEmail');
+    try {
+      // 1) Load teacher by email
+      final teacherQuery = await _db
+          .collection('teachers')
+          .where('email', isEqualTo: teacherEmail)
+          .limit(1)
+          .get();
+
+      if (teacherQuery.docs.isEmpty) {
+        print('⚠️ No teacher found for email: $teacherEmail');
+        return {'success': false, 'error': 'Teacher not found'};
+      }
+
+      final teacherData = teacherQuery.docs.first.data();
+      final schoolCode = (teacherData['schoolCode'] as String?)?.trim() ?? '';
+      final classesHandled = teacherData['classesHandled'] as List<dynamic>?;
+      final sectionsRaw = teacherData['sections'] ?? teacherData['section'];
+      final classAssignments =
+          teacherData['classAssignments'] as List<dynamic>?;
+
+      if (schoolCode.isEmpty) {
+        print('⚠️ Teacher has no schoolCode');
+      }
+
+      // 2) Build list of (className, section) pairs to query students
+      List<Map<String, String>> targets = [];
+
+      List<String> _normalizeSections(dynamic sections) {
+        if (sections == null) return <String>[];
+        if (sections is List) {
+          return sections
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
+        if (sections is String) {
+          return sections
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+        }
+        return <String>[];
+      }
+
+      if (classesHandled != null && classesHandled.isNotEmpty) {
+        final sections = _normalizeSections(sectionsRaw);
+        for (final c in classesHandled) {
+          final className = c.toString(); // e.g., "Grade 10"
+          for (final s in sections) {
+            targets.add({'className': className, 'section': s});
+          }
+        }
+      } else if (classAssignments != null && classAssignments.isNotEmpty) {
+        // Parse strings like "Grade 10: A, Science"
+        for (final assignment in classAssignments) {
+          final str = assignment.toString();
+          final parts = str.split(':');
+          if (parts.length < 2) continue;
+          final gradePart = parts[0].trim(); // "Grade 10"
+          final right = parts[1];
+          final commaParts = right.split(',');
+          if (commaParts.isEmpty) continue;
+          final section = commaParts[0].trim(); // "A"
+          final className = gradePart; // keep full "Grade X" for query
+          targets.add({'className': className, 'section': section});
+        }
+      }
+
+      if (targets.isEmpty) {
+        print('⚠️ No class/section targets derived for teacher');
+        return {
+          'success': true,
+          'schoolCode': schoolCode,
+          'totalStudents': 0,
+          'withUid': 0,
+          'withoutUid': 0,
+          'missingUsers': 0,
+        };
+      }
+
+      print('🎯 Query targets: ${targets.length} (className + section pairs)');
+
+      // 3) Query students for all targets and collect emails
+      final emails = <String>{};
+      int totalStudentDocs = 0;
+      for (final t in targets) {
+        final className = t['className']!;
+        final section = t['section']!;
+        var q = _db
+            .collection('students')
+            .where('schoolCode', isEqualTo: schoolCode)
+            .where('className', isEqualTo: className)
+            .where('section', isEqualTo: section);
+        final snap = await q.get();
+        totalStudentDocs += snap.docs.length;
+        print('   • $className - $section → ${snap.docs.length} students');
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final email =
+              (data['email'] as String?) ?? data['studentEmail'] as String?;
+          if (email != null && email.isNotEmpty) emails.add(email.trim());
+        }
+      }
+
+      print('📧 Unique student emails collected: ${emails.length}');
+
+      // 4) Check users collection for uid presence
+      int withUid = 0;
+      int withoutUid = 0;
+      int missingUsers = 0;
+
+      for (final email in emails) {
+        final uq = await _db
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+        if (uq.docs.isEmpty) {
+          missingUsers++;
+          // ignore: avoid_print
+          print('   ❌ No user doc for $email');
+          continue;
+        }
+        final u = uq.docs.first.data();
+        final uid = (u['uid'] as String?)?.trim() ?? '';
+        if (uid.isNotEmpty) {
+          withUid++;
+        } else {
+          withoutUid++;
+        }
+      }
+
+      print('✅ UID summary for $teacherEmail');
+      print('   • Total student docs (by classes): $totalStudentDocs');
+      print('   • Unique emails: ${emails.length}');
+      print('   • With UID: $withUid');
+      print('   • Without UID: $withoutUid');
+      print('   • Missing users: $missingUsers');
+
+      return {
+        'success': true,
+        'teacherEmail': teacherEmail,
+        'schoolCode': schoolCode,
+        'targets': targets.length,
+        'totalStudents': totalStudentDocs,
+        'uniqueEmails': emails.length,
+        'withUid': withUid,
+        'withoutUid': withoutUid,
+        'missingUsers': missingUsers,
+      };
+    } catch (e, st) {
+      print('❌ Error counting UIDs: $e');
+      print(st);
+      return {'success': false, 'error': e.toString()};
+    }
   }
 
   Stream<List<TestModel>> getTestsByTeacher(String teacherId) {
@@ -594,5 +768,287 @@ class FirestoreService {
       print('Stack trace: $stackTrace');
       return {'success': false, 'error': e.toString()};
     }
+  }
+
+  // Submit Test Result
+  Future<void> submitTestResult(TestResultModel result) async {
+    print('📝 Submitting test result for student: ${result.studentName}');
+    print('   Test: ${result.testTitle}');
+    print('   Score: ${result.score}%');
+    print('   Tab switches: ${result.tabSwitchCount}');
+    print('   Violation: ${result.violationDetected}');
+
+    try {
+      // Create the test result document
+      final resultDoc = _db.collection('testResults').doc();
+      final resultData = result.toFirestore();
+      resultData['id'] = resultDoc.id;
+
+      await resultDoc.set(resultData);
+      print('✅ Test result saved with ID: ${resultDoc.id}');
+
+      // Update student counters
+      final studentDoc = _db.collection('users').doc(result.studentId);
+      await studentDoc.update({
+        'completedTests': FieldValue.increment(1),
+        'pendingTests': FieldValue.increment(-1),
+        'totalScore': FieldValue.increment(result.score.toInt()),
+        'totalPoints': FieldValue.increment(result.score.toInt()),
+      });
+      print('✅ Student counters updated');
+
+      // Rewards: also log earned points record for this test
+      try {
+        final earnedPoints = calculatePoints(
+          total: result.totalQuestions.toDouble(),
+          obtained: result.correctAnswers.toDouble(),
+          basePoints: 100, // default baseline
+        );
+        await savePointsToFirestore(
+          studentId: result.studentId,
+          testId: result.testId,
+          marks: result.correctAnswers.toDouble(),
+          totalMarks: result.totalQuestions.toDouble(),
+          points: earnedPoints,
+        );
+        print('🏅 Reward points logged for test ${result.testId}');
+      } catch (e) {
+        print('⚠️ Failed to log reward points: $e');
+      }
+
+      // Update test document with completion info
+      final testDoc = _db.collection('tests').doc(result.testId);
+      await testDoc.update({
+        'completedBy': FieldValue.arrayUnion([result.studentId]),
+        'completedCount': FieldValue.increment(1),
+      });
+      print('✅ Test completion tracking updated');
+
+      // If violation detected, log it separately
+      if (result.violationDetected) {
+        await _db.collection('violations').add({
+          'studentId': result.studentId,
+          'studentName': result.studentName,
+          'studentEmail': result.studentEmail,
+          'testId': result.testId,
+          'testTitle': result.testTitle,
+          'resultId': resultDoc.id,
+          'violationType': 'tab_switch',
+          'tabSwitchCount': result.tabSwitchCount,
+          'reason': result.violationReason,
+          'timestamp': FieldValue.serverTimestamp(),
+          'score': result.score,
+        });
+        print('⚠️ Violation logged');
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error submitting test result: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  // =========================
+  // Rewards & Products (Student)
+  // =========================
+
+  /// Calculate points: (obtained/total) * basePoints then apply multipliers
+  /// 100% ×2, 90–99 ×1.5, 75–89 ×1.2, <50 ×0.8
+  int calculatePoints({
+    required double total,
+    required double obtained,
+    int basePoints = 100,
+  }) {
+    if (total <= 0) return 0;
+    final pct = (obtained / total) * 100.0;
+    double multiplier = 1.0;
+    if (pct >= 100) {
+      multiplier = 2.0;
+    } else if (pct >= 90) {
+      multiplier = 1.5;
+    } else if (pct >= 75) {
+      multiplier = 1.2;
+    } else if (pct < 50) {
+      multiplier = 0.8;
+    }
+    final raw = ((obtained / total) * basePoints) * multiplier;
+    return raw.round();
+  }
+
+  /// Save an entry in student_rewards and increment student's totalPoints
+  Future<void> savePointsToFirestore({
+    required String studentId,
+    required String testId,
+    required double marks,
+    required double totalMarks,
+    required int points,
+  }) async {
+    final doc = _db.collection('student_rewards').doc();
+    final payload = RewardPointsModel(
+      id: doc.id,
+      studentId: studentId,
+      testId: testId,
+      marks: marks,
+      totalMarks: totalMarks,
+      pointsEarned: points,
+      timestamp: DateTime.now(),
+    ).toJson();
+
+    final batch = _db.batch();
+    batch.set(doc, payload);
+
+    // Prefer users collection for points, but also try students if exists
+    final userRef = _db.collection('users').doc(studentId);
+    batch.update(userRef, {
+      'totalPoints': FieldValue.increment(points),
+      'rewardPoints': FieldValue.increment(points),
+    });
+
+    // Optional: update students collection if present
+    final studentRef = _db.collection('students').doc(studentId);
+    try {
+      final studentSnap = await studentRef.get();
+      if (studentSnap.exists) {
+        batch.update(studentRef, {
+          'totalPoints': FieldValue.increment(points),
+          'rewardPoints': FieldValue.increment(points),
+        });
+      }
+    } catch (_) {
+      // ignore if collection not present
+    }
+
+    await batch.commit();
+  }
+
+  /// Products catalog
+  Stream<List<ProductModel>> getProducts({String? category}) {
+    Query<Map<String, dynamic>> q = _db.collection('products');
+    if (category != null && category.isNotEmpty && category != 'All') {
+      q = q.where('category', isEqualTo: category.toLowerCase());
+    }
+    return q.snapshots().map(
+      (snap) => snap.docs
+          .map((d) => ProductModel.fromJson(d.data(), id: d.id))
+          .toList(),
+    );
+  }
+
+  /// Create or update a product (admin/seed)
+  Future<void> upsertProduct(ProductModel product) async {
+    final ref = _db
+        .collection('products')
+        .doc(product.id.isEmpty ? null : product.id);
+    if (ref.id == product.id && product.id.isNotEmpty) {
+      await ref.set(product.toJson(), SetOptions(merge: true));
+    } else {
+      final docRef = _db.collection('products').doc();
+      final data = product.toJson();
+      data['id'] = docRef.id;
+      await docRef.set(data);
+    }
+  }
+
+  /// Student requests a reward
+  Future<String> requestReward({
+    required ProductModel product,
+    required String studentId,
+  }) async {
+    final reqRef = _db.collection('reward_requests').doc();
+    final request = RewardRequestModel(
+      id: reqRef.id,
+      studentId: studentId,
+      productId: product.id,
+      productName: product.name,
+      amazonLink: product.amazonLink,
+      price: product.price,
+      pointsRequired: product.pointsRequired,
+      status: RewardRequestStatus.pending,
+      requestedOn: DateTime.now(),
+    );
+    await reqRef.set(request.toJson());
+    return reqRef.id;
+  }
+
+  Stream<List<RewardRequestModel>> getRewardRequestsForStudent(
+    String studentId,
+  ) {
+    return _db
+        .collection('reward_requests')
+        .where('studentId', isEqualTo: studentId)
+        .orderBy('requestedOn', descending: true)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => RewardRequestModel.fromJson(d.data(), id: d.id))
+              .toList(),
+        );
+  }
+
+  /// Parent approves a reward request: deduct points and write approved_rewards
+  Future<void> approveReward({
+    required String requestId,
+    required String parentId,
+  }) async {
+    final reqRef = _db.collection('reward_requests').doc(requestId);
+    final snap = await reqRef.get();
+    if (!snap.exists) throw Exception('Request not found');
+    final data = snap.data()!;
+    final studentId = data['studentId'] as String;
+    final points = (data['pointsRequired'] as num? ?? 0).toInt();
+
+    final batch = _db.batch();
+    batch.update(reqRef, {
+      'status': 'approved',
+      'parentId': parentId,
+      'approvedOn': FieldValue.serverTimestamp(),
+    });
+
+    // Deduct from users/ and students/ if present
+    batch.update(_db.collection('users').doc(studentId), {
+      'totalPoints': FieldValue.increment(-points),
+      'rewardPoints': FieldValue.increment(-points),
+    });
+    final studentRef = _db.collection('students').doc(studentId);
+    try {
+      final st = await studentRef.get();
+      if (st.exists) {
+        batch.update(studentRef, {
+          'totalPoints': FieldValue.increment(-points),
+          'rewardPoints': FieldValue.increment(-points),
+        });
+      }
+    } catch (_) {}
+
+    final approvedRef = _db.collection('approved_rewards').doc();
+    batch.set(approvedRef, {
+      'id': approvedRef.id,
+      'requestId': requestId,
+      'studentId': studentId,
+      'productName': data['productName'],
+      'amazonLink': data['amazonLink'],
+      'status': 'approved',
+      'dateApproved': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+  }
+
+  /// Mark order placed for an approved reward (and reflect on request doc)
+  Future<void> markOrderPlaced(String requestId) async {
+    final reqRef = _db.collection('reward_requests').doc(requestId);
+    final approvedQuery = await _db
+        .collection('approved_rewards')
+        .where('requestId', isEqualTo: requestId)
+        .limit(1)
+        .get();
+    final batch = _db.batch();
+    batch.update(reqRef, {'status': 'order_placed'});
+    if (approvedQuery.docs.isNotEmpty) {
+      batch.update(approvedQuery.docs.first.reference, {
+        'status': 'order_placed',
+      });
+    }
+    await batch.commit();
   }
 }

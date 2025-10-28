@@ -20,6 +20,10 @@ import '../screens/student/student_tests_screen.dart';
 import '../screens/student/student_rewards_screen.dart';
 import '../screens/student/student_leaderboard_screen.dart';
 import '../screens/student/student_profile_screen.dart';
+import '../screens/rewards/search_rewards_screen.dart';
+import '../screens/rewards/product_detail_screen.dart';
+import '../models/product_model.dart';
+import '../screens/rewards/my_requests_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -46,6 +50,26 @@ class AppRouter {
 
       case '/student-rewards':
         return MaterialPageRoute(builder: (_) => const StudentRewardsScreen());
+
+      case '/search-rewards':
+        return MaterialPageRoute(builder: (_) => const SearchRewardsScreen());
+
+      case '/product-detail':
+        final product = settings.arguments as ProductModel?;
+        if (product == null) {
+          return MaterialPageRoute(
+            builder: (_) =>
+                const Scaffold(body: Center(child: Text('Missing product'))),
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => ProductDetailScreen(product: product),
+        );
+
+      case '/my-reward-requests':
+        return MaterialPageRoute(
+          builder: (_) => const MyRewardRequestsScreen(),
+        );
 
       case '/student-leaderboard':
         return MaterialPageRoute(

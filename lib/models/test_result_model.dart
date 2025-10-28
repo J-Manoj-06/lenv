@@ -72,30 +72,52 @@ class SwotSummary {
 class TestResultModel {
   final String id;
   final String studentId;
+  final String studentName;
+  final String studentEmail;
   final String testId;
   final String testTitle;
   final String subject;
-  final int score;
-  final int totalPoints;
-  final double percentage;
+  final double score;
+  final int totalQuestions;
+  final int correctAnswers;
   final DateTime completedAt;
-  final List<QuestionResult> questions;
-  final List<String> badges; // e.g., ["Math Whiz", "Problem Solver"]
-  final SwotSummary swot;
+  final int timeTaken; // in minutes
+  final List<Map<String, dynamic>> answers;
+  final bool wasProctored;
+  final int tabSwitchCount;
+  final bool violationDetected;
+  final String? violationReason;
+
+  // Legacy fields for backward compatibility
+  final int? totalPoints;
+  final double? percentage;
+  final List<QuestionResult>? questions;
+  final List<String>? badges;
+  final SwotSummary? swot;
 
   TestResultModel({
     required this.id,
     required this.studentId,
+    required this.studentName,
+    required this.studentEmail,
     required this.testId,
     required this.testTitle,
     required this.subject,
     required this.score,
-    required this.totalPoints,
-    required this.percentage,
+    required this.totalQuestions,
+    required this.correctAnswers,
     required this.completedAt,
-    required this.questions,
-    required this.badges,
-    required this.swot,
+    required this.timeTaken,
+    required this.answers,
+    this.wasProctored = false,
+    this.tabSwitchCount = 0,
+    this.violationDetected = false,
+    this.violationReason,
+    this.totalPoints,
+    this.percentage,
+    this.questions,
+    this.badges,
+    this.swot,
   });
 
   factory TestResultModel.fromFirestore(
@@ -105,37 +127,68 @@ class TestResultModel {
     return TestResultModel(
       id: doc.id,
       studentId: (data['studentId'] ?? '') as String,
+      studentName: (data['studentName'] ?? '') as String,
+      studentEmail: (data['studentEmail'] ?? '') as String,
       testId: (data['testId'] ?? '') as String,
       testTitle: (data['testTitle'] ?? '') as String,
       subject: (data['subject'] ?? '') as String,
-      score: (data['score'] ?? 0) as int,
-      totalPoints: (data['totalPoints'] ?? 0) as int,
-      percentage: (data['percentage'] ?? 0).toDouble(),
+      score: (data['score'] ?? 0).toDouble(),
+      totalQuestions: (data['totalQuestions'] ?? 0) as int,
+      correctAnswers: (data['correctAnswers'] ?? 0) as int,
       completedAt:
           (data['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      questions: ((data['questions'] ?? []) as List)
-          .map(
-            (q) => QuestionResult.fromMap(Map<String, dynamic>.from(q as Map)),
-          )
+      timeTaken: (data['timeTaken'] ?? 0) as int,
+      answers: ((data['answers'] ?? []) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
           .toList(),
-      badges: ((data['badges'] ?? []) as List)
-          .map((e) => e.toString())
-          .toList(),
-      swot: SwotSummary.fromMap(data['swot'] as Map<String, dynamic>?),
+      wasProctored: (data['wasProctored'] ?? false) as bool,
+      tabSwitchCount: (data['tabSwitchCount'] ?? 0) as int,
+      violationDetected: (data['violationDetected'] ?? false) as bool,
+      violationReason: data['violationReason'] as String?,
+      // Legacy fields
+      totalPoints: data['totalPoints'] as int?,
+      percentage: (data['percentage'] as num?)?.toDouble(),
+      questions: data['questions'] != null
+          ? ((data['questions'] as List)
+                .map(
+                  (q) => QuestionResult.fromMap(
+                    Map<String, dynamic>.from(q as Map),
+                  ),
+                )
+                .toList())
+          : null,
+      badges: data['badges'] != null
+          ? ((data['badges'] as List).map((e) => e.toString()).toList())
+          : null,
+      swot: data['swot'] != null
+          ? SwotSummary.fromMap(data['swot'] as Map<String, dynamic>?)
+          : null,
     );
   }
 
   Map<String, dynamic> toFirestore() => {
     'studentId': studentId,
+    'studentName': studentName,
+    'studentEmail': studentEmail,
     'testId': testId,
     'testTitle': testTitle,
     'subject': subject,
     'score': score,
-    'totalPoints': totalPoints,
-    'percentage': percentage,
+    'totalQuestions': totalQuestions,
+    'correctAnswers': correctAnswers,
     'completedAt': Timestamp.fromDate(completedAt),
-    'questions': questions.map((q) => q.toMap()).toList(),
-    'badges': badges,
-    'swot': swot.toMap(),
+    'timeTaken': timeTaken,
+    'answers': answers,
+    'wasProctored': wasProctored,
+    'tabSwitchCount': tabSwitchCount,
+    'violationDetected': violationDetected,
+    if (violationReason != null) 'violationReason': violationReason,
+    // Legacy fields for backward compatibility
+    if (totalPoints != null) 'totalPoints': totalPoints,
+    if (percentage != null) 'percentage': percentage,
+    if (questions != null)
+      'questions': questions!.map((q) => q.toMap()).toList(),
+    if (badges != null) 'badges': badges,
+    if (swot != null) 'swot': swot!.toMap(),
   };
 }

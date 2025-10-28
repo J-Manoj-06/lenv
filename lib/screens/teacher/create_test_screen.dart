@@ -67,7 +67,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     try {
       final svc = TeacherService();
       final data = await svc.getTeacherByEmail(user.email);
-      
+
       // Get subjects (fallback to parse from classAssignments if needed)
       List<String> subjs = (data?['subjectsHandled'] is List)
           ? List<String>.from(data!['subjectsHandled'] as List)
@@ -88,7 +88,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
         }
         subjs = uniqueSubjects.toList()..sort();
       }
-      
+
       // Get formatted classes using the service (handles both formats)
       final dynamic sectionsData = data?['sections'] ?? data?['section'];
       final List<String> formattedClasses = svc.getTeacherClasses(
@@ -96,7 +96,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
         sectionsData,
         classAssignments: data?['classAssignments'],
       );
-      
+
       // Extract unique sections from formatted classes
       // Format is "10 - A", "10 - B", etc.
       final Set<String> uniqueSections = {};
@@ -105,10 +105,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
         final parts = cls.split(' - ');
         if (parts.length == 2) {
           uniqueSections.add(parts[1]); // Extract "A", "B", etc.
-          uniqueGrades.add(parts[0].trim()); // Extract just the standard (e.g., "10")
+          uniqueGrades.add(
+            parts[0].trim(),
+          ); // Extract just the standard (e.g., "10")
         }
       }
-      final sectionDisplay = uniqueSections.map((s) => 'Section $s').toList()..sort();
+      final sectionDisplay = uniqueSections.map((s) => 'Section $s').toList()
+        ..sort();
       final List<String> gradeOnlyList = uniqueGrades.toList()..sort();
 
       setState(() {
@@ -970,7 +973,7 @@ extension on _CreateTestScreenState {
       return;
     }
 
-      final duration = int.tryParse(_timeLimitController.text.trim()) ?? 60;
+    final duration = int.tryParse(_timeLimitController.text.trim()) ?? 60;
     final now = DateTime.now();
     final startDate = now;
     final endDate = now.add(Duration(minutes: duration));
@@ -1004,8 +1007,8 @@ extension on _CreateTestScreenState {
     // Build className and section from separate dropdowns
     final gradeClassName = 'Grade ${selectedClass!.trim()}';
     final normalizedSection = (selectedSection ?? '')
-      .replaceAll('Section ', '')
-      .trim();
+        .replaceAll('Section ', '')
+        .trim();
 
     final test = tm.TestModel(
       id: '',
@@ -1015,15 +1018,15 @@ extension on _CreateTestScreenState {
       teacherName: user.name,
       instituteId: user.instituteId ?? '',
       subject: selectedSubject!,
-  className: gradeClassName,
-  section: normalizedSection,
+      className: gradeClassName,
+      section: normalizedSection,
       questions: modelQuestions,
       totalPoints: totalPoints,
       duration: duration,
       startDate: startDate,
       endDate: endDate,
       status: status,
-        assignedStudentIds: const [],
+      assignedStudentIds: const [],
       createdAt: now,
       updatedAt: now,
     );

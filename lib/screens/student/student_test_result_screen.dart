@@ -28,6 +28,37 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     )..forward();
   }
 
+  // Build a unified list of QuestionResult from either legacy questions or new answers
+  List<QuestionResult> _buildQuestionResults(TestResultModel result) {
+    if (result.questions != null && result.questions!.isNotEmpty) {
+      return result.questions!;
+    }
+
+    final ans = result.answers;
+    final List<QuestionResult> out = [];
+    for (int i = 0; i < ans.length; i++) {
+      final a = ans[i];
+      final questionText = (a['questionText'] ?? 'Question ${i + 1}')
+          .toString();
+      final userAnswer = (a['userAnswer'] ?? '').toString();
+      final correctAnswer = (a['correctAnswer'] ?? '').toString();
+      final isCorrect = (a['isCorrect'] ?? false) == true;
+      out.add(
+        QuestionResult(
+          index: i + 1,
+          questionTitle: questionText.isNotEmpty
+              ? questionText
+              : 'Question ${i + 1}',
+          yourAnswer: userAnswer,
+          correctAnswer: correctAnswer,
+          notes: '',
+          isCorrect: isCorrect,
+        ),
+      );
+    }
+    return out;
+  }
+
   @override
   void dispose() {
     _ringController.dispose();
@@ -48,7 +79,21 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
             return const Center(child: Text('Result not found'));
           }
           final result = snapshot.data!;
-          final pct = (result.percentage).clamp(0, 100).toDouble();
+          // Compute percentage safely with fallbacks to new fields
+          final double pct = (() {
+            if (result.percentage != null) {
+              final p = result.percentage!;
+              return p.clamp(0, 100).toDouble();
+            }
+            // Fallback: compute from correct/total if available
+            final totalQ = result.totalQuestions;
+            final correct = result.correctAnswers;
+            if (totalQ > 0) {
+              return ((correct / totalQ) * 100).clamp(0.0, 100.0);
+            }
+            // Last fallback: use score field (already a percentage in new model)
+            return (result.score).clamp(0.0, 100.0);
+          })();
 
           return Stack(
             children: [
@@ -94,46 +139,58 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                           const SizedBox(height: 24),
                           if (pct >= 75) _buildTrophyBanner(),
                           const SizedBox(height: 24),
-                          const Text(
-                            'Question Breakdown',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                          // Question Breakdown (supports legacy and new formats)
+                          if ((result.questions != null &&
+                                  result.questions!.isNotEmpty) ||
+                              result.answers.isNotEmpty) ...[
+                            const Text(
+                              'Question Breakdown',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          ...result.questions
-                              .map((q) => _buildQuestionTile(q))
-                              .toList(),
+                            const SizedBox(height: 12),
+                            ..._buildQuestionResults(
+                              result,
+                            ).map((q) => _buildQuestionTile(q)).toList(),
+                          ],
                           const SizedBox(height: 24),
-                          const Text(
-                            'Badges Earned',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                          // Badges (optional)
+                          if (result.badges != null &&
+                              result.badges!.isNotEmpty) ...[
+                            const Text(
+                              'Badges Earned',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: result.badges
-                                .map((b) => _badgeChip(b))
-                                .toList(),
-                          ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: result.badges!
+                                  .map((b) => _badgeChip(b))
+                                  .toList(),
+                            ),
+                          ],
                           const SizedBox(height: 24),
-                          const Text(
-                            'SWOT Summary',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                          // SWOT (optional)
+                          if (result.swot != null) ...[
+                            const Text(
+                              'SWOT Summary',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildSwotGrid(result.swot),
+                            const SizedBox(height: 12),
+                            _buildSwotGrid(result.swot!),
+                          ],
                           const SizedBox(height: 24),
                           // Share and Review buttons
                           Row(
