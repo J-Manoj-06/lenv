@@ -875,10 +875,6 @@ extension on _AITestGeneratorScreenState {
         (selectedClass ?? '').isNotEmpty &&
         normalizedSection.isNotEmpty) {
       try {
-        final teacherData = await TeacherService().getTeacherByEmail(
-          user.email,
-        );
-        final schoolCode = teacherData?['schoolCode'] ?? user.instituteId ?? '';
         // Let FirestoreService handle assignment using Auth UIDs post-create
         // to prevent mismatched IDs. Keep empty here; it will be set server-side.
         assignedIds = const [];

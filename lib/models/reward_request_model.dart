@@ -31,7 +31,7 @@ class RewardRequestModel {
 
   factory RewardRequestModel.fromJson(Map<String, dynamic> json, {String? id}) {
     final statusStr = (json['status'] as String? ?? 'pending');
-    RewardRequestStatus _parse(String s) {
+    RewardRequestStatus parseStatus(String s) {
       switch (s) {
         case 'approved':
           return RewardRequestStatus.approved;
@@ -53,7 +53,7 @@ class RewardRequestModel {
       amazonLink: (json['amazonLink'] as String? ?? ''),
       price: (json['price'] as num? ?? 0).toDouble(),
       pointsRequired: (json['pointsRequired'] as num? ?? 0).toInt(),
-      status: _parse(statusStr),
+      status: parseStatus(statusStr),
       requestedOn: (json['requestedOn'] is Timestamp)
           ? (json['requestedOn'] as Timestamp).toDate()
           : DateTime.tryParse(json['requestedOn']?.toString() ?? '') ??
@@ -88,7 +88,6 @@ class RewardRequestModel {
       case RewardRequestStatus.rejected:
         return 'rejected';
       case RewardRequestStatus.pending:
-      default:
         return 'pending';
     }
   }

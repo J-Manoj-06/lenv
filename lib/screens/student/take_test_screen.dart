@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../models/test_result_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import 'dart:async';
+import '../../utils/visibility_stub.dart'
+    if (dart.library.html) '../../utils/visibility_web.dart'
+    as vis;
 
 class TakeTestScreen extends StatefulWidget {
   final TestModel test;
@@ -31,12 +35,24 @@ class _TakeTestScreenState extends State<TakeTestScreen>
     WidgetsBinding.instance.addObserver(this);
     _timeRemaining = Duration(minutes: widget.test.duration);
     _startTimer();
+    // Web-specific: detect browser tab visibility change (tab switch)
+    if (kIsWeb) {
+      vis.attachWebVisibilityListener(() {
+        if (!_isSubmitting) {
+          _tabSwitchCount++;
+          _autoSubmitTestForViolation('Tab switching detected');
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    if (kIsWeb) {
+      vis.detachWebVisibilityListener();
+    }
     super.dispose();
   }
 

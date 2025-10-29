@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../../models/test_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/leaderboard_service.dart';
 
 class StudentLeaderboardScreen extends StatefulWidget {
   const StudentLeaderboardScreen({super.key});
@@ -12,7 +17,18 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   // Default to Overall tab selected to match the provided Overall leaderboard design
   bool _isPerTest = false;
   String _selectedSubject = 'Subject';
-  String _selectedTest = 'Test Name';
+  String? _selectedTestId;
+  String _selectedTestLabel = 'Test Name';
+
+  final _leaderboardService = LeaderboardService();
+
+  Future<List<LeaderboardEntry>>? _overallFuture;
+  Future<List<LeaderboardEntry>>? _perTestFuture;
+  List<TestModel> _myTests = const [];
+  String? _schoolCode;
+  String? _className;
+  String? _section;
+  String? _currentUid;
 
   @override
   Widget build(BuildContext context) {
@@ -164,7 +180,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           ),
           const SizedBox(width: 8),
           _buildFilterChip(
-            _selectedTest,
+            _selectedTestLabel,
             false,
             () => _showFilterDialog('Test Name'),
           ),
@@ -213,77 +229,104 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   }
 
   Widget _buildLeaderboardList() {
-    // Sample leaderboard data
-    final leaderboardItems = [
-      {
-        'rank': 1,
-        'name': 'Amelia',
-        'score': 98,
-        'hasVerified': true,
-        'isCurrentUser': false,
-        'imageUrl': null,
-      },
-      {
-        'rank': 2,
-        'name': 'You',
-        'score': 95,
-        'hasVerified': false,
-        'isCurrentUser': true,
-        'imageUrl':
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuAgOeDqb10QybQCjfb8Z2JK-NrsB49M9PfVCpfGrbJaPOC4gsilGd2fmuuCNkoOkrQ1adku_bj8dqoawtN7rhA1GSB7ZMd9KmkCjUnsGqoiL9nJjOzhHSNDHMM1wFTlan_41jbAXxU3vysoeEznnF9741IWAxpUDgohEr-HHYcUaRQAj1tUAGB3GLe43hFmbfD6uGtNZTPEEl6Fu51QFOJBwzDNBzWqEQOKAGVcbY5COYbUvgpsk9JZW1TsjHvmynvhgoqEVuulT54',
-      },
-      {
-        'rank': 3,
-        'name': 'Olivia',
-        'score': 92,
-        'hasVerified': false,
-        'isCurrentUser': false,
-        'imageUrl':
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuC31iICWqlv7iufcGqYLUe5lyAorM4z4DhoqAwFBZQNnC9L1yNU-m0w6RSNVdxOyNffej5eYC5-0xSYD2OXepCKu1XgetRxyt79mSRHAjrwI1li_BbhAGgY9l10v3NGiWWFYiwHQ6XhcpBdvxRezFWct96AvbW_I7vWvt1m13c39EPfY-1IHthmMnH9GLNOkxFSTESccNEPFCPzRfgPEETGVvMIbUlyRe4SquUvROozu42VynOg9wGAl86BCxaCEl9eyP2HVV0zyrE',
-      },
-      {
-        'rank': 4,
-        'name': 'Noah',
-        'score': 90,
-        'hasVerified': false,
-        'isCurrentUser': false,
-        'imageUrl':
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuBMNcghC6-AWNsBY76q9d9ifPePS71oyBrqeabDDCNAo9MSUd_XYgstphgReb7-_GDvj1Ppb72qYWO6wN1nudA6bhfe3VnYjwVd5GSJfd1UY2GcyZbKO9ib2be899hHXjRWnnghVFUR9W4fv4Y5K37qO2YGa76XeKlXwgDB5yvjmnB7M5A2GenrXfzZthAw1FkvIrl12rw7l51E_0BK9e6mIeCXm1JlPMwNn_BEHRx74wPdO_RFODE99qFn9y-pnxbfotFGwAxKqY',
-      },
-      {
-        'rank': 5,
-        'name': 'Ava',
-        'score': 88,
-        'hasFire': true,
-        'isCurrentUser': false,
-        'imageUrl':
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuDVVfVAw2g3b75RaYj-OXrOkKMzdX2MHsWDyaxFNYusUdeFdLn76R6Qhj7YMojcBr2HpR_2E910B-WXMqDJkfSEXFc1nM_l63ITmvbb3WKy4qycp3SqKV7SmhrxLtKvOWjBYtq-XEnelU_CzZu3WN6Vam3AG7kvw3A699qL-mFH3K31vvb8XhFaIVy4x59g3IsvXPBy8k334f7BKsYIzLs359yTgEySB3kmfTyJlKUPV59zf1igqfuQQbUMqlojfW4D2CZJmK_8sCQ',
-      },
-      {
-        'rank': 6,
-        'name': 'Liam',
-        'score': 85,
-        'hasVerified': false,
-        'isCurrentUser': false,
-        'imageUrl':
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuCu1GaIAeQ53IfZRtF2_PWBl1NHiCPcYyYdTXO-e-SYB0GtbUDdZlX7ceDFDblxkwhUGMPUMo4BZwYBlqTNKSYZVdk1ZYQmafXQbl9VECzTQMqEz3iGk2wIpcFIZNv86CB6j6MoU-lVddO9sLQQLTazIHqyxIVdAGLR69WdjG98XSm6-atXKBt_--ywKgS72Y2jfrb17qF22er1RD_l1McN42h08tiqzODWz_fNzJoarNT94WvbxME-HNVa3b--EyZHpZLcvPz4bP4',
-      },
-    ];
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    _currentUid ??= auth.currentUser?.uid;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: leaderboardItems
-            .map((item) => _buildLeaderboardCard(item))
-            .toList(),
-      ),
+    // Lazy init: load class context and overall leaderboard once
+    if (_overallFuture == null && !_isPerTest) {
+      _initContextAndOverall();
+    }
+
+    if (_isPerTest) {
+      if (_perTestFuture == null && _selectedTestId != null) {
+        _perTestFuture = _leaderboardService.getPerTestLeaderboard(
+          testId: _selectedTestId!,
+          schoolCode: _schoolCode,
+        );
+      }
+      return FutureBuilder<List<LeaderboardEntry>>(
+        future: _perTestFuture,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final items = snap.data ?? [];
+          if (_selectedTestId == null) {
+            return const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('Select a test to view the leaderboard.'),
+            );
+          }
+          if (items.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('No results for this test yet.'),
+            );
+          }
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: items
+                  .map(
+                    (e) => _buildLeaderboardCard({
+                      'rank': e.rank,
+                      'name': e.name,
+                      'score': e.score,
+                      'isCurrentUser': e.studentId == _currentUid,
+                      'imageUrl': null,
+                    }),
+                  )
+                  .toList(),
+            ),
+          );
+        },
+      );
+    }
+
+    // Overall
+    return FutureBuilder<List<LeaderboardEntry>>(
+      future: _overallFuture,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final items = snap.data ?? [];
+        if (items.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text('No leaderboard data yet.'),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: items
+                .map(
+                  (e) => _buildLeaderboardCard({
+                    'rank': e.rank,
+                    'name': e.name,
+                    'score': e.score,
+                    'isCurrentUser': e.studentId == _currentUid,
+                    'imageUrl': e.photoUrl,
+                  }),
+                )
+                .toList(),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildLeaderboardCard(Map<String, dynamic> item) {
     final int rank = item['rank'];
     final String name = item['name'];
-    final int score = item['score'];
+    final num score = item['score'] is num ? item['score'] as num : 0;
     final bool hasVerified = item['hasVerified'] ?? false;
     final bool hasFire = item['hasFire'] ?? false;
     final bool isCurrentUser = item['isCurrentUser'] ?? false;
@@ -395,7 +438,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           ),
           // Score
           Text(
-            '$score',
+            score is int ? '$score' : score.toStringAsFixed(1),
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -467,11 +510,93 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     );
   }
 
-  void _showFilterDialog(String filterType) {
-    // Placeholder for filter dialog
+  void _showFilterDialog(String filterType) async {
+    if (filterType == 'Test Name') {
+      await _ensureTestsLoaded();
+      if (!mounted) return;
+      final selected = await showDialog<TestModel>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('Select Test'),
+          children: _myTests
+              .map(
+                (t) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, t),
+                  child: Text(t.title),
+                ),
+              )
+              .toList(),
+        ),
+      );
+      if (selected != null) {
+        setState(() {
+          _selectedTestId = selected.id;
+          _selectedTestLabel = selected.title;
+          _perTestFuture = _leaderboardService.getPerTestLeaderboard(
+            testId: selected.id,
+            schoolCode: _schoolCode,
+          );
+        });
+      }
+      return;
+    }
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('$filterType filter coming soon!')));
+  }
+
+  Future<void> _initContextAndOverall() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final uid = auth.currentUser?.uid;
+    final email = auth.currentUser?.email;
+    if (uid == null) return;
+
+    // Find student's school/class/section from students collection
+    final stDoc = await FirebaseFirestore.instance
+        .collection('students')
+        .doc(uid)
+        .get();
+    Map<String, dynamic>? st;
+    if (stDoc.exists) {
+      st = stDoc.data();
+    } else if (email != null) {
+      final q = await FirebaseFirestore.instance
+          .collection('students')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+      if (q.docs.isNotEmpty) st = q.docs.first.data();
+    }
+
+    _schoolCode = (st?['schoolCode'] as String?)?.trim();
+    _className = (st?['className'] as String?)?.trim();
+    _section = (st?['section'] as String?)?.trim();
+
+    if (_schoolCode != null && _className != null) {
+      setState(() {
+        _overallFuture = _leaderboardService.getOverallLeaderboardForClass(
+          schoolCode: _schoolCode!,
+          className: _className!,
+          section: _section,
+          limit: 100,
+        );
+      });
+    }
+  }
+
+  Future<void> _ensureTestsLoaded() async {
+    if (_myTests.isNotEmpty) return;
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final uid = auth.currentUser?.uid;
+    if (uid == null) return;
+    // Load tests assigned to me (published only)
+    final snap = await FirebaseFirestore.instance
+        .collection('tests')
+        .where('assignedStudentIds', arrayContains: uid)
+        .where('status', isEqualTo: 'published')
+        .get();
+    _myTests = snap.docs.map((d) => TestModel.fromJson(d.data())).toList();
   }
 }
 

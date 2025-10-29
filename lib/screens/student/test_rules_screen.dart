@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/test_model.dart';
+import '../../providers/auth_provider.dart';
 import 'take_test_screen.dart';
 
 class TestRulesScreen extends StatelessWidget {
@@ -182,13 +185,111 @@ class TestRulesScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushReplacement(
+                      onPressed: () async {
+                        final auth = Provider.of<AuthProvider>(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => TakeTestScreen(test: test),
-                          ),
+                          listen: false,
                         );
+                        final studentId = auth.currentUser?.uid;
+                        if (studentId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please login as student'),
+                            ),
+                          );
+                          return;
+                        }
+                        // Check if already submitted
+                        final existing = await FirebaseFirestore.instance
+                            .collection('testResults')
+                            .where('studentId', isEqualTo: studentId)
+                            .where('testId', isEqualTo: test.id)
+                            .limit(1)
+                            .get();
+
+                        if (existing.docs.isNotEmpty) {
+                          final endPassed = DateTime.now().isAfter(
+                            test.endDate,
+                          );
+                          if (endPassed) {
+                            // Navigate to results page
+                            final resultId = existing.docs.first.id;
+                            if (context.mounted) {
+                              Navigator.pushReplacementNamed(
+                                context,
+                                '/student-test-result',
+                                arguments: {'resultId': resultId},
+                              );
+                            }
+                          } else {
+                            // Show info dialog
+                            if (context.mounted) {
+                              await showDialog(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  title: const Text('Already Submitted'),
+                                  content: const Text(
+                                    'You have already completed this test. Results will be available after the due time.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              Navigator.pop(context);
+                            }
+                          }
+                          return;
+                        }
+
+                        if (context.mounted) {
+                          // Minimal smooth transition to test screen
+                          Navigator.pushReplacement(
+                            context,
+                            PageRouteBuilder(
+                              pageBuilder:
+                                  (context, animation, secondaryAnimation) =>
+                                      TakeTestScreen(test: test),
+                              transitionsBuilder:
+                                  (
+                                    context,
+                                    animation,
+                                    secondaryAnimation,
+                                    child,
+                                  ) {
+                                    final offsetTween =
+                                        Tween<Offset>(
+                                          begin: const Offset(0.0, 0.04),
+                                          end: Offset.zero,
+                                        ).chain(
+                                          CurveTween(
+                                            curve: Curves.easeOutCubic,
+                                          ),
+                                        );
+                                    final fadeTween = Tween<double>(
+                                      begin: 0.0,
+                                      end: 1.0,
+                                    ).chain(CurveTween(curve: Curves.easeOut));
+                                    return FadeTransition(
+                                      opacity: animation.drive(fadeTween),
+                                      child: SlideTransition(
+                                        position: animation.drive(offsetTween),
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                              transitionDuration: const Duration(
+                                milliseconds: 180,
+                              ),
+                              reverseTransitionDuration: const Duration(
+                                milliseconds: 150,
+                              ),
+                            ),
+                          );
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,

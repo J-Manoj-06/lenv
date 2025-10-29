@@ -97,7 +97,7 @@ class TestProvider with ChangeNotifier {
   // Delete test
   Future<bool> deleteTest(String testId) async {
     try {
-      await _firestoreService.deleteTest(testId);
+      await _firestoreService.deleteTestCascade(testId);
       return true;
     } catch (e) {
       _errorMessage = e.toString();

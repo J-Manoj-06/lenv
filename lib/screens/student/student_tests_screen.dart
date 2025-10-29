@@ -328,29 +328,46 @@ class _AllTestsTab extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final pending = (pendingSnap.data ?? [])
+            final tests = (pendingSnap.data ?? [])
                 .where((t) => t.status == TestStatus.published)
                 .toList();
 
             print(
-              '📝 After filtering by published status: ${pending.length} tests',
+              '📝 After filtering by published status: ${tests.length} tests',
             );
-            if (pending.isNotEmpty) {
+            if (tests.isNotEmpty) {
               print('   Available tests:');
-              for (final t in pending) {
+              for (final t in tests) {
                 print('     - ${t.title} (${t.className} ${t.section})');
               }
             }
 
             final completed = completedSnap.data ?? [];
+            final completedById = {for (var r in completed) r.testId: r};
+            final now = DateTime.now();
 
             // Merge lists into a unified view model
             final items = <_TestListItem>[];
-            for (final t in pending) {
-              items.add(_TestListItem.pending(test: t));
+            for (final t in tests) {
+              final r = completedById[t.id];
+              if (r != null) {
+                final canShow = now.isAfter(t.endDate);
+                items.add(
+                  _TestListItem.completed(
+                    result: r,
+                    showResult: canShow,
+                    endDate: t.endDate,
+                  ),
+                );
+              } else {
+                items.add(_TestListItem.pending(test: t));
+              }
             }
+            // Include any stray results without a matching test doc
             for (final r in completed) {
-              items.add(_TestListItem.completed(result: r));
+              if (!tests.any((t) => t.id == r.testId)) {
+                items.add(_TestListItem.completed(result: r));
+              }
             }
             // Sort: show most recent first by created/completed date
             items.sort((a, b) {
@@ -386,23 +403,44 @@ class _PendingTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<TestProvider>(
-      builder: (context, provider, child) {
-        final pending = provider.tests
-            .where((t) => t.status == TestStatus.published)
-            .toList();
-        if (provider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (pending.isEmpty) {
-          return const _EmptyState(message: 'No pending tests');
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemBuilder: (ctx, i) =>
-              _TestCard(item: _TestListItem.pending(test: pending[i])),
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemCount: pending.length,
+    final firestore = FirestoreService();
+    return StreamBuilder<List<TestModel>>(
+      stream: FirebaseFirestore.instance
+          .collection('tests')
+          .where('assignedStudentIds', arrayContains: studentId)
+          .snapshots()
+          .map(
+            (s) => s.docs
+                .map((d) => TestModel.fromJson(d.data()))
+                .where((t) => t.status == TestStatus.published)
+                .toList(),
+          ),
+      builder: (context, testsSnap) {
+        return StreamBuilder<List<TestResultModel>>(
+          stream: firestore.getTestResultsByStudent(studentId),
+          builder: (context, resultsSnap) {
+            if (testsSnap.connectionState == ConnectionState.waiting ||
+                resultsSnap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final tests = testsSnap.data ?? [];
+            final completedIds = (resultsSnap.data ?? [])
+                .map((r) => r.testId)
+                .toSet();
+            final pending = tests
+                .where((t) => !completedIds.contains(t.id))
+                .toList();
+            if (pending.isEmpty) {
+              return const _EmptyState(message: 'No pending tests');
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (ctx, i) =>
+                  _TestCard(item: _TestListItem.pending(test: pending[i])),
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemCount: pending.length,
+            );
+          },
         );
       },
     );
@@ -416,22 +454,54 @@ class _CompletedTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final firestore = FirestoreService();
-    return StreamBuilder<List<TestResultModel>>(
-      stream: firestore.getTestResultsByStudent(studentId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final results = snapshot.data ?? [];
-        if (results.isEmpty) {
-          return const _EmptyState(message: 'No completed tests');
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemBuilder: (ctx, i) =>
-              _TestCard(item: _TestListItem.completed(result: results[i])),
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemCount: results.length,
+    return StreamBuilder<List<TestModel>>(
+      stream: FirebaseFirestore.instance
+          .collection('tests')
+          .where('assignedStudentIds', arrayContains: studentId)
+          .snapshots()
+          .map((s) => s.docs.map((d) => TestModel.fromJson(d.data())).toList()),
+      builder: (context, testsSnap) {
+        return StreamBuilder<List<TestResultModel>>(
+          stream: firestore.getTestResultsByStudent(studentId),
+          builder: (context, resultsSnap) {
+            if (testsSnap.connectionState == ConnectionState.waiting ||
+                resultsSnap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final tests = testsSnap.data ?? [];
+            final testById = {for (var t in tests) t.id: t};
+            final resultsRaw = resultsSnap.data ?? [];
+            // Dedup results by testId: keep latest completedAt to avoid duplicate listings/counts
+            final Map<String, TestResultModel> latestByTest = {};
+            for (final r in resultsRaw) {
+              final existing = latestByTest[r.testId];
+              if (existing == null ||
+                  r.completedAt.isAfter(existing.completedAt)) {
+                latestByTest[r.testId] = r;
+              }
+            }
+            final results = latestByTest.values.toList();
+            if (results.isEmpty) {
+              return const _EmptyState(message: 'No completed tests');
+            }
+            final now = DateTime.now();
+            final items = results.map((r) {
+              final t = testById[r.testId];
+              final endDate = t?.endDate;
+              final canShow = endDate == null ? true : now.isAfter(endDate);
+              return _TestListItem.completed(
+                result: r,
+                showResult: canShow,
+                endDate: endDate,
+              );
+            }).toList();
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (ctx, i) => _TestCard(item: items[i]),
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemCount: items.length,
+            );
+          },
         );
       },
     );
@@ -472,11 +542,20 @@ class _TestListItem {
   final TestModel? test;
   final TestResultModel? result;
   final bool isPending;
+  final bool showResult; // for completed items: gate result until endDate
+  final DateTime? endDate;
 
-  _TestListItem.pending({required this.test}) : result = null, isPending = true;
-  _TestListItem.completed({required this.result})
-    : test = null,
-      isPending = false;
+  _TestListItem.pending({required this.test})
+    : result = null,
+      isPending = true,
+      showResult = false,
+      endDate = test!.endDate;
+  _TestListItem.completed({
+    required this.result,
+    this.showResult = true,
+    this.endDate,
+  }) : test = null,
+       isPending = false;
 }
 
 class _TestCard extends StatelessWidget {
@@ -528,22 +607,31 @@ class _TestCard extends StatelessWidget {
       title = r.testTitle;
       subject = r.subject;
       assignedBy = '';
-      dateLabel = 'Completed:';
-      dateValue = fmt.format(r.completedAt);
-      buttonText = 'View Results';
-      onPressed = () {
-        Navigator.pushNamed(
-          context,
-          '/student-test-result',
-          arguments: {'resultId': r.id},
-        );
-      };
+      final canShowResults =
+          item.showResult ||
+          (item.endDate != null && DateTime.now().isAfter(item.endDate!));
+      dateLabel = canShowResults ? 'Completed:' : 'Due Date:';
+      dateValue = canShowResults
+          ? fmt.format(r.completedAt)
+          : (item.endDate != null ? fmt.format(item.endDate!) : '');
+      buttonText = canShowResults ? 'View Results' : 'Results after due';
+      onPressed = canShowResults
+          ? () {
+              Navigator.pushNamed(
+                context,
+                '/student-test-result',
+                arguments: {'resultId': r.id},
+              );
+            }
+          : () {};
       leadingIcon = Icons.history_edu;
       leadingBg = const Color(0xFFE8E9EB);
       leadingFg = const Color(0xFF1C140D);
       statusBg = const Color(0xFFE8E9EB);
       statusText = const Color(0xFF656669);
-      statusLabel = 'Completed';
+      statusLabel = canShowResults
+          ? 'Completed'
+          : 'Completed (awaiting results)';
     }
 
     return Container(
@@ -695,6 +783,7 @@ class _TestCard extends StatelessWidget {
                 label: buttonText,
                 onPressed: onPressed,
                 isPrimary: item.isPending,
+                enabled: item.isPending || buttonText == 'View Results',
               ),
             ],
           ),
@@ -708,10 +797,12 @@ class _PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
   final bool isPrimary;
+  final bool enabled;
   const _PrimaryButton({
     required this.label,
     required this.onPressed,
     this.isPrimary = true,
+    this.enabled = true,
   });
 
   @override
@@ -720,17 +811,23 @@ class _PrimaryButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(100, 40),
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        backgroundColor: isPrimary ? const Color(0xFFF2800D) : Colors.white,
-        foregroundColor: isPrimary ? Colors.white : const Color(0xFF1C140D),
+        backgroundColor: !enabled
+            ? Colors.grey.shade300
+            : (isPrimary ? const Color(0xFFF2800D) : Colors.white),
+        foregroundColor: !enabled
+            ? Colors.grey.shade600
+            : (isPrimary ? Colors.white : const Color(0xFF1C140D)),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: isPrimary ? Colors.transparent : const Color(0xFFE8DBCE),
+            color: !enabled
+                ? Colors.grey.shade300
+                : (isPrimary ? Colors.transparent : const Color(0xFFE8DBCE)),
           ),
         ),
-        elevation: isPrimary ? 1 : 0,
+        elevation: !enabled ? 0 : (isPrimary ? 1 : 0),
       ),
-      onPressed: onPressed,
+      onPressed: enabled ? onPressed : null,
       child: Text(
         label,
         overflow: TextOverflow.ellipsis,

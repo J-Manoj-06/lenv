@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/leaderboard_service.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -10,6 +11,22 @@ class StudentProfileScreen extends StatefulWidget {
 }
 
 class _StudentProfileScreenState extends State<StudentProfileScreen> {
+  final _leaderboardService = LeaderboardService();
+  Future<StudentStats>? _statsFuture;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final authProvider = Provider.of<AuthProvider>(context);
+    final uid = authProvider.currentUser?.uid;
+    if (uid != null) {
+      _statsFuture ??= _leaderboardService.getStudentStats(
+        studentId: uid,
+        email: authProvider.currentUser?.email,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -164,21 +181,27 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   Widget _buildStatsCards() {
-    // Sample data - replace with actual data from Firestore
-    final stats = [
-      {'label': 'Tests Taken', 'value': '12'},
-      {'label': 'Average Score', 'value': '88%'},
-      {'label': 'Class Rank', 'value': '3'},
-      {'label': 'Attendance', 'value': '95%'},
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 16,
-        children: stats.map((stat) => _buildStatCard(stat)).toList(),
-      ),
+    return FutureBuilder<StudentStats>(
+      future: _statsFuture,
+      builder: (context, snapshot) {
+        final testsTaken = snapshot.data?.testsTaken ?? 0;
+        final avg = snapshot.data?.averageScore ?? 0.0;
+        final rank = snapshot.data?.classRank;
+        final stats = [
+          {'label': 'Tests Taken', 'value': '$testsTaken'},
+          {'label': 'Average Score', 'value': '${avg.toStringAsFixed(1)}%'},
+          {'label': 'Class Rank', 'value': rank != null ? '$rank' : '--'},
+          {'label': 'Attendance', 'value': '--'},
+        ];
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: stats.map((stat) => _buildStatCard(stat)).toList(),
+          ),
+        );
+      },
     );
   }
 

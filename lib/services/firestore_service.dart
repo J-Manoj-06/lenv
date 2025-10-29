@@ -47,6 +47,41 @@ class FirestoreService {
     final docRef = _db.collection('tests').doc();
     final data = test.toJson();
     data['id'] = docRef.id;
+
+    // Best-effort: attach schoolCode from teacher profile to avoid cross-school confusion
+    try {
+      String? schoolCode;
+      // Try direct teacher document by UID
+      final teacherByUid = await _db
+          .collection('teachers')
+          .doc(test.teacherId)
+          .get();
+      if (teacherByUid.exists) {
+        schoolCode = (teacherByUid.data()?['schoolCode'] as String?)?.trim();
+      }
+      // Fallback: try by current auth email
+      if ((schoolCode == null || schoolCode.isEmpty)) {
+        final currentUser = FirebaseAuth.instance.currentUser;
+        final email = currentUser?.email;
+        if (email != null && email.isNotEmpty) {
+          final tq = await _db
+              .collection('teachers')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+          if (tq.docs.isNotEmpty) {
+            schoolCode = (tq.docs.first.data()['schoolCode'] as String?)
+                ?.trim();
+          }
+        }
+      }
+      if (schoolCode != null && schoolCode.isNotEmpty) {
+        data['schoolCode'] = schoolCode;
+      }
+    } catch (_) {
+      // non-fatal
+    }
+
     await docRef.set(data);
     return docRef.id;
   }
@@ -302,6 +337,65 @@ class FirestoreService {
 
   Future<void> deleteTest(String testId) async {
     await _db.collection('tests').doc(testId).delete();
+  }
+
+  /// Safer delete: remove the test and clean up related data
+  /// - Deletes all testResults for this test
+  /// - Decrements pendingTests for assigned students (best-effort)
+  /// - Deletes the test document
+  Future<void> deleteTestCascade(String testId) async {
+    try {
+      final testRef = _db.collection('tests').doc(testId);
+      final snap = await testRef.get();
+      List<dynamic> assigned = const [];
+      if (snap.exists) {
+        assigned = (snap.data()?['assignedStudentIds'] as List?) ?? const [];
+      }
+
+      // Delete results in batches
+      final resultsQ = await _db
+          .collection('testResults')
+          .where('testId', isEqualTo: testId)
+          .get();
+      for (final chunk in _chunk(resultsQ.docs, 400)) {
+        final batch = _db.batch();
+        for (final d in chunk) {
+          batch.delete(d.reference);
+        }
+        await batch.commit();
+      }
+
+      // Best-effort: decrement pendingTests for students still pending
+      if (assigned.isNotEmpty) {
+        for (final chunk in _chunk<String>(assigned.cast<String>(), 400)) {
+          final batch = _db.batch();
+          for (final sid in chunk) {
+            batch.update(_db.collection('users').doc(sid), {
+              'pendingTests': FieldValue.increment(-1),
+            });
+          }
+          try {
+            await batch.commit();
+          } catch (_) {}
+        }
+      }
+
+      // Finally delete the test
+      await testRef.delete();
+    } catch (e) {
+      // Fallback to simple delete if anything goes wrong
+      try {
+        await _db.collection('tests').doc(testId).delete();
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  // Small helper to chunk lists for batched writes
+  Iterable<List<T>> _chunk<T>(List<T> list, int size) sync* {
+    for (var i = 0; i < list.length; i += size) {
+      yield list.sublist(i, i + size > list.length ? list.length : i + size);
+    }
   }
 
   /// Utility: Count students for a teacher email whose user docs have a populated uid
@@ -784,18 +878,78 @@ class FirestoreService {
       final resultData = result.toFirestore();
       resultData['id'] = resultDoc.id;
 
+      // Add schoolCode if we can infer it from the student's profile
+      try {
+        final stSnap = await _db
+            .collection('students')
+            .doc(result.studentId)
+            .get();
+        if (stSnap.exists) {
+          final sc = (stSnap.data()?['schoolCode'] as String?)?.trim();
+          if (sc != null && sc.isNotEmpty) {
+            resultData['schoolCode'] = sc;
+          }
+        }
+      } catch (_) {}
+
       await resultDoc.set(resultData);
       print('✅ Test result saved with ID: ${resultDoc.id}');
 
-      // Update student counters
-      final studentDoc = _db.collection('users').doc(result.studentId);
-      await studentDoc.update({
-        'completedTests': FieldValue.increment(1),
-        'pendingTests': FieldValue.increment(-1),
-        'totalScore': FieldValue.increment(result.score.toInt()),
-        'totalPoints': FieldValue.increment(result.score.toInt()),
-      });
-      print('✅ Student counters updated');
+      // Update student counters (users collection preferred, fallback to students)
+      bool countersUpdated = false;
+      try {
+        final userByIdRef = _db.collection('users').doc(result.studentId);
+        final userByIdSnap = await userByIdRef.get();
+        if (userByIdSnap.exists) {
+          await userByIdRef.update({
+            'completedTests': FieldValue.increment(1),
+            'pendingTests': FieldValue.increment(-1),
+            'totalScore': FieldValue.increment(result.score.toInt()),
+            'totalPoints': FieldValue.increment(result.score.toInt()),
+          });
+          countersUpdated = true;
+        } else {
+          final uq = await _db
+              .collection('users')
+              .where('uid', isEqualTo: result.studentId)
+              .limit(1)
+              .get();
+          if (uq.docs.isNotEmpty) {
+            await uq.docs.first.reference.update({
+              'completedTests': FieldValue.increment(1),
+              'pendingTests': FieldValue.increment(-1),
+              'totalScore': FieldValue.increment(result.score.toInt()),
+              'totalPoints': FieldValue.increment(result.score.toInt()),
+            });
+            countersUpdated = true;
+          }
+        }
+      } catch (_) {}
+
+      if (!countersUpdated) {
+        // Fallback: update students collection counters if present
+        try {
+          final sref = _db.collection('students').doc(result.studentId);
+          final ssnap = await sref.get();
+          if (ssnap.exists) {
+            await sref.update({
+              'completedTests': FieldValue.increment(1),
+              'pendingTests': FieldValue.increment(-1),
+              'totalScore': FieldValue.increment(result.score.toInt()),
+              'totalPoints': FieldValue.increment(result.score.toInt()),
+            });
+            countersUpdated = true;
+          }
+        } catch (_) {}
+      }
+
+      if (countersUpdated) {
+        print('✅ Student counters updated');
+      } else {
+        print(
+          '⚠️ Could not find user/student doc to update counters; continuing',
+        );
+      }
 
       // Rewards: also log earned points record for this test
       try {
@@ -818,9 +972,42 @@ class FirestoreService {
 
       // Update test document with completion info
       final testDoc = _db.collection('tests').doc(result.testId);
+      final testSnap = await testDoc.get();
+
+      // Best-effort: attach schoolCode for result/test to avoid cross-school confusion
+      String? schoolCode;
+      try {
+        final stSnap = await _db
+            .collection('students')
+            .doc(result.studentId)
+            .get();
+        if (stSnap.exists) {
+          schoolCode = (stSnap.data()?['schoolCode'] as String?)?.trim();
+        }
+      } catch (_) {}
+
+      if (!testSnap.exists) {
+        // Create a minimal test document so updates won't fail
+        final minimal = {
+          'id': result.testId,
+          'title': result.testTitle,
+          'subject': result.subject,
+          'status': 'published',
+          'assignedStudentIds': [result.studentId],
+          'assignedStudentEmails': [result.studentEmail],
+          'createdAt': FieldValue.serverTimestamp(),
+          if (schoolCode != null && schoolCode.isNotEmpty)
+            'schoolCode': schoolCode,
+        };
+        await testDoc.set(minimal, SetOptions(merge: true));
+        print('ℹ️ Test document did not exist. Created minimal test record.');
+      }
+
       await testDoc.update({
         'completedBy': FieldValue.arrayUnion([result.studentId]),
         'completedCount': FieldValue.increment(1),
+        if (schoolCode != null && schoolCode.isNotEmpty)
+          'schoolCode': schoolCode,
       });
       print('✅ Test completion tracking updated');
 
@@ -838,6 +1025,8 @@ class FirestoreService {
           'reason': result.violationReason,
           'timestamp': FieldValue.serverTimestamp(),
           'score': result.score,
+          if (schoolCode != null && schoolCode.isNotEmpty)
+            'schoolCode': schoolCode,
         });
         print('⚠️ Violation logged');
       }

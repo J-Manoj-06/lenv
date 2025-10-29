@@ -350,49 +350,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    Color bgColor;
-    Color textColor;
-
-    switch (status) {
-      case 'Top Performer':
-        bgColor = const Color(0xFFD1FAE5);
-        textColor = const Color(0xFF065F46);
-        break;
-      case 'On Track':
-        bgColor = const Color(0xFFDBEAFE);
-        textColor = const Color(0xFF1E40AF);
-        break;
-      case 'Needs Attention':
-        bgColor = const Color(0xFFFEF3C7);
-        textColor = const Color(0xFF92400E);
-        break;
-      case 'Needs Help':
-        bgColor = const Color(0xFFFEE2E2);
-        textColor = const Color(0xFF991B1B);
-        break;
-      default:
-        bgColor = Colors.grey[200]!;
-        textColor = Colors.grey[800]!;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: textColor,
-        ),
-      ),
-    );
-  }
-
   void _viewStudentDetails(Map<String, dynamic> student) {
     Navigator.pushNamed(
       context,
