@@ -135,7 +135,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -168,7 +168,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F7F9).withOpacity(0.8),
+        color: Theme.of(context).cardColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -189,16 +189,16 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 onPressed: () {
                   // Handle menu
                 },
-                color: const Color(0xFF1F2937),
+                color: Theme.of(context).iconTheme.color,
               ),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'My Classes',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2937),
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
               ),
@@ -207,7 +207,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 onPressed: () {
                   _showAddClassDialog();
                 },
-                color: const Color(0xFF1F2937),
+                color: Theme.of(context).iconTheme.color,
               ),
             ],
           ),
@@ -222,7 +222,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
       child: Container(
         height: 48,
         decoration: BoxDecoration(
-          color: Colors.grey[200],
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey[800]
+              : Colors.grey[200],
           borderRadius: BorderRadius.circular(12),
         ),
         padding: const EdgeInsets.all(4),
@@ -238,7 +240,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: isGridView ? Colors.white : Colors.transparent,
+                    color: isGridView
+                        ? Theme.of(context).cardColor
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: isGridView
                         ? [
@@ -253,8 +257,8 @@ class _ClassesScreenState extends State<ClassesScreen> {
                   child: Icon(
                     Icons.grid_view,
                     color: isGridView
-                        ? const Color(0xFF1F2937)
-                        : const Color(0xFF6B7280),
+                        ? Theme.of(context).iconTheme.color
+                        : Theme.of(context).iconTheme.color?.withOpacity(0.5),
                   ),
                 ),
               ),
@@ -269,7 +273,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: !isGridView ? Colors.white : Colors.transparent,
+                    color: !isGridView
+                        ? Theme.of(context).cardColor
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: !isGridView
                         ? [
@@ -284,8 +290,8 @@ class _ClassesScreenState extends State<ClassesScreen> {
                   child: Icon(
                     Icons.view_list,
                     color: !isGridView
-                        ? const Color(0xFF1F2937)
-                        : const Color(0xFF6B7280),
+                        ? Theme.of(context).iconTheme.color
+                        : Theme.of(context).iconTheme.color?.withOpacity(0.5),
                   ),
                 ),
               ),
@@ -345,7 +351,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Widget _buildClassCard(ClassItem classItem) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -404,10 +410,10 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 children: [
                   Text(
                     classItem.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -415,17 +421,19 @@ class _ClassesScreenState extends State<ClassesScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.group,
                         size: 16,
-                        color: Color(0xFF6B7280),
+                        color: Theme.of(
+                          context,
+                        ).iconTheme.color?.withOpacity(0.6),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         '${classItem.studentCount} Students',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: Color(0xFF6B7280),
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
                         ),
                       ),
                     ],
@@ -471,7 +479,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Widget _buildClassListItem(ClassItem classItem) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -519,26 +527,28 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 children: [
                   Text(
                     classItem.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.group,
                         size: 14,
-                        color: Color(0xFF6B7280),
+                        color: Theme.of(
+                          context,
+                        ).iconTheme.color?.withOpacity(0.6),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         '${classItem.studentCount} Students',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF6B7280),
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
                         ),
                       ),
                     ],
@@ -580,8 +590,8 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F7F9).withOpacity(0.8),
-        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+        color: Theme.of(context).cardColor,
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
       ),
       child: SafeArea(
         child: SizedBox(
@@ -617,7 +627,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
     final isSelected = selectedNavIndex == index;
     final color = isSelected
         ? const Color(0xFF6366F1)
-        : const Color(0xFF6B7280);
+        : Theme.of(context).iconTheme.color?.withOpacity(0.6);
 
     return InkWell(
       onTap: () {

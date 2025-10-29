@@ -18,6 +18,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   final _titleController = TextEditingController();
   final _totalMarksController = TextEditingController();
   final _timeLimitController = TextEditingController();
+  final _focusNode = FocusNode();
 
   String? selectedSubject;
   String? selectedClass;
@@ -47,6 +48,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     _titleController.dispose();
     _totalMarksController.dispose();
     _timeLimitController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -314,6 +316,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                   label: 'Time Limit',
                   controller: _timeLimitController,
                   placeholder: 'e.g. 90 mins',
+                  keyboardType: TextInputType.number,
                 ),
               ),
             ],
@@ -764,6 +767,8 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
+                        // Dismiss keyboard before saving
+                        FocusScope.of(context).unfocus();
                         _saveTest(publish: false);
                       },
                       style: ElevatedButton.styleFrom(
@@ -887,6 +892,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   }
 
   void _showPublishDialog() {
+    // Dismiss keyboard before showing dialog
+    FocusScope.of(context).unfocus();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

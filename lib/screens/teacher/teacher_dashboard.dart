@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
+import '../../services/firestore_service.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({Key? key}) : super(key: key);
@@ -110,6 +111,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
         _isLoading = false;
       });
+
+      // After loading, run best-effort auto-publish sweep
+      // (app-side scheduled check in case backend cron isn't available)
+      try {
+        await FirestoreService().autoPublishExpiredTests();
+      } catch (_) {}
     } catch (e) {
       // ignore: avoid_print
       print('Error loading teacher data: $e');
@@ -123,7 +130,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -175,7 +182,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -195,14 +202,17 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.menu, color: Colors.grey[600]),
+                      Icon(
+                        Icons.menu,
+                        color: Theme.of(context).iconTheme.color,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Hello, ${_teacherData?['teacherName'] ?? currentUser?.name ?? 'Teacher'}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF2D3748),
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
                       ),
                     ],
@@ -211,7 +221,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.notifications_outlined),
-                        color: Colors.grey[600],
+                        color: Theme.of(context).iconTheme.color,
                         onPressed: () {},
                       ),
                       Positioned(
@@ -234,10 +244,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[300]!),
+                  border: Border.all(color: Theme.of(context).dividerColor),
                 ),
                 child: DropdownButtonFormField<String>(
                   value: selectedClass,
+                  dropdownColor: Theme.of(context).cardColor,
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.symmetric(
@@ -313,18 +324,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Quick Actions',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF2D3748),
+            color: Theme.of(context).textTheme.bodyLarge?.color,
           ),
         ),
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -342,13 +353,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 onTap: () {},
                 isFirst: true,
               ),
-              Divider(height: 1, color: Colors.grey[200]),
+              Divider(height: 1, color: Theme.of(context).dividerColor),
               _buildActionTile(
                 icon: Icons.group,
                 title: 'Manage Students',
                 onTap: () {},
               ),
-              Divider(height: 1, color: Colors.grey[200]),
+              Divider(height: 1, color: Theme.of(context).dividerColor),
               _buildActionTile(
                 icon: Icons.quiz,
                 title: 'View Test Results',
@@ -396,14 +407,17 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: Color(0xFF2D3748),
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
             ),
-            Icon(Icons.chevron_right, color: Colors.grey[400]),
+            Icon(
+              Icons.chevron_right,
+              color: Theme.of(context).iconTheme.color?.withOpacity(0.5),
+            ),
           ],
         ),
       ),
@@ -439,12 +453,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Class Summary',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF2D3748),
+            color: Theme.of(context).textTheme.bodyLarge?.color,
           ),
         ),
         const SizedBox(height: 12),
@@ -485,7 +499,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -513,15 +527,20 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               children: [
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A202C),
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
                 Text(
                   label,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  ),
                 ),
               ],
             ),
@@ -537,25 +556,25 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       children: [
         Row(
           children: [
-            const Text(
+            Text(
               'Alerts',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF2D3748),
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: Theme.of(context).dividerColor,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text(
+              child: Text(
                 '0',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -567,7 +586,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         Container(
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -583,12 +602,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 Icon(
                   Icons.check_circle_outline,
                   size: 48,
-                  color: Colors.grey[400],
+                  color: Theme.of(context).iconTheme.color?.withOpacity(0.5),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'No pending alerts',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                  ),
                 ),
               ],
             ),
@@ -602,19 +624,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Recent Activity',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF2D3748),
+            color: Theme.of(context).textTheme.bodyLarge?.color,
           ),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -627,11 +649,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           child: Center(
             child: Column(
               children: [
-                Icon(Icons.history, size: 48, color: Colors.grey[400]),
+                Icon(
+                  Icons.history,
+                  size: 48,
+                  color: Theme.of(context).iconTheme.color?.withOpacity(0.5),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   'No recent activity',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                  ),
                 ),
               ],
             ),
@@ -644,7 +673,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -685,7 +714,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     required int index,
   }) {
     final isSelected = selectedNavIndex == index;
-    final color = isSelected ? const Color(0xFF6366F1) : Colors.grey[500];
+    final color = isSelected
+        ? const Color(0xFF6366F1)
+        : Theme.of(context).iconTheme.color?.withOpacity(0.6);
 
     return InkWell(
       onTap: () {

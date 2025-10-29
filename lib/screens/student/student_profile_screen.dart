@@ -33,7 +33,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     final user = authProvider.currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF7ED),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -76,15 +76,13 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             ),
           ),
           // Title
-          const Expanded(
+          Expanded(
             child: Text(
               'My Profile',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF292524),
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(width: 48),
@@ -96,6 +94,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   Widget _buildProfileHeader(dynamic user) {
     final String name = user?.name ?? 'Alex Johnson';
     final String? imageUrl = user?.profileImage;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Sample data for demo - these fields would come from StudentModel in a real app
     const String className = 'Class 10-B';
@@ -119,13 +118,17 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                           fit: BoxFit.cover,
                         )
                       : null,
-                  color: imageUrl == null ? const Color(0xFFE7E5E4) : null,
+                  color: imageUrl == null
+                      ? (isDark ? Colors.grey[800] : const Color(0xFFE7E5E4))
+                      : null,
                 ),
                 child: imageUrl == null
-                    ? const Icon(
+                    ? Icon(
                         Icons.person,
                         size: 64,
-                        color: Color(0xFF78716C),
+                        color: Theme.of(
+                          context,
+                        ).iconTheme.color?.withOpacity(0.6),
                       )
                     : null,
               ),
@@ -163,17 +166,15 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           Text(
             name,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF292524),
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
             '$className | Roll No. $rollNo',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16, color: Color(0xFF78716C)),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
         ],
       ),
@@ -214,9 +215,9 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       width: cardWidth,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFED7AA), width: 1),
+        border: Border.all(color: Theme.of(context).dividerColor, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -228,22 +229,13 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            stat['label']!,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF78716C),
-            ),
-          ),
+          Text(stat['label']!, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 8),
           Text(
             stat['value']!,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF292524),
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -265,12 +257,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Personal Information',
-                style: TextStyle(
-                  fontSize: 22,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF292524),
                 ),
               ),
               GestureDetector(
@@ -308,9 +298,12 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFFED7AA), width: 1),
+              border: Border.all(
+                color: Theme.of(context).dividerColor,
+                width: 1,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
@@ -344,8 +337,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : const Border(
-                bottom: BorderSide(color: Color(0xFFFED7AA), width: 1),
+            : Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                  width: 1,
+                ),
               ),
       ),
       padding: const EdgeInsets.all(16),
@@ -353,19 +349,14 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         children: [
           SizedBox(
             width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF78716C)),
-            ),
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF292524),
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -377,9 +368,9 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED).withOpacity(0.9),
-        border: const Border(
-          top: BorderSide(color: Color(0xFFFED7AA), width: 1),
+        color: Theme.of(context).cardColor.withOpacity(0.9),
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
         ),
       ),
       child: SafeArea(

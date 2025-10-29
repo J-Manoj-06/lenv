@@ -14,7 +14,7 @@ class StudentLeaderboardScreen extends StatefulWidget {
 }
 
 class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
-  // Default to Overall tab selected to match the provided Overall leaderboard design
+  // Default to Overall tab selected
   bool _isPerTest = false;
   String _selectedSubject = 'Subject';
   String? _selectedTestId;
@@ -22,13 +22,19 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
 
   final _leaderboardService = LeaderboardService();
 
-  Future<List<LeaderboardEntry>>? _overallFuture;
-  Future<List<LeaderboardEntry>>? _perTestFuture;
+  Stream<List<LeaderboardEntry>>? _overallStream;
+  Stream<List<LeaderboardEntry>>? _perTestStream;
   List<TestModel> _myTests = const [];
   String? _schoolCode;
   String? _className;
   String? _section;
   String? _currentUid;
+
+  @override
+  void initState() {
+    super.initState();
+    _initContextAndOverall();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +45,19 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           children: [
             _buildHeader(),
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // Filters are only relevant for Per-Test view
-                    if (_isPerTest) _buildFilters(),
-                    _buildLeaderboardList(),
-                  ],
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: SingleChildScrollView(
+                  key: ValueKey(_isPerTest),
+                  child: Column(
+                    children: [
+                      // Filters are only relevant for Per-Test view
+                      if (_isPerTest) _buildFilters(),
+                      _buildLeaderboardList(),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -109,23 +121,23 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                 children: [
                   Expanded(
                     child: _buildTabButton(
-                      'Per-Test',
-                      _isPerTest,
-                      () => setState(() => _isPerTest = true),
+                      'Overall',
+                      !_isPerTest,
+                      () => setState(() => _isPerTest = false),
                     ),
                   ),
                   Expanded(
                     child: _buildTabButton(
-                      'Overall',
-                      !_isPerTest,
-                      () => setState(() => _isPerTest = false),
+                      'Per-Test',
+                      _isPerTest,
+                      () => setState(() => _isPerTest = true),
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          // Removed extra vertical space
         ],
       ),
     );
@@ -139,18 +151,21 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? const LinearGradient(
-                  colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
+                  colors: [Color(0xFFFF8A00), Color(0xFFFF6A00)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
               : null,
           borderRadius: BorderRadius.circular(6),
+          border: isSelected
+              ? null
+              : Border.all(color: const Color(0xFFFFE0B3), width: 2),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 2,
-                    offset: const Offset(0, 1),
+                    color: const Color(0xFFF97316).withOpacity(0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   ),
                 ]
               : null,
@@ -194,12 +209,18 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
       onTap: onTap,
       child: Container(
         height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
               ? const Color(0xFFEA580C).withOpacity(0.1)
               : const Color(0xFFE7E5E4).withOpacity(0.5),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFFEA580C)
+                : const Color(0xFFD6D3D1),
+            width: 1.5,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -207,11 +228,11 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
             Text(
               label,
               style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
                 color: isSelected
-                    ? const Color(0xFFC2410C)
-                    : const Color(0xFF292524),
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    ? const Color(0xFFEA580C)
+                    : const Color(0xFF78716C),
               ),
             ),
             const SizedBox(width: 6),
@@ -229,97 +250,127 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   }
 
   Widget _buildLeaderboardList() {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    _currentUid ??= auth.currentUser?.uid;
-
-    // Lazy init: load class context and overall leaderboard once
-    if (_overallFuture == null && !_isPerTest) {
-      _initContextAndOverall();
-    }
-
-    if (_isPerTest) {
-      if (_perTestFuture == null && _selectedTestId != null) {
-        _perTestFuture = _leaderboardService.getPerTestLeaderboard(
-          testId: _selectedTestId!,
-          schoolCode: _schoolCode,
+    if (!_isPerTest) {
+      // Overall leaderboard
+      if (_overallStream == null) {
+        _initContextAndOverall();
+        return const Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Center(child: CircularProgressIndicator()),
         );
       }
-      return FutureBuilder<List<LeaderboardEntry>>(
-        future: _perTestFuture,
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          final items = snap.data ?? [];
-          if (_selectedTestId == null) {
-            return const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text('Select a test to view the leaderboard.'),
-            );
-          }
-          if (items.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text('No results for this test yet.'),
-            );
-          }
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: items
-                  .map(
-                    (e) => _buildLeaderboardCard({
-                      'rank': e.rank,
-                      'name': e.name,
-                      'score': e.score,
-                      'isCurrentUser': e.studentId == _currentUid,
-                      'imageUrl': null,
-                    }),
-                  )
-                  .toList(),
-            ),
-          );
-        },
+      return _buildSection(
+        title: '🏆 Overall Leaderboard',
+        child: StreamBuilder<List<LeaderboardEntry>>(
+          stream: _overallStream,
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final items = snap.data ?? [];
+            if (items.isEmpty) {
+              return _emptyState('No leaderboard data yet 🕒');
+            }
+            return _listBody(items);
+          },
+        ),
+      );
+    } else {
+      // Per-Test leaderboard
+      if (_selectedTestId == null) {
+        return _emptyState(
+          'Select a test to view the leaderboard.',
+          icon: Icons.menu_book_outlined,
+        );
+      }
+      if (_perTestStream == null) {
+        _perTestStream = _buildPerTestStream(_selectedTestId!);
+      }
+      return _buildSection(
+        title: '📘 Per-Test Leaderboard',
+        child: StreamBuilder<List<LeaderboardEntry>>(
+          stream: _perTestStream,
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final items = snap.data ?? [];
+            if (items.isEmpty) {
+              return _emptyState('No results for this test yet 🕒');
+            }
+            return _listBody(items);
+          },
+        ),
       );
     }
+  }
 
-    // Overall
-    return FutureBuilder<List<LeaderboardEntry>>(
-      future: _overallFuture,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final items = snap.data ?? [];
-        if (items.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text('No leaderboard data yet.'),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            children: items
-                .map(
-                  (e) => _buildLeaderboardCard({
-                    'rank': e.rank,
-                    'name': e.name,
-                    'score': e.score,
-                    'isCurrentUser': e.studentId == _currentUid,
-                    'imageUrl': e.photoUrl,
-                  }),
-                )
-                .toList(),
+  Widget _buildSection({required String title, required Widget child}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF292524),
+              ),
+            ),
           ),
-        );
-      },
+          child,
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _listBody(List<LeaderboardEntry> items) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: items
+            .map(
+              (e) => _buildLeaderboardCard({
+                'rank': e.rank,
+                'name': e.name,
+                'score': e.score,
+                'isCurrentUser': e.studentId == _currentUid,
+                'imageUrl': e.photoUrl,
+              }),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _emptyState(String message, {IconData icon = Icons.hourglass_empty}) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        children: [
+          Icon(icon, size: 48, color: const Color(0xFFB45309)),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF78716C),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -334,128 +385,171 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
 
     final bool isTopThree = rank <= 3;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: isCurrentUser
-            ? Border.all(color: const Color(0xFFF97316), width: 2)
-            : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          // Rank badge
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: isTopThree
-                  ? const LinearGradient(
-                      colors: [Color(0xFFFCD34D), Color(0xFFF59E0B)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : null,
-              color: isTopThree ? null : const Color(0xFFE7E5E4),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: Text(
-                '$rank',
-                style: TextStyle(
-                  color: isTopThree ? Colors.white : const Color(0xFF57534E),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 600),
+      tween: Tween(begin: 0.0, end: isCurrentUser ? 1.0 : 0.0),
+      builder: (context, glow, child) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: isCurrentUser
+                ? Border.all(color: const Color(0xFFF97316), width: 2)
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: isCurrentUser
+                    ? const Color(0xFFF59E0B).withOpacity(0.08 + 0.12 * glow)
+                    : Colors.black.withOpacity(0.05),
+                blurRadius: isCurrentUser ? 12 + 6 * glow : 4,
+                spreadRadius: isCurrentUser ? 1 : 0,
+                offset: Offset(0, isCurrentUser ? 3 : 2),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 16),
-          // Avatar (if available)
-          if (imageUrl != null) ...[
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                image: DecorationImage(
-                  image: NetworkImage(imageUrl),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-          ],
-          // Name with badges
-          Expanded(
-            child: Row(
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Color(0xFF292524),
-                  ),
-                ),
-                if (hasVerified) ...[
-                  const SizedBox(width: 6),
-                  ShaderMask(
-                    shaderCallback: (bounds) => const LinearGradient(
-                      colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
-                    ).createShader(bounds),
-                    child: const Icon(
-                      Icons.verified,
-                      size: 20,
-                      color: Colors.white,
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Rank badge with crown for top 3
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: isTopThree
+                          ? LinearGradient(
+                              colors: rank == 1
+                                  ? const [
+                                      Color(0xFFFFD700),
+                                      Color(0xFFFFB300),
+                                    ] // gold
+                                  : rank == 2
+                                  ? const [
+                                      Color(0xFFC0C0C0),
+                                      Color(0xFF9E9E9E),
+                                    ] // silver
+                                  : const [
+                                      Color(0xFFCD7F32),
+                                      Color(0xFF8D5524),
+                                    ], // bronze
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: isTopThree ? null : const Color(0xFFE7E5E4),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$rank',
+                        style: TextStyle(
+                          color: isTopThree
+                              ? Colors.white
+                              : const Color(0xFF57534E),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                   ),
+                  if (isTopThree)
+                    Positioned(
+                      top: -10,
+                      right: -6,
+                      child: Icon(
+                        Icons.emoji_events_rounded,
+                        size: 20,
+                        color: rank == 1
+                            ? const Color(0xFFFFD700)
+                            : rank == 2
+                            ? const Color(0xFFC0C0C0)
+                            : const Color(0xFFCD7F32),
+                      ),
+                    ),
                 ],
-                if (hasFire) ...[
-                  const SizedBox(width: 6),
-                  ShaderMask(
-                    shaderCallback: (bounds) => const LinearGradient(
-                      colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
-                    ).createShader(bounds),
-                    child: const Icon(
-                      Icons.local_fire_department,
-                      size: 20,
-                      color: Colors.white,
+              ),
+              const SizedBox(width: 16),
+              // Avatar (if available)
+              if (imageUrl != null) ...[
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    image: DecorationImage(
+                      image: NetworkImage(imageUrl),
+                      fit: BoxFit.cover,
                     ),
                   ),
-                ],
+                ),
+                const SizedBox(width: 16),
               ],
-            ),
+              // Name with badges
+              Expanded(
+                child: Row(
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: Color(0xFF292524),
+                      ),
+                    ),
+                    if (hasVerified) ...[
+                      const SizedBox(width: 6),
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
+                        ).createShader(bounds),
+                        child: const Icon(
+                          Icons.verified,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                    if (hasFire) ...[
+                      const SizedBox(width: 6),
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
+                        ).createShader(bounds),
+                        child: const Icon(
+                          Icons.local_fire_department,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // Score
+              Text(
+                score is int ? '$score' : score.toStringAsFixed(1),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF292524),
+                ),
+              ),
+            ],
           ),
-          // Score
-          Text(
-            score is int ? '$score' : score.toStringAsFixed(1),
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF292524),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFCFBF8).withOpacity(0.8),
-        border: const Border(
-          top: BorderSide(color: Color(0xFFE7E5E4), width: 1),
+        color: Theme.of(context).cardColor.withOpacity(0.8),
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
         ),
       ),
       child: SafeArea(
@@ -532,10 +626,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
         setState(() {
           _selectedTestId = selected.id;
           _selectedTestLabel = selected.title;
-          _perTestFuture = _leaderboardService.getPerTestLeaderboard(
-            testId: selected.id,
-            schoolCode: _schoolCode,
-          );
+          _perTestStream = _buildPerTestStream(selected.id);
         });
       }
       return;
@@ -551,6 +642,8 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     final uid = auth.currentUser?.uid;
     final email = auth.currentUser?.email;
     if (uid == null) return;
+
+    _currentUid = uid;
 
     // Find student's school/class/section from students collection
     final stDoc = await FirebaseFirestore.instance
@@ -575,12 +668,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
 
     if (_schoolCode != null && _className != null) {
       setState(() {
-        _overallFuture = _leaderboardService.getOverallLeaderboardForClass(
-          schoolCode: _schoolCode!,
-          className: _className!,
-          section: _section,
-          limit: 100,
-        );
+        _overallStream = _buildOverallStream();
       });
     }
   }
@@ -597,6 +685,97 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
         .where('status', isEqualTo: 'published')
         .get();
     _myTests = snap.docs.map((d) => TestModel.fromJson(d.data())).toList();
+  }
+
+  // Build a stream for overall leaderboard from school path; fallback to service
+  Stream<List<LeaderboardEntry>> _buildOverallStream() {
+    if (_schoolCode == null || _schoolCode!.isEmpty) {
+      return const Stream.empty();
+    }
+    final schoolRef = FirebaseFirestore.instance
+        .collection('schools')
+        .doc(_schoolCode);
+
+    // Attempt 1: subcollection at leaderboards/overall (collection of entries)
+    final attempt1Stream = schoolRef
+        .collection('leaderboards')
+        .doc('overall')
+        .collection('entries')
+        .orderBy('score', descending: true)
+        .limit(100)
+        .snapshots()
+        .asyncMap((snap) async {
+          final list1 = _mapEntries(snap.docs);
+          if (list1.isNotEmpty) return list1;
+          // Attempt 2: collection 'leaderboards_overall'
+          final snap2 = await schoolRef
+              .collection('leaderboards_overall')
+              .orderBy('score', descending: true)
+              .limit(100)
+              .get();
+          final list2 = _mapEntries(snap2.docs);
+          if (list2.isNotEmpty) return list2;
+          // Fallback to compute via service once
+          return _leaderboardService.getOverallLeaderboardForClass(
+            schoolCode: _schoolCode!,
+            className: _className ?? '',
+            section: _section,
+            limit: 100,
+          );
+        });
+    return attempt1Stream;
+  }
+
+  // Build per-test leaderboard stream from school path; fallback to service
+  Stream<List<LeaderboardEntry>> _buildPerTestStream(String testId) {
+    if (_schoolCode == null || _schoolCode!.isEmpty) {
+      return const Stream.empty();
+    }
+    final schoolRef = FirebaseFirestore.instance
+        .collection('schools')
+        .doc(_schoolCode);
+
+    final path1Stream = schoolRef
+        .collection('tests')
+        .doc(testId)
+        .collection('leaderboard')
+        .orderBy('score', descending: true)
+        .limit(100)
+        .snapshots()
+        .asyncMap((snap) async {
+          final list1 = _mapEntries(snap.docs);
+          if (list1.isNotEmpty) return list1;
+          return _leaderboardService.getPerTestLeaderboard(
+            testId: testId,
+            schoolCode: _schoolCode,
+          );
+        });
+    return path1Stream;
+  }
+
+  List<LeaderboardEntry> _mapEntries(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    final items = docs.map((d) => d.data()).toList();
+    items.sort(
+      (a, b) => ((b['score'] ?? b['points']) as num).compareTo(
+        (a['score'] ?? a['points']) as num,
+      ),
+    );
+    final list = <LeaderboardEntry>[];
+    for (var i = 0; i < items.length; i++) {
+      final e = items[i];
+      list.add(
+        LeaderboardEntry(
+          studentId: (e['studentId'] ?? e['uid'] ?? '') as String,
+          name: (e['name'] ?? e['studentName'] ?? 'Student') as String,
+          photoUrl: e['photoUrl'] as String?,
+          rank: i + 1,
+          score: (e['score'] ?? e['points'] ?? 0) as num,
+        ),
+      );
+    }
+    return list;
   }
 }
 
@@ -617,6 +796,13 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final Color iconColor = isSelected
+        ? theme.colorScheme.secondary
+        : theme.iconTheme.color?.withOpacity(0.7) ?? Colors.grey;
+    final Color textColor = isSelected
+        ? theme.colorScheme.secondary
+        : theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -624,23 +810,14 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? const Color(0xFFEA580C)
-                  : const Color(0xFF78716C),
-              size: 24,
-              fill: isFilled ? 1.0 : 0.0,
-            ),
+            Icon(icon, color: iconColor, size: 24, fill: isFilled ? 1.0 : 0.0),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected
-                    ? const Color(0xFFEA580C)
-                    : const Color(0xFF78716C),
+                color: textColor,
               ),
             ),
           ],

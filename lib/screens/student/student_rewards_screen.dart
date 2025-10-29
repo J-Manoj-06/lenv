@@ -36,7 +36,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
     final studentId = authProvider.currentUser?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFCFAF8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -68,7 +68,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(color: Color(0xFFFCFAF8)),
+      decoration: BoxDecoration(color: Theme.of(context).cardColor),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -76,7 +76,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
@@ -92,9 +92,11 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
               onPressed: () => Navigator.pop(context),
             ),
           ),
-          const Text(
+          Text(
             'Rewards',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(width: 40),
         ],
@@ -105,7 +107,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   Widget _buildTabSelector() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -229,22 +231,20 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
             Icon(
               Icons.emoji_events_outlined,
               size: 64,
-              color: Colors.grey.shade300,
+              color: Theme.of(context).iconTheme.color?.withOpacity(0.3),
             ),
             const SizedBox(height: 16),
             Text(
               'No Rewards Yet',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               'Complete tests and earn rewards!',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
         ),
@@ -259,7 +259,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -307,8 +307,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
                   children: [
                     Text(
                       reward.title,
-                      style: const TextStyle(
-                        fontSize: 16,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -319,10 +318,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           'Used on: ${DateFormat('dd MMM yyyy').format(reward.acceptedAt!)}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF9C7349),
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
                   ],
@@ -508,7 +504,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   Widget _buildCatalogCard(RewardModel reward) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -608,9 +604,9 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         border: Border(
-          top: BorderSide(color: const Color(0xFFF4EDE7), width: 1),
+          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
         ),
       ),
       child: SafeArea(

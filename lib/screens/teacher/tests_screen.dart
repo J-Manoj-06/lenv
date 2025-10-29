@@ -63,7 +63,7 @@ class _TestsScreenState extends State<TestsScreen> {
 
     final filtered = _applyFilters(tests);
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           Column(
@@ -97,7 +97,7 @@ class _TestsScreenState extends State<TestsScreen> {
 
   Widget _buildHeader() {
     return Container(
-      decoration: const BoxDecoration(color: Colors.white),
+      decoration: BoxDecoration(color: Theme.of(context).cardColor),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -106,17 +106,18 @@ class _TestsScreenState extends State<TestsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const SizedBox(width: 48),
-              const Text(
+              Text(
                 'Tests',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF111418),
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
               IconButton(
                 icon: const Icon(Icons.notifications_outlined),
                 iconSize: 24,
+                color: Theme.of(context).iconTheme.color,
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Notifications')),
@@ -132,16 +133,21 @@ class _TestsScreenState extends State<TestsScreen> {
 
   Widget _buildSearchBar() {
     return Container(
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
           hintText: 'Search by test name...',
-          hintStyle: const TextStyle(color: Color(0xFF6B7280)),
-          prefixIcon: const Icon(Icons.search, color: Color(0xFF6B7280)),
+          hintStyle: TextStyle(color: Theme.of(context).hintColor),
+          prefixIcon: Icon(
+            Icons.search,
+            color: Theme.of(context).iconTheme.color,
+          ),
           filled: true,
-          fillColor: const Color(0xFFF6F7F8),
+          fillColor: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey[800]
+              : const Color(0xFFF6F7F8),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide.none,
@@ -160,7 +166,7 @@ class _TestsScreenState extends State<TestsScreen> {
 
   Widget _buildTabs() {
     return Container(
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: List.generate(_tabs.length, (index) {
@@ -192,7 +198,7 @@ class _TestsScreenState extends State<TestsScreen> {
                     fontWeight: FontWeight.bold,
                     color: isSelected
                         ? const Color(0xFF6366F1)
-                        : const Color(0xFF6B7280),
+                        : Theme.of(context).textTheme.bodyMedium?.color,
                   ),
                 ),
               ),
@@ -205,7 +211,7 @@ class _TestsScreenState extends State<TestsScreen> {
 
   Widget _buildClassFiltersRow(List<String> classFilters) {
     return Container(
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -259,16 +265,18 @@ class _TestsScreenState extends State<TestsScreen> {
                     height: 32,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF6F7F8),
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.grey[800]
+                          : const Color(0xFFF6F7F8),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Center(
                       child: Text(
                         className,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF1F2937),
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
                       ),
                     ),
@@ -443,7 +451,7 @@ class _TestsScreenState extends State<TestsScreen> {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -466,18 +474,18 @@ class _TestsScreenState extends State<TestsScreen> {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F2937),
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: Color(0xFF6B7280),
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
                         ),
                       ),
                     ],
@@ -507,9 +515,12 @@ class _TestsScreenState extends State<TestsScreen> {
             // Footer
             Container(
               padding: const EdgeInsets.only(top: 12),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: Color(0xFFF3F4F6), width: 1),
+                  top: BorderSide(
+                    color: Theme.of(context).dividerColor,
+                    width: 1,
+                  ),
                 ),
               ),
               child: Row(
@@ -521,9 +532,9 @@ class _TestsScreenState extends State<TestsScreen> {
                       const SizedBox(width: 8),
                       Text(
                         footerText,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: Color(0xFF4B5563),
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
                         ),
                       ),
                     ],
@@ -534,7 +545,9 @@ class _TestsScreenState extends State<TestsScreen> {
                         IconButton(
                           icon: const Icon(Icons.bar_chart_outlined),
                           iconSize: 20,
-                          color: const Color(0xFF6B7280),
+                          color: Theme.of(
+                            context,
+                          ).iconTheme.color?.withOpacity(0.6),
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('View stats for $title')),
@@ -547,7 +560,9 @@ class _TestsScreenState extends State<TestsScreen> {
                         IconButton(
                           icon: const Icon(Icons.edit_outlined),
                           iconSize: 20,
-                          color: const Color(0xFF6B7280),
+                          color: Theme.of(
+                            context,
+                          ).iconTheme.color?.withOpacity(0.6),
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Edit $title')),
@@ -560,7 +575,9 @@ class _TestsScreenState extends State<TestsScreen> {
                         IconButton(
                           icon: const Icon(Icons.delete_outline),
                           iconSize: 20,
-                          color: const Color(0xFF6B7280),
+                          color: Theme.of(
+                            context,
+                          ).iconTheme.color?.withOpacity(0.6),
                           onPressed: () {
                             if (onDelete != null) {
                               _showDeleteDialogConfirm(title, onDelete);
@@ -601,9 +618,11 @@ class _TestsScreenState extends State<TestsScreen> {
       right: 0,
       child: Container(
         height: 80,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          border: Border(
+            top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
+          ),
         ),
         child: SafeArea(
           top: false,
@@ -652,7 +671,7 @@ class _TestsScreenState extends State<TestsScreen> {
               size: 24,
               color: isSelected
                   ? const Color(0xFF6366F1)
-                  : const Color(0xFF6B7280),
+                  : Theme.of(context).iconTheme.color?.withOpacity(0.6),
             ),
             const SizedBox(height: 4),
             Text(
@@ -662,7 +681,7 @@ class _TestsScreenState extends State<TestsScreen> {
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 color: isSelected
                     ? const Color(0xFF6366F1)
-                    : const Color(0xFF6B7280),
+                    : Theme.of(context).textTheme.bodyMedium?.color,
               ),
             ),
           ],
@@ -677,6 +696,7 @@ class _TestsScreenState extends State<TestsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      backgroundColor: Theme.of(context).cardColor,
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(24),
@@ -684,12 +704,12 @@ class _TestsScreenState extends State<TestsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Filter by Class',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
               const SizedBox(height: 16),
@@ -697,7 +717,12 @@ class _TestsScreenState extends State<TestsScreen> {
                 Provider.of<TestProvider>(context, listen: false).tests,
               ).map((className) {
                 return ListTile(
-                  title: Text(className),
+                  title: Text(
+                    className,
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
+                  ),
                   trailing: _selectedClassFilter == className
                       ? const Icon(Icons.check, color: Color(0xFF6366F1))
                       : null,

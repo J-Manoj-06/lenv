@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/session_manager.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -14,7 +15,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           _buildHeader(),
@@ -42,9 +43,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildHeader() {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF6F7F8),
-        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
+        ),
       ),
       child: SafeArea(
         bottom: false,
@@ -53,14 +56,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Row(
             children: [
               const SizedBox(width: 48),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'My Profile',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
               ),
@@ -71,7 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     context,
                   ).showSnackBar(const SnackBar(content: Text('Settings')));
                 },
-                color: const Color(0xFF0F172A),
+                color: Theme.of(context).iconTheme.color,
               ),
             ],
           ),
@@ -81,6 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
       child: Column(
@@ -97,35 +101,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: 128,
                   height: 128,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: isDark ? Colors.grey[800] : Colors.grey[300],
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.person, size: 64, color: Colors.grey[600]),
+                  child: Icon(
+                    Icons.person,
+                    size: 64,
+                    color: Theme.of(context).iconTheme.color?.withOpacity(0.7),
+                  ),
                 );
               },
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'Dr. Jane Doe',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Senior Professor, Computer Science',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
+            style: TextStyle(
+              fontSize: 16,
+              color: Theme.of(context).textTheme.bodyMedium?.color,
+            ),
           ),
           const SizedBox(height: 2),
-          const Text(
+          Text(
             'LearnQ University',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
+            style: TextStyle(
+              fontSize: 16,
+              color: Theme.of(context).textTheme.bodyMedium?.color,
+            ),
           ),
         ],
       ),
@@ -138,14 +152,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 16, bottom: 8),
+          Padding(
+            padding: const EdgeInsets.only(top: 16, bottom: 8),
             child: Text(
               'Teaching Overview',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF0F172A),
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
           ),
@@ -186,32 +200,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bool showProgress = false,
     double progressValue = 0,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: (MediaQuery.of(context).size.width - 48) / 2,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: Color(0xFF64748B),
+              color: Theme.of(context).textTheme.bodyMedium?.color,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
           const SizedBox(height: 8),
@@ -233,7 +248,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: LinearProgressIndicator(
                 value: progressValue,
                 minHeight: 6,
-                backgroundColor: const Color(0xFFE2E8F0),
+                backgroundColor: isDark
+                    ? Colors.grey[800]
+                    : const Color(0xFFE2E8F0),
                 valueColor: const AlwaysStoppedAnimation<Color>(
                   Color(0xFF6366F1),
                 ),
@@ -259,22 +276,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 32, bottom: 8),
+          Padding(
+            padding: const EdgeInsets.only(top: 32, bottom: 8),
             child: Text(
               'Personal Information',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF0F172A),
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
           ),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: infoItems.asMap().entries.map((entry) {
@@ -287,8 +304,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: BoxDecoration(
                     border: isLast
                         ? null
-                        : const Border(
-                            bottom: BorderSide(color: Color(0xFFE2E8F0)),
+                        : Border(
+                            bottom: BorderSide(
+                              color: Theme.of(context).dividerColor,
+                            ),
                           ),
                   ),
                   child: Row(
@@ -296,17 +315,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Text(
                         item['label']!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: Color(0xFF64748B),
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
                         ),
                       ),
                       Text(
                         item['value']!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF1E293B),
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
                       ),
                     ],
@@ -335,22 +354,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 32, bottom: 8),
+          Padding(
+            padding: const EdgeInsets.only(top: 32, bottom: 8),
             child: Text(
               'Account Settings',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF0F172A),
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
           ),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: settingsItems.asMap().entries.map((entry) {
@@ -369,8 +388,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: BoxDecoration(
                       border: isLast
                           ? null
-                          : const Border(
-                              bottom: BorderSide(color: Color(0xFFE2E8F0)),
+                          : Border(
+                              bottom: BorderSide(
+                                color: Theme.of(context).dividerColor,
+                              ),
                             ),
                     ),
                     child: Row(
@@ -384,16 +405,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Expanded(
                           child: Text(
                             item['label'] as String,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF1E293B),
+                              color: Theme.of(
+                                context,
+                              ).textTheme.bodyLarge?.color,
                             ),
                           ),
                         ),
-                        const Icon(
+                        Icon(
                           Icons.chevron_right,
-                          color: Color(0xFF94A3B8),
+                          color: Theme.of(
+                            context,
+                          ).iconTheme.color?.withOpacity(0.5),
                         ),
                       ],
                     ),
@@ -413,22 +438,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 32, bottom: 8),
+          Padding(
+            padding: const EdgeInsets.only(top: 32, bottom: 8),
             child: Text(
               'App Preferences',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF0F172A),
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
           ),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -439,13 +464,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   size: 24,
                 ),
                 const SizedBox(width: 16),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Dark Mode',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFF1E293B),
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                   ),
                 ),
@@ -474,6 +499,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildLogoutButton() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 32, 16, 48),
       child: SizedBox(
@@ -484,8 +510,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _showLogoutDialog();
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFE2E8F0),
-            foregroundColor: const Color(0xFF0F172A),
+            backgroundColor: isDark
+                ? Colors.grey[800]
+                : const Color(0xFFE2E8F0),
+            foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -503,9 +531,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildBottomNav() {
     return Container(
       height: 80,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -549,7 +579,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               size: 24,
               color: isSelected
                   ? const Color(0xFF6366F1)
-                  : const Color(0xFF64748B),
+                  : Theme.of(context).iconTheme.color?.withOpacity(0.6),
             ),
             const SizedBox(height: 4),
             Text(
@@ -559,7 +589,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 color: isSelected
                     ? const Color(0xFF6366F1)
-                    : const Color(0xFF64748B),
+                    : Theme.of(context).textTheme.bodyMedium?.color,
               ),
             ),
           ],
@@ -581,8 +611,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
+                // Clear session
+                await SessionManager.clearLoginSession();
                 Navigator.pushReplacementNamed(context, '/role-selection');
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Logged out successfully')),

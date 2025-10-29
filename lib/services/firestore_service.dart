@@ -1240,4 +1240,103 @@ class FirestoreService {
     }
     await batch.commit();
   }
+
+  // =========================
+  // Automatic Result Publishing
+  // =========================
+
+  /// Auto-publish tests whose endDate has passed.
+  /// Criteria:
+  /// - endDate <= now
+  /// - resultsPublished != true (missing or false)
+  /// - status != completed (will be set to completed)
+  /// Optionally filter by schoolCode if provided, to reduce query scope.
+  /// Returns number of tests updated.
+  Future<int> autoPublishExpiredTests({String? schoolCode}) async {
+    try {
+      final nowTs = Timestamp.fromDate(DateTime.now());
+      Query<Map<String, dynamic>> q = _db
+          .collection('tests')
+          .where('endDate', isLessThanOrEqualTo: nowTs)
+          .where('resultsPublished', isNotEqualTo: true);
+
+      if (schoolCode != null && schoolCode.trim().isNotEmpty) {
+        q = q.where('schoolCode', isEqualTo: schoolCode.trim());
+      }
+
+      // Firestore limitation: multiple inequality requires index; if not available,
+      // we’ll catch and fall back to a broader query and filter client-side.
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+      try {
+        final res = await q.get();
+        docs = res.docs;
+      } catch (_) {
+        // Likely missing composite index, use broader query and filter client-side
+        final fb = await _db
+            .collection('tests')
+            .where('endDate', isLessThanOrEqualTo: nowTs)
+            .get();
+        docs = fb.docs
+            .where((d) => (d.data()['resultsPublished'] != true))
+            .where(
+              (d) => schoolCode == null || schoolCode.trim().isEmpty
+                  ? true
+                  : (d.data()['schoolCode'] == schoolCode.trim()),
+            )
+            .toList();
+      }
+
+      if (docs.isEmpty) return 0;
+
+      int updatedCount = 0;
+      for (final chunk in _chunk(docs, 400)) {
+        final batch = _db.batch();
+        for (final d in chunk) {
+          final data = d.data();
+          // Mark as completed + results published
+          batch.update(d.reference, {
+            'status': 'completed',
+            'resultsPublished': true,
+            'publishedAt': FieldValue.serverTimestamp(),
+          });
+
+          // Notify assigned students (best-effort)
+          final assigned =
+              (data['assignedStudentIds'] as List?)
+                  ?.whereType<String>()
+                  .toList() ??
+              const <String>[];
+          for (final sid in assigned) {
+            final notifRef = _db.collection('notifications').doc();
+            batch.set(notifRef, {
+              'id': notifRef.id,
+              'studentId': sid,
+              'title': 'Results Published 🎯',
+              'message':
+                  'Your results for \'${data['title'] ?? 'Test'}\' are now available!',
+              'type': 'test',
+              'createdAt': FieldValue.serverTimestamp(),
+              'isRead': false,
+              'data': {'testId': data['id'], 'subject': data['subject']},
+            });
+
+            // Increment in-app badge counters (best-effort)
+            final userRef = _db.collection('users').doc(sid);
+            batch.update(userRef, {
+              'newNotifications': FieldValue.increment(1),
+            });
+          }
+        }
+        await batch.commit();
+        updatedCount += chunk.length;
+      }
+
+      return updatedCount;
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('❌ autoPublishExpiredTests failed: $e');
+      print(st);
+      return 0;
+    }
+  }
 }

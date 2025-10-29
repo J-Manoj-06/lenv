@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
 import '../../services/school_service.dart';
 import '../../models/school_model.dart';
+import '../../utils/session_manager.dart';
 
 class TeacherLoginScreen extends StatefulWidget {
   const TeacherLoginScreen({Key? key}) : super(key: key);
@@ -92,6 +93,12 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
       if (success) {
         // Check if user is a teacher
         if (authProvider.currentUser?.role == UserRole.teacher) {
+          // Save session
+          await SessionManager.saveLoginSession(
+            userId: authProvider.currentUser!.uid,
+            userRole: 'teacher',
+          );
+
           if (mounted) {
             Navigator.pushReplacementNamed(context, '/teacher-dashboard');
           }
@@ -172,16 +179,19 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 400),
             child: Card(
-              elevation: 8,
-              shadowColor: Colors.black26,
+              elevation: isDarkMode ? 4 : 8,
+              shadowColor: Colors.black.withOpacity(isDarkMode ? 0.3 : 0.26),
+              color: Theme.of(context).cardColor,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -261,12 +271,12 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
         const SizedBox(height: 16),
 
         // LenV Title
-        const Text(
+        Text(
           'LenV',
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937), // Gray 800
+            color: Theme.of(context).textTheme.headlineLarge?.color,
           ),
         ),
 
@@ -278,7 +288,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
+            color: Theme.of(context).textTheme.titleMedium?.color,
           ),
         ),
       ],
@@ -299,20 +309,23 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
           ),
         DropdownButtonFormField<String>(
           value: _selectedSchool,
+          dropdownColor: Theme.of(context).cardColor,
           decoration: InputDecoration(
             hintText: _isLoadingSchools
                 ? 'Loading schools...'
                 : 'Select your school',
-            hintStyle: TextStyle(color: Colors.grey[400]),
+            hintStyle: TextStyle(color: Theme.of(context).hintColor),
             filled: true,
-            fillColor: Colors.white,
+            fillColor:
+                Theme.of(context).inputDecorationTheme.fillColor ??
+                Theme.of(context).cardColor,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: Theme.of(context).dividerColor),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: Theme.of(context).dividerColor),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -355,16 +368,18 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
       keyboardType: TextInputType.emailAddress,
       decoration: InputDecoration(
         hintText: 'Email',
-        hintStyle: TextStyle(color: Colors.grey[400]),
+        hintStyle: TextStyle(color: Theme.of(context).hintColor),
         filled: true,
-        fillColor: Colors.white,
+        fillColor:
+            Theme.of(context).inputDecorationTheme.fillColor ??
+            Theme.of(context).cardColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
+          borderSide: BorderSide(color: Theme.of(context).dividerColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
+          borderSide: BorderSide(color: Theme.of(context).dividerColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -402,16 +417,18 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
       obscureText: !_isPasswordVisible,
       decoration: InputDecoration(
         hintText: 'Password',
-        hintStyle: TextStyle(color: Colors.grey[400]),
+        hintStyle: TextStyle(color: Theme.of(context).hintColor),
         filled: true,
-        fillColor: Colors.white,
+        fillColor:
+            Theme.of(context).inputDecorationTheme.fillColor ??
+            Theme.of(context).cardColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
+          borderSide: BorderSide(color: Theme.of(context).dividerColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
+          borderSide: BorderSide(color: Theme.of(context).dividerColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -435,7 +452,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
             _isPasswordVisible
                 ? Icons.visibility_outlined
                 : Icons.visibility_off_outlined,
-            color: Colors.grey[600],
+            color: Theme.of(context).iconTheme.color,
           ),
           onPressed: () {
             setState(() => _isPasswordVisible = !_isPasswordVisible);
@@ -489,10 +506,15 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   Widget _buildForgotPasswordLink() {
     return TextButton(
       onPressed: _handleForgotPassword,
-      style: TextButton.styleFrom(foregroundColor: Colors.grey[600]),
+      style: TextButton.styleFrom(
+        foregroundColor: Theme.of(context).textTheme.bodyMedium?.color,
+      ),
       child: Text(
         'Forgot Password?',
-        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+        style: TextStyle(
+          fontSize: 14,
+          color: Theme.of(context).textTheme.bodyMedium?.color,
+        ),
       ),
     );
   }

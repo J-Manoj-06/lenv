@@ -79,7 +79,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           _buildHeader(),
@@ -104,7 +104,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Widget _buildHeader() {
     return Container(
-      decoration: const BoxDecoration(color: Color(0xFFF6F7F8)),
+      decoration: BoxDecoration(color: Theme.of(context).cardColor),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -112,14 +112,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Leaderboard',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
               ),
@@ -130,7 +130,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     const SnackBar(content: Text('Share leaderboard')),
                   );
                 },
-                color: const Color(0xFF0F172A),
+                color: Theme.of(context).iconTheme.color,
               ),
             ],
           ),
@@ -143,14 +143,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
             'Overall Top Performers',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
         ),
@@ -210,6 +210,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     required double size,
     required double marginTop,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: EdgeInsets.only(top: marginTop),
       child: Column(
@@ -224,11 +225,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: borderColor, width: 4),
-                  image: DecorationImage(
-                    image: NetworkImage(imageUrl),
-                    fit: BoxFit.cover,
-                    onError: (error, stackTrace) {},
-                  ),
                 ),
                 child: ClipOval(
                   child: Image.network(
@@ -236,11 +232,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        color: Colors.grey[300],
+                        color: isDark ? Colors.grey[800] : Colors.grey[300],
                         child: Icon(
                           Icons.person,
                           size: size * 0.5,
-                          color: Colors.grey[600],
+                          color: Theme.of(
+                            context,
+                          ).iconTheme.color?.withOpacity(0.7),
                         ),
                       );
                     },
@@ -257,7 +255,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     color: badgeColor,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFF6F7F8),
+                      color: Theme.of(context).scaffoldBackgroundColor,
                       width: 2,
                     ),
                   ),
@@ -278,16 +276,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           const SizedBox(height: 12),
           Text(
             name,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF0F172A),
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             points,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).textTheme.bodyMedium?.color,
+            ),
           ),
         ],
       ),
@@ -303,12 +304,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Select Standard',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: Color(0xFF334155),
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -316,21 +317,23 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   height: 40,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                    border: Border.all(color: Theme.of(context).dividerColor),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _selectedStandard,
                       isExpanded: true,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.expand_more,
-                        color: Color(0xFF64748B),
+                        color: Theme.of(
+                          context,
+                        ).iconTheme.color?.withOpacity(0.6),
                       ),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        color: Color(0xFF0F172A),
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                       items: const [
                         DropdownMenuItem(
@@ -357,12 +360,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Select Section',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: Color(0xFF334155),
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -370,21 +373,23 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   height: 40,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                    border: Border.all(color: Theme.of(context).dividerColor),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _selectedSection,
                       isExpanded: true,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.expand_more,
-                        color: Color(0xFF64748B),
+                        color: Theme.of(
+                          context,
+                        ).iconTheme.color?.withOpacity(0.6),
                       ),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        color: Color(0xFF0F172A),
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                       items: const [
                         DropdownMenuItem(
@@ -422,7 +427,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             padding: const EdgeInsets.only(bottom: 12),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
@@ -440,10 +445,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     child: Text(
                       '${student['rank']}',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF64748B),
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
                       ),
                     ),
                   ),
@@ -456,17 +461,21 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       height: 48,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
+                        final isDark =
+                            Theme.of(context).brightness == Brightness.dark;
                         return Container(
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: Colors.grey[300],
+                            color: isDark ? Colors.grey[800] : Colors.grey[300],
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Icons.person,
                             size: 24,
-                            color: Colors.grey[600],
+                            color: Theme.of(
+                              context,
+                            ).iconTheme.color?.withOpacity(0.7),
                           ),
                         );
                       },
@@ -479,18 +488,20 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       children: [
                         Text(
                           student['name'],
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF1E293B),
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           'Class ${student['class']}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: Color(0xFF64748B),
+                            color: Theme.of(
+                              context,
+                            ).textTheme.bodyMedium?.color,
                           ),
                         ),
                       ],
@@ -498,10 +509,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   ),
                   Text(
                     '${student['points']}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E293B),
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                   ),
                 ],
@@ -516,9 +527,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   Widget _buildBottomNav() {
     return Container(
       height: 80,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -562,7 +575,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               size: 24,
               color: isSelected
                   ? const Color(0xFF6366F1)
-                  : const Color(0xFF64748B),
+                  : Theme.of(context).iconTheme.color?.withOpacity(0.6),
             ),
             const SizedBox(height: 4),
             Text(
@@ -572,7 +585,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 color: isSelected
                     ? const Color(0xFF6366F1)
-                    : const Color(0xFF64748B),
+                    : Theme.of(context).textTheme.bodyMedium?.color,
               ),
             ),
           ],

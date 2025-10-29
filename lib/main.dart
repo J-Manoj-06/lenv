@@ -2,14 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
-import 'providers/auth_provider.dart';
+import 'providers/auth_provider.dart' as local_auth;
 import 'providers/role_provider.dart';
 import 'providers/test_provider.dart';
 import 'providers/reward_provider.dart';
 import 'providers/student_provider.dart';
 import 'routes/app_router.dart';
+import 'services/firestore_service.dart';
+
+Future<String> getInitialScreen() async {
+  final prefs = await SharedPreferences.getInstance();
+  final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+  final role = prefs.getString('userRole');
+  final user = FirebaseAuth.instance.currentUser;
+  if (isLoggedIn && user != null) {
+    if (role == 'teacher') {
+      return '/teacher-dashboard';
+    } else if (role == 'student') {
+      return '/student-dashboard';
+    }
+  }
+  // No session: go to role selection (valid route)
+  return '/role-selection';
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,17 +76,31 @@ void main() async {
     }
   }
 
-  runApp(const MyApp());
+  // Best-effort: run an auto-publish sweep once on app start
+  try {
+    final updated = await FirestoreService().autoPublishExpiredTests();
+    if (updated > 0) {
+      // ignore: avoid_print
+      print('📣 Auto-published $updated expired tests on startup');
+    }
+  } catch (e) {
+    // ignore: avoid_print
+    print('⚠️ Auto-publish on startup failed: $e');
+  }
+
+  final initialRoute = await getInitialScreen();
+  runApp(MyApp(initialRoute: initialRoute));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String initialRoute;
+  const MyApp({super.key, required this.initialRoute});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => local_auth.AuthProvider()),
         ChangeNotifierProvider(create: (_) => RoleProvider()),
         ChangeNotifierProvider(create: (_) => TestProvider()),
         ChangeNotifierProvider(create: (_) => RewardProvider()),
@@ -79,7 +112,7 @@ class MyApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         onGenerateRoute: AppRouter.generateRoute,
-        initialRoute: '/',
+        initialRoute: initialRoute,
       ),
     );
   }

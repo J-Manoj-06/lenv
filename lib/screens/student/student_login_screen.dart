@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
 import '../../services/school_service.dart';
 import '../../models/school_model.dart';
+import '../../utils/session_manager.dart';
 
 class StudentLoginScreen extends StatefulWidget {
   const StudentLoginScreen({Key? key}) : super(key: key);
@@ -99,6 +100,12 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
       if (success) {
         // Check if user is a student
         if (authProvider.currentUser?.role == UserRole.student) {
+          // Save session
+          await SessionManager.saveLoginSession(
+            userId: authProvider.currentUser!.uid,
+            userRole: 'student',
+          );
+
           if (mounted) {
             Navigator.pushReplacementNamed(context, '/student-dashboard');
           }
@@ -177,15 +184,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     }
   }
 
-  void _handleSignUp() {
-    // Navigate to sign up screen (to be created)
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Sign up feature coming soon!'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+  // Removed unused _handleSignUp method
 
   @override
   Widget build(BuildContext context) {
@@ -596,34 +595,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   }
 
   Widget _buildFooter() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            "Don't have an account? ",
-            style: TextStyle(fontSize: 14, color: brandBrownLight),
-          ),
-          TextButton(
-            onPressed: _handleSignUp,
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const Size(0, 0),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text(
-              'Sign up',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: brandOrange,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }
 

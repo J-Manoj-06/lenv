@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import '../../providers/student_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/firestore_service.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({Key? key}) : super(key: key);
@@ -74,6 +75,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
 
     if (authProvider.currentUser != null) {
       await studentProvider.loadDashboardData(authProvider.currentUser!.uid);
+
+      // After loading, run best-effort auto-publish sweep
+      // (app-side scheduled check in case backend cron isn't available)
+      try {
+        await FirestoreService().autoPublishExpiredTests();
+      } catch (_) {}
     }
   }
 
@@ -118,9 +125,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
         if (studentProvider.isLoading &&
             studentProvider.currentStudent == null) {
           return Scaffold(
-            backgroundColor: isDark
-                ? const Color(0xFF111827)
-                : const Color(0xFFF3F4F6),
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             body: const Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
@@ -132,9 +137,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
         final student = studentProvider.currentStudent;
 
         return Scaffold(
-          backgroundColor: isDark
-              ? const Color(0xFF111827)
-              : const Color(0xFFF3F4F6),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: RefreshIndicator(
             onRefresh: () => _loadDashboardData(),
             color: const Color(0xFFF59E0B),
@@ -312,7 +315,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: isDark ? Colors.grey.shade700 : Colors.white,
+                color: Theme.of(context).dividerColor,
                 width: 2,
               ),
               boxShadow: [
@@ -340,11 +343,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
           // LenV Title
           Text(
             'LenV',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.grey.shade900,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
 
           // Settings Button
@@ -352,16 +353,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.grey.shade800.withOpacity(0.5)
-                  : Colors.grey.shade200,
+              color: isDark ? Colors.grey[800] : Colors.grey[200],
               shape: BoxShape.circle,
             ),
             child: IconButton(
               icon: Icon(
                 Icons.settings,
                 size: 20,
-                color: isDark ? Colors.white : Colors.grey.shade600,
+                color: Theme.of(context).iconTheme.color,
               ),
               onPressed: () {
                 // Navigate to settings
@@ -378,11 +377,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
       child: Text(
         'Welcome, $name!',
-        style: TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-          color: isDark ? Colors.white : Colors.grey.shade900,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -564,7 +561,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark ? Colors.grey.shade800.withOpacity(0.5) : Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -583,10 +580,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
               children: [
                 Text(
                   'MONTHLY TARGET',
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                     letterSpacing: 1.2,
                   ),
                 ),
@@ -605,18 +600,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
               children: [
                 Text(
                   '${percentage.toStringAsFixed(0)}%',
-                  style: TextStyle(
-                    fontSize: 28,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.grey.shade900,
                   ),
                 ),
                 Text(
                   'Target: ${target.toStringAsFixed(0)}%',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
             ),
@@ -630,8 +620,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                     value: _progressController.value * (percentage / 100),
                     minHeight: 8,
                     backgroundColor: isDark
-                        ? Colors.grey.shade700
-                        : Colors.grey.shade200,
+                        ? Colors.grey[700]
+                        : Colors.grey[200],
                     valueColor: const AlwaysStoppedAnimation<Color>(
                       Color(0xFFF59E0B),
                     ),
@@ -644,10 +634,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
               testsNeeded > 0
                   ? 'Complete $testsNeeded more test${testsNeeded > 1 ? 's' : ''} to reach your goal!'
                   : '🎉 Goal achieved! Keep it up!',
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-              ),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
@@ -724,7 +711,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: isDark ? Colors.grey.shade800.withOpacity(0.5) : Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -745,12 +732,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                   children: [
                     Text(
                       label,
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
                         letterSpacing: 1.2,
                       ),
                     ),
@@ -760,20 +743,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                 const Spacer(),
                 Text(
                   value,
-                  style: TextStyle(
-                    fontSize: 28,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.grey.shade900,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                  ),
-                ),
+                Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
               ],
             ),
 
@@ -812,9 +787,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
         },
         child: Container(
           decoration: BoxDecoration(
-            color: isDark
-                ? Colors.grey.shade800.withOpacity(0.5)
-                : Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -857,21 +830,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                   children: [
                     Text(
                       'SWOT Reports',
-                      style: TextStyle(
-                        fontSize: 16,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.grey.shade900,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Analyze your performance',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
                 ),
@@ -879,7 +845,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
               Icon(
                 Icons.arrow_forward_ios,
                 size: 16,
-                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                color: Theme.of(context).iconTheme.color?.withOpacity(0.6),
               ),
             ],
           ),
@@ -891,14 +857,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
   Widget _buildBottomNav(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark
-            ? Colors.grey.shade800.withOpacity(0.5)
-            : Colors.white.withOpacity(0.7),
+        color: Theme.of(context).cardColor.withOpacity(0.7),
         border: Border(
           top: BorderSide(
-            color: isDark
-                ? Colors.grey.shade700.withOpacity(0.8)
-                : Colors.grey.shade200.withOpacity(0.8),
+            color: Theme.of(context).dividerColor.withOpacity(0.8),
           ),
         ),
       ),
@@ -960,9 +922,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
     final isSelected = _selectedIndex == index;
     final color = isSelected
         ? const Color(0xFFF59E0B)
-        : isDark
-        ? Colors.grey.shade400
-        : Colors.grey.shade600;
+        : Theme.of(context).iconTheme.color?.withOpacity(0.6);
 
     return InkWell(
       onTap: () => _onNavItemTapped(index),

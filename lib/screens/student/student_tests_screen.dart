@@ -75,14 +75,14 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
               ),
               child: TabBar(
                 controller: _tabController,
-                labelColor: isDark ? Colors.white : const Color(0xFF1C140D),
+                labelColor: Theme.of(context).textTheme.bodyLarge?.color,
                 labelStyle: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),
-                unselectedLabelColor: isDark
-                    ? Colors.grey.shade500
-                    : const Color(0xFF9C7349),
+                unselectedLabelColor: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.color?.withOpacity(0.6),
                 indicatorColor: const Color(0xFFF2800D),
                 indicatorWeight: 2,
                 tabs: const [
@@ -115,9 +115,9 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         border: Border(
-          top: BorderSide(color: const Color(0xFFF4EDE7), width: 1),
+          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
         ),
       ),
       child: SafeArea(
@@ -226,29 +226,25 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: isDark
-          ? Colors.black.withOpacity(0.1)
-          : Colors.white.withOpacity(0.8),
+      color: Theme.of(context).cardColor.withOpacity(0.8),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.pop(context),
             icon: Icon(
               Icons.arrow_back,
-              color: isDark ? Colors.white : const Color(0xFF1C140D),
+              color: Theme.of(context).iconTheme.color,
             ),
           ),
-          const Expanded(
+          Expanded(
             child: Padding(
-              padding: EdgeInsets.only(right: 40.0),
+              padding: const EdgeInsets.only(right: 40.0),
               child: Text(
                 'Assigned Tests',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1C140D),
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -524,13 +520,10 @@ class _EmptyState extends StatelessWidget {
             Icon(
               Icons.quiz_outlined,
               size: 48,
-              color: isDark ? Colors.white38 : Colors.black38,
+              color: Theme.of(context).iconTheme.color?.withOpacity(0.3),
             ),
             const SizedBox(height: 12),
-            Text(
-              message,
-              style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
-            ),
+            Text(message, style: Theme.of(context).textTheme.bodyMedium),
           ],
         ),
       ),
@@ -636,7 +629,7 @@ class _TestCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey.shade800.withOpacity(0.5) : Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -669,10 +662,8 @@ class _TestCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
-                        fontSize: 16,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : const Color(0xFF1C140D),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -680,22 +671,12 @@ class _TestCard extends StatelessWidget {
                       children: [
                         Text(
                           'Subject: ',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDark
-                                ? Colors.white70
-                                : const Color(0xFF9C7349),
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                         Text(
                           subject,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? Colors.white
-                                : const Color(0xFF1C140D),
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
@@ -705,22 +686,12 @@ class _TestCard extends StatelessWidget {
                         children: [
                           Text(
                             'Assigned By: ',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isDark
-                                  ? Colors.white70
-                                  : const Color(0xFF9C7349),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                           Text(
                             assignedBy,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF1C140D),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -750,7 +721,7 @@ class _TestCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Divider(
-            color: isDark ? Colors.grey.shade700 : const Color(0xFFE8DBCE),
+            color: Theme.of(context).dividerColor,
             height: 16,
             thickness: 1,
             indent: 0,
@@ -764,17 +735,12 @@ class _TestCard extends StatelessWidget {
                 children: [
                   Text(
                     dateLabel + ' ',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isDark ? Colors.white70 : const Color(0xFF9C7349),
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                   Text(
                     dateValue,
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : const Color(0xFF1C140D),
                     ),
                   ),
                 ],

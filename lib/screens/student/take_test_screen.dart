@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:ui';
 import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../models/test_result_model.dart';
@@ -126,25 +127,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
     if (!isViolation) {
       final shouldSubmit = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Submit Test?'),
-          content: Text(
-            'You have answered ${answers.length} out of ${widget.test.questions.length} questions.\n\nAre you sure you want to submit?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF2800D),
-              ),
-              child: const Text('Submit'),
-            ),
-          ],
-        ),
+        barrierDismissible: false,
+        builder: (context) => _buildSubmitConfirmationDialog(),
       );
 
       if (shouldSubmit != true) return;
@@ -216,69 +200,83 @@ class _TakeTestScreenState extends State<TakeTestScreen>
       await showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text(isViolation ? 'Test Auto-Submitted' : 'Test Submitted!'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isViolation ? Icons.warning : Icons.check_circle,
-                color: isViolation ? Colors.orange : Colors.green,
-                size: 64,
-              ),
-              const SizedBox(height: 16),
-              if (isViolation && violationReason != null) ...[
-                Text(
-                  violationReason,
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-              ],
-              Text(
-                'Your Score: $score%',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '$correctAnswers out of ${widget.test.questions.length} correct',
-              ),
-              if (_tabSwitchCount > 0) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '⚠️ Tab switches detected: $_tabSwitchCount',
-                    style: const TextStyle(color: Colors.red, fontSize: 12),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Go back to rules screen
-                Navigator.pop(context); // Go back to test list
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF2800D),
-              ),
-              child: const Text('Done'),
+        builder: (context) {
+          final now = DateTime.now();
+          final showScore = now.isAfter(widget.test.endDate);
+          return AlertDialog(
+            title: Text(
+              isViolation ? 'Test Auto-Submitted' : 'Test Submitted!',
             ),
-          ],
-        ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isViolation ? Icons.warning : Icons.check_circle,
+                  color: isViolation ? Colors.orange : Colors.green,
+                  size: 64,
+                ),
+                const SizedBox(height: 16),
+                if (isViolation && violationReason != null) ...[
+                  Text(
+                    violationReason,
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (showScore) ...[
+                  Text(
+                    'Your Score: $score%',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$correctAnswers out of ${widget.test.questions.length} correct',
+                  ),
+                ] else ...[
+                  const Text(
+                    '✅ Test submitted successfully. Results will be available after the test ends.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ],
+                if (_tabSwitchCount > 0) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '⚠️ Tab switches detected: $_tabSwitchCount',
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context); // Go back to rules screen
+                  Navigator.pop(context); // Go back to test list
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF2800D),
+                ),
+                child: const Text('Done'),
+              ),
+            ],
+          );
+        },
       );
     } catch (e) {
       if (!mounted) return;
@@ -430,7 +428,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
 
                           // Options
                           if (question.type == QuestionType.multipleChoice &&
-                              question.options != null)
+                              question.options != null) ...[
                             ...question.options!.map((option) {
                               final isSelected =
                                   answers[currentQuestionIndex] == option;
@@ -438,8 +436,39 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                                 padding: const EdgeInsets.only(bottom: 16),
                                 child: _buildOptionButton(option, isSelected),
                               );
-                            }).toList()
-                          else
+                            }).toList(),
+                            // Clear Response Button for MCQ
+                            if (answers.containsKey(currentQuestionIndex))
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      answers.remove(currentQuestionIndex);
+                                    });
+                                  },
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    size: 18,
+                                    color: Colors.red,
+                                  ),
+                                  label: const Text(
+                                    'Clear Response',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ] else ...[
                             // Short answer
                             TextField(
                               decoration: InputDecoration(
@@ -458,6 +487,39 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                                 text: answers[currentQuestionIndex] ?? '',
                               ),
                             ),
+                            // Clear Response Button for Text Field
+                            if (answers.containsKey(currentQuestionIndex) &&
+                                answers[currentQuestionIndex]!.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      answers.remove(currentQuestionIndex);
+                                    });
+                                  },
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    size: 18,
+                                    color: Colors.red,
+                                  ),
+                                  label: const Text(
+                                    'Clear Response',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ],
                       ),
                     ),
@@ -485,22 +547,27 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                     // Mascot
                     const SizedBox(height: 24),
                     Container(
+                      width: 96,
+                      height: 96,
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFED7AA),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFED7AA),
                         shape: BoxShape.circle,
                       ),
-                      child: Image.network(
-                        'https://lh3.googleusercontent.com/aida-public/AB6AXuAECnMmFhJ1ePsH1b-Lr28Nn9yv2FRIS-xEZQT6ll2luWP_7KHApEZMq_oEemv8HnqRG98HMU965zPk-KTJQRbOJCmHLoqKuxX5LIXrYZzURmwzwajZqoEa0oZzi1zn7gTs6mfIoCBAQhy23auHpmKT0gMNINQMoPGtwgVcoGScTU9tB3dX5CdjdQ_os3nZrRKh29w_L4L1DjUhrBLaKMQce52H5GpQQXy0q5ahkKeAtsubJR4QbEYBh-mljRBkDXkFHBDOIe4Udd0',
-                        width: 80,
-                        height: 80,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(
-                            Icons.emoji_emotions,
-                            size: 80,
-                            color: Color(0xFFF2800D),
-                          );
-                        },
+                      child: ClipOval(
+                        child: Image.network(
+                          'https://lh3.googleusercontent.com/aida-public/AB6AXuAECnMmFhJ1ePsH1b-Lr28Nn9yv2FRIS-xEZQT6ll2luWP_7KHApEZMq_oEemv8HnqRG98HMU965zPk-KTJQRbOJCmHLoqKuxX5LIXrYZzURmwzwajZqoEa0oZzi1zn7gTs6mfIoCBAQhy23auHpmKT0gMNINQMoPGtwgVcoGScTU9tB3dX5CdjdQ_os3nZrRKh29w_L4L1DjUhrBLaKMQce52H5GpQQXy0q5ahkKeAtsubJR4QbEYBh-mljRBkDXkFHBDOIe4Udd0',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.emoji_emotions,
+                              size: 64,
+                              color: Color(0xFFF2800D),
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ],
@@ -551,17 +618,32 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               : null,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: const BorderSide(color: Color(0xFFF2800D)),
+                            side: BorderSide(
+                              color:
+                                  currentQuestionIndex <
+                                      widget.test.questions.length - 1
+                                  ? const Color(0xFFF2800D)
+                                  : Colors.grey.shade300,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
+                            backgroundColor:
+                                currentQuestionIndex <
+                                    widget.test.questions.length - 1
+                                ? null
+                                : Colors.grey.shade100,
                           ),
-                          child: const Text(
+                          child: Text(
                             'Next',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFFF2800D),
+                              color:
+                                  currentQuestionIndex <
+                                      widget.test.questions.length - 1
+                                  ? const Color(0xFFF2800D)
+                                  : Colors.grey.shade400,
                             ),
                           ),
                         ),
@@ -637,6 +719,231 @@ class _TakeTestScreenState extends State<TakeTestScreen>
             fontSize: 16,
             fontWeight: FontWeight.w500,
             color: isSelected ? Colors.white : const Color(0xFF1C140D),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubmitConfirmationDialog() {
+    final attemptedCount = answers.length;
+    final totalCount = widget.test.questions.length;
+    final progressPercentage = (attemptedCount / totalCount * 100).round();
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.95),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Main content section
+              Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  children: [
+                    // Lightbulb icon
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF2800D).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/images/teddy_bear.png',
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                Icons.lightbulb,
+                                size: 48,
+                                color: Color(0xFFF2800D),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Title
+                    const Text(
+                      'Ready to Submit?',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF111827),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    // Description
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Color(0xFF6B7280),
+                        ),
+                        children: [
+                          const TextSpan(text: "You've attempted "),
+                          TextSpan(
+                            text: '$attemptedCount',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                          const TextSpan(text: ' out of '),
+                          TextSpan(
+                            text: '$totalCount',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                          const TextSpan(text: ' questions.'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Progress bar
+                    Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            height: 8,
+                            child: LinearProgressIndicator(
+                              value: attemptedCount / totalCount,
+                              backgroundColor: Colors.grey.shade200,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Color(0xFFF2800D),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          "Make sure you've reviewed your answers before submitting.",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF6B7280),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Warning text
+                    const Text(
+                      "Once submitted, you can't change your answers.",
+                      style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              // Buttons section
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.5),
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.grey.shade200.withOpacity(0.6),
+                    ),
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    // Cancel button
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: const BorderSide(
+                            color: Color(0xFFF2800D),
+                            width: 2,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFF2800D),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Confirm button
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF8A00), Color(0xFFFF6A00)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFF97316).withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Confirm & Submit',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

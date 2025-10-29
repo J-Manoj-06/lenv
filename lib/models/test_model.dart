@@ -69,6 +69,9 @@ class TestModel {
   final List<String> assignedStudentIds;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  // Result publishing fields
+  final bool resultsPublished;
+  final DateTime? publishedAt;
 
   TestModel({
     required this.id,
@@ -89,6 +92,8 @@ class TestModel {
     required this.assignedStudentIds,
     required this.createdAt,
     this.updatedAt,
+    this.resultsPublished = false,
+    this.publishedAt,
   });
 
   Map<String, dynamic> toJson() {
@@ -111,6 +116,10 @@ class TestModel {
       'assignedStudentIds': assignedStudentIds,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+      'resultsPublished': resultsPublished,
+      'publishedAt': publishedAt != null
+          ? Timestamp.fromDate(publishedAt!)
+          : null,
     };
   }
 
@@ -144,6 +153,10 @@ class TestModel {
       createdAt: (json['createdAt'] as Timestamp).toDate(),
       updatedAt: json['updatedAt'] != null
           ? (json['updatedAt'] as Timestamp).toDate()
+          : null,
+      resultsPublished: json['resultsPublished'] ?? false,
+      publishedAt: json['publishedAt'] != null
+          ? (json['publishedAt'] as Timestamp).toDate()
           : null,
     );
   }
