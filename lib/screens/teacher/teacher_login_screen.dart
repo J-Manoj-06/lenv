@@ -92,15 +92,25 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
 
       if (success) {
         // Check if user is a teacher
-        if (authProvider.currentUser?.role == UserRole.teacher) {
-          // Save session
-          await SessionManager.saveLoginSession(
-            userId: authProvider.currentUser!.uid,
-            userRole: 'teacher',
-          );
-
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/teacher-dashboard');
+        final user = authProvider.currentUser;
+        if (user?.role == UserRole.teacher) {
+          // Validate selected school matches user's instituteId
+          if (user?.instituteId == null || user!.instituteId!.isEmpty) {
+            _showErrorSnackBar('Your account is not linked to a school. Please contact admin.');
+            await authProvider.signOut();
+          } else if (_selectedSchool != user.instituteId) {
+            _showErrorSnackBar('Selected school does not match your account\'s school.');
+            await authProvider.signOut();
+          } else {
+            // Save session
+            await SessionManager.saveLoginSession(
+              userId: user.uid,
+              userRole: 'teacher',
+              schoolId: user.instituteId,
+            );
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/teacher-dashboard');
+            }
           }
         } else {
           _showErrorSnackBar('Access denied. This is a teacher-only login.');

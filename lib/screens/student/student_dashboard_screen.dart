@@ -166,8 +166,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                                 student?.name ?? 'Student',
                               ),
 
-                              // Search Rewards CTA
-                              _buildSearchRewardsCTA(isDark),
+                              // Search Rewards CTA removed (design change)
 
                               // Daily Challenge Card
                               if (studentProvider.todayChallenge != null)
@@ -384,27 +383,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
     );
   }
 
-  Widget _buildSearchRewardsCTA(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () => Navigator.pushNamed(context, '/search-rewards'),
-          icon: const Text('🎁'),
-          label: const Text('Search Rewards'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1777FF),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  // Note: Search Rewards CTA intentionally removed to match new design.
 
   Widget _buildDailyChallengeCard(bool isDark, challenge, bool hasAttempted) {
     return Padding(

@@ -130,7 +130,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           _buildHeader(),
@@ -169,7 +169,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -187,16 +187,16 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
               IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new),
                 onPressed: () => Navigator.pop(context),
-                color: const Color(0xFF6B7280),
+                color: Theme.of(context).iconTheme.color,
               ),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'AI Test Generator',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2937),
+                    color: Theme.of(context).textTheme.headlineLarge?.color,
                   ),
                 ),
               ),
@@ -300,26 +300,29 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: Color(0xFF374151),
+            color: Theme.of(context).textTheme.bodyLarge?.color,
           ),
         ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
           decoration: InputDecoration(
             hintText: placeholder,
-            hintStyle: TextStyle(color: Colors.grey[400]),
+            hintStyle: TextStyle(color: Theme.of(context).hintColor),
+            filled: true,
+            fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).cardColor,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: Theme.of(context).dividerColor),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: Theme.of(context).dividerColor),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -346,21 +349,24 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: Color(0xFF374151),
+            color: Theme.of(context).textTheme.bodyLarge?.color,
           ),
         ),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[300]!),
+            border: Border.all(color: Theme.of(context).dividerColor),
+            color: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).cardColor,
           ),
           child: DropdownButtonFormField<String>(
             value: (value != null && items.contains(value)) ? value : null,
             isExpanded: true,
+            dropdownColor: Theme.of(context).cardColor,
+            style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(
@@ -425,7 +431,10 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           const SizedBox(height: 16),
           Text(
             'Generating questions with AI...',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            style: TextStyle(
+              fontSize: 14, 
+              color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+            ),
           ),
         ],
       ),
@@ -436,12 +445,12 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Generated Questions',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
+            color: Theme.of(context).textTheme.headlineLarge?.color,
           ),
         ),
         const SizedBox(height: 16),
@@ -458,7 +467,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   Widget _buildQuestionCard(GeneratedQuestion question) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -478,16 +487,19 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
               children: [
                 Text(
                   question.question,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
+                    color: Theme.of(context).textTheme.titleLarge?.color,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Suggested Answer: ${question.answer}',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 14, 
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -518,10 +530,10 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                     ),
                     Text(
                       'Confidence: ${question.confidence}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF6B7280),
+                        color: Theme.of(context).textTheme.bodySmall?.color,
                       ),
                     ),
                   ],
@@ -530,7 +542,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
             ),
           ),
           Container(
-            color: const Color(0xFFF9FAFB),
+            color: Theme.of(context).scaffoldBackgroundColor,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -545,8 +557,8 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                     );
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF374151),
-                    side: BorderSide(color: Colors.grey[300]!),
+                    foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
+                    side: BorderSide(color: Theme.of(context).dividerColor),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
@@ -614,18 +626,19 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'AI Metadata',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937),
+              color: Theme.of(context).textTheme.titleLarge?.color,
             ),
           ),
           const SizedBox(height: 16),
@@ -640,11 +653,14 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              Icon(Icons.security, size: 16, color: Colors.grey[500]),
+              Icon(Icons.security, size: 16, color: Theme.of(context).iconTheme.color?.withOpacity(0.5)),
               const SizedBox(width: 4),
               Text(
                 'API key stored server-side',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                style: TextStyle(
+                  fontSize: 12, 
+                  color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                ),
               ),
             ],
           ),
@@ -659,8 +675,8 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                     );
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF374151),
-                    side: BorderSide(color: Colors.grey[300]!),
+                    foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
+                    side: BorderSide(color: Theme.of(context).dividerColor),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -703,7 +719,10 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   Widget _buildMetadataRow(String label, String value) {
     return RichText(
       text: TextSpan(
-        style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+        style: TextStyle(
+          fontSize: 14, 
+          color: Theme.of(context).textTheme.bodyMedium?.color,
+        ),
         children: [
           TextSpan(
             text: label,
@@ -719,8 +738,8 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+        color: Theme.of(context).cardColor,
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
       ),
       child: SafeArea(
         child: SizedBox(

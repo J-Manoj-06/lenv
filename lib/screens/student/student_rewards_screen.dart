@@ -16,7 +16,18 @@ class StudentRewardsScreen extends StatefulWidget {
 class _StudentRewardsScreenState extends State<StudentRewardsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  bool _isMyRewards = true;
+  bool _isMyRewards = false; // default to Catalogue
+  final TextEditingController _searchController = TextEditingController();
+  String _selectedCategory = 'All';
+
+  final List<String> _categories = [
+    'All',
+    'Badges',
+    'Points',
+    'Certificates',
+    'Gifts',
+    'Custom',
+  ];
 
   @override
   void initState() {
@@ -27,6 +38,7 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -49,6 +61,10 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildTabSelector(),
+                      const SizedBox(height: 16),
+                      _buildSearchBar(),
+                      const SizedBox(height: 12),
+                      _buildCategoryChips(),
                       const SizedBox(height: 24),
                       _isMyRewards
                           ? _buildMyRewards(studentId)
@@ -105,6 +121,8 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   }
 
   Widget _buildTabSelector() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
@@ -122,16 +140,16 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
         children: [
           Expanded(
             child: _tabButton(
-              'My Rewards',
-              _isMyRewards,
-              () => setState(() => _isMyRewards = true),
+              'Catalogue',
+              !_isMyRewards,
+              () => setState(() => _isMyRewards = false),
             ),
           ),
           Expanded(
             child: _tabButton(
-              'Reward Catalog',
-              !_isMyRewards,
-              () => setState(() => _isMyRewards = false),
+              'My Rewards',
+              _isMyRewards,
+              () => setState(() => _isMyRewards = true),
             ),
           ),
         ],
@@ -140,6 +158,8 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   }
 
   Widget _tabButton(String label, bool isSelected, VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -161,11 +181,96 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.grey.shade500,
+            color: isSelected
+                ? Colors.white
+                : (isDark ? Colors.grey.shade300 : Colors.grey.shade500),
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
             fontSize: 14,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withOpacity(0.5),
+        ),
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) => setState(() {}),
+        style: Theme.of(context).textTheme.bodyMedium,
+        decoration: InputDecoration(
+          hintText: 'Search rewards...',
+          hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: (isDark ? Colors.grey.shade400 : Colors.grey.shade500),
+          ),
+          prefixIcon: Icon(
+            Icons.search,
+            color: (isDark ? Colors.grey.shade400 : Colors.grey.shade500),
+          ),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: Icon(
+                    Icons.clear,
+                    color: (isDark ? Colors.grey.shade400 : Colors.grey.shade500),
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {});
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryChips() {
+    return SizedBox(
+      height: 40,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _categories.length,
+        itemBuilder: (context, index) {
+          final category = _categories[index];
+          final isSelected = _selectedCategory == category;
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(category),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  _selectedCategory = category;
+                });
+              },
+              backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+              selectedColor: const Color(0xFFF97316),
+              labelStyle: TextStyle(
+                color: isSelected
+                    ? Colors.white
+                    : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          );
+        },
       ),
     );
   }
@@ -604,9 +709,12 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: Theme.of(context).cardColor.withOpacity(0.7),
         border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
+          top: BorderSide(
+            color: Theme.of(context).dividerColor.withOpacity(0.8),
+            width: 1,
+          ),
         ),
       ),
       child: SafeArea(
@@ -875,6 +983,13 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = isSelected
+        ? const Color(0xFFF59E0B)
+        : (isDark
+            ? Theme.of(context).iconTheme.color?.withOpacity(0.6)
+            : const Color(0xFF9C7349));
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -884,9 +999,7 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isSelected
-                  ? const Color(0xFFF27F0D)
-                  : const Color(0xFF9C7349),
+              color: color,
               size: 24,
             ),
             const SizedBox(height: 4),
@@ -895,9 +1008,7 @@ class _NavItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected
-                    ? const Color(0xFFF27F0D)
-                    : const Color(0xFF9C7349),
+                color: color,
               ),
             ),
           ],

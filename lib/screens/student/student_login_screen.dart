@@ -99,15 +99,25 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
 
       if (success) {
         // Check if user is a student
-        if (authProvider.currentUser?.role == UserRole.student) {
-          // Save session
-          await SessionManager.saveLoginSession(
-            userId: authProvider.currentUser!.uid,
-            userRole: 'student',
-          );
-
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/student-dashboard');
+        final user = authProvider.currentUser;
+        if (user?.role == UserRole.student) {
+          // Validate selected school matches user's instituteId
+          if (user?.instituteId == null || user!.instituteId!.isEmpty) {
+            _showErrorSnackBar('Your account is not linked to a school. Please contact admin.');
+            await authProvider.signOut();
+          } else if (_selectedSchool != user.instituteId) {
+            _showErrorSnackBar('Selected school does not match your account\'s school.');
+            await authProvider.signOut();
+          } else {
+            // Save session
+            await SessionManager.saveLoginSession(
+              userId: user.uid,
+              userRole: 'student',
+              schoolId: user.instituteId,
+            );
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/student-dashboard');
+            }
           }
         } else {
           _showErrorSnackBar('Access denied. This is a student-only login.');
