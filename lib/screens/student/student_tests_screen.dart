@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/firestore_service.dart';
 import 'test_rules_screen.dart';
+import '../../widgets/student_bottom_nav.dart';
 
 class StudentTestsScreen extends StatefulWidget {
   const StudentTestsScreen({super.key});
@@ -108,115 +109,7 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                icon: Icons.home_outlined,
-                label: 'Home',
-                isSelected: false,
-                onTap: () => Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/student-dashboard',
-                  (route) => false,
-                ),
-              ),
-              _NavItem(
-                icon: Icons.checklist,
-                label: 'Tests',
-                isSelected: true,
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.emoji_events,
-                label: 'Rewards',
-                isSelected: false,
-                onTap: () =>
-                    Navigator.pushReplacementNamed(context, '/student-rewards'),
-              ),
-              _NavItem(
-                icon: Icons.leaderboard,
-                label: 'Leaderboard',
-                isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-leaderboard',
-                ),
-              ),
-              _NavItem(
-                icon: Icons.person_outline,
-                label: 'Profile',
-                isSelected: false,
-                onTap: () =>
-                    Navigator.pushReplacementNamed(context, '/student-profile'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? const Color(0xFFF27F0D)
-                  : const Color(0xFF9C7349),
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected
-                    ? const Color(0xFFF27F0D)
-                    : const Color(0xFF9C7349),
-              ),
-            ),
-          ],
-        ),
-      ),
+      bottomNavigationBar: const StudentBottomNav(currentIndex: 1),
     );
   }
 }
@@ -224,7 +117,6 @@ class _NavItem extends StatelessWidget {
 class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       color: Theme.of(context).cardColor.withOpacity(0.8),
       child: Row(
@@ -423,8 +315,13 @@ class _PendingTab extends StatelessWidget {
             final completedIds = (resultsSnap.data ?? [])
                 .map((r) => r.testId)
                 .toSet();
+            final now = DateTime.now();
+            // Pending tests are those not completed AND not expired
             final pending = tests
-                .where((t) => !completedIds.contains(t.id))
+                .where(
+                  (t) =>
+                      !completedIds.contains(t.id) && now.isBefore(t.endDate),
+                )
                 .toList();
             if (pending.isEmpty) {
               return const _EmptyState(message: 'No pending tests');
@@ -510,7 +407,6 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -557,8 +453,8 @@ class _TestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final fmt = DateFormat('MMM d, yyyy');
+    final now = DateTime.now();
 
     final Color statusBg;
     final Color statusText;
@@ -574,27 +470,57 @@ class _TestCard extends StatelessWidget {
     IconData leadingIcon;
     Color leadingBg;
     Color leadingFg;
+    bool isExpired = false;
 
     if (item.isPending) {
       final t = item.test!;
+      isExpired = now.isAfter(t.endDate);
+
       title = t.title;
       subject = t.subject;
       assignedBy = t.teacherName;
       dateLabel = 'Due Date:';
       dateValue = fmt.format(t.endDate);
-      buttonText = 'Start Test';
-      onPressed = () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => TestRulesScreen(test: t)),
-        );
-      };
+
+      if (isExpired) {
+        buttonText = 'Test Ended';
+        onPressed = () {
+          // Show dialog explaining test has expired
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Test Expired'),
+              content: const Text(
+                'This test has ended and is no longer available. The allocated time has passed.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        };
+        statusBg = Colors.grey.shade400;
+        statusText = Colors.white;
+        statusLabel = 'Expired';
+      } else {
+        buttonText = 'Start Test';
+        onPressed = () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => TestRulesScreen(test: t)),
+          );
+        };
+        statusBg = const Color(0xFFF2800D);
+        statusText = Colors.white;
+        statusLabel = 'Pending';
+      }
+
       leadingIcon = Icons.quiz;
       leadingBg = const Color(0xFFFEF2E6);
       leadingFg = const Color(0xFFF2800D);
-      statusBg = const Color(0xFFF2800D);
-      statusText = Colors.white;
-      statusLabel = 'Pending';
     } else {
       final r = item.result!;
       title = r.testTitle;
@@ -748,8 +674,10 @@ class _TestCard extends StatelessWidget {
               _PrimaryButton(
                 label: buttonText,
                 onPressed: onPressed,
-                isPrimary: item.isPending,
-                enabled: item.isPending || buttonText == 'View Results',
+                isPrimary: item.isPending && !isExpired,
+                enabled:
+                    (item.isPending && !isExpired) ||
+                    buttonText == 'View Results',
               ),
             ],
           ),

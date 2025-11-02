@@ -118,6 +118,7 @@ class AppRouter {
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
           builder: (_) => TestResultScreen(
+            testId: args['testId'] ?? args['id'] ?? '',
             testName: args['name'] ?? 'Test',
             className: args['class'] ?? 'Grade',
             status: args['status'] ?? 'Past',

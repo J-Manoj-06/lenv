@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
+import '../../widgets/teacher_bottom_nav.dart';
 
 class TestsScreen extends StatefulWidget {
   const TestsScreen({Key? key}) : super(key: key);
@@ -376,6 +377,7 @@ class _TestsScreenState extends State<TestsScreen> {
     }
 
     return _buildTestCard(
+      testId: t.id,
       title: t.title,
       subtitle: subtitle,
       status: statusText,
@@ -417,6 +419,7 @@ class _TestsScreenState extends State<TestsScreen> {
   }
 
   Widget _buildTestCard({
+    String? testId,
     required String title,
     required String subtitle,
     required String status,
@@ -436,6 +439,7 @@ class _TestsScreenState extends State<TestsScreen> {
           context,
           '/test-result',
           arguments: {
+            'testId': testId ?? '',
             'name': title,
             'class': subtitle,
             'status': status,
@@ -612,81 +616,11 @@ class _TestsScreenState extends State<TestsScreen> {
   }
 
   Widget _buildBottomNav() {
-    return Positioned(
+    return const Positioned(
       bottom: 0,
       left: 0,
       right: 0,
-      child: Container(
-        height: 80,
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          border: Border(
-            top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-          ),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.dashboard_outlined, 'Dashboard', false, () {
-                Navigator.pushReplacementNamed(context, '/teacher-dashboard');
-              }),
-              _buildNavItem(Icons.school_outlined, 'Classes', false, () {
-                Navigator.pushReplacementNamed(context, '/classes');
-              }),
-              _buildNavItem(Icons.quiz, 'Tests', true, () {}),
-              _buildNavItem(
-                Icons.leaderboard_outlined,
-                'Leaderboard',
-                false,
-                () {
-                  Navigator.pushReplacementNamed(context, '/leaderboard');
-                },
-              ),
-              _buildNavItem(Icons.person_outline, 'Profile', false, () {
-                Navigator.pushReplacementNamed(context, '/profile');
-              }),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    bool isSelected,
-    VoidCallback onTap,
-  ) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: isSelected
-                  ? const Color(0xFF6366F1)
-                  : Theme.of(context).iconTheme.color?.withOpacity(0.6),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? const Color(0xFF6366F1)
-                    : Theme.of(context).textTheme.bodyMedium?.color,
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: TeacherBottomNav(selectedIndex: 2),
     );
   }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import '../../utils/session_manager.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -28,12 +30,8 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animationController.forward();
 
-    // Navigate to role selection after 3 seconds
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/role-selection');
-      }
-    });
+    // Decide the next route based on stored session and restored auth
+    _resolveAndNavigate();
   }
 
   @override
@@ -163,5 +161,31 @@ class _SplashScreenState extends State<SplashScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _resolveAndNavigate() async {
+    try {
+      // Give FirebaseAuth a brief moment to restore the user from disk
+      final auth = FirebaseAuth.instance;
+      User? user = auth.currentUser;
+      if (user == null) {
+        try {
+          user = await auth.authStateChanges().first.timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => null,
+          );
+        } catch (_) {}
+      }
+
+      // Keep the splash visible for a short, smooth animation
+      await Future.delayed(const Duration(milliseconds: 1200));
+
+      final route = await SessionManager.getInitialScreen();
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, route);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/role-selection');
+    }
   }
 }

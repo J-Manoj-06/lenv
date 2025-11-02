@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
+import '../../widgets/teacher_bottom_nav.dart';
 
 class StudentListScreen extends StatefulWidget {
   final String className;
@@ -102,8 +103,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
+      backgroundColor: theme.colorScheme.surface,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -111,7 +113,11 @@ class _StudentListScreenState extends State<StudentListScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: theme.colorScheme.error,
+                  ),
                   const SizedBox(height: 12),
                   Text(_error!),
                   const SizedBox(height: 12),
@@ -124,51 +130,70 @@ class _StudentListScreenState extends State<StudentListScreen> {
             )
           : Column(
               children: [
-                _buildHeader(),
-                _buildSearchBar(),
-                Expanded(child: _buildStudentList()),
+                _buildHeader(theme),
+                // Center the content area on wide screens
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: Column(
+                        children: [
+                          _buildSearchBar(theme),
+                          Expanded(child: _buildStudentList(theme)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
+      bottomNavigationBar: const TeacherBottomNav(selectedIndex: 1),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F7F8).withOpacity(0.85),
-        border: const Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+        color: theme.colorScheme.surface.withOpacity(0.95),
+        border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, size: 24),
-                onPressed: () => Navigator.pop(context),
-                color: const Color(0xFF1F2937),
-              ),
-              Expanded(
-                child: Text(
-                  widget.className,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2937),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, size: 24),
+                    onPressed: () => Navigator.pop(context),
+                    color: theme.iconTheme.color,
                   ),
-                ),
+                  Expanded(
+                    child: Text(
+                      widget.className,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(
+                    width: 40,
+                  ), // Spacer to balance the back button
+                ],
               ),
-              const SizedBox(width: 40), // Spacer to balance the back button
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: TextField(
@@ -178,21 +203,26 @@ class _StudentListScreenState extends State<StudentListScreen> {
         },
         decoration: InputDecoration(
           hintText: 'Search for a student',
-          hintStyle: const TextStyle(color: Color(0xFF6B7280)),
-          prefixIcon: const Icon(Icons.search, color: Color(0xFF6B7280)),
+          hintStyle: TextStyle(
+            color: theme.colorScheme.onSurface.withOpacity(0.6),
+          ),
+          prefixIcon: Icon(
+            Icons.search,
+            color: theme.colorScheme.onSurface.withOpacity(0.6),
+          ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: theme.cardColor,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+            borderSide: BorderSide(color: theme.dividerColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+            borderSide: BorderSide(color: theme.dividerColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+            borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
@@ -203,7 +233,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
   }
 
-  Widget _buildStudentList() {
+  Widget _buildStudentList(ThemeData theme) {
     final students = _filteredStudents;
 
     if (students.isEmpty) {
@@ -211,11 +241,18 @@ class _StudentListScreenState extends State<StudentListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+            Icon(
+              Icons.search_off,
+              size: 64,
+              color: theme.iconTheme.color?.withOpacity(0.4),
+            ),
             const SizedBox(height: 16),
             Text(
               'No students found',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              style: TextStyle(
+                fontSize: 16,
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
+              ),
             ),
           ],
         ),
@@ -228,7 +265,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
       itemBuilder: (context, index) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: _buildStudentCard(students[index]),
+          child: _buildStudentCard(theme, students[index]),
         );
       },
     );
@@ -254,10 +291,10 @@ class _StudentListScreenState extends State<StudentListScreen> {
     return (s['imageUrl'] ?? s['photoUrl'] ?? s['avatar'])?.toString();
   }
 
-  Widget _buildStudentCard(Map<String, dynamic> student) {
+  Widget _buildStudentCard(ThemeData theme, Map<String, dynamic> student) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -300,10 +337,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   children: [
                     Text(
                       _displayName(student),
-                      style: const TextStyle(
+                      style: theme.textTheme.bodyLarge?.copyWith(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF1F2937),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -311,17 +347,17 @@ class _StudentListScreenState extends State<StudentListScreen> {
                       children: [
                         Text(
                           'Section: $_sectionForQuery',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF6B7280),
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           '${_score(student)}%',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF6B7280),
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
                           ),
                         ),
                       ],
@@ -330,7 +366,10 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 ),
               ),
               // Chevron icon
-              Icon(Icons.chevron_right, color: Colors.grey[400]),
+              Icon(
+                Icons.chevron_right,
+                color: theme.iconTheme.color?.withOpacity(0.4),
+              ),
             ],
           ),
         ),
@@ -343,10 +382,13 @@ class _StudentListScreenState extends State<StudentListScreen> {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: Colors.grey[300],
+        color: Theme.of(context).colorScheme.surfaceVariant,
         shape: BoxShape.circle,
       ),
-      child: Icon(Icons.person, color: Colors.grey[600]),
+      child: Icon(
+        Icons.person,
+        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+      ),
     );
   }
 

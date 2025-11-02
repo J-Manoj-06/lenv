@@ -13,10 +13,190 @@ class StudentService {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      final doc = await _firestore.collection('users').doc(user.uid).get();
-      if (!doc.exists) return null;
+      final userDocRef = _firestore.collection('users').doc(user.uid);
+      final userDoc = await userDocRef.get();
 
-      return StudentModel.fromFirestore(doc);
+      // If users/<uid> doesn't exist, bootstrap it from students by email
+      if (!userDoc.exists) {
+        final String emailFallback = user.email ?? '';
+        if (emailFallback.isEmpty) return null;
+
+        Map<String, dynamic>? studentRefData;
+        try {
+          final sSnap = await _firestore
+              .collection('students')
+              .where('email', isEqualTo: emailFallback)
+              .limit(1)
+              .get();
+          if (sSnap.docs.isNotEmpty) {
+            studentRefData = sSnap.docs.first.data();
+          }
+        } catch (_) {}
+
+        if (studentRefData == null) return null;
+
+        // Resolve school name via schoolCode
+        String? resolvedSchoolName;
+        final String? schoolCode = studentRefData['schoolCode'] as String?;
+        if (schoolCode != null && schoolCode.isNotEmpty) {
+          try {
+            final schoolSnap = await _firestore
+                .collection('schools')
+                .where('schoolCode', isEqualTo: schoolCode)
+                .limit(1)
+                .get();
+            if (schoolSnap.docs.isNotEmpty) {
+              resolvedSchoolName =
+                  schoolSnap.docs.first.data()['name'] as String? ?? schoolCode;
+            } else {
+              resolvedSchoolName = schoolCode;
+            }
+          } catch (_) {
+            resolvedSchoolName = schoolCode;
+          }
+        }
+
+        // Build a StudentModel from students data
+        final bootstrap = StudentModel(
+          uid: user.uid,
+          email: emailFallback,
+          name:
+              (studentRefData['studentName'] ?? studentRefData['name'] ?? '')
+                  as String,
+          photoUrl: null,
+          schoolId: null,
+          schoolName: resolvedSchoolName,
+          className: studentRefData['className'] as String?,
+          phone: studentRefData['contactNumber'] as String?,
+          parentPhone: studentRefData['parentPhone'] as String?,
+          rewardPoints: 0,
+          classRank: 0,
+          monthlyProgress: 0.0,
+          monthlyTarget: 90.0,
+          pendingTests: 0,
+          completedTests: 0,
+          newNotifications: 0,
+          createdAt: DateTime.now(),
+          isActive: true,
+        );
+
+        try {
+          await userDocRef.set(
+            bootstrap.toFirestore(),
+            SetOptions(merge: true),
+          );
+        } catch (_) {}
+
+        return bootstrap;
+      }
+
+      // Base model from users collection
+      StudentModel base = StudentModel.fromFirestore(userDoc);
+
+      // If any key fields are missing, enrich from students collection (by email)
+      String email = base.email.isNotEmpty
+          ? base.email
+          : (userDoc.data()?['email'] ?? user.email ?? '');
+
+      Map<String, dynamic>? studentRefData;
+      try {
+        if (email.isNotEmpty) {
+          final sSnap = await _firestore
+              .collection('students')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+          if (sSnap.docs.isNotEmpty) {
+            studentRefData = sSnap.docs.first.data();
+          }
+        }
+      } catch (_) {
+        // best-effort enrichment; ignore failures
+      }
+
+      String resolvedName = base.name.isNotEmpty
+          ? base.name
+          : (studentRefData?['studentName'] ??
+                studentRefData?['name'] ??
+                base.name);
+      String? resolvedPhone = (base.phone != null && base.phone!.isNotEmpty)
+          ? base.phone
+          : (studentRefData?['contactNumber'] as String?);
+      String? resolvedParentPhone =
+          (base.parentPhone != null && base.parentPhone!.isNotEmpty)
+          ? base.parentPhone
+          : (studentRefData?['parentPhone'] as String?);
+      String? resolvedClassName =
+          (base.className != null && base.className!.isNotEmpty)
+          ? base.className
+          : (studentRefData?['className'] as String?);
+
+      // Resolve school name via schoolCode -> schools collection lookup
+      String? resolvedSchoolName = base.schoolName;
+      if ((resolvedSchoolName == null || resolvedSchoolName.isEmpty) &&
+          studentRefData != null) {
+        final String? schoolCode = studentRefData['schoolCode'] as String?;
+        if (schoolCode != null && schoolCode.isNotEmpty) {
+          try {
+            final schoolSnap = await _firestore
+                .collection('schools')
+                .where('schoolCode', isEqualTo: schoolCode)
+                .limit(1)
+                .get();
+            if (schoolSnap.docs.isNotEmpty) {
+              resolvedSchoolName =
+                  schoolSnap.docs.first.data()['name'] as String? ?? schoolCode;
+            } else {
+              resolvedSchoolName = schoolCode; // fallback to code
+            }
+          } catch (_) {
+            resolvedSchoolName = schoolCode; // fallback if query fails
+          }
+        }
+      }
+
+      // Determine if we should persist back to users/<uid>
+      final Map<String, dynamic> updates = {};
+      if (resolvedName.isNotEmpty && resolvedName != base.name) {
+        updates['name'] = resolvedName;
+      }
+      if (resolvedPhone != null &&
+          resolvedPhone.isNotEmpty &&
+          resolvedPhone != base.phone) {
+        updates['phone'] = resolvedPhone;
+      }
+      if (resolvedParentPhone != null &&
+          resolvedParentPhone.isNotEmpty &&
+          resolvedParentPhone != base.parentPhone) {
+        updates['parentPhone'] = resolvedParentPhone;
+      }
+      if (resolvedClassName != null &&
+          resolvedClassName.isNotEmpty &&
+          resolvedClassName != base.className) {
+        updates['className'] = resolvedClassName;
+      }
+      if (resolvedSchoolName != null &&
+          resolvedSchoolName.isNotEmpty &&
+          resolvedSchoolName != base.schoolName) {
+        updates['schoolName'] = resolvedSchoolName;
+      }
+
+      if (updates.isNotEmpty) {
+        try {
+          await _firestore.collection('users').doc(user.uid).update(updates);
+        } catch (_) {
+          // ignore; UI will still use resolved values even if persist fails
+        }
+      }
+
+      // Return enriched model for UI
+      return base.copyWith(
+        name: resolvedName,
+        phone: resolvedPhone,
+        parentPhone: resolvedParentPhone,
+        className: resolvedClassName,
+        schoolName: resolvedSchoolName,
+      );
     } catch (e) {
       print('Error getting student: $e');
       return null;
@@ -57,6 +237,35 @@ class StudentService {
       }
     } catch (e) {
       print('Error updating student stats: $e');
+      rethrow;
+    }
+  }
+
+  // Update student profile information
+  Future<void> updateStudentProfile({
+    required String uid,
+    String? name,
+    String? phone,
+    String? schoolName,
+    String? parentPhone,
+    String? className,
+    String? photoUrl,
+  }) async {
+    try {
+      final Map<String, dynamic> updates = {};
+
+      if (name != null) updates['name'] = name;
+      if (phone != null) updates['phone'] = phone;
+      if (schoolName != null) updates['schoolName'] = schoolName;
+      if (parentPhone != null) updates['parentPhone'] = parentPhone;
+      if (className != null) updates['className'] = className;
+      if (photoUrl != null) updates['photoUrl'] = photoUrl;
+
+      if (updates.isNotEmpty) {
+        await _firestore.collection('users').doc(uid).update(updates);
+      }
+    } catch (e) {
+      print('Error updating student profile: $e');
       rethrow;
     }
   }

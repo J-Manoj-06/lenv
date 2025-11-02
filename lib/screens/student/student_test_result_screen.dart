@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../models/test_result_model.dart';
 import '../../services/student_service.dart';
+import '../../widgets/student_bottom_nav.dart';
 
 class StudentTestResultScreen extends StatefulWidget {
   final String resultId;
@@ -67,8 +68,12 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark
+          ? const Color(0xFF111827)
+          : const Color(0xFFF7F3EF),
+      bottomNavigationBar: const StudentBottomNav(currentIndex: 1),
       body: FutureBuilder<TestResultModel?>(
         future: _future,
         builder: (context, snapshot) {
@@ -95,183 +100,93 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
             return (result.score).clamp(0.0, 100.0);
           })();
 
-          return Stack(
+          return Column(
             children: [
-              Column(
-                children: [
-                  // Header
-                  SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back,
-                              color: Colors.black87,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const Text(
-                            'Test Results',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(width: 48),
-                        ],
+              // Header
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.arrow_back,
+                          color: Theme.of(context).iconTheme.color,
+                        ),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    ),
-                  ),
-                  // Scrollable content
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 16),
-                          _buildScoreRing(pct),
-                          const SizedBox(height: 24),
-                          if (pct >= 75) _buildTrophyBanner(),
-                          const SizedBox(height: 24),
-                          // Question Breakdown (supports legacy and new formats)
-                          if ((result.questions != null &&
-                                  result.questions!.isNotEmpty) ||
-                              result.answers.isNotEmpty) ...[
-                            const Text(
-                              'Question Breakdown',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            ..._buildQuestionResults(
-                              result,
-                            ).map((q) => _buildQuestionTile(q)).toList(),
-                          ],
-                          const SizedBox(height: 24),
-                          // Badges (optional)
-                          if (result.badges != null &&
-                              result.badges!.isNotEmpty) ...[
-                            const Text(
-                              'Badges Earned',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 12,
-                              children: result.badges!
-                                  .map((b) => _badgeChip(b))
-                                  .toList(),
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                          // SWOT (optional)
-                          if (result.swot != null) ...[
-                            const Text(
-                              'SWOT Summary',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _buildSwotGrid(result.swot!),
-                          ],
-                          const SizedBox(height: 24),
-                          // Share and Review buttons
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Share feature coming soon!',
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.share, size: 20),
-                                  label: const Text(
-                                    'Share',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFF97316),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    elevation: 2,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Review feature coming soon!',
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.rate_review, size: 20),
-                                  label: const Text(
-                                    'Review',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.grey.shade300,
-                                    foregroundColor: Colors.black87,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                      Text(
+                        'Test Results',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 48),
+                    ],
                   ),
-                ],
+                ),
               ),
-              // Bottom Navigation
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _buildBottomNav(),
+              // Scrollable content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 16),
+                      _buildScoreRing(pct),
+                      const SizedBox(height: 24),
+                      if (pct >= 75) _buildTrophyBanner(),
+                      const SizedBox(height: 24),
+                      // Question Breakdown (supports legacy and new formats)
+                      if ((result.questions != null &&
+                              result.questions!.isNotEmpty) ||
+                          result.answers.isNotEmpty) ...[
+                        Text(
+                          'Question Breakdown',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        ..._buildQuestionResults(
+                          result,
+                        ).map((q) => _buildQuestionTile(q)).toList(),
+                      ],
+                      const SizedBox(height: 24),
+                      // Badges (optional)
+                      if (result.badges != null &&
+                          result.badges!.isNotEmpty) ...[
+                        Text(
+                          'Badges Earned',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: result.badges!
+                              .map((b) => _badgeChip(b))
+                              .toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      // SWOT (optional)
+                      if (result.swot != null) ...[
+                        Text(
+                          'SWOT Summary',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildSwotGrid(result.swot!),
+                      ],
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
               ),
             ],
           );
@@ -312,10 +227,12 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
             Center(
               child: Text(
                 '${percentage.toStringAsFixed(0)}%',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.w900,
-                  color: Colors.black87,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : Colors.black87,
                 ),
               ),
             ),
@@ -377,16 +294,20 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
   Widget _buildQuestionTile(QuestionResult q) {
     final icon = q.isCorrect ? Icons.check_circle : Icons.cancel;
     final iconColor = q.isCorrect ? Colors.green : Colors.red;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF1F2937) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(
+            color: isDark ? const Color(0xFF374151) : Colors.grey.shade300,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -399,19 +320,19 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
             leading: Icon(icon, color: iconColor, size: 24),
             title: Text(
               q.questionTitle,
-              style: const TextStyle(
-                color: Colors.black87,
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            iconColor: Colors.black54,
-            collapsedIconColor: Colors.black54,
+            iconColor: isDark ? Colors.white70 : Colors.black54,
+            collapsedIconColor: isDark ? Colors.white70 : Colors.black54,
             childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
               Container(
                 width: double.infinity,
                 height: 1,
-                color: Colors.grey.shade200,
+                color: isDark ? const Color(0xFF374151) : Colors.grey.shade200,
               ),
               const SizedBox(height: 12),
               _kvRow('Your Answer', q.yourAnswer),
@@ -427,6 +348,8 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
   }
 
   Widget _kvRow(String k, String v) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Align(
       alignment: Alignment.centerLeft,
       child: RichText(
@@ -434,14 +357,14 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
           children: [
             TextSpan(
               text: '$k: ',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
-                color: Colors.black87,
+                color: isDark ? Colors.white : Colors.black87,
               ),
             ),
             TextSpan(
               text: v,
-              style: const TextStyle(color: Colors.black54),
+              style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
             ),
           ],
         ),
@@ -511,11 +434,15 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
   }
 
   Widget _swotCell(String title, String value, Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: isDark ? const Color(0xFF1F2937) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? const Color(0xFF374151) : Colors.grey.shade300,
+        ),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -533,8 +460,8 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.black87,
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -546,60 +473,7 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade300)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                icon: Icons.home,
-                label: 'Home',
-                selected: false,
-                onTap: () => Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/student-dashboard',
-                  (route) => false,
-                ),
-              ),
-              _NavItem(
-                icon: Icons.description,
-                label: 'Tests',
-                selected: true,
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.emoji_events,
-                label: 'Rewards',
-                selected: false,
-                onTap: () => Navigator.pushNamed(context, '/student-rewards'),
-              ),
-              _NavItem(
-                icon: Icons.leaderboard,
-                label: 'Leaderboard',
-                selected: false,
-                onTap: () =>
-                    Navigator.pushNamed(context, '/student-leaderboard'),
-              ),
-              _NavItem(
-                icon: Icons.person,
-                label: 'Profile',
-                selected: false,
-                onTap: () => Navigator.pushNamed(context, '/student-profile'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  // Bottom nav is centralized in StudentBottomNav widget.
 }
 
 // Custom painter for circular progress ring
@@ -643,42 +517,4 @@ class _RingPainter extends CustomPainter {
   }
 }
 
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? const Color(0xFFF97316) : Colors.grey.shade600;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// _NavItem removed in favor of shared StudentBottomNav.

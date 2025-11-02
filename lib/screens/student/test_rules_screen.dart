@@ -186,6 +186,32 @@ class TestRulesScreen extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
+                        // Check if test has expired
+                        final now = DateTime.now();
+                        if (now.isAfter(test.endDate)) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Test Expired'),
+                              content: const Text(
+                                'This test has ended and is no longer available. The allocated time has passed.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context); // Close dialog
+                                    Navigator.pop(
+                                      context,
+                                    ); // Go back to tests list
+                                  },
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                          return;
+                        }
+
                         final auth = Provider.of<AuthProvider>(
                           context,
                           listen: false,

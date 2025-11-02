@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 
@@ -7,11 +8,38 @@ class AuthProvider with ChangeNotifier {
   UserModel? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _initialized = false;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _currentUser != null;
+
+  /// Initialize auth state from Firebase Auth
+  Future<void> initializeAuth() async {
+    if (_initialized) return;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final firebaseUser = FirebaseAuth.instance.currentUser;
+      if (firebaseUser != null) {
+        // User is already logged in, load their data
+        _currentUser = await _authService.getUserData(firebaseUser.uid);
+        print(
+          '✅ Auth initialized: ${_currentUser?.name} (${_currentUser?.role})',
+        );
+      }
+    } catch (e) {
+      print('⚠️ Error initializing auth: $e');
+      _errorMessage = e.toString();
+    } finally {
+      _initialized = true;
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
   // Sign in
   Future<bool> signIn(String email, String password) async {

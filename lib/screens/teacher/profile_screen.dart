@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/session_manager.dart';
+import '../../widgets/teacher_bottom_nav.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/teacher_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -10,34 +15,153 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isDarkMode = false;
-  int _selectedNavIndex = 4;
+  bool _isLoading = true;
+  String? _error;
+
+  // Dynamic profile data
+  Map<String, dynamic>? _teacherData;
+  int _classesManaged = 0;
+  int _testsConducted = 0;
+  int _totalStudents = 0;
+  int _activeStudents = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.initializeAuth();
+      final user = authProvider.currentUser;
+      // ignore: avoid_print
+      print('[Profile] init for user: ${user?.email}');
+
+      if (user == null) {
+        setState(() {
+          _error = 'No user logged in';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Fetch teacher document by email
+      final teacherService = TeacherService();
+      final teacherData = await teacherService.getTeacherByEmail(user.email);
+      if (teacherData == null) {
+        setState(() {
+          _error = 'Teacher profile not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Compute classes handled
+      final sections = teacherData['sections'] ?? teacherData['section'];
+      final classesFormatted = teacherService.getTeacherClasses(
+        teacherData['classesHandled'],
+        sections,
+        classAssignments: teacherData['classAssignments'],
+      );
+      final classesManaged = classesFormatted.length;
+
+      // Fetch students for these classes
+      final schoolId = user.instituteId ?? teacherData['schoolCode'] ?? '';
+      final students = await teacherService.getStudentsByTeacher(
+        schoolId,
+        teacherData['classesHandled'],
+        sections,
+        classAssignments: teacherData['classAssignments'],
+      );
+      final totalStudents = students.length;
+      final activeStudents = students
+          .where((s) => s['isActive'] == true)
+          .length;
+
+      // Count tests created by this teacher (one-shot)
+      final testsSnap = await FirebaseFirestore.instance
+          .collection('tests')
+          .where('teacherId', isEqualTo: user.uid)
+          .get();
+      final testsConducted = testsSnap.size;
+
+      setState(() {
+        _teacherData = teacherData;
+        _classesManaged = classesManaged;
+        _totalStudents = totalStudents;
+        _activeStudents = activeStudents;
+        _testsConducted = testsConducted;
+        _isLoading = false;
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ [Profile] load error: $e');
+      setState(() {
+        _error = 'Failed to load profile';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 100),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildProfileHeader(),
-                  _buildTeachingOverview(),
-                  _buildPersonalInformation(),
-                  _buildAccountSettings(),
-                  _buildAppPreferences(),
-                  _buildLogoutButton(),
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 12),
+                  Text(_error!),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _loadProfileData,
+                    child: const Text('Retry'),
+                  ),
                 ],
               ),
+            )
+          : Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 100),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildProfileHeader(),
+                              _buildTeachingOverview(),
+                              _buildPersonalInformation(),
+                              _buildAccountSettings(),
+                              _buildAppPreferences(),
+                              _buildLogoutButton(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                _buildBottomNav(),
+              ],
             ),
-          ),
-          _buildBottomNav(),
-        ],
-      ),
     );
   }
 
@@ -85,37 +209,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser;
+    final teacherName = _teacherData?['teacherName']?.toString().trim();
+    final displayName = (teacherName != null && teacherName.isNotEmpty)
+        ? teacherName
+        : (user?.name ?? 'Teacher');
+    final department =
+        _teacherData?['department']?.toString() ??
+        (_teacherData?['subjectsHandled'] is List
+            ? (_teacherData!['subjectsHandled'] as List).join(', ')
+            : _teacherData?['subjectsHandled']?.toString() ?? '');
+    final school =
+        user?.instituteId ??
+        _teacherData?['schoolCode']?.toString() ??
+        'School';
+    final profileImage = user?.profileImage;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
       child: Column(
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(64),
-            child: Image.network(
-              'https://lh3.googleusercontent.com/aida-public/AB6AXuAa25HAMxjM6VXHMQ5Ivy5wDjXGkjpJ52dcKg3won-6NvIl9KH_SSffRjR3vgCuNW5wz6bMxZsNPS60UjkhLEd4b3Ro9wtKx7kfyw5GXVu-uJjOfSzSFdLSjs9VdyGVGLBfV7jfW2r4xNyjY-VW_m0RBhds-T7NJ4ykL2k0v2MF_eQgDyuhDpueHgZqdPg8SQGltq0QU00KmvdJkSGJKjbpAj8o3LQ9Qy_IlJrx-6NPs5HqWgxZNyec6Niqfk_DqYyFdpu3n1TXW4k',
-              width: 128,
-              height: 128,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: 128,
-                  height: 128,
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.grey[800] : Colors.grey[300],
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.person,
-                    size: 64,
-                    color: Theme.of(context).iconTheme.color?.withOpacity(0.7),
-                  ),
-                );
-              },
-            ),
+            child: (profileImage != null && profileImage.isNotEmpty)
+                ? Image.network(
+                    profileImage,
+                    width: 128,
+                    height: 128,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        _avatarFallback(isDark),
+                  )
+                : _avatarFallback(isDark),
           ),
           const SizedBox(height: 16),
           Text(
-            'Dr. Jane Doe',
+            displayName,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 22,
@@ -125,7 +254,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Senior Professor, Computer Science',
+            department.isNotEmpty ? department : 'Teacher',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
@@ -134,7 +263,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 2),
           Text(
-            'LearnQ University',
+            school,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
@@ -146,9 +275,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _avatarFallback(bool isDark) {
+    return Container(
+      width: 128,
+      height: 128,
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[800] : Colors.grey[300],
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.person,
+        size: 64,
+        color: Theme.of(context).iconTheme.color?.withOpacity(0.7),
+      ),
+    );
+  }
+
   Widget _buildTeachingOverview() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -163,29 +308,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              _buildStatCard(
-                label: 'Classes Managed',
-                value: '12',
-                change: '+2 this month',
-                isPositive: true,
-              ),
-              _buildStatCard(
-                label: 'Tests Conducted',
-                value: '58',
-                change: '+5 this month',
-                isPositive: true,
-              ),
-              _buildStatCard(
-                label: 'Student Performance',
-                value: '85%',
-                showProgress: true,
-                progressValue: 0.85,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cardWidth = (constraints.maxWidth - 16) / 2;
+              return Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  _buildStatCard(
+                    label: 'Classes Managed',
+                    value: '$_classesManaged',
+                    fixedWidth: cardWidth,
+                  ),
+                  _buildStatCard(
+                    label: 'Tests Conducted',
+                    value: '$_testsConducted',
+                    fixedWidth: cardWidth,
+                  ),
+                  _buildStatCard(
+                    label: 'Student Performance',
+                    value: _totalStudents > 0
+                        ? '${((_activeStudents / _totalStudents) * 100).round()}%'
+                        : 'N/A',
+                    showProgress: _totalStudents > 0,
+                    progressValue: _totalStudents > 0
+                        ? (_activeStudents / _totalStudents)
+                        : 0,
+                    fixedWidth: cardWidth,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -199,10 +352,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bool isPositive = true,
     bool showProgress = false,
     double progressValue = 0,
+    double? fixedWidth,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      width: (MediaQuery.of(context).size.width - 48) / 2,
+      width: fixedWidth ?? (MediaQuery.of(context).size.width - 48) / 2,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
@@ -263,12 +417,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildPersonalInformation() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser;
+    final department =
+        _teacherData?['department']?.toString() ??
+        (_teacherData?['subjectsHandled'] is List
+            ? (_teacherData!['subjectsHandled'] as List).join(', ')
+            : _teacherData?['subjectsHandled']?.toString());
     final infoItems = [
-      {'label': 'Email', 'value': 'jane.doe@learnq.edu'},
-      {'label': 'Phone Number', 'value': '+1 234 567 8900'},
-      {'label': 'Department', 'value': 'Computer Science'},
-      {'label': 'Experience', 'value': '15 Years'},
-      {'label': 'Qualification', 'value': 'Ph.D. in AI'},
+      if (user?.email != null) {'label': 'Email', 'value': user!.email},
+      if (user?.phone != null && user!.phone!.isNotEmpty)
+        {'label': 'Phone Number', 'value': user.phone!},
+      if (department != null && department.isNotEmpty)
+        {'label': 'Department', 'value': department},
+      if (_teacherData?['experience'] != null)
+        {
+          'label': 'Experience',
+          'value': _teacherData!['experience'].toString(),
+        },
+      if (_teacherData?['qualification'] != null)
+        {
+          'label': 'Qualification',
+          'value': _teacherData!['qualification'].toString(),
+        },
     ];
 
     return Padding(
@@ -529,73 +700,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildBottomNav() {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(Icons.space_dashboard_outlined, 'Dashboard', 0, () {
-              Navigator.pushReplacementNamed(context, '/teacher-dashboard');
-            }),
-            _buildNavItem(Icons.school_outlined, 'Classes', 1, () {
-              Navigator.pushReplacementNamed(context, '/classes');
-            }),
-            _buildNavItem(Icons.assignment_outlined, 'Tests', 2, () {
-              Navigator.pushReplacementNamed(context, '/tests');
-            }),
-            _buildNavItem(Icons.leaderboard_outlined, 'Leaderboard', 3, () {
-              Navigator.pushReplacementNamed(context, '/leaderboard');
-            }),
-            _buildNavItem(Icons.person, 'Profile', 4, () {}),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    int index,
-    VoidCallback onTap,
-  ) {
-    final isSelected = _selectedNavIndex == index;
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: isSelected
-                  ? const Color(0xFF6366F1)
-                  : Theme.of(context).iconTheme.color?.withOpacity(0.6),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected
-                    ? const Color(0xFF6366F1)
-                    : Theme.of(context).textTheme.bodyMedium?.color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const TeacherBottomNav(selectedIndex: 4);
   }
 
   void _showLogoutDialog() {

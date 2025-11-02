@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/leaderboard_service.dart';
+import '../../widgets/student_bottom_nav.dart';
 
 class StudentLeaderboardScreen extends StatefulWidget {
   const StudentLeaderboardScreen({super.key});
@@ -16,7 +17,6 @@ class StudentLeaderboardScreen extends StatefulWidget {
 class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   // Default to Overall tab selected
   bool _isPerTest = false;
-  String _selectedSubject = 'Subject';
   String? _selectedTestId;
   String _selectedTestLabel = 'Test Name';
 
@@ -38,12 +38,13 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFFCFBF8),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(theme),
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
@@ -51,33 +52,25 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                 switchOutCurve: Curves.easeIn,
                 child: SingleChildScrollView(
                   key: ValueKey(_isPerTest),
-                  child: Column(
-                    children: [
-                      // Filters are only relevant for Per-Test view
-                      if (_isPerTest) _buildFilters(),
-                      _buildLeaderboardList(),
-                    ],
-                  ),
+                  child: Column(children: [_buildLeaderboardList(theme)]),
                 ),
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: const StudentBottomNav(currentIndex: 3),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(ThemeData theme) {
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFCFBF8).withOpacity(0.8),
-      ),
+      decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
       child: Column(
         children: [
           // Top bar with back button and title
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -89,18 +82,20 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                   ),
                   child: IconButton(
                     padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.arrow_back, size: 24),
+                    icon: Icon(
+                      Icons.arrow_back,
+                      size: 24,
+                      color: theme.iconTheme.color,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Leaderboards',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
+                    style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF292524),
                     ),
                   ),
                 ),
@@ -110,10 +105,12 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           ),
           // Tab selector
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F4),
+                color: theme.brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.1)
+                    : const Color(0xFFF5F5F4),
                 borderRadius: BorderRadius.circular(8),
               ),
               padding: const EdgeInsets.all(4),
@@ -121,6 +118,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                 children: [
                   Expanded(
                     child: _buildTabButton(
+                      theme,
                       'Overall',
                       !_isPerTest,
                       () => setState(() => _isPerTest = false),
@@ -128,6 +126,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                   ),
                   Expanded(
                     child: _buildTabButton(
+                      theme,
                       'Per-Test',
                       _isPerTest,
                       () => setState(() => _isPerTest = true),
@@ -137,13 +136,19 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
               ),
             ),
           ),
-          // Removed extra vertical space
+          // When Per-Test is active, place the filter just below tabs to avoid extra gaps
+          if (_isPerTest) _buildFilters(theme),
         ],
       ),
     );
   }
 
-  Widget _buildTabButton(String label, bool isSelected, VoidCallback onTap) {
+  Widget _buildTabButton(
+    ThemeData theme,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -159,7 +164,12 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           borderRadius: BorderRadius.circular(6),
           border: isSelected
               ? null
-              : Border.all(color: const Color(0xFFFFE0B3), width: 2),
+              : Border.all(
+                  color: theme.brightness == Brightness.dark
+                      ? Colors.white.withOpacity(0.2)
+                      : const Color(0xFFFFE0B3),
+                  width: 2,
+                ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
@@ -174,7 +184,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: isSelected ? Colors.white : const Color(0xFF78716C),
+            color: isSelected
+                ? Colors.white
+                : theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
             fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
@@ -183,65 +195,99 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     );
   }
 
-  Widget _buildFilters() {
+  Widget _buildFilters(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Row(
         children: [
-          _buildFilterChip(
-            _selectedSubject,
-            true,
-            () => _showFilterDialog('Subject'),
-          ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            _selectedTestLabel,
-            false,
-            () => _showFilterDialog('Test Name'),
+          Expanded(
+            child: _buildFilterChip(
+              theme,
+              _selectedTestLabel,
+              true,
+              () => _showFilterDialog('Test Name'),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, bool isSelected, VoidCallback onTap) {
+  Widget _buildFilterChip(
+    ThemeData theme,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    final isDark = theme.brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(
+                  colors: [Color(0xFFfcb045), Color(0xFFf27f0d)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                )
+              : null,
           color: isSelected
-              ? const Color(0xFFEA580C).withOpacity(0.1)
-              : const Color(0xFFE7E5E4).withOpacity(0.5),
-          borderRadius: BorderRadius.circular(16),
+              ? null
+              : isDark
+              ? const Color(0xFF2A2A2A)
+              : const Color(0xFF3A3A3A),
+          borderRadius: BorderRadius.circular(25),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFFEA580C)
-                : const Color(0xFFD6D3D1),
-            width: 1.5,
+                ? const Color(0xFFf27f0d)
+                : const Color(0xFFf27f0d).withOpacity(0.6),
+            width: 2,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFf27f0d).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isSelected
-                    ? const Color(0xFFEA580C)
-                    : const Color(0xFF78716C),
+            Icon(
+              Icons.menu_book_rounded,
+              size: 18,
+              color: isSelected ? Colors.white : const Color(0xFFf27f0d),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                  color: isSelected ? Colors.white : const Color(0xFFf27f0d),
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 10),
             Icon(
-              Icons.expand_more,
-              size: 16,
-              color: isSelected
-                  ? const Color(0xFFEA580C)
-                  : const Color(0xFF78716C),
+              Icons.keyboard_arrow_down_rounded,
+              size: 20,
+              color: isSelected ? Colors.white : const Color(0xFFf27f0d),
             ),
           ],
         ),
@@ -249,99 +295,128 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     );
   }
 
-  Widget _buildLeaderboardList() {
+  Widget _buildLeaderboardList(ThemeData theme) {
     if (!_isPerTest) {
       // Overall leaderboard
       if (_overallStream == null) {
         _initContextAndOverall();
-        return const Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Center(child: CircularProgressIndicator()),
-        );
+        return _loadingState(theme);
       }
-      return _buildSection(
-        title: '🏆 Overall Leaderboard',
-        child: StreamBuilder<List<LeaderboardEntry>>(
-          stream: _overallStream,
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            final items = snap.data ?? [];
-            if (items.isEmpty) {
-              return _emptyState('No leaderboard data yet 🕒');
-            }
-            return _listBody(items);
-          },
-        ),
+      return StreamBuilder<List<LeaderboardEntry>>(
+        stream: _overallStream,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            // Only show loader, no section title during loading
+            return _loadingState(theme);
+          }
+          final items = snap.data ?? [];
+          // Once we have the data (even if empty), show the section title
+          return _buildSection(
+            theme: theme,
+            title: 'Overall Leaderboard',
+            icon: Icons.emoji_events_rounded,
+            child: items.isEmpty
+                ? _emptyState(theme, 'No leaderboard data yet')
+                : _listBody(theme, items),
+          );
+        },
       );
     } else {
       // Per-Test leaderboard
       if (_selectedTestId == null) {
-        return _emptyState(
-          'Select a test to view the leaderboard.',
-          icon: Icons.menu_book_outlined,
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: _emptyState(
+            theme,
+            'Select a test to view the leaderboard.',
+            icon: Icons.menu_book_outlined,
+          ),
         );
       }
       if (_perTestStream == null) {
         _perTestStream = _buildPerTestStream(_selectedTestId!);
       }
-      return _buildSection(
-        title: '📘 Per-Test Leaderboard',
-        child: StreamBuilder<List<LeaderboardEntry>>(
-          stream: _perTestStream,
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            final items = snap.data ?? [];
-            if (items.isEmpty) {
-              return _emptyState('No results for this test yet 🕒');
-            }
-            return _listBody(items);
-          },
-        ),
+      return StreamBuilder<List<LeaderboardEntry>>(
+        stream: _perTestStream,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            // Only loader during loading
+            return _loadingState(theme);
+          }
+          final items = snap.data ?? [];
+          return _buildSection(
+            theme: theme,
+            title: 'Per-Test Leaderboard',
+            icon: Icons.menu_book_rounded,
+            child: items.isEmpty
+                ? _emptyState(theme, 'No results for this test yet')
+                : _listBody(theme, items),
+          );
+        },
       );
     }
   }
 
-  Widget _buildSection({required String title, required Widget child}) {
+  // Consistent loading UI aligned with section content
+  Widget _loadingState(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF292524),
-              ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Center(
+        child: SizedBox(
+          height: 28,
+          width: 28,
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              theme.colorScheme.primary,
             ),
           ),
-          child,
-          const SizedBox(height: 16),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _listBody(List<LeaderboardEntry> items) {
+  Widget _buildSection({
+    required ThemeData theme,
+    required String title,
+    required Widget child,
+    IconData? icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 24, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+              ],
+              Text(
+                title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                ),
+              ),
+            ],
+          ),
+        ),
+        child,
+        const SizedBox(height: 6),
+      ],
+    );
+  }
+
+  Widget _listBody(ThemeData theme, List<LeaderboardEntry> items) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: items
             .map(
-              (e) => _buildLeaderboardCard({
+              (e) => _buildLeaderboardCard(theme, {
                 'rank': e.rank,
                 'name': e.name,
                 'score': e.score,
@@ -354,27 +429,47 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     );
   }
 
-  Widget _emptyState(String message, {IconData icon = Icons.hourglass_empty}) {
+  Widget _emptyState(
+    ThemeData theme,
+    String message, {
+    IconData icon = Icons.hourglass_empty,
+  }) {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        children: [
-          Icon(icon, size: 48, color: const Color(0xFFB45309)),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF78716C),
-              fontWeight: FontWeight.w600,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.05)
+                    : Colors.black.withOpacity(0.03),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 40,
+                color: theme.textTheme.bodySmall?.color?.withOpacity(0.4),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.textTheme.bodyLarge?.color?.withOpacity(0.7),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildLeaderboardCard(Map<String, dynamic> item) {
+  Widget _buildLeaderboardCard(ThemeData theme, Map<String, dynamic> item) {
     final int rank = item['rank'];
     final String name = item['name'];
     final num score = item['score'] is num ? item['score'] as num : 0;
@@ -390,13 +485,13 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
       tween: Tween(begin: 0.0, end: isCurrentUser ? 1.0 : 0.0),
       builder: (context, glow, child) {
         return Container(
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 6),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(12),
             border: isCurrentUser
                 ? Border.all(color: const Color(0xFFF97316), width: 2)
-                : null,
+                : Border.all(color: theme.dividerColor, width: 1),
             boxShadow: [
               BoxShadow(
                 color: isCurrentUser
@@ -408,7 +503,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
               ),
             ],
           ),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
               // Rank badge with crown for top 3
@@ -439,7 +534,11 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                               end: Alignment.bottomRight,
                             )
                           : null,
-                      color: isTopThree ? null : const Color(0xFFE7E5E4),
+                      color: isTopThree
+                          ? null
+                          : theme.brightness == Brightness.dark
+                          ? Colors.white.withOpacity(0.1)
+                          : const Color(0xFFE7E5E4),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Center(
@@ -448,7 +547,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                         style: TextStyle(
                           color: isTopThree
                               ? Colors.white
-                              : const Color(0xFF57534E),
+                              : theme.textTheme.bodyMedium?.color,
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
@@ -471,7 +570,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                     ),
                 ],
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               // Avatar (if available)
               if (imageUrl != null) ...[
                 Container(
@@ -485,18 +584,19 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
               ],
               // Name with badges
               Expanded(
                 child: Row(
                   children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: Color(0xFF292524),
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (hasVerified) ...[
@@ -530,11 +630,15 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
               ),
               // Score
               Text(
-                score is int ? '$score' : score.toStringAsFixed(1),
-                style: const TextStyle(
-                  fontSize: 18,
+                score == 0 
+                    ? '0' 
+                    : (score is int 
+                        ? '$score' 
+                        : (score % 1 == 0 
+                            ? '${score.toInt()}' 
+                            : score.toStringAsFixed(1))),
+                style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF292524),
                 ),
               ),
             ],
@@ -544,84 +648,11 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor.withOpacity(0.8),
-        border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                icon: Icons.home_outlined,
-                label: 'Home',
-                isSelected: false,
-                onTap: () => Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/student-dashboard',
-                  (route) => false,
-                ),
-              ),
-              _NavItem(
-                icon: Icons.assignment_outlined,
-                label: 'Tests',
-                isSelected: false,
-                onTap: () =>
-                    Navigator.pushReplacementNamed(context, '/student-tests'),
-              ),
-              _NavItem(
-                icon: Icons.workspace_premium_outlined,
-                label: 'Rewards',
-                isSelected: false,
-                onTap: () =>
-                    Navigator.pushReplacementNamed(context, '/student-rewards'),
-              ),
-              _NavItem(
-                icon: Icons.leaderboard,
-                label: 'Leaderboard',
-                isSelected: true,
-                isFilled: true,
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.person_outline,
-                label: 'Profile',
-                isSelected: false,
-                onTap: () =>
-                    Navigator.pushReplacementNamed(context, '/student-profile'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showFilterDialog(String filterType) async {
     if (filterType == 'Test Name') {
       await _ensureTestsLoaded();
       if (!mounted) return;
-      final selected = await showDialog<TestModel>(
-        context: context,
-        builder: (ctx) => SimpleDialog(
-          title: const Text('Select Test'),
-          children: _myTests
-              .map(
-                (t) => SimpleDialogOption(
-                  onPressed: () => Navigator.pop(ctx, t),
-                  child: Text(t.title),
-                ),
-              )
-              .toList(),
-        ),
-      );
+      final selected = await _showModernTestSelector(context);
       if (selected != null) {
         setState(() {
           _selectedTestId = selected.id;
@@ -635,6 +666,21 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('$filterType filter coming soon!')));
+  }
+
+  /// 🎨 Modern Test Selector Dialog with smooth animations and theme support
+  Future<TestModel?> _showModernTestSelector(BuildContext context) async {
+    return await showDialog<TestModel>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return _ModernTestSelectorDialog(
+          tests: _myTests,
+          selectedTestId: _selectedTestId,
+        );
+      },
+    );
   }
 
   Future<void> _initContextAndOverall() async {
@@ -706,7 +752,10 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
         .snapshots()
         .asyncMap((snap) async {
           final list1 = _mapEntries(snap.docs);
-          if (list1.isNotEmpty) return list1;
+          // If Firestore has entries but all scores are zero (or missing),
+          // fall back to computing from testResults for accuracy.
+          final hasAnyNonZero = list1.any((e) => (e.score is num) && (e.score as num) > 0);
+          if (list1.isNotEmpty && hasAnyNonZero) return list1;
           // Attempt 2: collection 'leaderboards_overall'
           final snap2 = await schoolRef
               .collection('leaderboards_overall')
@@ -714,7 +763,8 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
               .limit(100)
               .get();
           final list2 = _mapEntries(snap2.docs);
-          if (list2.isNotEmpty) return list2;
+          final hasAnyNonZero2 = list2.any((e) => (e.score is num) && (e.score as num) > 0);
+          if (list2.isNotEmpty && hasAnyNonZero2) return list2;
           // Fallback to compute via service once
           return _leaderboardService.getOverallLeaderboardForClass(
             schoolCode: _schoolCode!,
@@ -728,29 +778,38 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
 
   // Build per-test leaderboard stream from school path; fallback to service
   Stream<List<LeaderboardEntry>> _buildPerTestStream(String testId) {
-    if (_schoolCode == null || _schoolCode!.isEmpty) {
-      return const Stream.empty();
-    }
-    final schoolRef = FirebaseFirestore.instance
-        .collection('schools')
-        .doc(_schoolCode);
+    // Don't filter by schoolCode initially - let the service handle it
+    final schoolRef = _schoolCode != null && _schoolCode!.isNotEmpty
+        ? FirebaseFirestore.instance.collection('schools').doc(_schoolCode)
+        : null;
 
-    final path1Stream = schoolRef
-        .collection('tests')
-        .doc(testId)
-        .collection('leaderboard')
-        .orderBy('score', descending: true)
-        .limit(100)
-        .snapshots()
-        .asyncMap((snap) async {
-          final list1 = _mapEntries(snap.docs);
-          if (list1.isNotEmpty) return list1;
-          return _leaderboardService.getPerTestLeaderboard(
-            testId: testId,
-            schoolCode: _schoolCode,
-          );
-        });
-    return path1Stream;
+    // Try school-based path first
+    if (schoolRef != null) {
+      return schoolRef
+          .collection('tests')
+          .doc(testId)
+          .collection('leaderboard')
+          .orderBy('score', descending: true)
+          .limit(100)
+          .snapshots()
+          .asyncMap((snap) async {
+            final list1 = _mapEntries(snap.docs);
+            if (list1.isNotEmpty) return list1;
+            // Fallback: query testResults directly without schoolCode filter
+            return _leaderboardService.getPerTestLeaderboard(
+              testId: testId,
+              schoolCode: null, // Don't filter by schoolCode
+            );
+          });
+    }
+
+    // Direct query if no school context
+    return Stream.fromFuture(
+      _leaderboardService.getPerTestLeaderboard(
+        testId: testId,
+        schoolCode: null,
+      ),
+    );
   }
 
   List<LeaderboardEntry> _mapEntries(
@@ -779,50 +838,366 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   }
 }
 
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final bool isFilled;
-  final VoidCallback onTap;
+/// 🎨 Modern Test Selector Dialog Widget
+/// Beautiful, animated dialog with gradient selections and theme support
+class _ModernTestSelectorDialog extends StatefulWidget {
+  final List<TestModel> tests;
+  final String? selectedTestId;
 
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    this.isFilled = false,
-    required this.onTap,
-  });
+  const _ModernTestSelectorDialog({required this.tests, this.selectedTestId});
+
+  @override
+  State<_ModernTestSelectorDialog> createState() =>
+      _ModernTestSelectorDialogState();
+}
+
+class _ModernTestSelectorDialogState extends State<_ModernTestSelectorDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+  String _searchQuery = '';
+  String? _hoveredTestId;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scaleAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutBack,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOut,
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _closeDialog([TestModel? selectedTest]) {
+    _animationController.reverse().then((_) {
+      if (mounted) {
+        Navigator.of(context).pop(selectedTest);
+      }
+    });
+  }
+
+  List<TestModel> get _filteredTests {
+    if (_searchQuery.isEmpty) return widget.tests;
+    return widget.tests
+        .where(
+          (test) =>
+              test.title.toLowerCase().contains(_searchQuery.toLowerCase()),
+        )
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final Color iconColor = isSelected
-        ? theme.colorScheme.secondary
-        : theme.iconTheme.color?.withOpacity(0.7) ?? Colors.grey;
-    final Color textColor = isSelected
-        ? theme.colorScheme.secondary
-        : theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: iconColor, size: 24, fill: isFilled ? 1.0 : 0.0),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: textColor,
-              ),
+    final isDark = theme.brightness == Brightness.dark;
+
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 32,
+            vertical: 80,
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-          ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with title and close button
+                _buildHeader(theme, isDark),
+
+                // Search bar
+                if (widget.tests.length > 5) _buildSearchBar(theme, isDark),
+
+                // Test list
+                Flexible(
+                  child: widget.tests.isEmpty
+                      ? _buildEmptyState(theme, isDark)
+                      : _buildTestList(theme, isDark),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
+
+  Widget _buildHeader(ThemeData theme, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.05),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFfcb045), Color(0xFFf27f0d)],
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.menu_book_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Select Test',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFFf27f0d),
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => _closeDialog(),
+            icon: Icon(
+              Icons.close_rounded,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+            tooltip: 'Close',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(ThemeData theme, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: TextField(
+        onChanged: (value) => setState(() => _searchQuery = value),
+        decoration: InputDecoration(
+          hintText: 'Search tests...',
+          prefixIcon: const Icon(Icons.search, color: Color(0xFFf27f0d)),
+          filled: true,
+          fillColor: isDark
+              ? Colors.white.withOpacity(0.05)
+              : const Color(0xFFfce6d1).withOpacity(0.3),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTestList(ThemeData theme, bool isDark) {
+    final filteredTests = _filteredTests;
+
+    if (filteredTests.isEmpty) {
+      return _buildEmptyState(theme, isDark);
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: filteredTests.length,
+      itemBuilder: (context, index) {
+        final test = filteredTests[index];
+        final isSelected = test.id == widget.selectedTestId;
+        final isHovered = test.id == _hoveredTestId;
+
+        return MouseRegion(
+          onEnter: (_) => setState(() => _hoveredTestId = test.id),
+          onExit: (_) => setState(() => _hoveredTestId = null),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? const LinearGradient(
+                      colors: [Color(0xFFfcb045), Color(0xFFf27f0d)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: isSelected
+                  ? null
+                  : isHovered
+                  ? const Color(0xFFfce6d1)
+                  : isDark
+                  ? Colors.white.withOpacity(0.05)
+                  : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected
+                    ? const Color(0xFFf27f0d)
+                    : isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.grey.shade300,
+                width: isSelected ? 2 : 1,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFf27f0d).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _closeDialog(test),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    children: [
+                      // Test icon
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.white.withOpacity(0.2)
+                              : const Color(0xFFf27f0d).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.assignment_outlined,
+                          size: 18,
+                          color: isSelected
+                              ? Colors.white
+                              : const Color(0xFFf27f0d),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Test name
+                      Expanded(
+                        child: Text(
+                          test.title,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: isSelected
+                                ? Colors.white
+                                : isHovered
+                                ? const Color(0xFFf27f0d)
+                                : isDark
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                        ),
+                      ),
+                      // Check icon for selected
+                      if (isSelected)
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Icon(
+                            Icons.check_rounded,
+                            size: 16,
+                            color: Color(0xFFf27f0d),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFfce6d1).withOpacity(0.3),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _searchQuery.isEmpty
+                  ? Icons.assignment_outlined
+                  : Icons.search_off_rounded,
+              size: 48,
+              color: const Color(0xFFf27f0d).withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _searchQuery.isEmpty ? 'No tests available' : 'No tests found',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _searchQuery.isEmpty
+                ? 'Tests will appear here once assigned'
+                : 'Try a different search term',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: isDark ? Colors.white54 : Colors.black45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
+
+// Bottom nav is centralized in StudentBottomNav widget.

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/teacher_service.dart';
+import '../../widgets/teacher_bottom_nav.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({Key? key}) : super(key: key);
@@ -8,76 +12,143 @@ class LeaderboardScreen extends StatefulWidget {
 }
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
-  String _selectedStandard = 'all';
-  String _selectedSection = 'all';
-  int _selectedNavIndex = 3;
+  final TeacherService _teacherService = TeacherService();
 
-  final List<Map<String, dynamic>> _allStudents = [
-    {
-      'name': 'Ava Williams',
-      'class': '10A',
-      'standard': '10',
-      'section': 'A',
-      'points': 9410,
-      'rank': 4,
-      'imageUrl':
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuAjTYfVvLZoo3X2a5eEymwbd1ngX9tIz_lf0KGqqghj3giXJ4331bNdfvpcizq3Mwg6CDbYY2AMdTu_d0iOrJ29EmTewcQ6xz6P9s9YbZ4SvSOFkA8SSlZ2oS1k3fDJZHS33CZLcN7svaUuxQCHYcdwX9QJy2KREORbyYlAYkTO-gicuSvfeYgMAnbleQyPmYv6VgirPmiQbpFRNZwQHVdY07qutMwpkIAmPz4O_yxj9Qsr4CwM89m2UnYUGEPYrCOjiO6pZBitbpU',
-    },
-    {
-      'name': 'Liam Johnson',
-      'class': '11B',
-      'standard': '11',
-      'section': 'B',
-      'points': 9320,
-      'rank': 5,
-      'imageUrl':
-          'https://cdn.usegalileo.ai/stability/8c5c3e1f-7f45-4b2b-b8c9-4e1f7a3c9b2d.png',
-    },
-    {
-      'name': 'Emma Davis',
-      'class': '10A',
-      'standard': '10',
-      'section': 'A',
-      'points': 9280,
-      'rank': 6,
-      'imageUrl':
-          'https://cdn.usegalileo.ai/stability/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d.png',
-    },
-    {
-      'name': 'Noah Martinez',
-      'class': '12C',
-      'standard': '12',
-      'section': 'C',
-      'points': 9150,
-      'rank': 7,
-      'imageUrl':
-          'https://cdn.usegalileo.ai/stability/9d8c7b6a-5e4f-3d2c-1b0a-9e8d7c6b5a4f.png',
-    },
-    {
-      'name': 'Isabella Brown',
-      'class': '11A',
-      'standard': '11',
-      'section': 'A',
-      'points': 9080,
-      'rank': 8,
-      'imageUrl':
-          'https://cdn.usegalileo.ai/stability/7f6e5d4c-3b2a-1f0e-9d8c-7b6a5f4e3d2c.png',
-    },
-  ];
+  String? _selectedClass;
+  List<String> _classes = [];
+  List<Map<String, dynamic>> _students = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final email = currentUser?.email;
+
+      if (email == null) {
+        setState(() {
+          _error = 'No user logged in';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Fetch teacher data
+      final teacherData = await _teacherService.getTeacherByEmail(email);
+
+      if (teacherData == null) {
+        setState(() {
+          _error = 'Teacher data not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Get formatted classes
+      final classes = _teacherService.getTeacherClasses(
+        teacherData['classesHandled'],
+        teacherData['sections'] ?? teacherData['section'],
+        classAssignments: teacherData['classAssignments'],
+      );
+
+      // Add "All Classes" option
+      classes.insert(0, 'All Classes');
+
+      // Fetch all students for all classes
+      final schoolId =
+          currentUser?.instituteId ?? teacherData['schoolCode'] ?? '';
+      final allStudents = await _teacherService.getStudentsByTeacher(
+        schoolId,
+        teacherData['classesHandled'],
+        teacherData['sections'] ?? teacherData['section'],
+        classAssignments: teacherData['classAssignments'],
+      );
+
+      // Sort students by rewardPoints (descending)
+      allStudents.sort((a, b) {
+        final aPoints = a['rewardPoints'] ?? a['totalPoints'] ?? 0;
+        final bPoints = b['rewardPoints'] ?? b['totalPoints'] ?? 0;
+        return bPoints.compareTo(aPoints);
+      });
+
+      setState(() {
+        _classes = classes;
+        _students = allStudents;
+        _selectedClass = classes.isNotEmpty ? classes[0] : null;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading leaderboard data: $e');
+      setState(() {
+        _error = 'Failed to load data: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
   List<Map<String, dynamic>> get _filteredStudents {
-    return _allStudents.where((student) {
-      final matchesStandard =
-          _selectedStandard == 'all' ||
-          student['standard'] == _selectedStandard;
-      final matchesSection =
-          _selectedSection == 'all' || student['section'] == _selectedSection;
-      return matchesStandard && matchesSection;
+    if (_selectedClass == null || _selectedClass == 'All Classes') {
+      return _students;
+    }
+
+    final parts = _selectedClass!.split(' - ');
+    if (parts.length != 2) return _students;
+
+    final selectedGrade = parts[0].trim();
+    final selectedSection = parts[1].trim();
+
+    return _students.where((student) {
+      final studentClassName = student['className']?.toString() ?? '';
+      final studentGrade = studentClassName
+          .replaceAll('Grade ', '')
+          .replaceAll('grade ', '')
+          .trim();
+      final studentSection = student['section']?.toString() ?? '';
+
+      return studentGrade == selectedGrade && studentSection == selectedSection;
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(_error!),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: _loadData, child: const Text('Retry')),
+            ],
+          ),
+        ),
+        bottomNavigationBar: _buildBottomNav(),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
@@ -140,13 +211,37 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Widget _buildTopPerformersSection() {
+    final topStudents = _filteredStudents.take(3).toList();
+
+    if (topStudents.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.emoji_events_outlined,
+                size: 48,
+                color: Colors.grey[400],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No students found',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
-            'Overall Top Performers',
+            'Top Performers',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -160,39 +255,57 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _buildTopPerformer(
-                rank: 2,
-                name: 'Benjamin C.',
-                points: '9,750 pts',
-                imageUrl:
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuC7VrBk4py2Pa8Tva_PYg2dTtl5NhtAL6zP5M_wvOkH_MX1v0BjyIliNK3iiZ6nXyoxv3cXY0NLh9Jn-GDVdxD9gcn0VoiEyTybu3qa2TQUPrr-G2Cq9Gy3ym5LuJIn-cnPlj3Kmg-D-0_ICHmfm6GGOwWkH2mNS0hq2ToZGdB7_v7ZKNFHeogDQ8WomcswDJ2MfTRLPo09_YLdy8_bjqOJHF-K7TcUoZHOWkDBWiEU_Cml_xWRXZO0uQrdV6Q8dLFsZacF9sBrLR0',
-                borderColor: const Color(0xFFC0C0C0), // Silver
-                badgeColor: const Color(0xFFC0C0C0),
-                size: 80,
-                marginTop: 16,
-              ),
+              // 2nd place
+              if (topStudents.length > 1)
+                _buildTopPerformer(
+                  rank: 2,
+                  name: _getShortName(
+                    topStudents[1]['studentName'] ??
+                        topStudents[1]['name'] ??
+                        'Student',
+                  ),
+                  points:
+                      '${topStudents[1]['rewardPoints'] ?? topStudents[1]['totalPoints'] ?? 0} pts',
+                  borderColor: const Color(0xFFC0C0C0), // Silver
+                  badgeColor: const Color(0xFFC0C0C0),
+                  size: 80,
+                  marginTop: 16,
+                )
+              else
+                const SizedBox(width: 80),
+              // 1st place
               _buildTopPerformer(
                 rank: 1,
-                name: 'Olivia Chen',
-                points: '9,980 pts',
-                imageUrl:
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuDp7J7VZr4TSqVWQZF56-dR1ee2Zc75CnuSGw2L0xAGgTIF9zBAy503NQ3ZMWVbXvSUERLmRBnqOS4RWfQStI1i91G-JiYF95XVUGSp4JCUrr6lP0lD2I6q_FqwEjSwIGO3nprCfKUHraH_aUVJ2MO4Vj_lADwscOevuRw8tfvZ2_9Hh1W2QGoVzFBwLYW-OqVaP1g8SeDEYUJl2qJ4ZQ6pr4ZpE1ExOlJaProRBqU8efyha7p30aOHsG7q3nIjDrNTIJbT-3VJgio',
+                name: _getShortName(
+                  topStudents[0]['studentName'] ??
+                      topStudents[0]['name'] ??
+                      'Student',
+                ),
+                points:
+                    '${topStudents[0]['rewardPoints'] ?? topStudents[0]['totalPoints'] ?? 0} pts',
                 borderColor: const Color(0xFFFFD700), // Gold
                 badgeColor: const Color(0xFFFFD700),
                 size: 96,
                 marginTop: 0,
               ),
-              _buildTopPerformer(
-                rank: 3,
-                name: 'Sophia R.',
-                points: '9,540 pts',
-                imageUrl:
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuAhfbXtIdj2F6GnDrpBGuvLlf8bGVgaiW2Jbs4Q8fsCgAoBVkaHHfdPp1VrkBLGmPPk0YlSr1ETmZFLw6NEqWcm9dMTnxRDg4GupixNU1z39aKPz435OU-R-Hd6kfviED36R6cL0pC5CE4eSRArCUbYeiq6Pt_MgEpGh3dFxVYlRBm_BXolNw-3m085kYFhDQdHD12L-z8DlTarPFfTjh5NNJCLXXFhCm9Q0QoMrNNX_Tz1aPxxMIGioyZTCin9_cDXjRT5Hzo90mU',
-                borderColor: const Color(0xFFCD7F32), // Bronze
-                badgeColor: const Color(0xFFCD7F32),
-                size: 80,
-                marginTop: 16,
-              ),
+              // 3rd place
+              if (topStudents.length > 2)
+                _buildTopPerformer(
+                  rank: 3,
+                  name: _getShortName(
+                    topStudents[2]['studentName'] ??
+                        topStudents[2]['name'] ??
+                        'Student',
+                  ),
+                  points:
+                      '${topStudents[2]['rewardPoints'] ?? topStudents[2]['totalPoints'] ?? 0} pts',
+                  borderColor: const Color(0xFFCD7F32), // Bronze
+                  badgeColor: const Color(0xFFCD7F32),
+                  size: 80,
+                  marginTop: 16,
+                )
+              else
+                const SizedBox(width: 80),
             ],
           ),
         ),
@@ -200,11 +313,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     );
   }
 
+  String _getShortName(String fullName) {
+    final parts = fullName.split(' ');
+    if (parts.length == 1) return fullName;
+    return '${parts[0]} ${parts[1].substring(0, 1)}.';
+  }
+
   Widget _buildTopPerformer({
     required int rank,
     required String name,
     required String points,
-    required String imageUrl,
     required Color borderColor,
     required Color badgeColor,
     required double size,
@@ -225,24 +343,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: borderColor, width: 4),
+                  color: isDark ? Colors.grey[800] : Colors.grey[300],
                 ),
-                child: ClipOval(
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: isDark ? Colors.grey[800] : Colors.grey[300],
-                        child: Icon(
-                          Icons.person,
-                          size: size * 0.5,
-                          color: Theme.of(
-                            context,
-                          ).iconTheme.color?.withOpacity(0.7),
-                        ),
-                      );
-                    },
-                  ),
+                child: Icon(
+                  Icons.person,
+                  size: size * 0.5,
+                  color: Theme.of(context).iconTheme.color?.withOpacity(0.7),
                 ),
               ),
               Positioned(
@@ -298,117 +404,50 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   Widget _buildFilters() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Select Standard',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).textTheme.bodyMedium?.color,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Theme.of(context).dividerColor),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedStandard,
-                      isExpanded: true,
-                      icon: Icon(
-                        Icons.expand_more,
-                        color: Theme.of(
-                          context,
-                        ).iconTheme.color?.withOpacity(0.6),
-                      ),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'all',
-                          child: Text('All Standards'),
-                        ),
-                        DropdownMenuItem(value: '10', child: Text('10')),
-                        DropdownMenuItem(value: '11', child: Text('11')),
-                        DropdownMenuItem(value: '12', child: Text('12')),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedStandard = value!;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-              ],
+          Text(
+            'Select Class',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).textTheme.bodyMedium?.color,
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Select Section',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).textTheme.bodyMedium?.color,
-                  ),
+          const SizedBox(height: 4),
+          Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Theme.of(context).dividerColor),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedClass,
+                isExpanded: true,
+                icon: Icon(
+                  Icons.expand_more,
+                  color: Theme.of(context).iconTheme.color?.withOpacity(0.6),
                 ),
-                const SizedBox(height: 4),
-                Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Theme.of(context).dividerColor),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedSection,
-                      isExpanded: true,
-                      icon: Icon(
-                        Icons.expand_more,
-                        color: Theme.of(
-                          context,
-                        ).iconTheme.color?.withOpacity(0.6),
-                      ),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'all',
-                          child: Text('All Sections'),
-                        ),
-                        DropdownMenuItem(value: 'A', child: Text('A')),
-                        DropdownMenuItem(value: 'B', child: Text('B')),
-                        DropdownMenuItem(value: 'C', child: Text('C')),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedSection = value!;
-                        });
-                      },
-                    ),
-                  ),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
-              ],
+                items: _classes.map((className) {
+                  return DropdownMenuItem<String>(
+                    value: className,
+                    child: Text(className),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedClass = value ?? 'All Classes';
+                  });
+                },
+              ),
             ),
           ),
         ],
@@ -419,10 +458,39 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   Widget _buildStudentRankings() {
     final filteredStudents = _filteredStudents;
 
+    if (filteredStudents.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.people_outline, size: 48, color: Colors.grey[400]),
+              const SizedBox(height: 12),
+              Text(
+                'No students found',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
-        children: filteredStudents.map((student) {
+        children: filteredStudents.asMap().entries.map((entry) {
+          final index = entry.key;
+          final student = entry.value;
+          final rank = index + 1;
+          final studentName =
+              student['studentName'] ??
+              student['name'] ??
+              'Student ${index + 1}';
+          final points = student['rewardPoints'] ?? student['totalPoints'] ?? 0;
+          final className =
+              student['className'] ?? student['class'] ?? 'Unknown';
+
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Container(
@@ -443,7 +511,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   SizedBox(
                     width: 24,
                     child: Text(
-                      '${student['rank']}',
+                      '$rank',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 16,
@@ -453,32 +521,21 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: Image.network(
-                      student['imageUrl'],
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        final isDark =
-                            Theme.of(context).brightness == Brightness.dark;
-                        return Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[800] : Colors.grey[300],
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.person,
-                            size: 24,
-                            color: Theme.of(
-                              context,
-                            ).iconTheme.color?.withOpacity(0.7),
-                          ),
-                        );
-                      },
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.grey[800]
+                          : Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.person,
+                      size: 24,
+                      color: Theme.of(
+                        context,
+                      ).iconTheme.color?.withOpacity(0.7),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -487,7 +544,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          student['name'],
+                          studentName,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -496,7 +553,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Class ${student['class']}',
+                          className,
                           style: TextStyle(
                             fontSize: 14,
                             color: Theme.of(
@@ -508,7 +565,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     ),
                   ),
                   Text(
-                    '${student['points']}',
+                    '$points pts',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -525,72 +582,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Widget _buildBottomNav() {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(Icons.space_dashboard_outlined, 'Dashboard', 0, () {
-              Navigator.pushReplacementNamed(context, '/teacher-dashboard');
-            }),
-            _buildNavItem(Icons.school_outlined, 'Classes', 1, () {
-              Navigator.pushReplacementNamed(context, '/classes');
-            }),
-            _buildNavItem(Icons.assignment_outlined, 'Tests', 2, () {
-              Navigator.pushReplacementNamed(context, '/tests');
-            }),
-            _buildNavItem(Icons.leaderboard, 'Leaderboard', 3, () {}),
-            _buildNavItem(Icons.person_outline, 'Profile', 4, () {
-              Navigator.pushReplacementNamed(context, '/profile');
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    int index,
-    VoidCallback onTap,
-  ) {
-    final isSelected = _selectedNavIndex == index;
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: isSelected
-                  ? const Color(0xFF6366F1)
-                  : Theme.of(context).iconTheme.color?.withOpacity(0.6),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected
-                    ? const Color(0xFF6366F1)
-                    : Theme.of(context).textTheme.bodyMedium?.color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const TeacherBottomNav(selectedIndex: 3);
   }
 }

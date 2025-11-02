@@ -8,6 +8,8 @@ class StudentModel {
   final String? schoolId;
   final String? schoolName;
   final String? className;
+  final String? phone;
+  final String? parentPhone;
   final int rewardPoints;
   final int classRank;
   final double monthlyProgress;
@@ -26,6 +28,8 @@ class StudentModel {
     this.schoolId,
     this.schoolName,
     this.className,
+    this.phone,
+    this.parentPhone,
     this.rewardPoints = 0,
     this.classRank = 0,
     this.monthlyProgress = 0.0,
@@ -48,6 +52,8 @@ class StudentModel {
       schoolId: data['schoolId'],
       schoolName: data['schoolName'],
       className: data['className'],
+      phone: data['phone'],
+      parentPhone: data['parentPhone'],
       rewardPoints: data['rewardPoints'] ?? 0,
       classRank: data['classRank'] ?? 0,
       monthlyProgress: (data['monthlyProgress'] ?? 0.0).toDouble(),
@@ -69,6 +75,8 @@ class StudentModel {
       'schoolId': schoolId,
       'schoolName': schoolName,
       'className': className,
+      'phone': phone,
+      'parentPhone': parentPhone,
       'rewardPoints': rewardPoints,
       'classRank': classRank,
       'monthlyProgress': monthlyProgress,
@@ -91,6 +99,8 @@ class StudentModel {
     String? schoolId,
     String? schoolName,
     String? className,
+    String? phone,
+    String? parentPhone,
     int? rewardPoints,
     int? classRank,
     double? monthlyProgress,
@@ -109,6 +119,8 @@ class StudentModel {
       schoolId: schoolId ?? this.schoolId,
       schoolName: schoolName ?? this.schoolName,
       className: className ?? this.className,
+      phone: phone ?? this.phone,
+      parentPhone: parentPhone ?? this.parentPhone,
       rewardPoints: rewardPoints ?? this.rewardPoints,
       classRank: classRank ?? this.classRank,
       monthlyProgress: monthlyProgress ?? this.monthlyProgress,

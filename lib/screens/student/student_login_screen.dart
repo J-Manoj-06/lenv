@@ -103,10 +103,14 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         if (user?.role == UserRole.student) {
           // Validate selected school matches user's instituteId
           if (user?.instituteId == null || user!.instituteId!.isEmpty) {
-            _showErrorSnackBar('Your account is not linked to a school. Please contact admin.');
+            _showErrorSnackBar(
+              'Your account is not linked to a school. Please contact admin.',
+            );
             await authProvider.signOut();
           } else if (_selectedSchool != user.instituteId) {
-            _showErrorSnackBar('Selected school does not match your account\'s school.');
+            _showErrorSnackBar(
+              'Selected school does not match your account\'s school.',
+            );
             await authProvider.signOut();
           } else {
             // Save session

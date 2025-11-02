@@ -68,7 +68,7 @@ class LeaderboardService {
     final studentsSnap = await q.get();
     if (studentsSnap.docs.isEmpty) return <LeaderboardEntry>[];
 
-    // 2) For each student, try to locate users/{uid} by matching email
+    // 2) For each student, calculate total score from test results
     final entries = <Map<String, dynamic>>[];
     for (final sDoc in studentsSnap.docs) {
       final s = sDoc.data();
@@ -77,6 +77,8 @@ class LeaderboardService {
       final photoUrl = s['photoUrl'] as String?;
       String? uidFromUsers;
       int rewardPoints = 0;
+      double totalTestScore = 0.0;
+      
       if (email != null && email.isNotEmpty) {
         final uq = await _db
             .collection('users')
@@ -87,18 +89,42 @@ class LeaderboardService {
           final u = uq.docs.first.data();
           uidFromUsers = (u['uid'] as String?) ?? uq.docs.first.id;
           rewardPoints = (u['rewardPoints'] as num?)?.toInt() ?? 0;
+          
+          // Calculate total score from test results
+          final testResultsSnap = await _db
+              .collection('testResults')
+              .where('studentId', isEqualTo: uidFromUsers)
+              .get();
+          
+          // Sum all test scores (deduplicated by testId, keeping highest)
+          final bestScoreByTest = <String, double>{};
+          for (final doc in testResultsSnap.docs) {
+            final data = doc.data();
+            final testId = data['testId'] as String?;
+            final score = (data['score'] as num?)?.toDouble() ?? 0.0;
+            if (testId != null && testId.isNotEmpty) {
+              if (!bestScoreByTest.containsKey(testId) || score > bestScoreByTest[testId]!) {
+                bestScoreByTest[testId] = score;
+              }
+            }
+          }
+          totalTestScore = bestScoreByTest.values.fold(0.0, (sum, score) => sum + score);
         }
       }
+      
+      // Use total test score if available, otherwise fall back to reward points
+      final displayScore = totalTestScore > 0 ? totalTestScore : rewardPoints.toDouble();
+      
       entries.add({
         'uid': uidFromUsers ?? sDoc.id,
         'name': name,
         'photoUrl': photoUrl,
-        'points': rewardPoints,
+        'points': displayScore,
       });
     }
 
     // 3) Sort by points desc and assign ranks
-    entries.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
+    entries.sort((a, b) => (b['points'] as double).compareTo(a['points'] as double));
     final result = <LeaderboardEntry>[];
     for (var i = 0; i < entries.length && i < limit; i++) {
       final e = entries[i];
@@ -108,7 +134,7 @@ class LeaderboardService {
           name: e['name'] as String,
           photoUrl: e['photoUrl'] as String?,
           rank: i + 1,
-          score: e['points'] as int,
+          score: e['points'] as double,
         ),
       );
     }

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/leaderboard_service.dart';
+import '../../services/student_service.dart';
+import '../../models/student_model.dart';
+import '../../utils/session_manager.dart';
+import '../../widgets/student_bottom_nav.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -12,7 +16,10 @@ class StudentProfileScreen extends StatefulWidget {
 
 class _StudentProfileScreenState extends State<StudentProfileScreen> {
   final _leaderboardService = LeaderboardService();
+  final _studentService = StudentService();
   Future<StudentStats>? _statsFuture;
+  StudentModel? _studentData;
+  bool _isLoadingStudent = true;
 
   @override
   void didChangeDependencies() {
@@ -24,6 +31,26 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         studentId: uid,
         email: authProvider.currentUser?.email,
       );
+      _loadStudentData(uid);
+    }
+  }
+
+  Future<void> _loadStudentData(String uid) async {
+    try {
+      final data = await _studentService.getCurrentStudent();
+      if (mounted) {
+        setState(() {
+          _studentData = data;
+          _isLoadingStudent = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading student data: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStudent = false;
+        });
+      }
     }
   }
 
@@ -53,7 +80,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: const StudentBottomNav(currentIndex: 4),
     );
   }
 
@@ -92,92 +119,96 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   Widget _buildProfileHeader(dynamic user) {
-    final String name = user?.name ?? 'Alex Johnson';
-    final String? imageUrl = user?.profileImage;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Sample data for demo - these fields would come from StudentModel in a real app
-    const String className = 'Class 10-B';
-    const String rollNo = '24';
+    final theme = Theme.of(context);
+    final String name =
+        _studentData?.name ??
+        user?.name ??
+        user?.email?.split('@').first ??
+        'Student';
+    final String? imageUrl = _studentData?.photoUrl ?? user?.profileImage;
 
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Profile image with camera button
-          Stack(
-            children: [
-              Container(
-                width: 128,
-                height: 128,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(64),
-                  image: imageUrl != null
-                      ? DecorationImage(
-                          image: NetworkImage(imageUrl),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                  color: imageUrl == null
-                      ? (isDark ? Colors.grey[800] : const Color(0xFFE7E5E4))
-                      : null,
-                ),
-                child: imageUrl == null
-                    ? Icon(
-                        Icons.person,
-                        size: 64,
-                        color: Theme.of(
-                          context,
-                        ).iconTheme.color?.withOpacity(0.6),
-                      )
-                    : null,
-              ),
-              Positioned(
-                bottom: 4,
-                right: 4,
-                child: GestureDetector(
-                  onTap: _onChangePhoto,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF97316),
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+      child: _isLoadingStudent
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                // Profile image with camera button
+                Stack(
+                  children: [
+                    Container(
+                      width: 128,
+                      height: 128,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(64),
+                        image: imageUrl != null
+                            ? DecorationImage(
+                                image: NetworkImage(imageUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                        color: imageUrl == null
+                            ? theme.colorScheme.surfaceVariant
+                            : null,
+                      ),
+                      child: imageUrl == null
+                          ? Icon(
+                              Icons.person,
+                              size: 64,
+                              color: theme.iconTheme.color?.withOpacity(0.6),
+                            )
+                          : null,
+                    ),
+                    Positioned(
+                      bottom: 4,
+                      right: 4,
+                      child: GestureDetector(
+                        onTap: _onChangePhoto,
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF97316),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.photo_camera,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
-                      ],
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.photo_camera,
-                      color: Colors.white,
-                      size: 18,
-                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Name and class info
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Name and class info
-          Text(
-            name,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$className | Roll No. $rollNo',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ],
-      ),
+                if (_studentData?.className != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Class: ${_studentData!.className}',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.textTheme.bodySmall?.color,
+                    ),
+                  ),
+                ],
+              ],
+            ),
     );
   }
 
@@ -243,12 +274,12 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   Widget _buildPersonalInfoSection(dynamic user) {
-    // Sample data for demo - these fields would come from StudentModel in a real app
-    final String email = user?.email ?? 'alex.j@email.com';
-    const String phone = '+1 234 567 890';
-    const String schoolName = 'Springfield High';
-    const String dateOfBirth = '15 Aug 2008';
-    const String guardianPhone = '+1 098 765 432';
+    final theme = Theme.of(context);
+    final String email = _studentData?.email ?? user?.email ?? 'N/A';
+    final String phone = _studentData?.phone ?? 'N/A';
+    final String schoolName = _studentData?.schoolName ?? 'N/A';
+    final String parentPhone = _studentData?.parentPhone ?? 'N/A';
+
     return Column(
       children: [
         // Section header
@@ -259,35 +290,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             children: [
               Text(
                 'Personal Information',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                ),
-              ),
-              GestureDetector(
-                onTap: _onEditProfile,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF97316).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: const [
-                      Icon(Icons.edit, size: 18, color: Color(0xFFF97316)),
-                      SizedBox(width: 6),
-                      Text(
-                        'Edit',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFF97316),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ],
@@ -298,12 +302,9 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Container(
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
+              color: theme.cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).dividerColor,
-                width: 1,
-              ),
+              border: Border.all(color: theme.dividerColor, width: 1),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
@@ -317,13 +318,57 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 _buildInfoRow('Email', email, isFirst: true),
                 _buildInfoRow('Phone', phone),
                 _buildInfoRow('School Name', schoolName),
-                _buildInfoRow('Date of Birth', dateOfBirth),
-                _buildInfoRow('Guardian', guardianPhone, isLast: true),
+                _buildInfoRow('Parent Number', parentPhone, isLast: true),
               ],
             ),
           ),
         ),
+        // Logout button
+        const SizedBox(height: 24),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _buildLogoutButton(),
+        ),
       ],
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.error.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _onLogout,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.logout, color: theme.colorScheme.error, size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  'Logout',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.error,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -365,68 +410,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor.withOpacity(0.9),
-        border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                icon: Icons.home_outlined,
-                label: 'Home',
-                isSelected: false,
-                onTap: () => Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/student-dashboard',
-                  (route) => false,
-                ),
-              ),
-              _NavItem(
-                icon: Icons.quiz_outlined,
-                label: 'Tests',
-                isSelected: false,
-                onTap: () =>
-                    Navigator.pushReplacementNamed(context, '/student-tests'),
-              ),
-              _NavItem(
-                icon: Icons.redeem_outlined,
-                label: 'Rewards',
-                isSelected: false,
-                onTap: () =>
-                    Navigator.pushReplacementNamed(context, '/student-rewards'),
-              ),
-              _NavItem(
-                icon: Icons.leaderboard_outlined,
-                label: 'Leaderboard',
-                isSelected: false,
-                onTap: () => Navigator.pushReplacementNamed(
-                  context,
-                  '/student-leaderboard',
-                ),
-              ),
-              _NavItem(
-                icon: Icons.person,
-                label: 'Profile',
-                isSelected: true,
-                isFilled: true,
-                onTap: () {},
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _onChangePhoto() {
     ScaffoldMessenger.of(
       context,
@@ -434,58 +417,468 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   void _onEditProfile() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Edit profile coming soon!')));
+    if (_studentData == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait for profile data to load')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => _EditProfileDialog(
+        studentData: _studentData!,
+        onSave: (updatedData) async {
+          try {
+            await _studentService.updateStudentProfile(
+              uid: _studentData!.uid,
+              name: updatedData['name'],
+              phone: updatedData['phone'],
+              schoolName: updatedData['schoolName'],
+              parentPhone: updatedData['parentPhone'],
+              className: updatedData['className'],
+            );
+
+            // Reload data
+            await _loadStudentData(_studentData!.uid);
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Profile updated successfully!')),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error updating profile: $e')),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _onLogout() async {
+    // Show attractive confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) => _LogoutConfirmationDialog(),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      // Clear session from SharedPreferences
+      await SessionManager.clearLoginSession();
+
+      // Clear auth provider state
+      if (mounted) {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        await authProvider.signOut();
+      }
+
+      // Navigate to role selection and clear all previous routes
+      if (mounted) {
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/role-selection', (route) => false);
+      }
+    } catch (e) {
+      print('Error during logout: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error logging out. Please try again.')),
+        );
+      }
+    }
   }
 }
 
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final bool isFilled;
-  final VoidCallback onTap;
+/// 🎨 Attractive Logout Confirmation Dialog
+class _LogoutConfirmationDialog extends StatefulWidget {
+  const _LogoutConfirmationDialog();
 
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    this.isFilled = false,
-    required this.onTap,
-  });
+  @override
+  State<_LogoutConfirmationDialog> createState() =>
+      _LogoutConfirmationDialogState();
+}
+
+class _LogoutConfirmationDialogState extends State<_LogoutConfirmationDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scaleAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutBack,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOut,
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _closeDialog(bool confirmed) {
+    _animationController.reverse().then((_) {
+      if (mounted) {
+        Navigator.of(context).pop(confirmed);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 340),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon header with gradient background
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFfcb045), Color(0xFFf27f0d)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                  ),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.logout_rounded,
+                        size: 48,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Logout',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Are you sure you want to logout?\nYou will need to sign in again to access your account.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: isDark ? Colors.white70 : Colors.black54,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Action buttons
+                      Row(
+                        children: [
+                          // Cancel button
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _closeDialog(false),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                side: BorderSide(
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.3)
+                                      : Colors.grey.shade300,
+                                  width: 1.5,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white70
+                                      : Colors.black87,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+
+                          // Logout button
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFfcb045),
+                                    Color(0xFFf27f0d),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFFf27f0d,
+                                    ).withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                onPressed: () => _closeDialog(true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Logout',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Bottom nav is centralized in StudentBottomNav widget.
+
+class _EditProfileDialog extends StatefulWidget {
+  final StudentModel studentData;
+  final Function(Map<String, String?>) onSave;
+
+  const _EditProfileDialog({required this.studentData, required this.onSave});
+
+  @override
+  State<_EditProfileDialog> createState() => _EditProfileDialogState();
+}
+
+class _EditProfileDialogState extends State<_EditProfileDialog> {
+  late TextEditingController _nameController;
+  late TextEditingController _phoneController;
+  late TextEditingController _schoolController;
+  late TextEditingController _parentPhoneController;
+  late TextEditingController _classController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.studentData.name);
+    _phoneController = TextEditingController(
+      text: widget.studentData.phone ?? '',
+    );
+    _schoolController = TextEditingController(
+      text: widget.studentData.schoolName ?? '',
+    );
+    _parentPhoneController = TextEditingController(
+      text: widget.studentData.parentPhone ?? '',
+    );
+    _classController = TextEditingController(
+      text: widget.studentData.className ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _schoolController.dispose();
+    _parentPhoneController.dispose();
+    _classController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      title: Text(
+        'Edit Profile',
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? const Color(0xFFF97316)
-                  : const Color(0xFF78716C),
-              size: 24,
-              fill: isFilled ? 1.0 : 0.0,
+            TextField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                labelText: 'Name',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                prefixIcon: const Icon(Icons.person),
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected
-                    ? const Color(0xFFF97316)
-                    : const Color(0xFF78716C),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _phoneController,
+              decoration: InputDecoration(
+                labelText: 'Phone Number',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                prefixIcon: const Icon(Icons.phone),
+              ),
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _schoolController,
+              decoration: InputDecoration(
+                labelText: 'School Name',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                prefixIcon: const Icon(Icons.school),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _parentPhoneController,
+              decoration: InputDecoration(
+                labelText: 'Parent Phone Number',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                prefixIcon: const Icon(Icons.contact_phone),
+              ),
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _classController,
+              decoration: InputDecoration(
+                labelText: 'Class',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                prefixIcon: const Icon(Icons.class_),
               ),
             ),
           ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            'Cancel',
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final updatedData = {
+              'name': _nameController.text.trim(),
+              'phone': _phoneController.text.trim().isEmpty
+                  ? null
+                  : _phoneController.text.trim(),
+              'schoolName': _schoolController.text.trim().isEmpty
+                  ? null
+                  : _schoolController.text.trim(),
+              'parentPhone': _parentPhoneController.text.trim().isEmpty
+                  ? null
+                  : _parentPhoneController.text.trim(),
+              'className': _classController.text.trim().isEmpty
+                  ? null
+                  : _classController.text.trim(),
+            };
+
+            widget.onSave(updatedData);
+            Navigator.of(context).pop();
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFF97316),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

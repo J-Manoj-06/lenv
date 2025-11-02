@@ -1041,27 +1041,34 @@ class FirestoreService {
   // Rewards & Products (Student)
   // =========================
 
-  /// Calculate points: (obtained/total) * basePoints then apply multipliers
-  /// 100% ×2, 90–99 ×1.5, 75–89 ×1.2, <50 ×0.8
+  /// Calculate points based on percentage achieved:
+  /// - >= 90%: percentage × 1.5
+  /// - 35% to 89%: percentage × 1.0
+  /// - < 35%: 0 points (below pass threshold)
   int calculatePoints({
     required double total,
     required double obtained,
-    int basePoints = 100,
+    int basePoints = 100, // Not used in new logic, kept for compatibility
   }) {
     if (total <= 0) return 0;
-    final pct = (obtained / total) * 100.0;
-    double multiplier = 1.0;
-    if (pct >= 100) {
-      multiplier = 2.0;
-    } else if (pct >= 90) {
-      multiplier = 1.5;
-    } else if (pct >= 75) {
-      multiplier = 1.2;
-    } else if (pct < 50) {
-      multiplier = 0.8;
+
+    // Calculate percentage (0-100)
+    final percentage = (obtained / total) * 100.0;
+
+    // Apply rules based on percentage
+    double points = 0.0;
+    if (percentage >= 90) {
+      // High achievers: percentage × 1.5
+      points = percentage * 1.5;
+    } else if (percentage >= 35) {
+      // Pass mark and above: percentage × 1.0
+      points = percentage * 1.0;
+    } else {
+      // Below 35%: no points (fail)
+      points = 0.0;
     }
-    final raw = ((obtained / total) * basePoints) * multiplier;
-    return raw.round();
+
+    return points.round();
   }
 
   /// Save an entry in student_rewards and increment student's totalPoints

@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/teacher_service.dart';
+import '../../widgets/teacher_bottom_nav.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // not needed; assignment handled server-side
 
 class AITestGeneratorScreen extends StatefulWidget {
@@ -315,7 +316,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
             hintText: placeholder,
             hintStyle: TextStyle(color: Theme.of(context).hintColor),
             filled: true,
-            fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).cardColor,
+            fillColor:
+                Theme.of(context).inputDecorationTheme.fillColor ??
+                Theme.of(context).cardColor,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Theme.of(context).dividerColor),
@@ -360,13 +363,17 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Theme.of(context).dividerColor),
-            color: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).cardColor,
+            color:
+                Theme.of(context).inputDecorationTheme.fillColor ??
+                Theme.of(context).cardColor,
           ),
           child: DropdownButtonFormField<String>(
             value: (value != null && items.contains(value)) ? value : null,
             isExpanded: true,
             dropdownColor: Theme.of(context).cardColor,
-            style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+            style: TextStyle(
+              color: Theme.of(context).textTheme.bodyLarge?.color,
+            ),
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(
@@ -432,8 +439,10 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           Text(
             'Generating questions with AI...',
             style: TextStyle(
-              fontSize: 14, 
-              color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+              fontSize: 14,
+              color: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.color?.withOpacity(0.7),
             ),
           ),
         ],
@@ -497,8 +506,10 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                 Text(
                   'Suggested Answer: ${question.answer}',
                   style: TextStyle(
-                    fontSize: 14, 
-                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    fontSize: 14,
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.color?.withOpacity(0.7),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -557,7 +568,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                     );
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
+                    foregroundColor: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.color,
                     side: BorderSide(color: Theme.of(context).dividerColor),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -653,13 +666,19 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              Icon(Icons.security, size: 16, color: Theme.of(context).iconTheme.color?.withOpacity(0.5)),
+              Icon(
+                Icons.security,
+                size: 16,
+                color: Theme.of(context).iconTheme.color?.withOpacity(0.5),
+              ),
               const SizedBox(width: 4),
               Text(
                 'API key stored server-side',
                 style: TextStyle(
-                  fontSize: 12, 
-                  color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                  fontSize: 12,
+                  color: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.color?.withOpacity(0.7),
                 ),
               ),
             ],
@@ -675,7 +694,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                     );
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
+                    foregroundColor: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.color,
                     side: BorderSide(color: Theme.of(context).dividerColor),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -720,7 +741,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     return RichText(
       text: TextSpan(
         style: TextStyle(
-          fontSize: 14, 
+          fontSize: 14,
           color: Theme.of(context).textTheme.bodyMedium?.color,
         ),
         children: [
@@ -736,69 +757,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   }
 
   Widget _buildBottomNavigationBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                icon: Icons.dashboard,
-                label: 'Dashboard',
-                index: 0,
-              ),
-              _buildNavItem(icon: Icons.school, label: 'Classes', index: 1),
-              _buildNavItem(icon: Icons.group, label: 'Students', index: 2),
-              _buildNavItem(icon: Icons.chat, label: 'Messages', index: 3),
-              _buildNavItem(icon: Icons.settings, label: 'Settings', index: 4),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required int index,
-  }) {
-    final isSelected = selectedNavIndex == index;
-    final color = isSelected
-        ? const Color(0xFF6366F1)
-        : const Color(0xFF6B7280);
-
-    return InkWell(
-      onTap: () {
-        setState(() {
-          selectedNavIndex = index;
-        });
-        if (index == 0) {
-          Navigator.popUntil(context, (route) => route.isFirst);
-          Navigator.pushNamed(context, '/teacher-dashboard');
-        }
-      },
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const TeacherBottomNav(selectedIndex: 2);
   }
 
   void _showAssignDialog() {

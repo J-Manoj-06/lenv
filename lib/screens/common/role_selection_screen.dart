@@ -119,7 +119,13 @@ class RoleSelectionScreen extends StatelessWidget {
                                 icon: Icons.family_restroom_rounded,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.parent);
-                                  Navigator.pushNamed(context, '/login');
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Parent portal coming soon',
+                                      ),
+                                    ),
+                                  );
                                 },
                               ),
                             ),
@@ -132,7 +138,13 @@ class RoleSelectionScreen extends StatelessWidget {
                                 icon: Icons.business_rounded,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.institute);
-                                  Navigator.pushNamed(context, '/login');
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Institute portal coming soon',
+                                      ),
+                                    ),
+                                  );
                                 },
                               ),
                             ),

@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/teacher_service.dart';
+import '../../widgets/teacher_bottom_nav.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // no longer needed: assignment computed server-side
 
 class CreateTestScreen extends StatefulWidget {
@@ -24,7 +25,6 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   String? selectedClass;
   String? selectedSection; // Display format: "Section A"
   bool aiAssistanceEnabled = true;
-  int selectedNavIndex = 0;
 
   List<Question> questions = [
     Question(
@@ -133,31 +133,37 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: theme.colorScheme.surface,
       body: Column(
         children: [
           _buildHeader(),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 160),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionHeader('METADATA'),
-                    const SizedBox(height: 16),
-                    _loadingMeta
-                        ? const Center(child: CircularProgressIndicator())
-                        : _buildMetadataCard(),
-                    const SizedBox(height: 32),
-                    _buildSectionHeader('QUESTIONS'),
-                    const SizedBox(height: 16),
-                    _buildQuestions(),
-                    const SizedBox(height: 16),
-                    _buildAddQuestionButton(),
-                  ],
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionHeader('METADATA'),
+                        const SizedBox(height: 16),
+                        _loadingMeta
+                            ? const Center(child: CircularProgressIndicator())
+                            : _buildMetadataCard(theme),
+                        const SizedBox(height: 32),
+                        _buildSectionHeader('QUESTIONS'),
+                        const SizedBox(height: 16),
+                        _buildQuestions(theme),
+                        const SizedBox(height: 16),
+                        _buildAddQuestionButton(theme),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -171,7 +177,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -190,14 +196,14 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => Navigator.pop(context),
-                color: const Color(0xFF2D3748),
+                color: Theme.of(context).iconTheme.color,
               ),
-              const Text(
+              Text(
                 'Create Test',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
               IconButton(
@@ -205,7 +211,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                 onPressed: () {
                   // Handle more options
                 },
-                color: const Color(0xFF2D3748),
+                color: Theme.of(context).iconTheme.color,
               ),
             ],
           ),
@@ -215,21 +221,22 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   }
 
   Widget _buildSectionHeader(String title) {
+    final theme = Theme.of(context);
     return Text(
       title,
-      style: const TextStyle(
+      style: theme.textTheme.labelSmall?.copyWith(
         fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: Color(0xFF6B7280),
+        fontWeight: FontWeight.w600,
         letterSpacing: 1.2,
+        color: theme.colorScheme.onSurface.withOpacity(0.6),
       ),
     );
   }
 
-  Widget _buildMetadataCard() {
+  Widget _buildMetadataCard(ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -330,16 +337,15 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                 children: [
                   Icon(
                     Icons.auto_awesome,
-                    color: const Color(0xFF6366F1),
+                    color: theme.colorScheme.primary,
                     size: 24,
                   ),
                   const SizedBox(width: 8),
-                  const Text(
+                  Text(
                     'AI Assistance',
-                    style: TextStyle(
+                    style: theme.textTheme.bodyLarge?.copyWith(
                       fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF2D3748),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -351,7 +357,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                     aiAssistanceEnabled = value;
                   });
                 },
-                activeColor: const Color(0xFF6366F1),
+                activeColor: theme.colorScheme.primary,
               ),
             ],
           ),
@@ -366,15 +372,15 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     required String placeholder,
     TextInputType keyboardType = TextInputType.text,
   }) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: theme.textTheme.bodyMedium?.copyWith(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF374151),
+            fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 8),
@@ -383,18 +389,23 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
           keyboardType: keyboardType,
           decoration: InputDecoration(
             hintText: placeholder,
-            hintStyle: TextStyle(color: Colors.grey[400]),
+            hintStyle: TextStyle(
+              color: theme.colorScheme.onSurface.withOpacity(0.4),
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: theme.dividerColor),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: theme.dividerColor),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+              borderSide: BorderSide(
+                color: theme.colorScheme.primary,
+                width: 2,
+              ),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -412,29 +423,29 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     required List<String> items,
     required void Function(String?)? onChanged,
   }) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: theme.textTheme.bodyMedium?.copyWith(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF374151),
+            fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[300]!),
+            border: Border.all(color: theme.dividerColor),
           ),
           child: DropdownButtonFormField<String>(
             value: (value != null && items.contains(value)) ? value : null,
             isExpanded: true,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(
+              contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 12,
               ),
@@ -457,21 +468,21 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     );
   }
 
-  Widget _buildQuestions() {
+  Widget _buildQuestions(ThemeData theme) {
     return Column(
       children: questions.map((question) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
-          child: _buildQuestionCard(question),
+          child: _buildQuestionCard(theme, question),
         );
       }).toList(),
     );
   }
 
-  Widget _buildQuestionCard(Question question) {
+  Widget _buildQuestionCard(ThemeData theme, Question question) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -491,24 +502,29 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.drag_indicator, color: Colors.grey[400]),
+                  Icon(
+                    Icons.drag_indicator,
+                    color: theme.iconTheme.color?.withOpacity(0.4),
+                  ),
                   const SizedBox(width: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Question ${question.id}',
-                        style: const TextStyle(
+                        style: theme.textTheme.titleMedium?.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF2D3748),
                         ),
                       ),
                       Text(
                         question.type == QuestionType.multipleChoice
                             ? 'Multiple Choice'
                             : 'Short Answer',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontSize: 14,
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
                       ),
                     ],
                   ),
@@ -520,7 +536,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                     icon: Icon(
                       Icons.content_copy,
                       size: 18,
-                      color: Colors.grey[600],
+                      color: theme.iconTheme.color?.withOpacity(0.6),
                     ),
                     onPressed: () {
                       // Duplicate question
@@ -540,7 +556,11 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                    icon: Icon(
+                      Icons.delete,
+                      size: 18,
+                      color: theme.colorScheme.error,
+                    ),
                     onPressed: () {
                       // Delete question
                       setState(() {
@@ -564,19 +584,21 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               hintText: question.type == QuestionType.multipleChoice
                   ? 'What is 2 + 2?'
                   : 'Explain the theory of relativity.',
-              hintStyle: TextStyle(color: Colors.grey[400]),
+              hintStyle: TextStyle(
+                color: theme.colorScheme.onSurface.withOpacity(0.4),
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey[300]!),
+                borderSide: BorderSide(color: theme.dividerColor),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey[300]!),
+                borderSide: BorderSide(color: theme.dividerColor),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Color(0xFF6366F1),
+                borderSide: BorderSide(
+                  color: theme.colorScheme.primary,
                   width: 2,
                 ),
               ),
@@ -588,14 +610,14 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
           ),
           if (question.type == QuestionType.multipleChoice) ...[
             const SizedBox(height: 16),
-            _buildMultipleChoiceOptions(question),
+            _buildMultipleChoiceOptions(theme, question),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildMultipleChoiceOptions(Question question) {
+  Widget _buildMultipleChoiceOptions(ThemeData theme, Question question) {
     return Column(
       children: [
         ...List.generate(question.options!.length, (index) {
@@ -605,13 +627,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               decoration: BoxDecoration(
                 border: Border.all(
                   color: question.correctAnswerIndex == index
-                      ? const Color(0xFF6366F1)
-                      : Colors.grey[300]!,
+                      ? theme.colorScheme.primary
+                      : theme.dividerColor,
                   width: question.correctAnswerIndex == index ? 2 : 1,
                 ),
                 borderRadius: BorderRadius.circular(12),
                 color: question.correctAnswerIndex == index
-                    ? const Color(0xFF6366F1).withOpacity(0.05)
+                    ? theme.colorScheme.primary.withOpacity(0.05)
                     : Colors.transparent,
               ),
               child: RadioListTile<int>(
@@ -622,7 +644,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                     question.correctAnswerIndex = value;
                   });
                 },
-                activeColor: const Color(0xFF6366F1),
+                activeColor: theme.colorScheme.primary,
                 title: TextField(
                   controller: TextEditingController(
                     text: question.options![index],
@@ -651,7 +673,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add Option'),
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF6366F1),
+              foregroundColor: theme.colorScheme.primary,
             ),
           ),
         ),
@@ -659,7 +681,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     );
   }
 
-  Widget _buildAddQuestionButton() {
+  Widget _buildAddQuestionButton(ThemeData theme) {
     return InkWell(
       onTap: () {
         _showAddQuestionDialog();
@@ -670,7 +692,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: Colors.grey[300]!,
+            color: theme.dividerColor,
             width: 2,
             style: BorderStyle.solid,
           ),
@@ -679,14 +701,14 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add, color: Colors.grey[600]),
+            Icon(Icons.add, color: theme.iconTheme.color?.withOpacity(0.6)),
             const SizedBox(width: 8),
             Text(
               'Add Question',
-              style: TextStyle(
+              style: theme.textTheme.bodyLarge?.copyWith(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey[600],
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ],
@@ -744,9 +766,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   }
 
   Widget _buildBottomSection() {
+    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.8),
+        color: theme.cardColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -772,8 +795,8 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                         _saveTest(publish: false);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE5E7EB),
-                        foregroundColor: const Color(0xFF2D3748),
+                        backgroundColor: theme.colorScheme.surfaceVariant,
+                        foregroundColor: theme.colorScheme.onSurface,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -793,8 +816,8 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                         _showPublishDialog();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -811,82 +834,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               ),
             ),
             // Bottom navigation
-            Container(
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.grey[200]!)),
-              ),
-              child: SizedBox(
-                height: 64,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildNavItem(
-                      icon: Icons.dashboard,
-                      label: 'Dashboard',
-                      index: 0,
-                    ),
-                    _buildNavItem(
-                      icon: Icons.school,
-                      label: 'Classes',
-                      index: 1,
-                    ),
-                    _buildNavItem(
-                      icon: Icons.assignment,
-                      label: 'Tests',
-                      index: 2,
-                    ),
-                    _buildNavItem(
-                      icon: Icons.leaderboard,
-                      label: 'Leaderboard',
-                      index: 3,
-                    ),
-                    _buildNavItem(
-                      icon: Icons.person,
-                      label: 'Profile',
-                      index: 4,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const TeacherBottomNav(selectedIndex: 2),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required int index,
-  }) {
-    final isSelected = selectedNavIndex == index;
-    final color = isSelected ? const Color(0xFF6366F1) : Colors.grey[500];
-
-    return InkWell(
-      onTap: () {
-        setState(() {
-          selectedNavIndex = index;
-        });
-        // Handle navigation
-        if (index == 0) {
-          Navigator.pop(context); // Go back to dashboard
-        }
-      },
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: color,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -913,7 +863,8 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               await _saveTest(publish: true);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6366F1),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
             ),
             child: const Text('Publish'),
           ),

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart' as local_auth;
@@ -12,23 +10,8 @@ import 'providers/test_provider.dart';
 import 'providers/reward_provider.dart';
 import 'providers/student_provider.dart';
 import 'routes/app_router.dart';
-import 'services/firestore_service.dart';
 
-Future<String> getInitialScreen() async {
-  final prefs = await SharedPreferences.getInstance();
-  final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-  final role = prefs.getString('userRole');
-  final user = FirebaseAuth.instance.currentUser;
-  if (isLoggedIn && user != null) {
-    if (role == 'teacher') {
-      return '/teacher-dashboard';
-    } else if (role == 'student') {
-      return '/student-dashboard';
-    }
-  }
-  // No session: go to role selection (valid route)
-  return '/role-selection';
-}
+// Initial route is always '/' (Splash) which will resolve and redirect.
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,31 +59,28 @@ void main() async {
     }
   }
 
-  // Best-effort: run an auto-publish sweep once on app start
-  try {
-    final updated = await FirestoreService().autoPublishExpiredTests();
-    if (updated > 0) {
-      // ignore: avoid_print
-      print('📣 Auto-published $updated expired tests on startup');
-    }
-  } catch (e) {
-    // ignore: avoid_print
-    print('⚠️ Auto-publish on startup failed: $e');
-  }
+  // Note: Removed client-side auto-publish sweep on startup to avoid
+  // permission/index errors for student users. This operation should
+  // be performed only from teacher/admin contexts or backend cron.
 
-  final initialRoute = await getInitialScreen();
-  runApp(MyApp(initialRoute: initialRoute));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final String initialRoute;
-  const MyApp({super.key, required this.initialRoute});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => local_auth.AuthProvider()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final authProvider = local_auth.AuthProvider();
+            // Initialize auth state from Firebase
+            authProvider.initializeAuth();
+            return authProvider;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => RoleProvider()),
         ChangeNotifierProvider(create: (_) => TestProvider()),
         ChangeNotifierProvider(create: (_) => RewardProvider()),
@@ -112,7 +92,7 @@ class MyApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         onGenerateRoute: AppRouter.generateRoute,
-        initialRoute: initialRoute,
+        initialRoute: '/',
       ),
     );
   }

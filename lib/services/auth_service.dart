@@ -14,6 +14,37 @@ class AuthService {
   // Get current user stream
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  // Get user data by UID
+  Future<UserModel?> getUserData(String uid) async {
+    try {
+      // First try to get from users collection
+      // ignore: avoid_print
+      print('[AuthService] getUserData: trying users/$uid');
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        // ignore: avoid_print
+        print('[AuthService] getUserData: found users/$uid');
+        return UserModel.fromJson(data);
+      }
+
+      // If not found, try to find by UID in role collections
+      final user = _auth.currentUser;
+      if (user != null) {
+        // ignore: avoid_print
+        print(
+          '[AuthService] getUserData: users/$uid not found, searching role collections for ${user.email}',
+        );
+        return await _getUserFromRoleCollections(uid, user.email!);
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ Error getting user data: $e');
+      return null;
+    }
+  }
+
   // Sign in with email and password - ROLE BASED
   Future<UserModel?> signInWithEmailPassword(
     String email,

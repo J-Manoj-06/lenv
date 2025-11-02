@@ -728,7 +728,6 @@ class _TakeTestScreenState extends State<TakeTestScreen>
   Widget _buildSubmitConfirmationDialog() {
     final attemptedCount = answers.length;
     final totalCount = widget.test.questions.length;
-    final progressPercentage = (attemptedCount / totalCount * 100).round();
 
     return Dialog(
       backgroundColor: Colors.transparent,

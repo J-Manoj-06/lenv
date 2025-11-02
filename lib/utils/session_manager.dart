@@ -26,7 +26,10 @@ class SessionManager {
     final userRole = prefs.getString('userRole');
     final schoolId = prefs.getString('schoolId');
     final user = FirebaseAuth.instance.currentUser;
-
+    // ignore: avoid_print
+    print(
+      '[SessionManager] getLoginSession isLoggedIn=$isLoggedIn storedRole=$userRole storedUserId=$userId firebaseUser=${user?.email}',
+    );
     return {
       'isLoggedIn': isLoggedIn && user != null,
       'userId': userId,
@@ -48,6 +51,8 @@ class SessionManager {
   /// Get initial screen route based on session
   static Future<String> getInitialScreen() async {
     final session = await getLoginSession();
+    // ignore: avoid_print
+    print('[SessionManager] getInitialScreen session=$session');
     if (session['isLoggedIn'] == true) {
       if (session['userRole'] == 'teacher') {
         return '/teacher-dashboard';
@@ -55,6 +60,7 @@ class SessionManager {
         return '/student-dashboard';
       }
     }
-    return '/login';
+    // When not logged in, send to role selection (we don't have a '/login' route)
+    return '/role-selection';
   }
 }

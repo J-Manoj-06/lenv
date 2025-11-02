@@ -795,6 +795,7 @@ class TeacherDashboardScreen extends StatelessWidget {
 */
 
 import 'package:flutter/material.dart';
+import '../../widgets/teacher_bottom_nav.dart';
 
 /// Minimal teacher dashboard screen to restore app routing.
 /// You can replace its content later with the full dashboard UI.
@@ -832,6 +833,7 @@ class TeacherDashboardScreen extends StatelessWidget {
           ],
         ),
       ),
+      bottomNavigationBar: const TeacherBottomNav(selectedIndex: 0),
     );
   }
 }

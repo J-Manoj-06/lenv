@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
+import '../../widgets/teacher_bottom_nav.dart';
 
 class ClassesScreen extends StatefulWidget {
   const ClassesScreen({Key? key}) : super(key: key);
@@ -79,23 +80,47 @@ class _ClassesScreenState extends State<ClassesScreen> {
       final schoolId =
           currentUser.instituteId ?? teacherData['schoolCode'] ?? '';
 
+      // First, get ALL students for all sections
+      final allStudents = await _teacherService.getStudentsByTeacher(
+        schoolId,
+        teacherData['classesHandled'],
+        sections,
+        classAssignments: teacherData['classAssignments'],
+      );
+
+      print('🔍 Total students fetched: ${allStudents.length}');
+
       for (var className in classNames) {
         // Extract section from className (e.g., "5 - A" -> "A")
         final section = className.split(' - ').last.trim();
 
-        // Query students for this specific class and section.
-        // Pass original classesHandled (e.g., ["Grade 4"]) and the selected section
-        final students = await _teacherService.getStudentsByTeacher(
-          schoolId,
-          teacherData['classesHandled'],
-          section,
-          classAssignments: teacherData['classAssignments'],
+        // Extract grade from className (e.g., "7 - A" -> "7")
+        final gradeNum = className.split(' - ').first.trim();
+
+        // Filter students for THIS specific section
+        final studentsInSection = allStudents.where((student) {
+          final studentSection = student['section']?.toString().trim() ?? '';
+          final studentClassName = student['className']?.toString() ?? '';
+          final studentGrade = studentClassName
+              .replaceAll('Grade ', '')
+              .replaceAll('grade ', '')
+              .trim();
+
+          print(
+            '  Comparing: student grade=$studentGrade section=$studentSection vs class grade=$gradeNum section=$section',
+          );
+
+          return studentGrade == gradeNum && studentSection == section;
+        }).toList();
+
+        print(
+          '✅ Grade $className - Section $section has ${studentsInSection.length} students',
         );
 
         classes.add(
           ClassItem(
             name: 'Grade $className',
-            studentCount: students.length,
+            studentCount: studentsInSection.length,
             averageScore: 0, // Will calculate from test results later
             section: section,
             grade: grade,
@@ -588,79 +613,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
   }
 
   Widget _buildBottomNavigationBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                icon: Icons.dashboard,
-                label: 'Dashboard',
-                index: 0,
-              ),
-              _buildNavItem(icon: Icons.school, label: 'Classes', index: 1),
-              _buildNavItem(icon: Icons.quiz, label: 'Tests', index: 2),
-              _buildNavItem(
-                icon: Icons.leaderboard,
-                label: 'Leaderboard',
-                index: 3,
-              ),
-              _buildNavItem(icon: Icons.person, label: 'Profile', index: 4),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required int index,
-  }) {
-    final isSelected = selectedNavIndex == index;
-    final color = isSelected
-        ? const Color(0xFF6366F1)
-        : Theme.of(context).iconTheme.color?.withOpacity(0.6);
-
-    return InkWell(
-      onTap: () {
-        setState(() {
-          selectedNavIndex = index;
-        });
-        if (index == 0) {
-          Navigator.popUntil(context, (route) => route.isFirst);
-          Navigator.pushNamed(context, '/teacher-dashboard');
-        } else if (index == 2) {
-          Navigator.pushReplacementNamed(context, '/tests');
-        } else if (index == 3) {
-          Navigator.pushReplacementNamed(context, '/leaderboard');
-        } else if (index == 4) {
-          Navigator.pushReplacementNamed(context, '/profile');
-        }
-      },
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const TeacherBottomNav(selectedIndex: 1);
   }
 
   void _showAddClassDialog() {
