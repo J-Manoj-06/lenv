@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/feedback_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/session_manager.dart';
@@ -22,8 +23,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _teacherData;
   int _classesManaged = 0;
   int _testsConducted = 0;
-  int _totalStudents = 0;
-  int _activeStudents = 0;
 
   @override
   void initState() {
@@ -72,19 +71,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       final classesManaged = classesFormatted.length;
 
-      // Fetch students for these classes
-      final schoolId = user.instituteId ?? teacherData['schoolCode'] ?? '';
-      final students = await teacherService.getStudentsByTeacher(
-        schoolId,
-        teacherData['classesHandled'],
-        sections,
-        classAssignments: teacherData['classAssignments'],
-      );
-      final totalStudents = students.length;
-      final activeStudents = students
-          .where((s) => s['isActive'] == true)
-          .length;
-
       // Count tests created by this teacher (one-shot)
       final testsSnap = await FirebaseFirestore.instance
           .collection('tests')
@@ -95,8 +81,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _teacherData = teacherData;
         _classesManaged = classesManaged;
-        _totalStudents = totalStudents;
-        _activeStudents = activeStudents;
         _testsConducted = testsConducted;
         _isLoading = false;
       });
@@ -325,17 +309,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     value: '$_testsConducted',
                     fixedWidth: cardWidth,
                   ),
-                  _buildStatCard(
-                    label: 'Student Performance',
-                    value: _totalStudents > 0
-                        ? '${((_activeStudents / _totalStudents) * 100).round()}%'
-                        : 'N/A',
-                    showProgress: _totalStudents > 0,
-                    progressValue: _totalStudents > 0
-                        ? (_activeStudents / _totalStudents)
-                        : 0,
-                    fixedWidth: cardWidth,
-                  ),
                 ],
               );
             },
@@ -512,6 +485,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildAccountSettings() {
     final settingsItems = [
+      {
+        'icon': Icons.highlight,
+        'label': 'My Highlights',
+        'route': '/my-highlights',
+      },
       {'icon': Icons.lock_outline, 'label': 'Change Password'},
       {'icon': Icons.notifications_outlined, 'label': 'Manage Notifications'},
       {
@@ -550,9 +528,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 return InkWell(
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(item['label'] as String)),
-                    );
+                    final route = item['route'] as String?;
+                    if (route != null) {
+                      Navigator.pushNamed(context, route);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(item['label'] as String)),
+                      );
+                    }
                   },
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -706,30 +689,259 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showLogoutDialog() {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Logout'),
-          content: const Text('Are you sure you want to logout?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                // Clear session
-                await SessionManager.clearLoginSession();
-                Navigator.pushReplacementNamed(context, '/role-selection');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Logged out successfully')),
-                );
-              },
-              child: const Text('Logout', style: TextStyle(color: Colors.red)),
-            ),
-          ],
+      builder: (BuildContext context) => const _LogoutConfirmationDialog(),
+    ).then((confirmed) {
+      if (confirmed == true) {
+        _performLogout();
+      }
+    });
+  }
+
+  Future<void> _performLogout() async {
+    try {
+      // Clear session
+      await SessionManager.clearLoginSession();
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/role-selection');
+        showSuccessSnackbar(
+          context,
+          'Logged out successfully',
+          role: 'teacher',
         );
-      },
+      }
+    } catch (e) {
+      print('Error during logout: $e');
+      if (mounted) {
+        showErrorDialog(
+          context,
+          getFriendlyErrorMessage(e),
+          role: 'teacher',
+          title: 'Logout Failed',
+        );
+      }
+    }
+  }
+}
+
+/// 🎨 Attractive Logout Confirmation Dialog (Teacher Theme)
+class _LogoutConfirmationDialog extends StatefulWidget {
+  const _LogoutConfirmationDialog();
+
+  @override
+  State<_LogoutConfirmationDialog> createState() =>
+      _LogoutConfirmationDialogState();
+}
+
+class _LogoutConfirmationDialogState extends State<_LogoutConfirmationDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scaleAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutBack,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOut,
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _closeDialog(bool confirmed) {
+    _animationController.reverse().then((_) {
+      if (mounted) {
+        Navigator.of(context).pop(confirmed);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 340),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon header with gradient background (Teacher violet theme)
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFA78BFA), Color(0xFF7B61FF)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                  ),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.logout_rounded,
+                        size: 48,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Logout',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Are you sure you want to logout?\nYou will need to sign in again to access your account.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: isDark ? Colors.white70 : Colors.black54,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Action buttons
+                      Row(
+                        children: [
+                          // Cancel button
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _closeDialog(false),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                side: BorderSide(
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.3)
+                                      : Colors.grey.shade300,
+                                  width: 1.5,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white70
+                                      : Colors.black87,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+
+                          // Logout button (Teacher violet theme)
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFA78BFA),
+                                    Color(0xFF7B61FF),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF7B61FF,
+                                    ).withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                onPressed: () => _closeDialog(true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Logout',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

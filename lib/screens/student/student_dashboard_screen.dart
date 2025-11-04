@@ -5,9 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/student_provider.dart';
 import '../../models/test_model.dart';
 import '../../models/test_result_model.dart';
+import '../../models/status_model.dart';
+import '../../models/student_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/student_bottom_nav.dart';
+import '../teacher/status_view_screen.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({Key? key}) : super(key: key);
@@ -83,6 +86,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Announcements Section
+                          if (student != null)
+                            _buildAnnouncementsSection(theme, student),
                           _buildProgressText(theme),
                           _buildPointsCard(theme, student),
                           _buildDailyChallenge(theme, studentProvider),
@@ -1182,6 +1188,511 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 
   // Bottom nav is centralized in StudentBottomNav widget.
+
+  /// Build announcements section with beautiful card design
+  Widget _buildAnnouncementsSection(ThemeData theme, StudentModel student) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUserId = authProvider.currentUser?.uid ?? '';
+
+    // Get school identifier - USE SCHOOLCODE FIRST (like "OAK001")!
+    final schoolIdentifier =
+        student.schoolCode ?? // PRIMARY: schoolCode from Firestore
+        student.schoolId ?? // Fallback: old schoolId if exists
+        student.schoolName ?? // Last resort: full name
+        '';
+
+    // Debug: Print student info
+    print('📢 STUDENT DEBUG: Student schoolCode: "${student.schoolCode}"');
+    print('📢 STUDENT DEBUG: Student schoolId: "${student.schoolId}"');
+    print('📢 STUDENT DEBUG: Student schoolName: "${student.schoolName}"');
+    print('📢 STUDENT DEBUG: Using identifier for query: "$schoolIdentifier"');
+    print('📢 STUDENT DEBUG: Student className: "${student.className}"');
+    print('📢 STUDENT DEBUG: Student email: "${student.email}"');
+
+    // Check if we have any valid identifier
+    if (schoolIdentifier.isEmpty) {
+      print('📢 STUDENT DEBUG: ❌ ERROR - No school identifier found!');
+      print(
+        '📢 STUDENT DEBUG: Need schoolCode, schoolId, or schoolName in Firestore',
+      );
+      return _buildErrorCard(
+        theme,
+        '⚠️ Configuration Issue',
+        'Your school information is missing. Please contact your administrator to update your profile in the system.',
+      );
+    }
+
+    // Parse student's className to extract standard and section
+    String userStandard = '';
+    String userSection = '';
+
+    if (student.className != null && student.className!.isNotEmpty) {
+      final className = student.className!;
+
+      if (className.contains('-')) {
+        final parts = className.split('-').map((e) => e.trim()).toList();
+        if (parts.length == 2) {
+          userStandard = parts[0].replaceAll('Grade', '').trim();
+          userSection = parts[1].trim();
+        }
+      } else if (className.contains(' ')) {
+        userStandard = className.replaceAll('Grade', '').trim();
+      } else {
+        final match = RegExp(r'^(\d+)([A-Z])$').firstMatch(className);
+        if (match != null) {
+          userStandard = match.group(1) ?? '';
+          userSection = match.group(2) ?? '';
+        } else {
+          userStandard = className;
+        }
+      }
+    }
+
+    print(
+      '📢 STUDENT DEBUG: Querying with schoolIdentifier: "$schoolIdentifier"',
+    );
+
+    // TEMPORARY FIX: If schoolIdentifier is empty or doesn't match, query ALL announcements
+    // and filter client-side. This helps diagnose the issue.
+    final hasValidSchoolId = schoolIdentifier.isNotEmpty;
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: hasValidSchoolId
+          ? FirebaseFirestore.instance
+                .collection('class_highlights')
+                .where('instituteId', isEqualTo: schoolIdentifier)
+                .where('expiresAt', isGreaterThan: Timestamp.now())
+                .orderBy('expiresAt', descending: false)
+                .orderBy('createdAt', descending: true)
+                .limit(10)
+                .snapshots()
+          : FirebaseFirestore.instance
+                .collection('class_highlights')
+                .where('expiresAt', isGreaterThan: Timestamp.now())
+                .orderBy('expiresAt', descending: false)
+                .orderBy('createdAt', descending: true)
+                .limit(10)
+                .snapshots(),
+      builder: (context, snapshot) {
+        // Loading state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildAnnouncementsLoadingCard(theme);
+        }
+
+        // Debug: Print query results
+        if (snapshot.hasData) {
+          print(
+            '📢 DEBUG: Found ${snapshot.data!.docs.length} announcements in database',
+          );
+          if (snapshot.data!.docs.isEmpty) {
+            print(
+              '📢 DEBUG: No announcements found${hasValidSchoolId ? ' for instituteId: "$schoolIdentifier"' : ' (querying all)'}',
+            );
+            print('📢 DEBUG: This could mean:');
+            print('   1. No announcements have been posted');
+            print('   2. All announcements have expired');
+            if (hasValidSchoolId) {
+              print(
+                '   3. Teacher\'s instituteId doesn\'t match student\'s schoolId',
+              );
+            }
+          } else {
+            // Print all announcements found to help debug
+            for (var doc in snapshot.data!.docs) {
+              final data = doc.data() as Map<String, dynamic>;
+              print(
+                '📢 DEBUG: Found announcement with instituteId: "${data['instituteId']}", audienceType: "${data['audienceType']}"',
+              );
+            }
+          }
+          print(
+            '📢 DEBUG: Student standard: "$userStandard", section: "$userSection"',
+          );
+        }
+
+        // Parse and filter announcements
+        final allAnnouncements = snapshot.hasData
+            ? snapshot.data!.docs
+                  .map((doc) {
+                    final announcement = StatusModel.fromFirestore(doc);
+                    // Debug: Print each announcement details
+                    print(
+                      '📢 DEBUG: Processing announcement from ${announcement.teacherName}',
+                    );
+                    print('   - instituteId: "${announcement.instituteId}"');
+                    print('   - audienceType: "${announcement.audienceType}"');
+                    print('   - standards: ${announcement.standards}');
+                    print('   - sections: ${announcement.sections}');
+                    print(
+                      '   - text: "${announcement.text.length > 30 ? announcement.text.substring(0, 30) + '...' : announcement.text}"',
+                    );
+                    return announcement;
+                  })
+                  .where((announcement) {
+                    // If we're querying all, also check instituteId matches
+                    if (!hasValidSchoolId ||
+                        announcement.instituteId == schoolIdentifier) {
+                      final isVisible = announcement.isVisibleTo(
+                        userStandard: userStandard,
+                        userSection: '$userStandard$userSection',
+                      );
+                      print(
+                        '📢 DEBUG: Announcement visible to student: $isVisible',
+                      );
+                      return isVisible;
+                    }
+                    print(
+                      '📢 DEBUG: Announcement skipped - instituteId mismatch',
+                    );
+                    return false;
+                  })
+                  .toList()
+            : <StatusModel>[];
+
+        print(
+          '📢 DEBUG: Total visible announcements: ${allAnnouncements.length}',
+        );
+
+        // Show horizontal list (always visible, even if empty)
+        return _buildAnnouncementsHorizontalRow(
+          theme,
+          allAnnouncements,
+          currentUserId,
+        );
+      },
+    );
+  }
+
+  /// Build horizontal scrollable row of announcements (WhatsApp-style)
+  Widget _buildAnnouncementsHorizontalRow(
+    ThemeData theme,
+    List<StatusModel> announcements,
+    String currentUserId,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Title
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF27F0D).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.campaign,
+                  color: Color(0xFFF27F0D),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '📢 Announcements',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1A1A1A),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Horizontal scrollable list
+        SizedBox(
+          height: 100,
+          child: announcements.isEmpty
+              ? _buildEmptyAnnouncementsList(theme)
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: announcements.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 16),
+                  itemBuilder: (context, index) {
+                    final announcement = announcements[index];
+                    final isUnread = !announcement.viewedBy.contains(
+                      currentUserId,
+                    );
+                    return _buildAnnouncementAvatar(
+                      theme,
+                      announcement,
+                      isUnread,
+                      () {
+                        _openAnnouncementViewer(announcements, index);
+                      },
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// Empty announcements list (shows placeholder message)
+  Widget _buildEmptyAnnouncementsList(ThemeData theme) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.mail_outline, size: 32, color: Colors.grey[400]),
+            const SizedBox(height: 8),
+            Text(
+              'No announcements yet',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build individual announcement avatar (circular with gradient border)
+  Widget _buildAnnouncementAvatar(
+    ThemeData theme,
+    StatusModel announcement,
+    bool isUnread,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Avatar with gradient border if unread
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: isUnread
+                  ? const LinearGradient(
+                      colors: [Color(0xFFFFA726), Color(0xFFF27F0D)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              border: !isUnread
+                  ? Border.all(color: Colors.grey[300]!, width: 2)
+                  : null,
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.scaffoldBackgroundColor,
+              ),
+              padding: const EdgeInsets.all(2),
+              child: CircleAvatar(
+                radius: 28,
+                backgroundColor: const Color(0xFFFFF5EB),
+                child: Text(
+                  announcement.teacherName.isNotEmpty
+                      ? announcement.teacherName[0].toUpperCase()
+                      : 'T',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFF27F0D),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Teacher name (truncated)
+          SizedBox(
+            width: 68,
+            child: Text(
+              announcement.teacherName.split(' ').first,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+                color: isUnread
+                    ? const Color(0xFFF27F0D)
+                    : theme.textTheme.bodySmall?.color,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Open announcement viewer (full-screen status viewer)
+  void _openAnnouncementViewer(
+    List<StatusModel> announcements,
+    int initialIndex,
+  ) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUserId = authProvider.currentUser?.uid ?? '';
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StatusViewScreen(
+          statuses: announcements,
+          initialIndex: initialIndex,
+          currentUserId: currentUserId,
+        ),
+      ),
+    );
+  }
+
+  /// Loading state for horizontal row
+  Widget _buildAnnouncementsLoadingCard(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Title
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF27F0D).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.campaign,
+                  color: Color(0xFFF27F0D),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '� Announcements',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1A1A1A),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Shimmer loading circles
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            scrollDirection: Axis.horizontal,
+            itemCount: 5,
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            itemBuilder: (_, __) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.grey[300],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: 50,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Error state card for configuration issues
+  Widget _buildErrorCard(ThemeData theme, String title, String message) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.red[50],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.red[300]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.error_outline,
+                    color: Colors.red[700],
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red[900],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.red[800],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '🔍 Check console logs for technical details',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.red[700],
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // Press-to-scale wrapper used by badges

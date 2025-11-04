@@ -6,6 +6,7 @@ class StudentModel {
   final String name;
   final String? photoUrl;
   final String? schoolId;
+  final String? schoolCode; // Added: School code like "OAK001"
   final String? schoolName;
   final String? className;
   final String? phone;
@@ -26,6 +27,7 @@ class StudentModel {
     required this.name,
     this.photoUrl,
     this.schoolId,
+    this.schoolCode, // Added
     this.schoolName,
     this.className,
     this.phone,
@@ -50,6 +52,7 @@ class StudentModel {
       name: data['name'] ?? '',
       photoUrl: data['photoUrl'],
       schoolId: data['schoolId'],
+      schoolCode: data['schoolCode'], // Added: Read schoolCode from Firestore
       schoolName: data['schoolName'],
       className: data['className'],
       phone: data['phone'],
@@ -65,7 +68,6 @@ class StudentModel {
       isActive: data['isActive'] ?? true,
     );
   }
-
   // To Firestore
   Map<String, dynamic> toFirestore() {
     return {
@@ -73,6 +75,7 @@ class StudentModel {
       'name': name,
       'photoUrl': photoUrl,
       'schoolId': schoolId,
+      'schoolCode': schoolCode, // Added: Write schoolCode to Firestore
       'schoolName': schoolName,
       'className': className,
       'phone': phone,
@@ -97,6 +100,7 @@ class StudentModel {
     String? name,
     String? photoUrl,
     String? schoolId,
+    String? schoolCode, // Added
     String? schoolName,
     String? className,
     String? phone,
@@ -117,6 +121,7 @@ class StudentModel {
       name: name ?? this.name,
       photoUrl: photoUrl ?? this.photoUrl,
       schoolId: schoolId ?? this.schoolId,
+      schoolCode: schoolCode ?? this.schoolCode, // Added
       schoolName: schoolName ?? this.schoolName,
       className: className ?? this.className,
       phone: phone ?? this.phone,

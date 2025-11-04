@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import '../../utils/feedback_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/teacher_bottom_nav.dart';
 import '../../services/teacher_service.dart';
 import '../../services/firestore_service.dart';
+import '../../models/status_model.dart';
+import 'status_view_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({Key? key}) : super(key: key);
@@ -354,7 +356,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         Navigator.pushNamed(context, '/ai-test-generator');
                       },
                       icon: const Icon(Icons.auto_awesome, size: 20),
-                      label: const Text('Generate via DeepSeek'),
+                      label: const Text('Generate with AI'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF6366F1),
                         side: const BorderSide(color: Color(0xFF6366F1)),
@@ -491,165 +493,35 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
-  // ========== New: Classroom Highlights ==========
+  // ========== Classroom Highlights (WhatsApp-style Single Horizontal List) ==========
   Widget _buildClassroomHighlights() {
     final theme = Theme.of(context);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
+    final currentUserId = currentUser?.uid;
     final instituteId =
         currentUser?.instituteId ?? _teacherData?['schoolCode'] ?? '';
-    final titleStyle = TextStyle(
-      fontSize: 18,
-      fontWeight: FontWeight.bold,
-      color: theme.brightness == Brightness.dark
-          ? theme.colorScheme.onSurface
-          : theme.textTheme.bodyLarge?.color,
-    );
 
-    Widget gradientRingAvatar(String imageUrl, String caption) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFA78BFA), Color(0xFF7B61FF)],
-              ),
-            ),
-            child: Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                image: DecorationImage(
-                  image: NetworkImage(imageUrl),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: 90,
-            child: Text(
-              caption,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: theme.brightness == Brightness.dark
-                    ? theme.colorScheme.onSurface.withOpacity(0.8)
-                    : theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    Widget textOnlyAvatar(String text) {
-      final bg = theme.brightness == Brightness.dark
-          ? const Color(0xFF1F2937)
-          : const Color(0xFFE8E9EB);
-      final fg = theme.brightness == Brightness.dark
-          ? theme.colorScheme.onSurface
-          : const Color(0xFF111827);
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: bg,
-              border: Border.all(color: const Color(0xFFA78BFA), width: 2),
-            ),
-            alignment: Alignment.center,
-            padding: const EdgeInsets.all(8),
-            child: Text(
-              text,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 10,
-                color: fg,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: 90,
-            child: Text(
-              'Text',
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: theme.brightness == Brightness.dark
-                    ? theme.colorScheme.onSurface.withOpacity(0.8)
-                    : theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    Widget addHighlightButton() {
-      final accent = const Color(0xFFF27F0D);
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: accent, width: 2),
-            ),
-            child: IconButton(
-              icon: Icon(Icons.add, color: accent, size: 28),
-              onPressed: () => _showCreateHighlightSheet(),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Add',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: theme.brightness == Brightness.dark
-                  ? theme.colorScheme.onSurface.withOpacity(0.8)
-                  : theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (selectedClass == null || selectedClass!.isEmpty) {
+    // Check if instituteId is available
+    if (instituteId.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text('Classroom Highlights', style: titleStyle),
+            child: Text(
+              'Announcements',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: theme.textTheme.bodyLarge?.color,
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Select a class to view and post highlights.',
+              'Unable to load announcements. Please check your connection.',
               style: TextStyle(color: theme.textTheme.bodyMedium?.color),
             ),
           ),
@@ -660,68 +532,118 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section Title
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text('Classroom Highlights', style: titleStyle),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Text(
+            'Announcements',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+          ),
         ),
+
+        // Single Horizontal List (WhatsApp-style)
         SizedBox(
-          height: 110,
+          height: 100,
           child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: FirebaseFirestore.instance
                 .collection('class_highlights')
-                .where('className', isEqualTo: selectedClass)
+                .where('instituteId', isEqualTo: instituteId)
                 .snapshots(),
             builder: (context, snapshot) {
-              final docs = snapshot.data?.docs ?? [];
-              final now = DateTime.now();
-              // Filter by institute (client-side) and expiry, then sort by createdAt desc
-              final items =
-                  docs.where((d) {
-                    final data = d.data();
-                    final instituteOk =
-                        (data['instituteId'] as String?) == instituteId;
-                    final ts = (data['expiresAt'] as Timestamp?)?.toDate();
-                    final notExpired = ts == null || ts.isAfter(now);
-                    return instituteOk && notExpired;
-                  }).toList()..sort((a, b) {
-                    final ad = a.data();
-                    final bd = b.data();
-                    final at =
-                        (ad['createdAt'] as Timestamp?)?.toDate() ??
-                        DateTime.fromMillisecondsSinceEpoch(0);
-                    final bt =
-                        (bd['createdAt'] as Timestamp?)?.toDate() ??
-                        DateTime.fromMillisecondsSinceEpoch(0);
-                    return bt.compareTo(at);
-                  });
+              // Loading state
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: 5,
+                  itemBuilder: (_, __) => _buildShimmerCircle(theme),
+                  separatorBuilder: (_, __) => const SizedBox(width: 16),
+                );
+              }
 
+              // Error state
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Error loading announcements',
+                      style: TextStyle(
+                        color: theme.textTheme.bodyMedium?.color,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+
+              // Convert docs to StatusModel and filter valid ones
+              final allStatuses =
+                  docs
+                      .map((d) => StatusModel.fromFirestore(d))
+                      .where((s) => s.isValid && s.instituteId == instituteId)
+                      .toList()
+                    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+              // Segregate: My announcements vs Other Teachers
+              final myStatuses = allStatuses
+                  .where((s) => s.teacherId == currentUserId)
+                  .toList();
+
+              // Group other teachers' announcements by teacherId
+              final otherTeachersMap = <String, List<StatusModel>>{};
+              for (final status in allStatuses) {
+                if (status.teacherId != currentUserId) {
+                  otherTeachersMap
+                      .putIfAbsent(status.teacherId, () => [])
+                      .add(status);
+                }
+              }
+
+              // Sort each teacher's announcements by timestamp
+              otherTeachersMap.forEach((key, value) {
+                value.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+              });
+
+              // Create list of other teachers (sorted by latest post)
+              final otherTeachers = otherTeachersMap.entries.toList()
+                ..sort(
+                  (a, b) => b.value.first.createdAt.compareTo(
+                    a.value.first.createdAt,
+                  ),
+                );
+
+              // Build single horizontal list: My Announcement + Other Teachers
               return ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
+                itemCount: 1 + otherTeachers.length, // 1 for "My Announcement"
+                separatorBuilder: (_, __) => const SizedBox(width: 16),
                 itemBuilder: (context, index) {
-                  if (index == 0) return addHighlightButton();
-                  final data = items[index - 1].data();
-                  final img = (data['imageUrl'] as String?) ?? '';
-                  final text = (data['text'] as String?)?.trim() ?? '';
-                  final caption =
-                      (data['caption'] as String?)?.trim() ??
-                      (text.isNotEmpty ? text : 'Update');
-                  final clipped = caption.length > 22
-                      ? caption.substring(0, 22) + '…'
-                      : caption;
-                  if (img.isNotEmpty) {
-                    return GestureDetector(
-                      onTap: () => _openHighlightViewer(data),
-                      child: gradientRingAvatar(img, clipped),
+                  if (index == 0) {
+                    // My Announcement (always first)
+                    return _buildMyAnnouncementAvatar(
+                      theme,
+                      myStatuses,
+                      currentUser,
+                    );
+                  } else {
+                    // Other Teachers
+                    final teacherEntry = otherTeachers[index - 1];
+                    final statuses = teacherEntry.value;
+                    final latestStatus = statuses.first;
+                    return _buildOtherTeacherAvatar(
+                      theme,
+                      latestStatus,
+                      statuses,
                     );
                   }
-                  return GestureDetector(
-                    onTap: () => _openHighlightViewer(data),
-                    child: textOnlyAvatar(clipped),
-                  );
                 },
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
-                itemCount: (items.length) + 1,
               );
             },
           ),
@@ -730,106 +652,328 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
-  void _openHighlightViewer(Map<String, dynamic> data) {
-    final theme = Theme.of(context);
-    final img = (data['imageUrl'] as String?) ?? '';
-    final text = (data['text'] as String?) ?? '';
-    final author = (data['teacherName'] as String?) ?? 'Teacher';
-    final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
-    final expiresAt = (data['expiresAt'] as Timestamp?)?.toDate();
-    final timeLeft = expiresAt == null
-        ? ''
-        : _formatDuration(expiresAt.difference(DateTime.now()));
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: theme.dialogBackgroundColor,
-        insetPadding: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          width: double.infinity,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+  // My Announcement Avatar (First item in horizontal list)
+  Widget _buildMyAnnouncementAvatar(
+    ThemeData theme,
+    List<StatusModel> myStatuses,
+    dynamic currentUser,
+  ) {
+    final hasAnnouncement = myStatuses.isNotEmpty;
+    final latestStatus = hasAnnouncement ? myStatuses.first : null;
+
+    return GestureDetector(
+      onTap: () {
+        if (hasAnnouncement) {
+          _openStatusViewer(myStatuses, 0);
+        } else {
+          _showCreateHighlightSheet();
+        }
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    child: Text(author.isNotEmpty ? author[0] : 'T'),
+              // Main Avatar Circle
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: hasAnnouncement
+                      ? const LinearGradient(
+                          colors: [Color(0xFFA78BFA), Color(0xFF7B61FF)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  border: !hasAnnouncement
+                      ? Border.all(
+                          color:
+                              theme.textTheme.bodyMedium?.color ?? Colors.grey,
+                          width: 2,
+                        )
+                      : null,
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: hasAnnouncement
+                        ? (latestStatus!.hasImage
+                              ? Colors.transparent
+                              : const Color(0xFF7E57C2))
+                        : theme.cardColor,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          author,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        if (createdAt != null)
-                          Text(
-                            '${createdAt.toLocal()}' +
-                                (timeLeft.isNotEmpty
-                                    ? '  •  $timeLeft left'
-                                    : ''),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.textTheme.bodyMedium?.color,
+                  child: ClipOval(
+                    child: hasAnnouncement && latestStatus!.hasImage
+                        ? Image.network(
+                            latestStatus.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _buildDefaultAvatar(
+                              currentUser?.name ?? 'Teacher',
+                              theme,
                             ),
+                          )
+                        : _buildDefaultAvatar(
+                            currentUser?.name ?? 'Teacher',
+                            theme,
                           ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (img.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 4 / 5,
-                    child: Image.network(img, fit: BoxFit.cover),
                   ),
                 ),
-              if (text.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(text, style: const TextStyle(fontSize: 16)),
-              ],
+              ),
+
+              // Add (+) Icon Overlay
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: GestureDetector(
+                  onTap: _showCreateHighlightSheet,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF7E57C2), Color(0xFFB388FF)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      border: Border.all(
+                        color: theme.scaffoldBackgroundColor,
+                        width: 2.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF7E57C2).withOpacity(0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 18),
+                  ),
+                ),
+              ),
             ],
           ),
+          const SizedBox(height: 6),
+          // Label
+          SizedBox(
+            width: 70,
+            child: Text(
+              'My\nAnnouncement',
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: theme.textTheme.bodyMedium?.color,
+                height: 1.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar(String name, ThemeData theme) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'T',
+        style: TextStyle(
+          color: theme.brightness == Brightness.dark
+              ? Colors.white
+              : const Color(0xFF7E57C2),
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
         ),
       ),
     );
   }
 
-  String _formatDuration(Duration d) {
-    if (d.isNegative) return 'expired';
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    if (h > 0) return '${h}h ${m}m';
-    return '${m}m';
+  // Other Teacher Avatar (Subsequent items in horizontal list)
+  Widget _buildOtherTeacherAvatar(
+    ThemeData theme,
+    StatusModel latestStatus,
+    List<StatusModel> allStatuses,
+  ) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUserId = authProvider.currentUser?.uid ?? '';
+
+    // Check if any of this teacher's announcements are unviewed
+    final hasUnviewed = allStatuses.any(
+      (s) => !s.hasBeenViewedBy(currentUserId),
+    );
+
+    return GestureDetector(
+      onTap: () => _openStatusViewer(allStatuses, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Avatar with gradient border
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: hasUnviewed
+                  ? const LinearGradient(
+                      colors: [Color(0xFFF27F0D), Color(0xFFFF9F40)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : LinearGradient(
+                      colors: [
+                        Colors.grey.withOpacity(0.4),
+                        Colors.grey.withOpacity(0.3),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+              boxShadow: hasUnviewed
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFF27F0D).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: latestStatus.hasImage
+                    ? Colors.transparent
+                    : const Color(0xFF7E57C2),
+              ),
+              child: ClipOval(
+                child: latestStatus.hasImage
+                    ? ColorFiltered(
+                        colorFilter: hasUnviewed
+                            ? const ColorFilter.mode(
+                                Colors.transparent,
+                                BlendMode.multiply,
+                              )
+                            : ColorFilter.mode(
+                                Colors.grey.withOpacity(0.5),
+                                BlendMode.saturation,
+                              ),
+                        child: Image.network(
+                          latestStatus.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _buildTeacherInitial(latestStatus.teacherName),
+                        ),
+                      )
+                    : Opacity(
+                        opacity: hasUnviewed ? 1.0 : 0.5,
+                        child: _buildTeacherInitial(latestStatus.teacherName),
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Teacher Name
+          SizedBox(
+            width: 70,
+            child: Text(
+              latestStatus.teacherName.split(' ').first,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: hasUnviewed ? FontWeight.w600 : FontWeight.w500,
+                color: hasUnviewed
+                    ? theme.textTheme.bodyMedium?.color
+                    : theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeacherInitial(String teacherName) {
+    return Center(
+      child: Text(
+        teacherName.isNotEmpty ? teacherName[0].toUpperCase() : 'T',
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+        ),
+      ),
+    );
+  }
+
+  void _openStatusViewer(List<StatusModel> statuses, int initialIndex) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUserId = authProvider.currentUser?.uid;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StatusViewScreen(
+          statuses: statuses,
+          initialIndex: initialIndex,
+          currentUserId: currentUserId,
+          onStatusDeleted: () {
+            // Refresh is handled automatically by StreamBuilder
+            if (mounted) {
+              setState(() {});
+            }
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _showCreateHighlightSheet() async {
     final theme = Theme.of(context);
     final textController = TextEditingController();
-    XFile? pickedXFile;
     Uint8List? previewBytes;
     String? imageMime;
     bool posting = false;
 
+    // Audience selection state
+    String selectedAudience = 'school'; // 'school', 'standard', 'section'
+    Set<String> selectedStandards = {};
+    Set<String> selectedSections = {};
+    bool allStandards = false;
+    bool allSections = false;
+
+    // Available standards (all grades)
+    final availableStandards = ['6', '7', '8', '9', '10', '11', '12'];
+
+    // Teacher's assigned sections (extract from _classes or _teacherData)
+    final teacherSections = <String>[];
+
+    // Parse sections from teacher's classes into combined format e.g., "7A"
+    for (final className in _classes) {
+      final parts = className.split(' - ');
+      if (parts.length == 2) {
+        final standard = parts[0].replaceAll('Grade ', '').trim();
+        final section = parts[1].trim();
+        final combinedSection = '$standard$section';
+        if (!teacherSections.contains(combinedSection)) {
+          teacherSections.add(combinedSection);
+        }
+      }
+    }
+
+    // Sort sections for better display
+    teacherSections.sort();
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: theme.cardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
@@ -848,7 +992,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   if (p.endsWith('.jpg') || p.endsWith('.jpeg'))
                     mime = 'image/jpeg';
                   setSheetState(() {
-                    pickedXFile = x;
                     previewBytes = bytes;
                     imageMime = mime ?? 'image/jpeg';
                   });
@@ -856,124 +999,696 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               }
             }
 
+            Future<void> removeImage() async {
+              setSheetState(() {
+                previewBytes = null;
+                imageMime = null;
+              });
+            }
+
             Future<void> post() async {
               if (posting) return;
+
+              // Smart fallback: if no specific selection made, default to school-wide
+              String effectiveAudience = selectedAudience;
+              List<String> effectiveStandards = selectedStandards.toList();
+              List<String> effectiveSections = selectedSections.toList();
+              if (selectedAudience == 'standard' &&
+                  effectiveStandards.isEmpty) {
+                effectiveAudience = 'school';
+              }
+              if (selectedAudience == 'section' && effectiveSections.isEmpty) {
+                effectiveAudience = 'school';
+              }
+
               setSheetState(() => posting = true);
               try {
                 await _postHighlight(
                   text: textController.text.trim(),
                   imageBytes: previewBytes,
                   imageMime: imageMime,
+                  audienceType: effectiveAudience,
+                  standards: effectiveStandards,
+                  sections: effectiveSections,
                 );
                 if (mounted) Navigator.of(ctx).pop();
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Highlight posted for 24 hours.'),
-                    ),
+                  showSuccessSnackbar(
+                    context,
+                    'Announcement posted for 24 hours.',
+                    role: 'teacher',
                   );
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(
+                  showErrorSnackbar(
                     context,
-                  ).showSnackBar(SnackBar(content: Text('Failed to post: $e')));
+                    getFriendlyErrorMessage(e),
+                    role: 'teacher',
+                  );
                 }
               } finally {
                 if (mounted) setSheetState(() => posting = false);
               }
             }
 
-            final kbInsets = MediaQuery.of(ctx).viewInsets.bottom;
+            void selectAllStandards(bool value) {
+              setSheetState(() {
+                allStandards = value;
+                if (allStandards) {
+                  selectedStandards = availableStandards.toSet();
+                } else {
+                  selectedStandards.clear();
+                }
+              });
+            }
+
+            void selectAllSections(bool value) {
+              setSheetState(() {
+                allSections = value;
+                if (allSections) {
+                  selectedSections = teacherSections.toSet();
+                } else {
+                  selectedSections.clear();
+                }
+              });
+            }
+
+            final mq = MediaQuery.of(ctx);
+            final kbInsets = mq.viewInsets.bottom;
+            final maxHeight =
+                mq.size.height * 0.88; // cap to 88% of height for compactness
+
+            Color pillBg(bool active) => active
+                ? const Color(0xFF6C63FF)
+                : (theme.brightness == Brightness.dark
+                      ? Colors.white10
+                      : Colors.white);
+            Color pillFg(bool active) => active
+                ? Colors.white
+                : (theme.brightness == Brightness.dark
+                      ? Colors.white70
+                      : const Color(0xFF6C63FF));
+
             return Padding(
               padding: EdgeInsets.only(bottom: kbInsets),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.bolt, color: Color(0xFF6366F1)),
-                          const SizedBox(width: 8),
-                          Text(
-                            'New Classroom Highlight',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textTheme.bodyLarge?.color,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: textController,
-                        minLines: 1,
-                        maxLines: 5,
-                        decoration: InputDecoration(
-                          hintText:
-                              'Share a class achievement or note (optional)…',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: pickImage,
-                            icon: const Icon(Icons.image_outlined),
-                            label: const Text('Add Image'),
-                          ),
-                          const SizedBox(width: 12),
-                          if (previewBytes != null)
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.memory(
-                                  previewBytes!,
-                                  height: 80,
-                                  fit: BoxFit.cover,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxHeight),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6A5AE0), Color(0xFF8E7CFF)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Grab handle
+                            Center(
+                              child: Container(
+                                width: 40,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.6),
+                                  borderRadius: BorderRadius.circular(3),
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: posting ? null : post,
-                          icon: posting
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                            const SizedBox(height: 8),
+
+                            // Title
+                            Row(
+                              children: [
+                                const Icon(Icons.campaign, color: Colors.white),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'New Announcement',
+                                  style: TextStyle(
                                     color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
                                   ),
-                                )
-                              : const Icon(Icons.send),
-                          label: Text(posting ? 'Posting…' : 'Post (24h)'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF6366F1),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                                ),
+                                const Spacer(),
+                                if (posting)
+                                  const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ),
+                            const SizedBox(height: 10),
+
+                            // Text input on translucent card
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: TextField(
+                                controller: textController,
+                                minLines: 1,
+                                maxLines: 5,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: const InputDecoration(
+                                  hintText: 'Share something for 24 hours…',
+                                  hintStyle: TextStyle(color: Colors.white70),
+                                  border: InputBorder.none,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            // Segmented audience control
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              padding: const EdgeInsets.all(6),
+                              child: Row(
+                                children: [
+                                  for (final item in const [
+                                    {
+                                      'key': 'school',
+                                      'icon': Icons.public,
+                                      'label': 'School',
+                                    },
+                                    {
+                                      'key': 'standard',
+                                      'icon': Icons.grade,
+                                      'label': 'Standards',
+                                    },
+                                    {
+                                      'key': 'section',
+                                      'icon': Icons.group_work,
+                                      'label': 'Sections',
+                                    },
+                                  ])
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setSheetState(() {
+                                            final String itemKey =
+                                                item['key'] as String;
+                                            selectedAudience = itemKey;
+                                            // Clear opposing selections when switching
+                                            if (selectedAudience == 'school') {
+                                              selectedStandards.clear();
+                                              selectedSections.clear();
+                                              allStandards = false;
+                                              allSections = false;
+                                            } else if (selectedAudience ==
+                                                'standard') {
+                                              selectedSections.clear();
+                                              allSections = false;
+                                            } else if (selectedAudience ==
+                                                'section') {
+                                              selectedStandards.clear();
+                                              allStandards = false;
+                                            }
+                                          });
+                                        },
+                                        child: AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
+                                          curve: Curves.easeInOut,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 9,
+                                            horizontal: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: pillBg(
+                                              selectedAudience ==
+                                                  (item['key'] as String),
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            boxShadow:
+                                                selectedAudience ==
+                                                    (item['key'] as String)
+                                                ? [
+                                                    BoxShadow(
+                                                      color: Colors.black
+                                                          .withOpacity(0.15),
+                                                      blurRadius: 10,
+                                                      offset: const Offset(
+                                                        0,
+                                                        4,
+                                                      ),
+                                                    ),
+                                                  ]
+                                                : null,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                item['icon'] as IconData,
+                                                size: 16,
+                                                color: pillFg(
+                                                  selectedAudience ==
+                                                      (item['key'] as String),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 5),
+                                              Text(
+                                                item['label'] as String,
+                                                style: TextStyle(
+                                                  color: pillFg(
+                                                    selectedAudience ==
+                                                        (item['key'] as String),
+                                                  ),
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+
+                            // Animated standards/sections panels
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeInOut,
+                              child: Column(
+                                children: [
+                                  if (selectedAudience == 'standard') ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      width: double.infinity,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.white24,
+                                        ),
+                                      ),
+                                      padding: const EdgeInsets.all(10),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.grade,
+                                                size: 16,
+                                                color: Colors.white70,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              const Text(
+                                                'Select Standards',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              const Spacer(),
+                                              FilterChip(
+                                                label: Text(
+                                                  allStandards
+                                                      ? 'Unselect All'
+                                                      : 'Select All',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                selected: allStandards,
+                                                backgroundColor: Colors.white
+                                                    .withOpacity(0.1),
+                                                selectedColor: const Color(
+                                                  0xFF6C63FF,
+                                                ),
+                                                onSelected: (v) =>
+                                                    selectAllStandards(
+                                                      !allStandards,
+                                                    ),
+                                                checkmarkColor: Colors.white,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: [
+                                              for (final std
+                                                  in availableStandards)
+                                                FilterChip(
+                                                  label: Text(
+                                                    'Grade $std',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                  selected: selectedStandards
+                                                      .contains(std),
+                                                  backgroundColor: Colors.white
+                                                      .withOpacity(0.08),
+                                                  selectedColor: const Color(
+                                                    0xFF6C63FF,
+                                                  ),
+                                                  checkmarkColor: Colors.white,
+                                                  onSelected: (sel) {
+                                                    setSheetState(() {
+                                                      if (sel) {
+                                                        selectedStandards.add(
+                                                          std,
+                                                        );
+                                                      } else {
+                                                        selectedStandards
+                                                            .remove(std);
+                                                      }
+                                                      allStandards =
+                                                          selectedStandards
+                                                              .length ==
+                                                          availableStandards
+                                                              .length;
+                                                    });
+                                                  },
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  if (selectedAudience == 'section') ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      width: double.infinity,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.white24,
+                                        ),
+                                      ),
+                                      padding: const EdgeInsets.all(10),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.group_work,
+                                                size: 16,
+                                                color: Colors.white70,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              const Text(
+                                                'Your Sections',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              const Spacer(),
+                                              if (teacherSections.isNotEmpty)
+                                                FilterChip(
+                                                  label: Text(
+                                                    allSections
+                                                        ? 'Unselect All'
+                                                        : 'Select All',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                  selected: allSections,
+                                                  backgroundColor: Colors.white
+                                                      .withOpacity(0.1),
+                                                  selectedColor: const Color(
+                                                    0xFF6C63FF,
+                                                  ),
+                                                  onSelected: (v) =>
+                                                      selectAllSections(
+                                                        !allSections,
+                                                      ),
+                                                  checkmarkColor: Colors.white,
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          if (teacherSections.isEmpty)
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(
+                                                  0.06,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: Colors.white24,
+                                                ),
+                                              ),
+                                              child: const Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.info_outline,
+                                                    color: Colors.amberAccent,
+                                                    size: 16,
+                                                  ),
+                                                  SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      'No assigned sections found. Please contact admin to assign classes.',
+                                                      style: TextStyle(
+                                                        color: Colors.white70,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+                                          else
+                                            Wrap(
+                                              spacing: 6,
+                                              runSpacing: 6,
+                                              children: [
+                                                for (final sec
+                                                    in teacherSections)
+                                                  FilterChip(
+                                                    label: Text(
+                                                      sec,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                    selected: selectedSections
+                                                        .contains(sec),
+                                                    backgroundColor: Colors
+                                                        .white
+                                                        .withOpacity(0.08),
+                                                    selectedColor: const Color(
+                                                      0xFF6C63FF,
+                                                    ),
+                                                    checkmarkColor:
+                                                        Colors.white,
+                                                    onSelected: (sel) {
+                                                      setSheetState(() {
+                                                        if (sel) {
+                                                          selectedSections.add(
+                                                            sec,
+                                                          );
+                                                        } else {
+                                                          selectedSections
+                                                              .remove(sec);
+                                                        }
+                                                        allSections =
+                                                            selectedSections
+                                                                .length ==
+                                                            teacherSections
+                                                                .length;
+                                                      });
+                                                    },
+                                                  ),
+                                              ],
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            // Media row
+                            Row(
+                              children: [
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: const BorderSide(
+                                      color: Colors.white54,
+                                    ),
+                                  ),
+                                  onPressed: pickImage,
+                                  icon: const Icon(Icons.image_outlined),
+                                  label: const Text('Add Image'),
+                                ),
+                                const SizedBox(width: 12),
+                                if (previewBytes != null)
+                                  Expanded(
+                                    child: Stack(
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          child: Image.memory(
+                                            previewBytes!,
+                                            height: 72,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                        Positioned(
+                                          right: 6,
+                                          top: 6,
+                                          child: GestureDetector(
+                                            onTap: removeImage,
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.black54,
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                              padding: const EdgeInsets.all(4),
+                                              child: const Icon(
+                                                Icons.close,
+                                                size: 14,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // Post button with gradient
+                            SizedBox(
+                              width: double.infinity,
+                              child: GestureDetector(
+                                onTapDown: (_) => setSheetState(() {}),
+                                onTapUp: (_) => setSheetState(() {}),
+                                onTapCancel: () => setSheetState(() {}),
+                                onTap: posting ? null : post,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 120),
+                                  curve: Curves.easeOut,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFFFF8A3D),
+                                        Color(0xFFFFB86C),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(14),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFFFF8A3D,
+                                        ).withOpacity(0.35),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      if (posting) ...[
+                                        const SizedBox(
+                                          height: 16,
+                                          width: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation(
+                                              Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Posting…',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ] else ...[
+                                        const Text(
+                                          '🚀 Post (24h)',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -988,6 +1703,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     String? text,
     Uint8List? imageBytes,
     String? imageMime,
+    required String audienceType,
+    required List<String> standards,
+    required List<String> sections,
   }) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
@@ -995,8 +1713,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     if ((text == null || text.isEmpty) && imageBytes == null) {
       throw 'Add text or image to post.';
     }
-    if (selectedClass == null || selectedClass!.isEmpty) {
-      throw 'Select a class first.';
+
+    // Validate audience selection
+    if (audienceType == 'standard' && standards.isEmpty) {
+      throw 'Please select at least one standard.';
+    }
+    if (audienceType == 'section' && sections.isEmpty) {
+      throw 'Please select at least one section.';
     }
 
     String? imageUrl;
@@ -1012,7 +1735,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           contentType: imageMime ?? 'image/jpeg',
           customMetadata: {
             'teacherId': currentUser.uid,
-            'className': selectedClass ?? '',
+            'className': selectedClass ?? 'School-wide',
             'instituteId':
                 currentUser.instituteId ?? _teacherData?['schoolCode'] ?? '',
           },
@@ -1028,21 +1751,38 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
     final now = DateTime.now();
     final expiresAt = now.add(const Duration(hours: 24));
+    final instituteId =
+        currentUser.instituteId ?? _teacherData?['schoolCode'] ?? '';
+
     final data = <String, dynamic>{
       'teacherId': currentUser.uid,
       'teacherName':
           _teacherData?['teacherName'] ?? currentUser.name ?? 'Teacher',
       'teacherEmail': currentUser.email,
-      'instituteId':
-          currentUser.instituteId ?? _teacherData?['schoolCode'] ?? '',
-      'className': selectedClass,
+      'instituteId': instituteId,
+      'className': selectedClass ?? 'School-wide',
       'text': text ?? '',
       'imageUrl': imageUrl ?? '',
       'createdAt': FieldValue.serverTimestamp(),
       // also store client timestamps for queries without server latency
       'createdAtClient': Timestamp.fromDate(now),
       'expiresAt': Timestamp.fromDate(expiresAt),
+      // Audience targeting
+      'audienceType': audienceType,
+      'standards': standards,
+      'sections': sections,
+      // Viewing tracking
+      'viewedBy': [], // Initialize empty array
     };
+
+    // Debug: Print what's being saved
+    print('📢 TEACHER DEBUG: Posting announcement with:');
+    print('   instituteId: "$instituteId"');
+    print('   audienceType: "$audienceType"');
+    print('   standards: $standards');
+    print('   sections: $sections');
+    print('   text: "${text ?? ''}"');
+
     await FirebaseFirestore.instance.collection('class_highlights').add(data);
   }
 
@@ -1294,6 +2034,36 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Widget _buildBottomNavigationBar() {
     return const TeacherBottomNav(selectedIndex: 0);
+  }
+
+  /// Shimmer loading placeholder for highlights
+  Widget _buildShimmerCircle(ThemeData theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: theme.brightness == Brightness.dark
+                ? Colors.grey[800]
+                : Colors.grey[300],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: 60,
+          height: 12,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            color: theme.brightness == Brightness.dark
+                ? Colors.grey[800]
+                : Colors.grey[300],
+          ),
+        ),
+      ],
+    );
   }
 
   // _buildNavItem removed in favor of shared TeacherBottomNav

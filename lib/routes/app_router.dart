@@ -12,6 +12,7 @@ import '../screens/teacher/tests_screen.dart';
 import '../screens/teacher/test_result_screen.dart';
 import '../screens/teacher/leaderboard_screen.dart';
 import '../screens/teacher/profile_screen.dart';
+import '../screens/teacher/my_highlights_screen.dart';
 import '../screens/student/student_login_screen.dart';
 import '../screens/student/student_dashboard_screen.dart';
 import '../screens/dev/dev_tools_screen.dart';
@@ -131,6 +132,9 @@ class AppRouter {
 
       case '/profile':
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
+
+      case '/my-highlights':
+        return MaterialPageRoute(builder: (_) => const MyHighlightsScreen());
 
       case '/dev-tools':
         return MaterialPageRoute(builder: (_) => const DevToolsScreen());

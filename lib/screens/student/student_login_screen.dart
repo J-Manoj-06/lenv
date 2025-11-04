@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../services/school_service.dart';
 import '../../models/school_model.dart';
 import '../../utils/session_manager.dart';
+import '../../utils/feedback_handler.dart';
 
 class StudentLoginScreen extends StatefulWidget {
   const StudentLoginScreen({Key? key}) : super(key: key);
@@ -129,27 +130,12 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         }
       } else {
         String errorMsg = authProvider.errorMessage ?? 'Login failed';
-
-        // Provide user-friendly error messages
-        if (errorMsg.contains('network')) {
-          errorMsg =
-              'Network error. Please check your internet connection and try again.';
-        } else if (errorMsg.contains('user-not-found') ||
-            errorMsg.contains('wrong-password')) {
-          errorMsg = 'Invalid email or password';
-        } else if (errorMsg.contains('too-many-requests')) {
-          errorMsg = 'Too many failed attempts. Please try again later.';
-        }
-
+        // Normalize to friendly message
+        errorMsg = getFriendlyErrorMessage(errorMsg);
         _showErrorSnackBar(errorMsg);
       }
     } catch (e) {
-      String errorMsg = 'Login failed: ${e.toString()}';
-
-      if (errorMsg.contains('network')) {
-        errorMsg = 'Network error. Please check your internet connection.';
-      }
-
+      final errorMsg = getFriendlyErrorMessage(e);
       _showErrorSnackBar(errorMsg);
     } finally {
       if (mounted) {
@@ -159,14 +145,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade600,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    // Use the universal, role-themed snackbar
+    showErrorSnackbar(context, message, role: 'student');
   }
 
   void _handleForgotPassword() async {
@@ -182,15 +162,10 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
 
     if (success) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Password reset email sent! Check your inbox.'),
-            backgroundColor: Colors.green.shade600,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+        showSuccessSnackbar(
+          context,
+          'Password reset email sent! Check your inbox.',
+          role: 'student',
         );
       }
     } else {

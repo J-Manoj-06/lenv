@@ -12,7 +12,6 @@ class ClassesScreen extends StatefulWidget {
 }
 
 class _ClassesScreenState extends State<ClassesScreen> {
-  bool isGridView = true;
   int selectedNavIndex = 1; // Classes is selected
 
   final TeacherService _teacherService = TeacherService();
@@ -182,7 +181,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
           : Column(
               children: [
                 _buildHeader(),
-                _buildViewToggle(),
                 Expanded(child: _buildClassesList()),
               ],
             ),
@@ -241,124 +239,10 @@ class _ClassesScreenState extends State<ClassesScreen> {
     );
   }
 
-  Widget _buildViewToggle() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.grey[800]
-              : Colors.grey[200],
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.all(4),
-        child: Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  setState(() {
-                    isGridView = true;
-                  });
-                },
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isGridView
-                        ? Theme.of(context).cardColor
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: isGridView
-                        ? [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Icon(
-                    Icons.grid_view,
-                    color: isGridView
-                        ? Theme.of(context).iconTheme.color
-                        : Theme.of(context).iconTheme.color?.withOpacity(0.5),
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  setState(() {
-                    isGridView = false;
-                  });
-                },
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: !isGridView
-                        ? Theme.of(context).cardColor
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: !isGridView
-                        ? [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Icon(
-                    Icons.view_list,
-                    color: !isGridView
-                        ? Theme.of(context).iconTheme.color
-                        : Theme.of(context).iconTheme.color?.withOpacity(0.5),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildClassesList() {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-      child: isGridView ? _buildGridView() : _buildListView(),
-    );
-  }
-
-  Widget _buildGridView() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        int crossAxisCount = 1;
-        if (constraints.maxWidth > 1024) {
-          crossAxisCount = 3;
-        } else if (constraints.maxWidth > 768) {
-          crossAxisCount = 2;
-        }
-
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 0.85,
-          ),
-          itemCount: _classes.length,
-          itemBuilder: (context, index) {
-            return _buildClassCard(_classes[index]);
-          },
-        );
-      },
+      child: _buildListView(),
     );
   }
 
@@ -370,134 +254,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
           child: _buildClassListItem(classItem),
         );
       }).toList(),
-    );
-  }
-
-  Widget _buildClassCard(ClassItem classItem) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Gradient header with section letter
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Container(
-              height: 120,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: _getSectionColors(classItem.section),
-                ),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Section ${classItem.section}',
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Grade ${classItem.grade}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // Content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    classItem.name,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.group,
-                        size: 16,
-                        color: Theme.of(
-                          context,
-                        ).iconTheme.color?.withOpacity(0.6),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${classItem.studentCount} Students',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context).textTheme.bodyMedium?.color,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  const SizedBox(height: 12),
-                  // Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _enterClass(classItem);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(
-                          0xFF6366F1,
-                        ), // Indigo color
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Enter Class',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

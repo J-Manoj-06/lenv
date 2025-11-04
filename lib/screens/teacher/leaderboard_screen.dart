@@ -76,10 +76,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         classAssignments: teacherData['classAssignments'],
       );
 
-      // Sort students by rewardPoints (descending)
+      // Sort students by points (descending)
       allStudents.sort((a, b) {
-        final aPoints = a['rewardPoints'] ?? a['totalPoints'] ?? 0;
-        final bPoints = b['rewardPoints'] ?? b['totalPoints'] ?? 0;
+        final aPoints = _getStudentPoints(a);
+        final bPoints = _getStudentPoints(b);
         return bPoints.compareTo(aPoints);
       });
 
@@ -119,6 +119,31 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
       return studentGrade == selectedGrade && studentSection == selectedSection;
     }).toList();
+  }
+
+  // Helper method to get student points
+  int _getStudentPoints(Map<String, dynamic> student) {
+    return student['rewardPoints'] ?? 
+           student['totalPoints'] ?? 
+           student['points'] ?? 
+           0;
+  }
+
+  // Helper method to format grade and section
+  String _formatGradeSection(Map<String, dynamic> student) {
+    final className = student['className']?.toString() ?? '';
+    final section = student['section']?.toString() ?? '';
+    
+    final grade = className
+        .replaceAll('Grade ', '')
+        .replaceAll('grade ', '')
+        .trim();
+    
+    if (grade.isEmpty || section.isEmpty) {
+      return className.isNotEmpty ? className : 'Unknown';
+    }
+    
+    return 'Grade $grade - $section';
   }
 
   @override
@@ -264,8 +289,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                         topStudents[1]['name'] ??
                         'Student',
                   ),
-                  points:
-                      '${topStudents[1]['rewardPoints'] ?? topStudents[1]['totalPoints'] ?? 0} pts',
+                  gradeSection: _formatGradeSection(topStudents[1]),
+                  points: _getStudentPoints(topStudents[1]),
                   borderColor: const Color(0xFFC0C0C0), // Silver
                   badgeColor: const Color(0xFFC0C0C0),
                   size: 80,
@@ -281,8 +306,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       topStudents[0]['name'] ??
                       'Student',
                 ),
-                points:
-                    '${topStudents[0]['rewardPoints'] ?? topStudents[0]['totalPoints'] ?? 0} pts',
+                gradeSection: _formatGradeSection(topStudents[0]),
+                points: _getStudentPoints(topStudents[0]),
                 borderColor: const Color(0xFFFFD700), // Gold
                 badgeColor: const Color(0xFFFFD700),
                 size: 96,
@@ -297,8 +322,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                         topStudents[2]['name'] ??
                         'Student',
                   ),
-                  points:
-                      '${topStudents[2]['rewardPoints'] ?? topStudents[2]['totalPoints'] ?? 0} pts',
+                  gradeSection: _formatGradeSection(topStudents[2]),
+                  points: _getStudentPoints(topStudents[2]),
                   borderColor: const Color(0xFFCD7F32), // Bronze
                   badgeColor: const Color(0xFFCD7F32),
                   size: 80,
@@ -322,7 +347,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   Widget _buildTopPerformer({
     required int rank,
     required String name,
-    required String points,
+    required String gradeSection,
+    required int points,
     required Color borderColor,
     required Color badgeColor,
     required double size,
@@ -387,14 +413,26 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               fontWeight: FontWeight.w600,
               color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            gradeSection,
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+            ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 4),
           Text(
-            points,
+            '$points pts',
             style: TextStyle(
               fontSize: 12,
+              fontWeight: FontWeight.w600,
               color: Theme.of(context).textTheme.bodyMedium?.color,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -403,26 +441,29 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Widget _buildFilters() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Select Class',
             style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).textTheme.bodyMedium?.color,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
-          const SizedBox(height: 4),
+            const SizedBox(height: 8),
           Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Theme.of(context).dividerColor),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor,
+                  width: 1.5,
+                ),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
@@ -430,16 +471,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 isExpanded: true,
                 icon: Icon(
                   Icons.expand_more,
-                  color: Theme.of(context).iconTheme.color?.withOpacity(0.6),
+                    color: Theme.of(context).iconTheme.color?.withOpacity(0.7),
                 ),
                 style: TextStyle(
-                  fontSize: 14,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
                 items: _classes.map((className) {
                   return DropdownMenuItem<String>(
                     value: className,
-                    child: Text(className),
+                      child: Text(
+                        className == 'All Classes' ? className : 'Grade $className',
+                      ),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -487,9 +531,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               student['studentName'] ??
               student['name'] ??
               'Student ${index + 1}';
-          final points = student['rewardPoints'] ?? student['totalPoints'] ?? 0;
-          final className =
-              student['className'] ?? student['class'] ?? 'Unknown';
+          final points = _getStudentPoints(student);
+          final gradeSection = _formatGradeSection(student);
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -551,14 +594,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                             color: Theme.of(context).textTheme.bodyLarge?.color,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(
-                          className,
+                          gradeSection,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             color: Theme.of(
                               context,
-                            ).textTheme.bodyMedium?.color,
+                            ).textTheme.bodyMedium?.color?.withOpacity(0.8),
                           ),
                         ),
                       ],
@@ -567,7 +610,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   Text(
                     '$points pts',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),

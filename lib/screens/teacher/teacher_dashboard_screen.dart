@@ -329,7 +329,7 @@ class TeacherDashboardScreen extends StatelessWidget {
                         Navigator.pushNamed(context, '/ai-test-generator');
                       },
                       icon: const Icon(Icons.auto_awesome, size: 20),
-                      label: const Text('Generate via DeepSeek'),
+                      label: const Text('Generate with AI'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF6366F1),
                         side: const BorderSide(color: Color(0xFF6366F1)),

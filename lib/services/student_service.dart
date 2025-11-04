@@ -65,6 +65,8 @@ class StudentService {
                   as String,
           photoUrl: null,
           schoolId: null,
+          schoolCode:
+              studentRefData['schoolCode'] as String?, // FIXED: Read schoolCode
           schoolName: resolvedSchoolName,
           className: studentRefData['className'] as String?,
           phone: studentRefData['contactNumber'] as String?,
@@ -131,6 +133,20 @@ class StudentService {
           ? base.className
           : (studentRefData?['className'] as String?);
 
+      // Resolve schoolCode from students collection
+      String? resolvedSchoolCode = base.schoolCode;
+      if ((resolvedSchoolCode == null || resolvedSchoolCode.isEmpty) &&
+          studentRefData != null) {
+        resolvedSchoolCode = studentRefData['schoolCode'] as String?;
+        print(
+          '📌 StudentService: Enriching schoolCode from students collection: "$resolvedSchoolCode"',
+        );
+      } else {
+        print(
+          '📌 StudentService: Using existing schoolCode from base: "$resolvedSchoolCode"',
+        );
+      }
+
       // Resolve school name via schoolCode -> schools collection lookup
       String? resolvedSchoolName = base.schoolName;
       if ((resolvedSchoolName == null || resolvedSchoolName.isEmpty) &&
@@ -175,6 +191,11 @@ class StudentService {
           resolvedClassName != base.className) {
         updates['className'] = resolvedClassName;
       }
+      if (resolvedSchoolCode != null &&
+          resolvedSchoolCode.isNotEmpty &&
+          resolvedSchoolCode != base.schoolCode) {
+        updates['schoolCode'] = resolvedSchoolCode;
+      }
       if (resolvedSchoolName != null &&
           resolvedSchoolName.isNotEmpty &&
           resolvedSchoolName != base.schoolName) {
@@ -182,11 +203,16 @@ class StudentService {
       }
 
       if (updates.isNotEmpty) {
+        print('📌 StudentService: Updating users/${user.uid} with: $updates');
         try {
           await _firestore.collection('users').doc(user.uid).update(updates);
-        } catch (_) {
+          print('✅ StudentService: Successfully updated users collection');
+        } catch (e) {
+          print('❌ StudentService: Failed to update users collection: $e');
           // ignore; UI will still use resolved values even if persist fails
         }
+      } else {
+        print('📌 StudentService: No updates needed for users/${user.uid}');
       }
 
       // Return enriched model for UI
@@ -195,6 +221,7 @@ class StudentService {
         phone: resolvedPhone,
         parentPhone: resolvedParentPhone,
         className: resolvedClassName,
+        schoolCode: resolvedSchoolCode, // FIXED: Include schoolCode
         schoolName: resolvedSchoolName,
       );
     } catch (e) {
