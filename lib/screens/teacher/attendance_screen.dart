@@ -1,0 +1,916 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/teacher_service.dart';
+import '../../services/messaging_service.dart';
+import 'package:intl/intl.dart';
+
+enum AttendanceStatus { present, absent }
+
+class AttendanceScreen extends StatefulWidget {
+  const AttendanceScreen({Key? key}) : super(key: key);
+
+  @override
+  State<AttendanceScreen> createState() => _AttendanceScreenState();
+}
+
+class _AttendanceScreenState extends State<AttendanceScreen> {
+  final TeacherService _teacherService = TeacherService();
+  DateTime _selectedDate = DateTime.now();
+  String? _selectedStandard;
+  String? _selectedSection;
+  List<String> _standards = [];
+  List<String> _sections = [];
+  List<Map<String, dynamic>> _students = [];
+  Map<String, AttendanceStatus> _attendanceMap = {};
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _isSubmitted = false;
+  bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTeacherData();
+  }
+
+  Future<void> _loadTeacherData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      if (currentUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final teacherData = await _teacherService.getTeacherByEmail(
+        currentUser.email,
+      );
+
+      if (teacherData == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Extract standards and sections
+      final classes = _teacherService.getTeacherClasses(
+        teacherData['classesHandled'],
+        teacherData['sections'] ?? teacherData['section'],
+        classAssignments: teacherData['classAssignments'],
+      );
+
+      final standardsSet = <String>{};
+      final sectionsSet = <String>{};
+
+      for (var className in classes) {
+        final parts = className.split(' - ');
+        if (parts.length == 2) {
+          standardsSet.add(parts[0].trim());
+          sectionsSet.add(parts[1].trim());
+        }
+      }
+
+      setState(() {
+        _standards = standardsSet.toList()..sort();
+        _sections = sectionsSet.toList()..sort();
+        _selectedStandard = _standards.isNotEmpty ? _standards[0] : null;
+        _selectedSection = _sections.isNotEmpty ? _sections[0] : null;
+        _isLoading = false;
+        _isEditing = false;
+      });
+
+      if (_selectedStandard != null && _selectedSection != null) {
+        await _loadStudents();
+      }
+    } catch (e) {
+      print('Error loading teacher data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadStudents() async {
+    if (_selectedStandard == null || _selectedSection == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final schoolCode = currentUser?.instituteId ?? '';
+
+      if (schoolCode.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      print(
+        'Loading students for school: $schoolCode, standard: $_selectedStandard, section: $_selectedSection',
+      );
+
+      // Fetch students from 'students' collection (matches TeacherService)
+      final snapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('className', isEqualTo: 'Grade $_selectedStandard')
+          .where('section', isEqualTo: _selectedSection)
+          .get();
+
+      print('Found ${snapshot.docs.length} students');
+      if (snapshot.docs.isNotEmpty) {
+        print('Sample student data: ${snapshot.docs.first.data()}');
+      } else {
+        print('No students found. Query params:');
+        print('  schoolCode: $schoolCode');
+        print('  className: Grade $_selectedStandard');
+        print('  section: $_selectedSection');
+        print("  collection: 'students'");
+      }
+
+      final students = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['studentName'] ?? data['name'] ?? 'Unknown',
+          'rollNo': data['rollNo'] ?? data['studentId'] ?? '—',
+          ...data,
+        };
+      }).toList();
+
+      // Sort by roll number or name
+      students.sort((a, b) {
+        final rollA = a['rollNo'].toString();
+        final rollB = b['rollNo'].toString();
+        return rollA.compareTo(rollB);
+      });
+
+      // Initialize attendance map with default "present" for all
+      final attendanceMap = <String, AttendanceStatus>{};
+      for (var student in students) {
+        attendanceMap[student['id']] = AttendanceStatus.present;
+      }
+
+      setState(() {
+        _students = students;
+        _attendanceMap = attendanceMap;
+        _isLoading = false;
+        _isSubmitted = false; // reset lock before checking existing
+        _isEditing = false;
+      });
+
+      // After loading students, hydrate any existing attendance and lock if already submitted
+      await _fetchExistingAttendance();
+    } catch (e) {
+      print('Error loading students: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchExistingAttendance() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final schoolCode = currentUser?.instituteId ?? '';
+      if (schoolCode.isEmpty ||
+          _selectedStandard == null ||
+          _selectedSection == null) {
+        return;
+      }
+
+      final dateKey = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final docId =
+          '${schoolCode}_${dateKey}_${_selectedStandard}_${_selectedSection}';
+
+      // Check if attendance document exists
+      final docSnap = await FirebaseFirestore.instance
+          .collection('attendance')
+          .doc(docId)
+          .get();
+
+      if (!docSnap.exists) {
+        setState(() {
+          _isSubmitted = false;
+          _isEditing = false;
+        });
+        return;
+      }
+
+      // Prefill statuses from the students map in the document
+      final data = docSnap.data();
+      final studentsData = data?['students'] as Map<String, dynamic>?;
+
+      if (studentsData != null) {
+        for (final entry in studentsData.entries) {
+          final studentId = entry.key;
+          final studentInfo = entry.value as Map<String, dynamic>;
+          final status = studentInfo['status']?.toString() ?? 'present';
+
+          final mapped = switch (status) {
+            'present' => AttendanceStatus.present,
+            'absent' => AttendanceStatus.absent,
+            _ => AttendanceStatus.present,
+          };
+          _attendanceMap[studentId] = mapped;
+        }
+
+        // Lock if attendance exists
+        setState(() {
+          _isSubmitted = true;
+          _isEditing = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching existing attendance: $e');
+    }
+  }
+
+  Future<void> _saveAttendance() async {
+    if (_isSubmitted) return;
+    setState(() => _isSaving = true);
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final teacherId = authProvider.currentUser?.uid;
+      final schoolCode = authProvider.currentUser?.instituteId ?? '';
+
+      if (teacherId == null || schoolCode.isEmpty) {
+        throw Exception('Missing teacher or school information');
+      }
+
+      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final docId =
+          '${schoolCode}_${dateStr}_${_selectedStandard}_${_selectedSection}';
+
+      // Build students map
+      final studentsMap = <String, Map<String, dynamic>>{};
+      for (final student in _students) {
+        final studentId = student['id'] as String;
+        final status = _attendanceMap[studentId]?.name ?? 'present';
+
+        studentsMap[studentId] = {
+          'name': student['name'] ?? '',
+          'rollNo': student['rollNo'] ?? '',
+          'status': status,
+        };
+      }
+
+      // Save as a single document
+      await FirebaseFirestore.instance.collection('attendance').doc(docId).set({
+        'schoolCode': schoolCode,
+        'standard': _selectedStandard,
+        'section': _selectedSection,
+        'date': dateStr,
+        'teacherId': teacherId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'students': studentsMap,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Attendance Saved Successfully ✅'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {
+          _isSubmitted = true;
+          _isSaving = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  void _showDatePicker() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now(),
+    );
+
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+        _isEditing = false;
+      });
+      // Refresh existing attendance state for the new date
+      await _fetchExistingAttendance();
+    }
+  }
+
+  void _showStandardPicker() async {
+    if (_standards.isEmpty) return;
+
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Select Standard'),
+        children: _standards.map((std) {
+          return SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, std),
+            child: Text(std),
+          );
+        }).toList(),
+      ),
+    );
+
+    if (selected != null && selected != _selectedStandard) {
+      setState(() {
+        _selectedStandard = selected;
+        _isEditing = false;
+      });
+      await _loadStudents();
+    }
+  }
+
+  void _showSectionPicker() async {
+    if (_sections.isEmpty) return;
+
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Select Section'),
+        children: _sections.map((sec) {
+          return SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, sec),
+            child: Text(sec),
+          );
+        }).toList(),
+      ),
+    );
+
+    if (selected != null && selected != _selectedSection) {
+      setState(() {
+        _selectedSection = selected;
+        _isEditing = false;
+      });
+      await _loadStudents();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF7A5CFF), Color(0xFF9D8BFF)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildAppBar(),
+              _buildDateSelector(),
+              _buildFilters(),
+              Expanded(child: _buildStudentList()),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: _buildSaveButton(),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          const Expanded(
+            child: Text(
+              'Attendance',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateSelector() {
+    // Always display formatted date as dd MMM yyyy
+    final dateStr = DateFormat('dd MMM yyyy').format(_selectedDate);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: InkWell(
+        onTap: _showDatePicker,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.calendar_month, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(
+                    dateStr,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const Icon(Icons.expand_more, color: Colors.white),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          _buildFilterButton(
+            label: _selectedStandard ?? 'Standard',
+            onTap: _showStandardPicker,
+            isSelected: _selectedStandard != null,
+          ),
+          const SizedBox(width: 12),
+          _buildFilterButton(
+            label: _selectedSection ?? 'Section',
+            onTap: _showSectionPicker,
+            isSelected: _selectedSection != null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterButton({
+    required String label,
+    required VoidCallback onTap,
+    required bool isSelected,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.white.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? const Color(0xFF7A5CFF) : Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.expand_more,
+              size: 18,
+              color: isSelected ? const Color(0xFF7A5CFF) : Colors.white,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudentList() {
+    if (_isLoading) {
+      return Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF6F5F8),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: Color(0xFF7A5CFF)),
+        ),
+      );
+    }
+
+    if (_students.isEmpty) {
+      return Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF6F5F8),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: const Center(
+          child: Text(
+            'No students found',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF6F5F8),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: _students.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final student = _students[index];
+          return _buildStudentCard(student);
+        },
+      ),
+    );
+  }
+
+  Widget _buildStudentCard(Map<String, dynamic> student) {
+    final studentId = student['id'];
+    final status = _attendanceMap[studentId] ?? AttendanceStatus.present;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${student['name']} — Roll No. ${student['rollNo']}',
+                      style: const TextStyle(
+                        color: Color(0xFF0F0C1D),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Message',
+                onPressed: () => _openChat(student),
+                icon: const Icon(Icons.chat_bubble_outline),
+                color: const Color(0xFF7A5CFF),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatusButton(
+                  label: 'Present',
+                  isSelected: status == AttendanceStatus.present,
+                  color: Colors.green,
+                  onTap: (_isSubmitted && !_isEditing) || _isSaving
+                      ? null
+                      : () {
+                          setState(() {
+                            _attendanceMap[studentId] =
+                                AttendanceStatus.present;
+                          });
+                        },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatusButton(
+                  label: 'Absent',
+                  isSelected: status == AttendanceStatus.absent,
+                  color: Colors.red,
+                  onTap: (_isSubmitted && !_isEditing) || _isSaving
+                      ? null
+                      : () {
+                          setState(() {
+                            _attendanceMap[studentId] = AttendanceStatus.absent;
+                          });
+                        },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusButton({
+    required String label,
+    required bool isSelected,
+    required Color color,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 36,
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F5F8),
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        children: [
+          // Show Cancel button in edit mode
+          if (_isSubmitted && _isEditing)
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isSaving
+                    ? null
+                    : () {
+                        setState(() {
+                          _isEditing = false;
+                        });
+                      },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(color: Colors.grey.shade400),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: Color(0xFF0F0C1D),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          if (_isSubmitted && _isEditing) const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                if (_isSaving) return;
+                if (_isSubmitted) {
+                  if (_isEditing) {
+                    _updateAttendance();
+                  } else {
+                    setState(() => _isEditing = true);
+                  }
+                } else {
+                  _saveAttendance();
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Ink(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF7A5CFF), Color(0xFF9D8BFF)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Container(
+                  height: 48,
+                  alignment: Alignment.center,
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          _isSubmitted
+                              ? (_isEditing
+                                    ? 'Save Changes'
+                                    : 'Edit Attendance')
+                              : 'Save Attendance',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateAttendance() async {
+    setState(() => _isSaving = true);
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final teacherId = authProvider.currentUser?.uid;
+      final schoolCode = authProvider.currentUser?.instituteId ?? '';
+
+      if (teacherId == null || schoolCode.isEmpty) {
+        throw Exception('Missing teacher or school information');
+      }
+
+      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final docId =
+          '${schoolCode}_${dateStr}_${_selectedStandard}_${_selectedSection}';
+
+      // Build updated students map
+      final studentsMap = <String, Map<String, dynamic>>{};
+      for (final student in _students) {
+        final studentId = student['id'] as String;
+        final status = _attendanceMap[studentId]?.name ?? 'present';
+
+        studentsMap[studentId] = {
+          'name': student['name'] ?? '',
+          'rollNo': student['rollNo'] ?? '',
+          'status': status,
+        };
+      }
+
+      final docRef = FirebaseFirestore.instance
+          .collection('attendance')
+          .doc(docId);
+
+      // Use update to ensure we don't create a new doc
+      await docRef.update({
+        'students': studentsMap,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': teacherId,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Attendance Updated Successfully ✏️'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {
+          _isEditing = false;
+          _isSaving = false;
+          _isSubmitted = true;
+        });
+      }
+    } on FirebaseException catch (e) {
+      // If the doc somehow doesn't exist, surface a friendly message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Update failed: ${e.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isSaving = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _openChat(Map<String, dynamic> student) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final teacherId = authProvider.currentUser?.uid;
+
+    if (teacherId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Teacher not logged in')));
+      return;
+    }
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final messagingService = MessagingService();
+
+      // Fetch parent for this student (with phone fallback)
+      final parentData = await messagingService.fetchParentForStudent(
+        (student['id'] ?? '').toString(),
+        parentPhone: (student['parentPhone'] ?? student['parent_contact'] ?? '')
+            .toString()
+            .trim(),
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
+
+      if (parentData == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No parent found for this student')),
+        );
+        return;
+      }
+
+      // Create or get conversation
+      final conversationId = await messagingService.getOrCreateConversation(
+        teacherId: teacherId,
+        parentId: parentData['parentId'],
+        studentId: (student['id'] ?? '').toString(),
+        studentName: (student['name'] ?? '').toString(),
+        parentName: parentData['parentName'],
+        parentPhotoUrl: parentData['parentPhotoUrl'],
+      );
+
+      // Navigate to chat screen
+      if (!mounted) return;
+      Navigator.pushNamed(
+        context,
+        '/chat',
+        arguments: {
+          'conversationId': conversationId,
+          'parentName': parentData['parentName'],
+          'parentPhotoUrl': parentData['parentPhotoUrl'],
+          'studentName': student['name'],
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+}

@@ -5,7 +5,6 @@ import '../../services/leaderboard_service.dart';
 import '../../services/student_service.dart';
 import '../../models/student_model.dart';
 import '../../utils/session_manager.dart';
-import '../../widgets/student_bottom_nav.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -80,7 +79,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: const StudentBottomNav(currentIndex: 4),
     );
   }
 

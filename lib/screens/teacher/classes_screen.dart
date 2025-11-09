@@ -184,7 +184,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 Expanded(child: _buildClassesList()),
               ],
             ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 

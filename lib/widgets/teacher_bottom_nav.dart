@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'teacher_main_navigation.dart';
 
 class TeacherBottomNav extends StatelessWidget {
   final int selectedIndex;
@@ -86,7 +87,14 @@ class TeacherBottomNav extends StatelessWidget {
       child: InkWell(
         onTap: () {
           if (!isSelected) {
-            Navigator.pushReplacementNamed(context, route);
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    TeacherMainNavigation(initialIndex: index),
+              ),
+              (route) => false,
+            );
           }
         },
         child: Column(

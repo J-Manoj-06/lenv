@@ -11,6 +11,7 @@ import '../../services/teacher_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/status_model.dart';
 import 'status_view_screen.dart';
+import 'attendance_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({Key? key}) : super(key: key);
@@ -61,9 +62,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTeacherData();
-    // Sweep expired highlights for this teacher (best-effort; prefer Firestore TTL)
-    _cleanupExpiredHighlights();
+    // Defer heavy work and provider notifications until after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadTeacherData();
+      // Sweep expired highlights for this teacher (best-effort; prefer Firestore TTL)
+      _cleanupExpiredHighlights();
+    });
   }
 
   @override
@@ -228,7 +232,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 ),
               ],
             ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -378,115 +381,68 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   // (Announcements removed) — merged into Classroom Highlights as 24h status
 
-  // ========== New: Gradient Stats Banner ==========
+  // ========== Take Attendance Card ==========
   Widget _buildGradientStatsBanner() {
-    final theme = Theme.of(context);
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final teacherId = authProvider.currentUser?.uid;
-
-    Widget _stat(IconData icon, String label, String value) {
-      return Expanded(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 28),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final engagement = '82%'; // Placeholder until a real metric is defined
-    final studentsCount = _students.length.toString();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AttendanceScreen()),
+        );
+      },
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
+            colors: [Color(0xFF7A5CFF), Color(0xFF9D8BFF)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFA78BFA), Color(0xFF7B61FF)],
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(
-                theme.brightness == Brightness.dark ? 0.3 : 0.15,
-              ),
-              blurRadius: 8,
+              color: const Color(0xFF7A5CFF).withOpacity(0.3),
+              blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
-            _stat(Icons.trending_up, 'Engagement', engagement),
-            _stat(Icons.groups, 'Students', studentsCount),
-            // Tests Assigned uses a lightweight stream count
-            Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: teacherId == null
-                    ? const Stream.empty()
-                    : FirebaseFirestore.instance
-                          .collection('tests')
-                          .where('teacherId', isEqualTo: teacherId)
-                          .snapshots(),
-                builder: (context, snapshot) {
-                  final count = snapshot.hasData
-                      ? snapshot.data!.docs.length
-                      : null;
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.assignment,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Tests Assigned',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        count == null ? '—' : '$count',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.how_to_reg,
+                color: Colors.white,
+                size: 28,
               ),
             ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Take Attendance',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Mark student attendance for today',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
           ],
         ),
       ),

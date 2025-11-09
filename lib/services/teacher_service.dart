@@ -97,6 +97,75 @@ class TeacherService {
             for (var doc in querySnapshot.docs) {
               final studentData = doc.data();
               studentData['id'] = doc.id;
+
+              // Fetch rewardPoints from users collection
+              try {
+                final studentEmail =
+                    studentData['email'] as String? ??
+                    studentData['studentEmail'] as String?;
+                String? actualUid;
+                int rewardPoints = 0;
+
+                // Step 1: Find the user by email to get the real Auth UID
+                if (studentEmail != null && studentEmail.isNotEmpty) {
+                  final userQuery = await _firestore
+                      .collection('users')
+                      .where('email', isEqualTo: studentEmail)
+                      .limit(1)
+                      .get();
+
+                  if (userQuery.docs.isNotEmpty) {
+                    final userDoc = userQuery.docs.first;
+                    final userData = userDoc.data();
+                    actualUid = userData['uid'] as String? ?? userDoc.id;
+
+                    final rpRaw = userData['rewardPoints'];
+                    if (rpRaw is int) {
+                      rewardPoints = rpRaw;
+                    } else if (rpRaw is num) {
+                      rewardPoints = rpRaw.toInt();
+                    } else if (rpRaw is String) {
+                      rewardPoints = int.tryParse(rpRaw) ?? 0;
+                    }
+
+                    print(
+                      '   💰 ${studentData['studentName']}: $rewardPoints points (from users/$actualUid)',
+                    );
+                  } else {
+                    print(
+                      '   ⚠️ No users doc found for ${studentData['studentName']} (email: $studentEmail)',
+                    );
+                  }
+                }
+
+                // Step 2: If rewardPoints is 0 or user not found, aggregate from student_rewards
+                if (rewardPoints == 0 && actualUid != null) {
+                  final rewardsSnap = await _firestore
+                      .collection('student_rewards')
+                      .where('studentId', isEqualTo: actualUid)
+                      .get();
+                  int aggregated = 0;
+                  for (final rd in rewardsSnap.docs) {
+                    aggregated +=
+                        (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
+                  }
+                  if (aggregated > 0) {
+                    studentData['aggregatedRewardPoints'] = aggregated;
+                    print(
+                      '   📊 Aggregated $aggregated points from student_rewards for ${studentData['studentName']}',
+                    );
+                  }
+                  rewardPoints = aggregated;
+                }
+
+                studentData['rewardPoints'] = rewardPoints;
+              } catch (e) {
+                print(
+                  '   ⚠️ Error fetching rewardPoints for ${studentData['studentName']}: $e',
+                );
+                studentData['rewardPoints'] = 0;
+              }
+
               allStudents.add(studentData);
             }
           }
@@ -141,6 +210,74 @@ class TeacherService {
         for (var doc in querySnapshot.docs) {
           final studentData = doc.data();
           studentData['id'] = doc.id;
+
+          // Fetch rewardPoints from users collection
+          try {
+            final studentEmail =
+                studentData['email'] as String? ??
+                studentData['studentEmail'] as String?;
+            String? actualUid;
+            int rewardPoints = 0;
+
+            // Step 1: Find the user by email to get the real Auth UID
+            if (studentEmail != null && studentEmail.isNotEmpty) {
+              final userQuery = await _firestore
+                  .collection('users')
+                  .where('email', isEqualTo: studentEmail)
+                  .limit(1)
+                  .get();
+
+              if (userQuery.docs.isNotEmpty) {
+                final userDoc = userQuery.docs.first;
+                final userData = userDoc.data();
+                actualUid = userData['uid'] as String? ?? userDoc.id;
+
+                final rpRaw = userData['rewardPoints'];
+                if (rpRaw is int) {
+                  rewardPoints = rpRaw;
+                } else if (rpRaw is num) {
+                  rewardPoints = rpRaw.toInt();
+                } else if (rpRaw is String) {
+                  rewardPoints = int.tryParse(rpRaw) ?? 0;
+                }
+
+                print(
+                  '   💰 ${studentData['studentName']}: $rewardPoints points (from users/$actualUid)',
+                );
+              } else {
+                print(
+                  '   ⚠️ No users doc found for ${studentData['studentName']} (email: $studentEmail)',
+                );
+              }
+            }
+
+            // Step 2: If rewardPoints is 0 or user not found, aggregate from student_rewards
+            if (rewardPoints == 0 && actualUid != null) {
+              final rewardsSnap = await _firestore
+                  .collection('student_rewards')
+                  .where('studentId', isEqualTo: actualUid)
+                  .get();
+              int aggregated = 0;
+              for (final rd in rewardsSnap.docs) {
+                aggregated += (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
+              }
+              if (aggregated > 0) {
+                studentData['aggregatedRewardPoints'] = aggregated;
+                print(
+                  '   📊 Aggregated $aggregated points from student_rewards for ${studentData['studentName']}',
+                );
+              }
+              rewardPoints = aggregated;
+            }
+
+            studentData['rewardPoints'] = rewardPoints;
+          } catch (e) {
+            print(
+              '   ⚠️ Error fetching rewardPoints for ${studentData['studentName']}: $e',
+            );
+            studentData['rewardPoints'] = 0;
+          }
+
           allStudents.add(studentData);
         }
       }

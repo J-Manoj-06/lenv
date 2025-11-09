@@ -9,7 +9,7 @@ import '../../models/status_model.dart';
 import '../../models/student_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/student_bottom_nav.dart';
+import '../../widgets/daily_challenge_card.dart';
 import '../teacher/status_view_screen.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
@@ -20,8 +20,6 @@ class StudentDashboardScreen extends StatefulWidget {
 }
 
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
-  String? _selectedAnswer;
-
   @override
   void initState() {
     super.initState();
@@ -69,7 +67,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
         return Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
-          bottomNavigationBar: const StudentBottomNav(currentIndex: 0),
           body: RefreshIndicator(
             onRefresh: _loadDashboardData,
             color: const Color(0xFFF27F0D),
@@ -91,7 +88,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                             _buildAnnouncementsSection(theme, student),
                           _buildProgressText(theme),
                           _buildPointsCard(theme, student),
-                          _buildDailyChallenge(theme, studentProvider),
+                          // Daily Challenge Card
+                          if (student != null)
+                            DailyChallengeCard(
+                              studentId: student.uid,
+                              studentEmail: student.email,
+                            ),
                           _buildActiveTestsSection(theme),
                           _buildPerformanceSection(theme, student),
                           _buildRewardsSection(theme, student),
@@ -197,7 +199,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '0',
+                    '--',
                     style: theme.textTheme.headlineMedium?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -352,213 +354,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
       return null;
     } catch (e) {
-      print('Error calculating rank: $e');
       return null;
-    }
-  }
-
-  Widget _buildDailyChallenge(ThemeData theme, StudentProvider provider) {
-    final challenge = provider.todayChallenge;
-    final hasAttempted = provider.hasAttemptedChallenge;
-
-    // Fallback content from provided HTML when no challenge is configured
-    final fallbackQuestion = 'What does CPU stand for?';
-    final fallbackOptions = const [
-      'Central Processing Unit',
-      'Computer Power Utility',
-      'Central Program Unit',
-      'Computer Process Utility',
-    ];
-    final fallbackPoints = 5;
-
-    final titleStyle = theme.textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.bold,
-    );
-    final subtitleStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.textTheme.bodySmall?.color,
-    );
-
-    final options = challenge?.options ?? fallbackOptions;
-    final question = challenge?.question ?? fallbackQuestion;
-    final points = challenge?.points ?? fallbackPoints;
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.dividerColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title
-            Text('Daily Challenge 🌟', style: titleStyle),
-            const SizedBox(height: 8),
-            // Subtitle
-            Text('Answer and earn +$points points!', style: subtitleStyle),
-            const SizedBox(height: 16),
-            // Question
-            Text(
-              'Q: $question',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Two-column options (labels with radio-style)
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 3.2,
-              ),
-              itemCount: options.length,
-              itemBuilder: (context, index) {
-                final option = options[index];
-                final isSelected = _selectedAnswer == option;
-
-                return InkWell(
-                  onTap: hasAttempted
-                      ? null
-                      : () => setState(() => _selectedAnswer = option),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFFF27F0D).withOpacity(0.08)
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFFF27F0D)
-                            : theme.dividerColor,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        // radio circle
-                        Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected
-                                  ? const Color(0xFFF27F0D)
-                                  : theme.dividerColor,
-                              width: 2,
-                            ),
-                            color: isSelected ? const Color(0xFFF27F0D) : null,
-                          ),
-                          child: isSelected
-                              ? const Icon(
-                                  Icons.check,
-                                  size: 12,
-                                  color: Colors.white,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            option,
-                            style: theme.textTheme.bodySmall,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            // Submit button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: (_selectedAnswer == null || hasAttempted)
-                    ? null
-                    : () {
-                        if (challenge == null) {
-                          // No configured challenge; just inform user
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Daily challenge is not configured yet.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                        _submitChallengeAnswer(challenge.correctAnswer);
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF27F0D),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  disabledBackgroundColor: theme.disabledColor,
-                ),
-                child: Text(
-                  hasAttempted ? 'Already Completed' : 'Submit Answer',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _submitChallengeAnswer(String correctAnswer) async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final studentProvider = Provider.of<StudentProvider>(
-      context,
-      listen: false,
-    );
-
-    if (authProvider.currentUser == null || _selectedAnswer == null) return;
-
-    final isCorrect = await studentProvider.submitChallengeAnswer(
-      authProvider.currentUser!.uid,
-      _selectedAnswer!,
-    );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isCorrect
-                ? '🎉 Correct! You earned points!'
-                : '❌ Incorrect. The correct answer is: $correctAnswer',
-          ),
-          backgroundColor: isCorrect ? Colors.green : Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-
-      setState(() => _selectedAnswer = null);
     }
   }
 
@@ -1201,20 +997,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         student.schoolName ?? // Last resort: full name
         '';
 
-    // Debug: Print student info
-    print('📢 STUDENT DEBUG: Student schoolCode: "${student.schoolCode}"');
-    print('📢 STUDENT DEBUG: Student schoolId: "${student.schoolId}"');
-    print('📢 STUDENT DEBUG: Student schoolName: "${student.schoolName}"');
-    print('📢 STUDENT DEBUG: Using identifier for query: "$schoolIdentifier"');
-    print('📢 STUDENT DEBUG: Student className: "${student.className}"');
-    print('📢 STUDENT DEBUG: Student email: "${student.email}"');
-
     // Check if we have any valid identifier
     if (schoolIdentifier.isEmpty) {
-      print('📢 STUDENT DEBUG: ❌ ERROR - No school identifier found!');
-      print(
-        '📢 STUDENT DEBUG: Need schoolCode, schoolId, or schoolName in Firestore',
-      );
       return _buildErrorCard(
         theme,
         '⚠️ Configuration Issue',
@@ -1248,10 +1032,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       }
     }
 
-    print(
-      '📢 STUDENT DEBUG: Querying with schoolIdentifier: "$schoolIdentifier"',
-    );
-
     // TEMPORARY FIX: If schoolIdentifier is empty or doesn't match, query ALL announcements
     // and filter client-side. This helps diagnose the issue.
     final hasValidSchoolId = schoolIdentifier.isNotEmpty;
@@ -1279,53 +1059,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           return _buildAnnouncementsLoadingCard(theme);
         }
 
-        // Debug: Print query results
-        if (snapshot.hasData) {
-          print(
-            '📢 DEBUG: Found ${snapshot.data!.docs.length} announcements in database',
-          );
-          if (snapshot.data!.docs.isEmpty) {
-            print(
-              '📢 DEBUG: No announcements found${hasValidSchoolId ? ' for instituteId: "$schoolIdentifier"' : ' (querying all)'}',
-            );
-            print('📢 DEBUG: This could mean:');
-            print('   1. No announcements have been posted');
-            print('   2. All announcements have expired');
-            if (hasValidSchoolId) {
-              print(
-                '   3. Teacher\'s instituteId doesn\'t match student\'s schoolId',
-              );
-            }
-          } else {
-            // Print all announcements found to help debug
-            for (var doc in snapshot.data!.docs) {
-              final data = doc.data() as Map<String, dynamic>;
-              print(
-                '📢 DEBUG: Found announcement with instituteId: "${data['instituteId']}", audienceType: "${data['audienceType']}"',
-              );
-            }
-          }
-          print(
-            '📢 DEBUG: Student standard: "$userStandard", section: "$userSection"',
-          );
-        }
-
         // Parse and filter announcements
         final allAnnouncements = snapshot.hasData
             ? snapshot.data!.docs
                   .map((doc) {
                     final announcement = StatusModel.fromFirestore(doc);
-                    // Debug: Print each announcement details
-                    print(
-                      '📢 DEBUG: Processing announcement from ${announcement.teacherName}',
-                    );
-                    print('   - instituteId: "${announcement.instituteId}"');
-                    print('   - audienceType: "${announcement.audienceType}"');
-                    print('   - standards: ${announcement.standards}');
-                    print('   - sections: ${announcement.sections}');
-                    print(
-                      '   - text: "${announcement.text.length > 30 ? announcement.text.substring(0, 30) + '...' : announcement.text}"',
-                    );
                     return announcement;
                   })
                   .where((announcement) {
@@ -1336,22 +1074,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         userStandard: userStandard,
                         userSection: '$userStandard$userSection',
                       );
-                      print(
-                        '📢 DEBUG: Announcement visible to student: $isVisible',
-                      );
                       return isVisible;
                     }
-                    print(
-                      '📢 DEBUG: Announcement skipped - instituteId mismatch',
-                    );
                     return false;
                   })
                   .toList()
             : <StatusModel>[];
-
-        print(
-          '📢 DEBUG: Total visible announcements: ${allAnnouncements.length}',
-        );
 
         // Show horizontal list (always visible, even if empty)
         return _buildAnnouncementsHorizontalRow(

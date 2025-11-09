@@ -2,29 +2,23 @@ import 'package:flutter/material.dart';
 import '../screens/common/splash_screen.dart';
 import '../screens/common/role_selection_screen.dart';
 import '../screens/teacher/teacher_login_screen.dart';
-import '../screens/teacher/teacher_dashboard.dart';
 import '../screens/teacher/create_test_screen.dart';
 import '../screens/teacher/ai_test_generator_screen.dart';
-import '../screens/teacher/classes_screen.dart';
 import '../screens/teacher/student_list_screen.dart';
 import '../screens/teacher/student_performance_screen.dart';
-import '../screens/teacher/tests_screen.dart';
 import '../screens/teacher/test_result_screen.dart';
-import '../screens/teacher/leaderboard_screen.dart';
-import '../screens/teacher/profile_screen.dart';
 import '../screens/teacher/my_highlights_screen.dart';
 import '../screens/student/student_login_screen.dart';
-import '../screens/student/student_dashboard_screen.dart';
 import '../screens/dev/dev_tools_screen.dart';
 import '../screens/student/student_test_result_screen.dart';
-import '../screens/student/student_tests_screen.dart';
-import '../screens/student/student_rewards_screen.dart';
-import '../screens/student/student_leaderboard_screen.dart';
-import '../screens/student/student_profile_screen.dart';
 import '../screens/rewards/search_rewards_screen.dart';
 import '../screens/rewards/product_detail_screen.dart';
 import '../models/product_model.dart';
 import '../screens/rewards/my_requests_screen.dart';
+import '../widgets/student_main_navigation.dart';
+import '../widgets/teacher_main_navigation.dart';
+import '../screens/teacher/messages/messages_screen.dart';
+import '../screens/teacher/messages/chat_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -43,14 +37,18 @@ class AppRouter {
 
       case '/student-dashboard':
         return MaterialPageRoute(
-          builder: (_) => const StudentDashboardScreen(),
+          builder: (_) => const StudentMainNavigation(initialIndex: 0),
         );
 
       case '/student-tests':
-        return MaterialPageRoute(builder: (_) => const StudentTestsScreen());
+        return MaterialPageRoute(
+          builder: (_) => const StudentMainNavigation(initialIndex: 1),
+        );
 
       case '/student-rewards':
-        return MaterialPageRoute(builder: (_) => const StudentRewardsScreen());
+        return MaterialPageRoute(
+          builder: (_) => const StudentMainNavigation(initialIndex: 2),
+        );
 
       case '/search-rewards':
         return MaterialPageRoute(builder: (_) => const SearchRewardsScreen());
@@ -74,15 +72,17 @@ class AppRouter {
 
       case '/student-leaderboard':
         return MaterialPageRoute(
-          builder: (_) => const StudentLeaderboardScreen(),
+          builder: (_) => const StudentMainNavigation(initialIndex: 3),
         );
 
       case '/student-profile':
-        return MaterialPageRoute(builder: (_) => const StudentProfileScreen());
+        return MaterialPageRoute(
+          builder: (_) => const StudentMainNavigation(initialIndex: 4),
+        );
 
       case '/teacher-dashboard':
         return MaterialPageRoute(
-          builder: (_) => const TeacherDashboardScreen(),
+          builder: (_) => const TeacherMainNavigation(initialIndex: 0),
         );
 
       case '/create-test':
@@ -92,7 +92,9 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const AITestGeneratorScreen());
 
       case '/classes':
-        return MaterialPageRoute(builder: (_) => const ClassesScreen());
+        return MaterialPageRoute(
+          builder: (_) => const TeacherMainNavigation(initialIndex: 1),
+        );
 
       case '/student-list':
         final className = settings.arguments as String? ?? 'Class';
@@ -113,7 +115,9 @@ class AppRouter {
         );
 
       case '/tests':
-        return MaterialPageRoute(builder: (_) => const TestsScreen());
+        return MaterialPageRoute(
+          builder: (_) => const TeacherMainNavigation(initialIndex: 2),
+        );
 
       case '/test-result':
         final args = settings.arguments as Map<String, dynamic>? ?? {};
@@ -128,10 +132,14 @@ class AppRouter {
         );
 
       case '/leaderboard':
-        return MaterialPageRoute(builder: (_) => const LeaderboardScreen());
+        return MaterialPageRoute(
+          builder: (_) => const TeacherMainNavigation(initialIndex: 3),
+        );
 
       case '/profile':
-        return MaterialPageRoute(builder: (_) => const ProfileScreen());
+        return MaterialPageRoute(
+          builder: (_) => const TeacherMainNavigation(initialIndex: 4),
+        );
 
       case '/my-highlights':
         return MaterialPageRoute(builder: (_) => const MyHighlightsScreen());
@@ -155,8 +163,34 @@ class AppRouter {
           builder: (_) => StudentTestResultScreen(resultId: resultId),
         );
 
-      // Add more routes here as screens are created
+      case '/messages':
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => MessagesScreen(
+            studentId: args?['studentId'] as String?,
+            studentName: args?['studentName'] as String?,
+          ),
+        );
 
+      case '/chat':
+        final args = settings.arguments as Map<String, dynamic>?;
+        if (args == null) {
+          return MaterialPageRoute(
+            builder: (_) => const Scaffold(
+              body: Center(child: Text('Missing conversation data')),
+            ),
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            conversationId: args['conversationId'] as String,
+            parentName: args['parentName'] as String,
+            parentPhotoUrl: args['parentPhotoUrl'] as String?,
+            studentName: args['studentName'] as String,
+          ),
+        );
+
+      // Add more routes here as screens are created
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

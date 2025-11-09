@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../models/test_model.dart';
 import '../services/firestore_service.dart';
 
@@ -23,6 +24,33 @@ class TestProvider with ChangeNotifier {
 
     try {
       await _firestoreService.createTestAndAssignToClass(test);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Create scheduled test
+  Future<bool> createScheduledTest(
+    TestModel test, {
+    required DateTime scheduledDate,
+    required TimeOfDay scheduledTime,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _firestoreService.createScheduledTest(
+        test,
+        scheduledDate: scheduledDate,
+        scheduledTime: scheduledTime,
+      );
       _isLoading = false;
       notifyListeners();
       return true;

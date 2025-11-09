@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'student_main_navigation.dart';
 
 class StudentBottomNav extends StatelessWidget {
   final int currentIndex;
@@ -6,27 +7,15 @@ class StudentBottomNav extends StatelessWidget {
 
   void _onTap(BuildContext context, int index) {
     if (index == currentIndex) return;
-    switch (index) {
-      case 0:
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/student-dashboard',
-          (route) => false,
-        );
-        break;
-      case 1:
-        Navigator.pushReplacementNamed(context, '/student-tests');
-        break;
-      case 2:
-        Navigator.pushReplacementNamed(context, '/student-rewards');
-        break;
-      case 3:
-        Navigator.pushReplacementNamed(context, '/student-leaderboard');
-        break;
-      case 4:
-        Navigator.pushReplacementNamed(context, '/student-profile');
-        break;
-    }
+
+    // Navigate to the main navigation wrapper with the selected index
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StudentMainNavigation(initialIndex: index),
+      ),
+      (route) => false,
+    );
   }
 
   @override

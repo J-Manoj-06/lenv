@@ -9,7 +9,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/firestore_service.dart';
 import 'test_rules_screen.dart';
-import '../../widgets/student_bottom_nav.dart';
 
 class StudentTestsScreen extends StatefulWidget {
   const StudentTestsScreen({super.key});
@@ -109,7 +108,6 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
           ],
         ),
       ),
-      bottomNavigationBar: const StudentBottomNav(currentIndex: 1),
     );
   }
 }
@@ -475,12 +473,19 @@ class _TestCard extends StatelessWidget {
     if (item.isPending) {
       final t = item.test!;
       isExpired = now.isAfter(t.endDate);
+      final notStartedYet = now.isBefore(t.startDate);
 
       title = t.title;
       subject = t.subject;
       assignedBy = t.teacherName;
-      dateLabel = 'Due Date:';
-      dateValue = fmt.format(t.endDate);
+      // Show start or due date based on schedule
+      if (notStartedYet) {
+        dateLabel = 'Starts:';
+        dateValue = fmt.format(t.startDate);
+      } else {
+        dateLabel = 'Due Date:';
+        dateValue = fmt.format(t.endDate);
+      }
 
       if (isExpired) {
         buttonText = 'Test Ended';
@@ -506,16 +511,43 @@ class _TestCard extends StatelessWidget {
         statusText = Colors.white;
         statusLabel = 'Expired';
       } else {
-        buttonText = 'Start Test';
-        onPressed = () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => TestRulesScreen(test: t)),
-          );
-        };
-        statusBg = const Color(0xFFF2800D);
-        statusText = Colors.white;
-        statusLabel = 'Pending';
+        if (notStartedYet) {
+          buttonText = 'Yet to start';
+          onPressed = () {
+            // Inform the student about the scheduled start time
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Test not started'),
+                content: Text(
+                  'This test is scheduled to start on ' +
+                      fmt.format(t.startDate) +
+                      '. Please check back later.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          };
+          statusBg = const Color(0xFFE3F2FD);
+          statusText = const Color(0xFF1565C0);
+          statusLabel = 'Scheduled';
+        } else {
+          buttonText = 'Start Test';
+          onPressed = () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => TestRulesScreen(test: t)),
+            );
+          };
+          statusBg = const Color(0xFFF2800D);
+          statusText = Colors.white;
+          statusLabel = 'Pending';
+        }
       }
 
       leadingIcon = Icons.quiz;
@@ -676,7 +708,9 @@ class _TestCard extends StatelessWidget {
                 onPressed: onPressed,
                 isPrimary: item.isPending && !isExpired,
                 enabled:
-                    (item.isPending && !isExpired) ||
+                    (item.isPending &&
+                        !isExpired &&
+                        buttonText != 'Yet to start') ||
                     buttonText == 'View Results',
               ),
             ],

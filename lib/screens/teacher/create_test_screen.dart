@@ -24,7 +24,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   String? selectedSubject;
   String? selectedClass;
   String? selectedSection; // Display format: "Section A"
-  bool aiAssistanceEnabled = true;
+
+  // Scheduling fields (always enabled with current date/time by default)
+  DateTime? scheduledDate;
+  TimeOfDay? scheduledTime;
 
   List<Question> questions = [
     Question(
@@ -56,6 +59,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   void initState() {
     super.initState();
     _loadTeacherMeta();
+    // Default schedule: current date and time
+    scheduledDate = DateTime.now();
+    scheduledTime = TimeOfDay.now();
   }
 
   Future<void> _loadTeacherMeta() async {
@@ -329,35 +335,121 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          // AI Assistance Toggle
+          // Schedule Test (always shown)
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    color: theme.colorScheme.primary,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'AI Assistance',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+              Icon(Icons.schedule, color: theme.colorScheme.primary, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'Schedule Test',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: scheduledDate ?? DateTime.now(),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (date != null) {
+                      setState(() {
+                        scheduledDate = date;
+                      });
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: theme.dividerColor),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            scheduledDate == null
+                                ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
+                                : '${scheduledDate!.day}/${scheduledDate!.month}/${scheduledDate!.year}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontSize: 14,
+                              color: scheduledDate == null
+                                  ? theme.colorScheme.onSurface.withOpacity(0.4)
+                                  : theme.colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
-              Switch(
-                value: aiAssistanceEnabled,
-                onChanged: (value) {
-                  setState(() {
-                    aiAssistanceEnabled = value;
-                  });
-                },
-                activeColor: theme.colorScheme.primary,
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: () async {
+                    final time = await showTimePicker(
+                      context: context,
+                      initialTime: scheduledTime ?? TimeOfDay.now(),
+                    );
+                    if (time != null) {
+                      setState(() {
+                        scheduledTime = time;
+                      });
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: theme.dividerColor),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            scheduledTime == null
+                                ? TimeOfDay.now().format(context)
+                                : scheduledTime!.format(context),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontSize: 14,
+                              color: scheduledTime == null
+                                  ? theme.colorScheme.onSurface.withOpacity(0.4)
+                                  : theme.colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -792,7 +884,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                       onPressed: () {
                         // Dismiss keyboard before saving
                         FocusScope.of(context).unfocus();
-                        _saveTest(publish: false);
+                        _saveTest(publish: false, schedule: false);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.colorScheme.surfaceVariant,
@@ -813,7 +905,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        _showPublishDialog();
+                        _showScheduleDialog();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.colorScheme.primary,
@@ -825,7 +917,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                         elevation: 0,
                       ),
                       child: const Text(
-                        'Publish & Assign',
+                        'Schedule Test',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -860,13 +952,89 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await _saveTest(publish: true);
+              await _saveTest(publish: true, schedule: false);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
             ),
             child: const Text('Publish'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showScheduleDialog() {
+    // Dismiss keyboard before showing dialog
+    FocusScope.of(context).unfocus();
+
+    // Validate date and time
+    if (scheduledDate == null || scheduledTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select both date and time')),
+      );
+      return;
+    }
+
+    final formattedDate =
+        '${scheduledDate!.day}/${scheduledDate!.month}/${scheduledDate!.year}';
+    final formattedTime = scheduledTime!.format(context);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Schedule Test'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This test will be scheduled for:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today,
+                  size: 18,
+                  color: Colors.orange,
+                ),
+                const SizedBox(width: 8),
+                Text(formattedDate),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 18, color: Colors.orange),
+                const SizedBox(width: 8),
+                Text(formattedTime),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Students will be able to access it at the scheduled time.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _saveTest(publish: false, schedule: true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            ),
+            child: const Text('Schedule'),
           ),
         ],
       ),
@@ -894,7 +1062,10 @@ class Question {
 }
 
 extension on _CreateTestScreenState {
-  Future<void> _saveTest({required bool publish}) async {
+  Future<void> _saveTest({
+    required bool publish,
+    required bool schedule,
+  }) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final testProv = Provider.of<TestProvider>(context, listen: false);
     final user = auth.currentUser;
@@ -934,9 +1105,29 @@ extension on _CreateTestScreenState {
 
     final duration = int.tryParse(_timeLimitController.text.trim()) ?? 60;
     final now = DateTime.now();
-    final startDate = now;
-    final endDate = now.add(Duration(minutes: duration));
-    final status = publish ? tm.TestStatus.published : tm.TestStatus.draft;
+    DateTime startDate = now;
+
+    // Handle scheduling
+    if (schedule && scheduledDate != null && scheduledTime != null) {
+      startDate = DateTime(
+        scheduledDate!.year,
+        scheduledDate!.month,
+        scheduledDate!.day,
+        scheduledTime!.hour,
+        scheduledTime!.minute,
+      );
+    }
+
+    final endDate = startDate.add(Duration(minutes: duration));
+    final tm.TestStatus status;
+
+    if (schedule) {
+      // Scheduled tests should be published so students can see them
+      // The UI will check startDate to determine if they can actually take it
+      status = tm.TestStatus.published;
+    } else {
+      status = publish ? tm.TestStatus.published : tm.TestStatus.draft;
+    }
 
     // Map local questions to model questions
     final modelQuestions = questions.map((q) {
@@ -990,26 +1181,53 @@ extension on _CreateTestScreenState {
       updatedAt: now,
     );
 
-    final ok = await testProv.createTest(test);
-    if (ok) {
-      if (publish) {
+    // If scheduled, we need to also store the schedule info in scheduledTests collection
+    if (schedule && scheduledDate != null && scheduledTime != null) {
+      final ok = await testProv.createScheduledTest(
+        test,
+        scheduledDate: scheduledDate!,
+        scheduledTime: scheduledTime!,
+      );
+      if (ok) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Test published successfully!')),
+          const SnackBar(content: Text('Test scheduled successfully!')),
         );
+        if (mounted) {
+          Navigator.pop(context);
+        }
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Draft saved!')));
-      }
-      if (mounted) {
-        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed: ${testProv.errorMessage ?? 'Unknown error'}',
+            ),
+          ),
+        );
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed: ${testProv.errorMessage ?? 'Unknown error'}'),
-        ),
-      );
+      final ok = await testProv.createTest(test);
+      if (ok) {
+        if (publish) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Test published successfully!')),
+          );
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Draft saved!')));
+        }
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed: ${testProv.errorMessage ?? 'Unknown error'}',
+            ),
+          ),
+        );
+      }
     }
   }
 }

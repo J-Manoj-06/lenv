@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
-import '../../widgets/teacher_bottom_nav.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({Key? key}) : super(key: key);
@@ -123,26 +122,41 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   // Helper method to get student points
   int _getStudentPoints(Map<String, dynamic> student) {
-    return student['rewardPoints'] ?? 
-           student['totalPoints'] ?? 
-           student['points'] ?? 
-           0;
+    final rewardPoints = student['rewardPoints'];
+    final totalPoints = student['totalPoints'];
+    final points = student['points'];
+    final aggregated = student['aggregatedRewardPoints'];
+
+    // Prefer explicit rewardPoints, then aggregatedRewardPoints (from fallback sum of student_rewards), then totalPoints, then points.
+    int? parse(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v);
+      return null;
+    }
+
+    return parse(rewardPoints) ??
+        parse(aggregated) ??
+        parse(totalPoints) ??
+        parse(points) ??
+        0;
   }
 
   // Helper method to format grade and section
   String _formatGradeSection(Map<String, dynamic> student) {
     final className = student['className']?.toString() ?? '';
     final section = student['section']?.toString() ?? '';
-    
+
     final grade = className
         .replaceAll('Grade ', '')
         .replaceAll('grade ', '')
         .trim();
-    
+
     if (grade.isEmpty || section.isEmpty) {
       return className.isNotEmpty ? className : 'Unknown';
     }
-    
+
     return 'Grade $grade - $section';
   }
 
@@ -170,7 +184,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             ],
           ),
         ),
-        bottomNavigationBar: _buildBottomNav(),
       );
     }
 
@@ -192,7 +205,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
             ),
           ),
-          _buildBottomNav(),
         ],
       ),
     );
@@ -420,7 +432,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             gradeSection,
             style: TextStyle(
               fontSize: 11,
-              color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+              color: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.color?.withOpacity(0.7),
             ),
             textAlign: TextAlign.center,
           ),
@@ -441,29 +455,29 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Widget _buildFilters() {
     return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Select Class',
             style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
-            const SizedBox(height: 8),
+          const SizedBox(height: 8),
           Container(
-              height: 48,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor,
-                  width: 1.5,
-                ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).dividerColor,
+                width: 1.5,
+              ),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
@@ -471,19 +485,21 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 isExpanded: true,
                 icon: Icon(
                   Icons.expand_more,
-                    color: Theme.of(context).iconTheme.color?.withOpacity(0.7),
+                  color: Theme.of(context).iconTheme.color?.withOpacity(0.7),
                 ),
                 style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
                   color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
                 items: _classes.map((className) {
                   return DropdownMenuItem<String>(
                     value: className,
-                      child: Text(
-                        className == 'All Classes' ? className : 'Grade $className',
-                      ),
+                    child: Text(
+                      className == 'All Classes'
+                          ? className
+                          : 'Grade $className',
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -622,9 +638,5 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         }).toList(),
       ),
     );
-  }
-
-  Widget _buildBottomNav() {
-    return const TeacherBottomNav(selectedIndex: 3);
   }
 }

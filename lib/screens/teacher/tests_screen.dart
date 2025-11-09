@@ -90,7 +90,6 @@ class _TestsScreenState extends State<TestsScreen> {
             ],
           ),
           _buildFAB(),
-          _buildBottomNav(),
         ],
       ),
     );

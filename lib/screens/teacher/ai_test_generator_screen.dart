@@ -5,6 +5,8 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/teacher_service.dart';
+import '../../services/deepseek_service.dart';
+import '../../core/config/deepseek_config.dart';
 import '../../widgets/teacher_bottom_nav.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // not needed; assignment handled server-side
 
@@ -35,6 +37,10 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   List<String> sections = [];
   bool _loadingMeta = true;
 
+  // Scheduling state (always visible; defaults to now)
+  DateTime? _scheduledDate;
+  TimeOfDay? _scheduledTime;
+
   @override
   void dispose() {
     _subjectController.dispose();
@@ -47,6 +53,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   void initState() {
     super.initState();
     _loadTeacherMeta();
+    final now = DateTime.now();
+    _scheduledDate = DateTime(now.year, now.month, now.day);
+    _scheduledTime = TimeOfDay(hour: now.hour, minute: now.minute);
   }
 
   Future<void> _loadTeacherMeta() async {
@@ -60,27 +69,35 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     try {
       final svc = TeacherService();
       final data = await svc.getTeacherByEmail(user.email);
-      final List<String> clzs = (data?['classesHandled'] is List)
-          ? List<String>.from(data!['classesHandled'] as List)
-          : <String>[];
-      List<String> secs = [];
-      final rawSections = data?['sections'] ?? data?['section'];
-      if (rawSections is List) {
-        secs = rawSections
-            .map((e) => e.toString().trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-      } else if (rawSections is String) {
-        secs = rawSections
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList();
+
+      // Get formatted classes using the service (handles both formats)
+      final dynamic sectionsData = data?['sections'] ?? data?['section'];
+      final List<String> formattedClasses = svc.getTeacherClasses(
+        data?['classesHandled'],
+        sectionsData,
+        classAssignments: data?['classAssignments'],
+      );
+
+      // Extract unique sections from formatted classes
+      // Format is "10 - A", "10 - B", etc.
+      final Set<String> uniqueSections = {};
+      final Set<String> uniqueGrades = {};
+      for (final cls in formattedClasses) {
+        final parts = cls.split(' - ');
+        if (parts.length == 2) {
+          uniqueSections.add(parts[1]); // Extract "A", "B", etc.
+          uniqueGrades.add(
+            parts[0].trim(),
+          ); // Extract just the standard (e.g., "10")
+        }
       }
-      final sectionDisplay = secs.map((s) => 'Section $s').toList();
+      final sectionDisplay = uniqueSections.map((s) => 'Section $s').toList()
+        ..sort();
+      final List<String> gradeOnlyList = uniqueGrades.toList()..sort();
 
       setState(() {
-        classes = clzs;
+        // Show only the standard (grade) in the class dropdown
+        classes = gradeOnlyList;
         sections = sectionDisplay;
         selectedClass = classes.isNotEmpty ? classes.first : null;
         selectedSection = sections.isNotEmpty ? sections.first : null;
@@ -96,36 +113,112 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
       isGenerating = true;
     });
 
-    // Simulate AI generation delay
-    Future.delayed(const Duration(seconds: 2), () {
-      setState(() {
-        isGenerating = false;
-        hasGenerated = true;
-        generatedQuestions = [
-          GeneratedQuestion(
-            question: 'What is the derivative of x^2?',
-            answer: '2x',
-            topic: 'Calculus',
-            difficulty: 'Medium',
-            confidence: 95,
-          ),
-          GeneratedQuestion(
-            question: 'Solve for x: 3x + 5 = 14',
-            answer: 'x = 3',
-            topic: 'Algebra',
-            difficulty: 'Easy',
-            confidence: 98,
-          ),
-          GeneratedQuestion(
-            question: 'Calculate the area of a circle with radius 5',
-            answer: '25π',
-            topic: 'Geometry',
-            difficulty: 'Easy',
-            confidence: 99,
-          ),
-        ];
-      });
+    // Validate inputs
+    if (_subjectController.text.trim().isEmpty) {
+      _showErrorDialog('Please enter a subject');
+      return;
+    }
+    if (_topicsController.text.trim().isEmpty) {
+      _showErrorDialog('Please enter topics');
+      return;
+    }
+    if (_questionCountController.text.trim().isEmpty) {
+      _showErrorDialog('Please enter the number of questions');
+      return;
+    }
+    if (selectedClass == null) {
+      _showErrorDialog('Please select a class');
+      return;
+    }
+
+    final questionCount = int.tryParse(_questionCountController.text.trim());
+    if (questionCount == null || questionCount <= 0 || questionCount > 50) {
+      _showErrorDialog('Please enter a valid number of questions (1-50)');
+      return;
+    }
+
+    // Check if DeepSeek is configured
+    if (!DeepSeekConfig.isConfigured) {
+      _showErrorDialog(
+        'DeepSeek API not configured!\n\n'
+        'Please add your API key in:\n'
+        'lib/core/config/deepseek_config.dart\n\n'
+        'Get your API key from:\nhttps://platform.deepseek.com/',
+      );
+      return;
+    }
+
+    setState(() {
+      isGenerating = true;
     });
+
+    // Call DeepSeek API
+    final deepSeekService = DeepSeekService();
+    deepSeekService
+        .generateTestQuestions(
+          subject: _subjectController.text.trim(),
+          topics: _topicsController.text.trim(),
+          questionCount: questionCount,
+          difficulty: selectedDifficulty,
+          grade: selectedClass!,
+        )
+        .then((aiQuestions) {
+          setState(() {
+            isGenerating = false;
+            hasGenerated = true;
+            generatedQuestions = aiQuestions.map((q) {
+              return GeneratedQuestion(
+                question: q['question'] ?? '',
+                answer: q['correctAnswer'] ?? '',
+                options: List<String>.from(q['options'] ?? []),
+                explanation: q['explanation'] ?? '',
+                topic: q['topic'] ?? _topicsController.text.trim(),
+                difficulty: q['difficulty'] ?? selectedDifficulty,
+                confidence:
+                    95, // DeepSeek doesn't provide confidence, so we use a high default
+                points: q['points'] ?? 1,
+              );
+            }).toList();
+          });
+
+          if (mounted && generatedQuestions.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '✨ Generated ${generatedQuestions.length} questions successfully!',
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        })
+        .catchError((error) {
+          setState(() {
+            isGenerating = false;
+          });
+
+          _showErrorDialog(
+            'Failed to generate questions:\n\n$error\n\n'
+            'Please check your API key and internet connection.',
+          );
+        });
+  }
+
+  void _showErrorDialog(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('⚠️ Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -286,7 +379,124 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        _buildScheduleSection(),
       ],
+    );
+  }
+
+  Widget _buildScheduleSection() {
+    final theme = Theme.of(context);
+    final dateText = _scheduledDate == null
+        ? 'Select date'
+        : '${_scheduledDate!.year}-${_scheduledDate!.month.toString().padLeft(2, '0')}-${_scheduledDate!.day.toString().padLeft(2, '0')}';
+    final timeText = _scheduledTime == null
+        ? 'Select time'
+        : _scheduledTime!.format(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Schedule Test',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textTheme.titleLarge?.color,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildScheduleTile(
+                  icon: Icons.calendar_today,
+                  label: 'Date',
+                  value: dateText,
+                  onTap: _pickDate,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildScheduleTile(
+                  icon: Icons.access_time,
+                  label: 'Start Time',
+                  value: timeText,
+                  onTap: _pickTime,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Defaulted to current date/time. Adjust if needed.',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.dividerColor),
+          color: theme.inputDecorationTheme.fillColor ?? theme.cardColor,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: theme.iconTheme.color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.textTheme.bodySmall?.color,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -713,7 +923,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    _showAssignDialog();
+                    _showScheduleDialog();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6366F1),
@@ -725,7 +935,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                     elevation: 0,
                   ),
                   child: const Text(
-                    'Assign',
+                    'Schedule Test',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
@@ -760,14 +970,25 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     return const TeacherBottomNav(selectedIndex: 2);
   }
 
-  void _showAssignDialog() {
+  void _showScheduleDialog() {
+    final date = _scheduledDate;
+    final time = _scheduledTime;
+    if (date == null || time == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a schedule date and time')),
+      );
+      return;
+    }
+
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final timeStr = time.format(context);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Assign Test'),
-        content: const Text(
-          'Are you sure you want to assign this AI-generated test to students?',
-        ),
+        title: const Text('Confirm Schedule'),
+        content: Text('Schedule this test on\n$dateStr at $timeStr?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -776,16 +997,61 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await _saveGeneratedTest(publish: true);
+              await _saveGeneratedTest(publish: false, schedule: true);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF6366F1),
             ),
-            child: const Text('Assign'),
+            child: const Text('Confirm'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final first = DateTime(now.year - 1);
+    final last = DateTime(now.year + 5);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _scheduledDate ?? now,
+      firstDate: first,
+      lastDate: last,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(
+              context,
+            ).colorScheme.copyWith(primary: const Color(0xFF6366F1)),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _scheduledDate = picked);
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _scheduledTime ?? TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(
+              context,
+            ).colorScheme.copyWith(primary: const Color(0xFF6366F1)),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _scheduledTime = picked);
+    }
   }
 }
 
@@ -793,21 +1059,30 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
 class GeneratedQuestion {
   final String question;
   final String answer;
+  final List<String> options;
+  final String explanation;
   final String topic;
   final String difficulty;
   final int confidence;
+  final int points;
 
   GeneratedQuestion({
     required this.question,
     required this.answer,
+    this.options = const [],
+    this.explanation = '',
     required this.topic,
     required this.difficulty,
     required this.confidence,
+    this.points = 1,
   });
 }
 
 extension on _AITestGeneratorScreenState {
-  Future<void> _saveGeneratedTest({required bool publish}) async {
+  Future<void> _saveGeneratedTest({
+    required bool publish,
+    bool schedule = false,
+  }) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final testProv = Provider.of<TestProvider>(context, listen: false);
     final user = auth.currentUser;
@@ -830,20 +1105,37 @@ extension on _AITestGeneratorScreenState {
         .replaceAll('Section ', '')
         .trim();
     final duration =
-        int.tryParse(_questionCountController.text.trim()) ?? 30; // fallback
+        int.tryParse(_questionCountController.text.trim()) ??
+        30; // fallback minutes
     final now = DateTime.now();
-    final startDate = now;
-    final endDate = now.add(Duration(minutes: duration));
-    final status = publish ? tm.TestStatus.published : tm.TestStatus.draft;
+
+    // Determine dates based on schedule or immediate publish/draft
+    DateTime startDate;
+    DateTime endDate;
+    tm.TestStatus status;
+    if (schedule) {
+      final d = _scheduledDate ?? DateTime.now();
+      final t = _scheduledTime ?? TimeOfDay.now();
+      startDate = DateTime(d.year, d.month, d.day, t.hour, t.minute);
+      endDate = startDate.add(Duration(minutes: duration));
+      // Scheduled tests are published so students can see them, but UI checks startDate
+      status = tm.TestStatus.published;
+    } else {
+      startDate = now;
+      endDate = now.add(Duration(minutes: duration));
+      status = publish ? tm.TestStatus.published : tm.TestStatus.draft;
+    }
 
     final modelQuestions = generatedQuestions.map((gq) {
       return tm.Question(
         id: gq.question.hashCode.toString(),
-        type: tm.QuestionType.shortAnswer,
+        type: gq.options.isNotEmpty
+            ? tm.QuestionType.multipleChoice
+            : tm.QuestionType.shortAnswer,
         question: gq.question,
-        options: null,
+        options: gq.options.isNotEmpty ? gq.options : null,
         correctAnswer: gq.answer,
-        points: 1,
+        points: gq.points,
       );
     }).toList();
 
@@ -883,10 +1175,25 @@ extension on _AITestGeneratorScreenState {
       updatedAt: now,
     );
 
-    final ok = await testProv.createTest(test);
+    bool ok;
+    if (schedule) {
+      ok = await testProv.createScheduledTest(
+        test,
+        scheduledDate: _scheduledDate ?? DateTime.now(),
+        scheduledTime: _scheduledTime ?? TimeOfDay.now(),
+      );
+    } else {
+      ok = await testProv.createTest(test);
+    }
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Test created successfully')),
+        SnackBar(
+          content: Text(
+            schedule
+                ? 'Test scheduled successfully'
+                : 'Test created successfully',
+          ),
+        ),
       );
       if (mounted) {
         Navigator.popUntil(context, (route) => route.isFirst);

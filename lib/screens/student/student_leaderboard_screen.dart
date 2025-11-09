@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/leaderboard_service.dart';
-import '../../widgets/student_bottom_nav.dart';
 
 class StudentLeaderboardScreen extends StatefulWidget {
   const StudentLeaderboardScreen({super.key});
@@ -59,7 +58,6 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: const StudentBottomNav(currentIndex: 3),
     );
   }
 
@@ -630,13 +628,13 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
               ),
               // Score
               Text(
-                score == 0 
-                    ? '0' 
-                    : (score is int 
-                        ? '$score' 
-                        : (score % 1 == 0 
-                            ? '${score.toInt()}' 
-                            : score.toStringAsFixed(1))),
+                score == 0
+                    ? '0'
+                    : (score is int
+                          ? '$score'
+                          : (score % 1 == 0
+                                ? '${score.toInt()}'
+                                : score.toStringAsFixed(1))),
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -754,7 +752,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           final list1 = _mapEntries(snap.docs);
           // If Firestore has entries but all scores are zero (or missing),
           // fall back to computing from testResults for accuracy.
-          final hasAnyNonZero = list1.any((e) => (e.score is num) && (e.score as num) > 0);
+          final hasAnyNonZero = list1.any(
+            (e) => (e.score is num) && (e.score as num) > 0,
+          );
           if (list1.isNotEmpty && hasAnyNonZero) return list1;
           // Attempt 2: collection 'leaderboards_overall'
           final snap2 = await schoolRef
@@ -763,7 +763,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
               .limit(100)
               .get();
           final list2 = _mapEntries(snap2.docs);
-          final hasAnyNonZero2 = list2.any((e) => (e.score is num) && (e.score as num) > 0);
+          final hasAnyNonZero2 = list2.any(
+            (e) => (e.score is num) && (e.score as num) > 0,
+          );
           if (list2.isNotEmpty && hasAnyNonZero2) return list2;
           // Fallback to compute via service once
           return _leaderboardService.getOverallLeaderboardForClass(

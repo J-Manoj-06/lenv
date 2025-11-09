@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../models/reward_request_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/reward_request_service.dart';
-import '../../widgets/student_bottom_nav.dart';
 
 class StudentRewardsScreen extends StatefulWidget {
   const StudentRewardsScreen({super.key});
@@ -78,7 +77,6 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
           ],
         ),
       ),
-      bottomNavigationBar: const StudentBottomNav(currentIndex: 2),
     );
   }
 

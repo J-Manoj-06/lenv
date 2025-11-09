@@ -186,8 +186,32 @@ class TestRulesScreen extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
-                        // Check if test has expired
+                        // Check schedule windows
                         final now = DateTime.now();
+                        // Not started yet
+                        if (now.isBefore(test.startDate)) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Test not started'),
+                              content: Text(
+                                'This test will be available starting on ' +
+                                    '${test.startDate.toLocal()}'.split(
+                                      '.',
+                                    )[0] +
+                                    '. Please try again later.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                          return;
+                        }
+                        // Expired
                         if (now.isAfter(test.endDate)) {
                           showDialog(
                             context: context,

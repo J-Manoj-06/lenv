@@ -31,6 +31,24 @@ class StudentStats {
 class LeaderboardService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // Sum of pointsEarned from student_rewards for a student
+  Future<int> _sumStudentRewards(String uid) async {
+    try {
+      final snap = await _db
+          .collection('student_rewards')
+          .where('studentId', isEqualTo: uid)
+          .get();
+      int total = 0;
+      for (final d in snap.docs) {
+        final data = d.data();
+        total += (data['pointsEarned'] as num?)?.toInt() ?? 0;
+      }
+      return total;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   // Helper: get student doc (students collection) for uid or email
   Future<Map<String, dynamic>?> _getStudentDocByUidOrEmail({
     required String uid,
@@ -78,7 +96,7 @@ class LeaderboardService {
       String? uidFromUsers;
       int rewardPoints = 0;
       double totalTestScore = 0.0;
-      
+
       if (email != null && email.isNotEmpty) {
         final uq = await _db
             .collection('users')
@@ -89,13 +107,17 @@ class LeaderboardService {
           final u = uq.docs.first.data();
           uidFromUsers = (u['uid'] as String?) ?? uq.docs.first.id;
           rewardPoints = (u['rewardPoints'] as num?)?.toInt() ?? 0;
-          
+          // Fallback to sum of student_rewards if users.rewardPoints missing/zero
+          if (rewardPoints == 0) {
+            rewardPoints = await _sumStudentRewards(uidFromUsers);
+          }
+
           // Calculate total score from test results
           final testResultsSnap = await _db
               .collection('testResults')
               .where('studentId', isEqualTo: uidFromUsers)
               .get();
-          
+
           // Sum all test scores (deduplicated by testId, keeping highest)
           final bestScoreByTest = <String, double>{};
           for (final doc in testResultsSnap.docs) {
@@ -103,18 +125,38 @@ class LeaderboardService {
             final testId = data['testId'] as String?;
             final score = (data['score'] as num?)?.toDouble() ?? 0.0;
             if (testId != null && testId.isNotEmpty) {
-              if (!bestScoreByTest.containsKey(testId) || score > bestScoreByTest[testId]!) {
+              if (!bestScoreByTest.containsKey(testId) ||
+                  score > bestScoreByTest[testId]!) {
                 bestScoreByTest[testId] = score;
               }
             }
           }
-          totalTestScore = bestScoreByTest.values.fold(0.0, (sum, score) => sum + score);
+          totalTestScore = bestScoreByTest.values.fold(
+            0.0,
+            (sum, score) => sum + score,
+          );
         }
       }
-      
+
+      // If we didn't find a users doc, try fallback using students doc id
+      if ((uidFromUsers == null || uidFromUsers.isEmpty) && rewardPoints == 0) {
+        final fallbackUid =
+            sDoc['studentId'] as String? ??
+            sDoc['uid'] as String? ??
+            sDoc['id'] as String? ??
+            sDoc['email'] as String? ??
+            sDoc['rollNumber'] as String?;
+        if (fallbackUid != null && fallbackUid.isNotEmpty) {
+          rewardPoints = await _sumStudentRewards(fallbackUid);
+          uidFromUsers = fallbackUid;
+        }
+      }
+
       // Use total test score if available, otherwise fall back to reward points
-      final displayScore = totalTestScore > 0 ? totalTestScore : rewardPoints.toDouble();
-      
+      final displayScore = totalTestScore > 0
+          ? totalTestScore
+          : rewardPoints.toDouble();
+
       entries.add({
         'uid': uidFromUsers ?? sDoc.id,
         'name': name,
@@ -124,7 +166,9 @@ class LeaderboardService {
     }
 
     // 3) Sort by points desc and assign ranks
-    entries.sort((a, b) => (b['points'] as double).compareTo(a['points'] as double));
+    entries.sort(
+      (a, b) => (b['points'] as double).compareTo(a['points'] as double),
+    );
     final result = <LeaderboardEntry>[];
     for (var i = 0; i < entries.length && i < limit; i++) {
       final e = entries[i];
