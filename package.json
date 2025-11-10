@@ -1,0 +1,25 @@
+{
+  "name": "ai-test-proxy-server",
+  "version": "1.0.0",
+  "description": "Proxy server for AI test generation in Flutter app",
+  "main": "proxy-server.js",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "dev": "nodemon proxy-server.js"
+  },
+  "keywords": [
+    "deepseek",
+    "ai",
+    "proxy",
+    "flutter"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

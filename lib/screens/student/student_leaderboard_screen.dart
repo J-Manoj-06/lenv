@@ -736,46 +736,18 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     if (_schoolCode == null || _schoolCode!.isEmpty) {
       return const Stream.empty();
     }
-    final schoolRef = FirebaseFirestore.instance
-        .collection('schools')
-        .doc(_schoolCode);
 
-    // Attempt 1: subcollection at leaderboards/overall (collection of entries)
-    final attempt1Stream = schoolRef
-        .collection('leaderboards')
-        .doc('overall')
-        .collection('entries')
-        .orderBy('score', descending: true)
-        .limit(100)
-        .snapshots()
-        .asyncMap((snap) async {
-          final list1 = _mapEntries(snap.docs);
-          // If Firestore has entries but all scores are zero (or missing),
-          // fall back to computing from testResults for accuracy.
-          final hasAnyNonZero = list1.any(
-            (e) => (e.score is num) && (e.score as num) > 0,
-          );
-          if (list1.isNotEmpty && hasAnyNonZero) return list1;
-          // Attempt 2: collection 'leaderboards_overall'
-          final snap2 = await schoolRef
-              .collection('leaderboards_overall')
-              .orderBy('score', descending: true)
-              .limit(100)
-              .get();
-          final list2 = _mapEntries(snap2.docs);
-          final hasAnyNonZero2 = list2.any(
-            (e) => (e.score is num) && (e.score as num) > 0,
-          );
-          if (list2.isNotEmpty && hasAnyNonZero2) return list2;
-          // Fallback to compute via service once
-          return _leaderboardService.getOverallLeaderboardForClass(
-            schoolCode: _schoolCode!,
-            className: _className ?? '',
-            section: _section,
-            limit: 100,
-          );
-        });
-    return attempt1Stream;
+    // FIXED: Always use LeaderboardService for accurate, aggregated points
+    // The subcollections may contain stale data and cause incorrect leaderboard display
+    // This ensures student leaderboard matches teacher leaderboard (both use same service)
+    return Stream.periodic(const Duration(seconds: 5)).asyncMap((_) async {
+      return _leaderboardService.getOverallLeaderboardForClass(
+        schoolCode: _schoolCode!,
+        className: _className ?? '',
+        section: _section,
+        limit: 100,
+      );
+    }).asBroadcastStream();
   }
 
   // Build per-test leaderboard stream from school path; fallback to service

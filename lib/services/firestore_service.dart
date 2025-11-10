@@ -926,6 +926,13 @@ class FirestoreService {
           obtained: result.correctAnswers.toDouble(),
           basePoints: 100, // default baseline
         );
+        print(
+          '🎯 Awarding $earnedPoints points to ${result.studentName} (${result.studentId}) for test ${result.testTitle}',
+        );
+        print(
+          '   Score: ${result.correctAnswers}/${result.totalQuestions} = ${(result.correctAnswers / result.totalQuestions * 100).toStringAsFixed(1)}%',
+        );
+
         await savePointsToFirestore(
           studentId: result.studentId,
           testId: result.testId,
@@ -933,7 +940,10 @@ class FirestoreService {
           totalMarks: result.totalQuestions.toDouble(),
           points: earnedPoints,
         );
-      } catch (e) {}
+        print('✅ Points saved successfully!');
+      } catch (e) {
+        print('❌ ERROR saving points: $e');
+      }
 
       // Update test document with completion info
       final testDoc = _db.collection('tests').doc(result.testId);
@@ -1039,6 +1049,12 @@ class FirestoreService {
     required double totalMarks,
     required int points,
   }) async {
+    print('💾 savePointsToFirestore called:');
+    print('   studentId: $studentId');
+    print('   testId: $testId');
+    print('   marks: $marks/$totalMarks');
+    print('   points: $points');
+
     final doc = _db.collection('student_rewards').doc();
     final payload = RewardPointsModel(
       id: doc.id,
@@ -1052,6 +1068,7 @@ class FirestoreService {
 
     final batch = _db.batch();
     batch.set(doc, payload);
+    print('   ✓ Added student_rewards doc: ${doc.id}');
 
     // Prefer users collection for points, but also try students if exists
     final userRef = _db.collection('users').doc(studentId);
@@ -1060,6 +1077,7 @@ class FirestoreService {
       'totalPoints': FieldValue.increment(points),
       'rewardPoints': FieldValue.increment(points),
     }, SetOptions(merge: true));
+    print('   ✓ Queued increment to users/$studentId: +$points points');
 
     // Optional: update students collection if present
     final studentRef = _db.collection('students').doc(studentId);
@@ -1070,12 +1088,19 @@ class FirestoreService {
           'totalPoints': FieldValue.increment(points),
           'rewardPoints': FieldValue.increment(points),
         });
+        print('   ✓ Queued increment to students/$studentId: +$points points');
+      } else {
+        print(
+          '   ⚠️ students/$studentId does not exist, skipping students collection update',
+        );
       }
     } catch (_) {
       // ignore if collection not present
+      print('   ⚠️ Error checking students collection');
     }
 
     await batch.commit();
+    print('   ✅ Batch committed successfully!');
   }
 
   /// Products catalog
@@ -1288,6 +1313,76 @@ class FirestoreService {
       return updatedCount;
     } catch (e) {
       return 0;
+    }
+  }
+
+  // =========================
+  // AI Test Generation Support
+  // =========================
+
+  /// Save AI-generated test to scheduledTests collection
+  /// Returns the document ID of the created test
+  Future<String> saveScheduledTest(Map<String, dynamic> testDoc) async {
+    // Generate a new document ID
+    final docRef = _db.collection('scheduledTests').doc();
+
+    // Add the ID to the document
+    testDoc['id'] = docRef.id;
+
+    // Ensure required fields have defaults
+    testDoc['createdAt'] = FieldValue.serverTimestamp();
+    testDoc['autoPublished'] ??= false;
+    testDoc['resultsPublished'] ??= false;
+    testDoc['status'] ??= 'scheduled';
+
+    // Save to Firestore
+    await docRef.set(testDoc);
+
+    print('✅ AI test saved to scheduledTests: ${docRef.id}');
+    return docRef.id;
+  }
+
+  /// Fetch previous questions for context in AI generation
+  /// Returns up to 5 recent questions from the same class/section/subject
+  Future<List<Map<String, dynamic>>> fetchPreviousQuestions({
+    required String className,
+    required String section,
+    required String subject,
+  }) async {
+    try {
+      final snapshot = await _db
+          .collection('scheduledTests')
+          .where('className', isEqualTo: className)
+          .where('section', isEqualTo: section)
+          .where('subject', isEqualTo: subject)
+          .orderBy('createdAt', descending: true)
+          .limit(5)
+          .get();
+
+      final previousQuestions = <Map<String, dynamic>>[];
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final questions = data['questions'] as List<dynamic>? ?? [];
+
+        // Extract question text and marks from each test
+        for (final q in questions) {
+          if (q is Map<String, dynamic>) {
+            previousQuestions.add({
+              'questionText': q['questionText'] ?? q['question'] ?? '',
+              'marks': q['marks'] ?? q['points'] ?? 1,
+            });
+          }
+        }
+      }
+
+      print(
+        '📚 Found ${previousQuestions.length} previous questions for context',
+      );
+      return previousQuestions.take(5).toList(); // Limit to 5 questions
+    } catch (e) {
+      print('⚠️ Error fetching previous questions: $e');
+      return []; // Return empty list on error, don't fail the generation
     }
   }
 }

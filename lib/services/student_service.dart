@@ -418,16 +418,34 @@ class StudentService {
         'attemptedAt': FieldValue.serverTimestamp(),
       });
 
-      // If correct, update student points
+      // If correct, update student points AND create student_rewards entry
       if (isCorrect) {
-        final studentDoc = await _firestore
-            .collection('users')
-            .doc(studentId)
-            .get();
-        final currentPoints = studentDoc.data()?['rewardPoints'] ?? 0;
-        await _firestore.collection('users').doc(studentId).update({
-          'rewardPoints': currentPoints + challenge.points,
+        print(
+          '🎯 Daily Challenge: Awarding ${challenge.points} points to student $studentId',
+        );
+
+        // Create student_rewards entry (same as test points)
+        final rewardDoc = _firestore.collection('student_rewards').doc();
+        await rewardDoc.set({
+          'id': rewardDoc.id,
+          'studentId': studentId,
+          'testId': challengeId, // Use challengeId as testId for tracking
+          'marks': 1.0, // Correct answer = 1 mark
+          'totalMarks': 1.0,
+          'pointsEarned': challenge.points,
+          'timestamp': FieldValue.serverTimestamp(),
+          'source': 'daily_challenge', // Mark this as daily challenge points
         });
+
+        // Update users collection using merge to handle missing docs
+        await _firestore.collection('users').doc(studentId).set({
+          'rewardPoints': FieldValue.increment(challenge.points),
+          'totalPoints': FieldValue.increment(challenge.points),
+        }, SetOptions(merge: true));
+
+        print(
+          '✅ Daily Challenge: Points saved to student_rewards and users collection',
+        );
       }
 
       return isCorrect;

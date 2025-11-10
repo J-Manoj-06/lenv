@@ -37,12 +37,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
       options: ['3', '4', '5'],
       correctAnswerIndex: 1,
     ),
-    Question(id: 2, type: QuestionType.shortAnswer, questionText: ''),
   ];
   // Dynamic lists populated from teacher profile
   List<String> subjects = [];
   List<String> classes = [];
   List<String> sections = [];
+  // Map of grade -> sections available for that grade (e.g., {"8": ["A"], "9": ["A","B"]})
+  final Map<String, List<String>> _gradeSections = {};
 
   bool _loadingMeta = true;
 
@@ -105,22 +106,33 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
         classAssignments: data?['classAssignments'],
       );
 
-      // Extract unique sections from formatted classes
-      // Format is "10 - A", "10 - B", etc.
-      final Set<String> uniqueSections = {};
-      final Set<String> uniqueGrades = {};
+      // Build grade -> sections map from formatted classes (e.g., "10 - A")
+      _gradeSections.clear();
       for (final cls in formattedClasses) {
         final parts = cls.split(' - ');
         if (parts.length == 2) {
-          uniqueSections.add(parts[1]); // Extract "A", "B", etc.
-          uniqueGrades.add(
-            parts[0].trim(),
-          ); // Extract just the standard (e.g., "10")
+          final grade = parts[0].trim();
+          final section = parts[1].trim();
+          _gradeSections.putIfAbsent(grade, () => <String>[]);
+          if (!_gradeSections[grade]!.contains(section)) {
+            _gradeSections[grade]!.add(section);
+          }
         }
       }
-      final sectionDisplay = uniqueSections.map((s) => 'Section $s').toList()
-        ..sort();
-      final List<String> gradeOnlyList = uniqueGrades.toList()..sort();
+      // Sort grades and sections
+      final List<String> gradeOnlyList = _gradeSections.keys.toList()..sort();
+      for (final entry in _gradeSections.entries) {
+        entry.value.sort();
+      }
+      // Determine initial class and its sections
+      final String? initialGrade = gradeOnlyList.isNotEmpty
+          ? gradeOnlyList.first
+          : null;
+      final List<String> initialSections = initialGrade != null
+          ? (_gradeSections[initialGrade] ?? <String>[])
+          : <String>[];
+      final List<String> sectionDisplay =
+          initialSections.map((s) => 'Section $s').toList()..sort();
 
       setState(() {
         subjects = subjs;
@@ -128,7 +140,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
         classes = gradeOnlyList;
         sections = sectionDisplay;
         selectedSubject = subjects.isNotEmpty ? subjects.first : null;
-        selectedClass = classes.isNotEmpty ? classes.first : null;
+        selectedClass = initialGrade;
         selectedSection = sections.isNotEmpty ? sections.first : null;
         _loadingMeta = false;
       });
@@ -291,6 +303,17 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                       : (value) {
                           setState(() {
                             selectedClass = value;
+                            // Update sections based on selected class
+                            final grade = (selectedClass ?? '').trim();
+                            final secList = _gradeSections[grade] ?? <String>[];
+                            sections = secList.map((s) => 'Section $s').toList()
+                              ..sort();
+                            // Reset selectedSection if not in new list
+                            if (!sections.contains(selectedSection)) {
+                              selectedSection = sections.isNotEmpty
+                                  ? sections.first
+                                  : null;
+                            }
                           });
                         },
                 ),
@@ -612,6 +635,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                       Text(
                         question.type == QuestionType.multipleChoice
                             ? 'Multiple Choice'
+                            : question.type == QuestionType.trueFalse
+                            ? 'True or False'
+                            : question.type == QuestionType.matchFollowing
+                            ? 'Match the Following'
                             : 'Short Answer',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontSize: 14,
@@ -642,6 +669,16 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                 ? List.from(question.options!)
                                 : null,
                             correctAnswerIndex: question.correctAnswerIndex,
+                            matchPairs: question.matchPairs != null
+                                ? question.matchPairs!
+                                      .map(
+                                        (p) => MatchPair(
+                                          left: p.left,
+                                          right: p.right,
+                                        ),
+                                      )
+                                      .toList()
+                                : null,
                           ),
                         );
                       });
@@ -675,6 +712,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             decoration: InputDecoration(
               hintText: question.type == QuestionType.multipleChoice
                   ? 'What is 2 + 2?'
+                  : question.type == QuestionType.trueFalse
+                  ? 'The Earth is flat.'
+                  : question.type == QuestionType.matchFollowing
+                  ? 'Match the items in Column A with Column B'
                   : 'Explain the theory of relativity.',
               hintStyle: TextStyle(
                 color: theme.colorScheme.onSurface.withOpacity(0.4),
@@ -703,6 +744,14 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
           if (question.type == QuestionType.multipleChoice) ...[
             const SizedBox(height: 16),
             _buildMultipleChoiceOptions(theme, question),
+          ],
+          if (question.type == QuestionType.trueFalse) ...[
+            const SizedBox(height: 16),
+            _buildTrueFalseOptions(theme, question),
+          ],
+          if (question.type == QuestionType.matchFollowing) ...[
+            const SizedBox(height: 16),
+            _buildMatchFollowingOptions(theme, question),
           ],
         ],
       ),
@@ -773,6 +822,165 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     );
   }
 
+  Widget _buildTrueFalseOptions(ThemeData theme, Question question) {
+    return Column(
+      children: [
+        ...List.generate(2, (index) {
+          final option = question.options![index];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: question.correctAnswerIndex == index
+                      ? theme.colorScheme.primary
+                      : theme.dividerColor,
+                  width: question.correctAnswerIndex == index ? 2 : 1,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                color: question.correctAnswerIndex == index
+                    ? theme.colorScheme.primary.withOpacity(0.05)
+                    : Colors.transparent,
+              ),
+              child: RadioListTile<int>(
+                value: index,
+                groupValue: question.correctAnswerIndex,
+                onChanged: (value) {
+                  setState(() {
+                    question.correctAnswerIndex = value;
+                  });
+                },
+                activeColor: theme.colorScheme.primary,
+                title: Text(
+                  option,
+                  style: TextStyle(
+                    fontWeight: question.correctAnswerIndex == index
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildMatchFollowingOptions(ThemeData theme, Question question) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Column A',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Column B',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 40),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...List.generate(question.matchPairs!.length, (index) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: TextEditingController(
+                      text: question.matchPairs![index].left,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Item ${index + 1}',
+                      hintStyle: TextStyle(
+                        color: theme.colorScheme.onSurface.withOpacity(0.4),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: theme.dividerColor),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      question.matchPairs![index].left = value;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextField(
+                    controller: TextEditingController(
+                      text: question.matchPairs![index].right,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Match ${index + 1}',
+                      hintStyle: TextStyle(
+                        color: theme.colorScheme.onSurface.withOpacity(0.4),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: theme.dividerColor),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      question.matchPairs![index].right = value;
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, size: 18),
+                  onPressed: () {
+                    if (question.matchPairs!.length > 2) {
+                      setState(() {
+                        question.matchPairs!.removeAt(index);
+                      });
+                    }
+                  },
+                  color: theme.colorScheme.error,
+                ),
+              ],
+            ),
+          );
+        }),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () {
+              setState(() {
+                question.matchPairs!.add(MatchPair(left: '', right: ''));
+              });
+            },
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Add Pair'),
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildAddQuestionButton(ThemeData theme) {
     return InkWell(
       onTap: () {
@@ -814,44 +1022,68 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Add Question'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Multiple Choice'),
-              leading: const Icon(Icons.radio_button_checked),
-              onTap: () {
-                setState(() {
-                  questions.add(
-                    Question(
-                      id: questions.length + 1,
-                      type: QuestionType.multipleChoice,
-                      questionText: '',
-                      options: ['', '', ''],
-                      correctAnswerIndex: 0,
-                    ),
-                  );
-                });
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              title: const Text('Short Answer'),
-              leading: const Icon(Icons.short_text),
-              onTap: () {
-                setState(() {
-                  questions.add(
-                    Question(
-                      id: questions.length + 1,
-                      type: QuestionType.shortAnswer,
-                      questionText: '',
-                    ),
-                  );
-                });
-                Navigator.pop(context);
-              },
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Multiple Choice'),
+                leading: const Icon(Icons.radio_button_checked),
+                onTap: () {
+                  setState(() {
+                    questions.add(
+                      Question(
+                        id: questions.length + 1,
+                        type: QuestionType.multipleChoice,
+                        questionText: '',
+                        options: ['', '', ''],
+                        correctAnswerIndex: 0,
+                      ),
+                    );
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: const Text('True or False'),
+                leading: const Icon(Icons.check_circle_outline),
+                onTap: () {
+                  setState(() {
+                    questions.add(
+                      Question(
+                        id: questions.length + 1,
+                        type: QuestionType.trueFalse,
+                        questionText: '',
+                        options: ['True', 'False'],
+                        correctAnswerIndex: 0,
+                      ),
+                    );
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: const Text('Match the Following'),
+                leading: const Icon(Icons.compare_arrows),
+                onTap: () {
+                  setState(() {
+                    questions.add(
+                      Question(
+                        id: questions.length + 1,
+                        type: QuestionType.matchFollowing,
+                        questionText: '',
+                        matchPairs: [
+                          MatchPair(left: '', right: ''),
+                          MatchPair(left: '', right: ''),
+                        ],
+                      ),
+                    );
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1043,7 +1275,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
 }
 
 // Question model
-enum QuestionType { multipleChoice, shortAnswer }
+enum QuestionType { multipleChoice, trueFalse, matchFollowing }
 
 class Question {
   int id;
@@ -1051,6 +1283,8 @@ class Question {
   String questionText;
   List<String>? options;
   int? correctAnswerIndex;
+  // For match the following
+  List<MatchPair>? matchPairs;
 
   Question({
     required this.id,
@@ -1058,7 +1292,15 @@ class Question {
     required this.questionText,
     this.options,
     this.correctAnswerIndex,
+    this.matchPairs,
   });
+}
+
+class MatchPair {
+  String left;
+  String right;
+
+  MatchPair({required this.left, required this.right});
 }
 
 extension on _CreateTestScreenState {
@@ -1131,21 +1373,47 @@ extension on _CreateTestScreenState {
 
     // Map local questions to model questions
     final modelQuestions = questions.map((q) {
+      // Determine question type
+      tm.QuestionType questionType;
+      if (q.type == QuestionType.multipleChoice) {
+        questionType = tm.QuestionType.multipleChoice;
+      } else if (q.type == QuestionType.trueFalse) {
+        questionType = tm.QuestionType.trueFalse;
+      } else {
+        questionType = tm.QuestionType.shortAnswer;
+      }
+
+      // Determine correct answer
+      String? correctAnswer;
+      List<String>? options;
+
+      if (q.type == QuestionType.multipleChoice ||
+          q.type == QuestionType.trueFalse) {
+        options = q.options;
+        if (q.correctAnswerIndex != null &&
+            q.options != null &&
+            q.correctAnswerIndex! >= 0 &&
+            q.correctAnswerIndex! < q.options!.length) {
+          correctAnswer = q.options![q.correctAnswerIndex!];
+        }
+      } else if (q.type == QuestionType.matchFollowing &&
+          q.matchPairs != null) {
+        // Store match pairs as JSON string in correctAnswer
+        final pairsMap = q.matchPairs!.asMap().map(
+          (idx, pair) => MapEntry(idx.toString(), {
+            'left': pair.left,
+            'right': pair.right,
+          }),
+        );
+        correctAnswer = pairsMap.toString();
+      }
+
       return tm.Question(
         id: q.id.toString(),
-        type: q.type == QuestionType.multipleChoice
-            ? tm.QuestionType.multipleChoice
-            : tm.QuestionType.shortAnswer,
+        type: questionType,
         question: q.questionText,
-        options: q.options,
-        correctAnswer:
-            (q.type == QuestionType.multipleChoice &&
-                q.correctAnswerIndex != null &&
-                q.options != null &&
-                q.correctAnswerIndex! >= 0 &&
-                q.correctAnswerIndex! < q.options!.length)
-            ? q.options![q.correctAnswerIndex!]
-            : null,
+        options: options,
+        correctAnswer: correctAnswer,
         points: 1,
       );
     }).toList();

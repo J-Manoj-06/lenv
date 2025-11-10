@@ -35,6 +35,8 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   final List<String> difficulties = ['Easy', 'Medium', 'Hard'];
   List<String> classes = [];
   List<String> sections = [];
+  // Map of grade -> sections available for that grade
+  final Map<String, List<String>> _gradeSections = {};
   bool _loadingMeta = true;
 
   // Scheduling state (always visible; defaults to now)
@@ -78,28 +80,39 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
         classAssignments: data?['classAssignments'],
       );
 
-      // Extract unique sections from formatted classes
-      // Format is "10 - A", "10 - B", etc.
-      final Set<String> uniqueSections = {};
-      final Set<String> uniqueGrades = {};
+      // Build grade -> sections map
+      _gradeSections.clear();
       for (final cls in formattedClasses) {
         final parts = cls.split(' - ');
         if (parts.length == 2) {
-          uniqueSections.add(parts[1]); // Extract "A", "B", etc.
-          uniqueGrades.add(
-            parts[0].trim(),
-          ); // Extract just the standard (e.g., "10")
+          final grade = parts[0].trim();
+          final section = parts[1].trim();
+          _gradeSections.putIfAbsent(grade, () => <String>[]);
+          if (!_gradeSections[grade]!.contains(section)) {
+            _gradeSections[grade]!.add(section);
+          }
         }
       }
-      final sectionDisplay = uniqueSections.map((s) => 'Section $s').toList()
-        ..sort();
-      final List<String> gradeOnlyList = uniqueGrades.toList()..sort();
+      // Sort grades and sections
+      final List<String> gradeOnlyList = _gradeSections.keys.toList()..sort();
+      for (final entry in _gradeSections.entries) {
+        entry.value.sort();
+      }
+      // Initialize sections for the first grade
+      final String? initialGrade = gradeOnlyList.isNotEmpty
+          ? gradeOnlyList.first
+          : null;
+      final List<String> initialSections = initialGrade != null
+          ? (_gradeSections[initialGrade] ?? <String>[])
+          : <String>[];
+      final List<String> sectionDisplay =
+          initialSections.map((s) => 'Section $s').toList()..sort();
 
       setState(() {
         // Show only the standard (grade) in the class dropdown
         classes = gradeOnlyList;
         sections = sectionDisplay;
-        selectedClass = classes.isNotEmpty ? classes.first : null;
+        selectedClass = initialGrade;
         selectedSection = sections.isNotEmpty ? sections.first : null;
         _loadingMeta = false;
       });
@@ -358,6 +371,16 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                     : (value) {
                         setState(() {
                           selectedClass = value;
+                          // Update sections based on selected class
+                          final grade = (selectedClass ?? '').trim();
+                          final secList = _gradeSections[grade] ?? <String>[];
+                          sections = secList.map((s) => 'Section $s').toList()
+                            ..sort();
+                          if (!sections.contains(selectedSection)) {
+                            selectedSection = sections.isNotEmpty
+                                ? sections.first
+                                : null;
+                          }
                         });
                       },
               ),
