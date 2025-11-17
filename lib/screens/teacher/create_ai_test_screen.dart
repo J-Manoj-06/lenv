@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/ai_test_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/teacher_service.dart';
 import '../../models/test_question.dart';
 import '../../exceptions/ai_exceptions.dart';
 
@@ -20,60 +21,164 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
   final _formKey = GlobalKey<FormState>();
   final _aiService = AITestService();
   final _firestoreService = FirestoreService();
+  final _teacherService = TeacherService();
 
   // Form controllers
   final _topicController = TextEditingController();
   final _totalMarksController = TextEditingController(text: '10');
+  final _timeLimitController = TextEditingController();
 
   // Form values
   String? _selectedClass;
   String? _selectedSection;
   String? _selectedSubject;
+  String _selectedDifficulty = 'Medium';
   int _numQuestions = 5;
+
+  // Scheduling fields
+  DateTime? _scheduledDate;
+  TimeOfDay? _scheduledTime;
 
   // Generated questions
   List<TestQuestion>? _generatedQuestions;
   bool _isGenerating = false;
+  bool _isLoadingTeacherData = true;
 
-  // Available options
-  final List<String> _classes = [
-    'Grade 1',
-    'Grade 2',
-    'Grade 3',
-    'Grade 4',
-    'Grade 5',
-    'Grade 6',
-    'Grade 7',
-    'Grade 8',
-    'Grade 9',
-    'Grade 10',
-    'Grade 11',
-    'Grade 12',
-  ];
+  // Available options (dynamically loaded from teacher data)
+  List<String> _classes = [];
+  List<String> _sections = [];
+  List<String> _subjects = [];
+  final Map<String, List<String>> _gradeSections = {};
 
-  final List<String> _sections = ['A', 'B', 'C', 'D', 'E', 'F'];
-
-  final List<String> _subjects = [
-    'Mathematics',
-    'Science',
-    'English',
-    'Social Studies',
-    'Physics',
-    'Chemistry',
-    'Biology',
-    'History',
-    'Geography',
-    'Computer Science',
-    'Economics',
-    'Literature',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadTeacherData();
+    // Default schedule: current date and time
+    _scheduledDate = DateTime.now();
+    _scheduledTime = TimeOfDay.now();
+  }
 
   @override
   void dispose() {
     _topicController.dispose();
     _totalMarksController.dispose();
+    _timeLimitController.dispose();
     _aiService.dispose();
     super.dispose();
+  }
+
+  /// Load teacher's assigned classes and sections
+  Future<void> _loadTeacherData() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null || currentUser.email == null) {
+        setState(() => _isLoadingTeacherData = false);
+        return;
+      }
+
+      final teacherData = await _teacherService.getTeacherByEmail(
+        currentUser.email!,
+      );
+      if (teacherData == null) {
+        setState(() => _isLoadingTeacherData = false);
+        return;
+      }
+
+      // Get formatted classes using the service
+      final dynamic sectionsData =
+          teacherData['sections'] ?? teacherData['section'];
+      final List<String> formattedClasses = _teacherService.getTeacherClasses(
+        teacherData['classesHandled'],
+        sectionsData,
+        classAssignments: teacherData['classAssignments'],
+      );
+
+      // Build grade -> sections map
+      _gradeSections.clear();
+      for (final cls in formattedClasses) {
+        final parts = cls.split(' - ');
+        if (parts.length == 2) {
+          final grade = parts[0].trim();
+          final section = parts[1].trim();
+          _gradeSections.putIfAbsent(grade, () => <String>[]);
+          if (!_gradeSections[grade]!.contains(section)) {
+            _gradeSections[grade]!.add(section);
+          }
+        }
+      }
+
+      // Sort grades and sections
+      final List<String> gradeOnlyList = _gradeSections.keys.toList()..sort();
+      for (final entry in _gradeSections.entries) {
+        entry.value.sort();
+      }
+
+      // Load subjects from teacher data (with fallback to parse from classAssignments)
+      List<String> teacherSubjects = [];
+      if (teacherData['subjectsHandled'] != null) {
+        final subjectsData = teacherData['subjectsHandled'];
+        if (subjectsData is List) {
+          teacherSubjects.addAll(
+            subjectsData.map((s) => s.toString()).toList(),
+          );
+        } else if (subjectsData is String) {
+          teacherSubjects.addAll(
+            subjectsData
+                .split(',')
+                .map((s) => s.trim())
+                .where((s) => s.isNotEmpty),
+          );
+        }
+      }
+
+      // Fallback: Parse subjects from classAssignments if subjectsHandled is empty
+      if (teacherSubjects.isEmpty && teacherData['classAssignments'] != null) {
+        final Set<String> uniqueSubjects = {};
+        final classAssignments = teacherData['classAssignments'];
+        if (classAssignments is List) {
+          for (final assignment in classAssignments) {
+            final s = assignment.toString(); // e.g., "Grade 7: A, Algebra"
+            final parts = s.split(':');
+            if (parts.length >= 2) {
+              final right = parts[1]; // " A, Algebra"
+              final commaParts = right.split(',');
+              if (commaParts.length >= 2) {
+                final subject = commaParts[1].trim();
+                if (subject.isNotEmpty) uniqueSubjects.add(subject);
+              }
+            }
+          }
+        }
+        teacherSubjects = uniqueSubjects.toList();
+      }
+      teacherSubjects.sort();
+
+      // Initialize sections for the first grade
+      final String? initialGrade = gradeOnlyList.isNotEmpty
+          ? gradeOnlyList.first
+          : null;
+      final List<String> initialSections = initialGrade != null
+          ? (_gradeSections[initialGrade] ?? <String>[])
+          : <String>[];
+
+      setState(() {
+        _classes = gradeOnlyList;
+        _sections = initialSections;
+        _subjects = teacherSubjects;
+        _selectedClass = initialGrade;
+        _selectedSection = initialSections.isNotEmpty
+            ? initialSections.first
+            : null;
+        _selectedSubject = teacherSubjects.isNotEmpty
+            ? teacherSubjects.first
+            : null;
+        _isLoadingTeacherData = false;
+      });
+    } catch (e) {
+      print('Error loading teacher data: $e');
+      setState(() => _isLoadingTeacherData = false);
+    }
   }
 
   @override
@@ -88,6 +193,44 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
 
   /// Form view for entering test parameters
   Widget _buildFormView() {
+    if (_isLoadingTeacherData) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Loading teacher data...'),
+          ],
+        ),
+      );
+    }
+
+    if (_classes.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: Colors.orange),
+              const SizedBox(height: 16),
+              const Text(
+                'No Classes Assigned',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'You don\'t have any classes assigned. Please contact your administrator.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Form(
@@ -136,10 +279,28 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.school),
               ),
-              items: _classes.map((cls) {
-                return DropdownMenuItem(value: cls, child: Text(cls));
-              }).toList(),
-              onChanged: (value) => setState(() => _selectedClass = value),
+              items: _isLoadingTeacherData
+                  ? []
+                  : _classes.map((cls) {
+                      return DropdownMenuItem(
+                        value: cls,
+                        child: Text('Grade $cls'),
+                      );
+                    }).toList(),
+              onChanged: _classes.isEmpty
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _selectedClass = value;
+                        // Update sections based on selected class
+                        final grade = (value ?? '').trim();
+                        final secList = _gradeSections[grade] ?? <String>[];
+                        _sections = secList;
+                        _selectedSection = _sections.isNotEmpty
+                            ? _sections.first
+                            : null;
+                      });
+                    },
               validator: (value) =>
                   value == null ? 'Please select a class' : null,
             ),
@@ -153,10 +314,17 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.group),
               ),
-              items: _sections.map((section) {
-                return DropdownMenuItem(value: section, child: Text(section));
-              }).toList(),
-              onChanged: (value) => setState(() => _selectedSection = value),
+              items: _isLoadingTeacherData
+                  ? []
+                  : _sections.map((section) {
+                      return DropdownMenuItem(
+                        value: section,
+                        child: Text('Section $section'),
+                      );
+                    }).toList(),
+              onChanged: _sections.isEmpty
+                  ? null
+                  : (value) => setState(() => _selectedSection = value),
               validator: (value) =>
                   value == null ? 'Please select a section' : null,
             ),
@@ -170,10 +338,17 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.book),
               ),
-              items: _subjects.map((subject) {
-                return DropdownMenuItem(value: subject, child: Text(subject));
-              }).toList(),
-              onChanged: (value) => setState(() => _selectedSubject = value),
+              items: _isLoadingTeacherData
+                  ? []
+                  : _subjects.map((subject) {
+                      return DropdownMenuItem(
+                        value: subject,
+                        child: Text(subject),
+                      );
+                    }).toList(),
+              onChanged: _subjects.isEmpty
+                  ? null
+                  : (value) => setState(() => _selectedSubject = value),
               validator: (value) =>
                   value == null ? 'Please select a subject' : null,
             ),
@@ -194,6 +369,25 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                 }
                 return null;
               },
+            ),
+            const SizedBox(height: 16),
+
+            // Difficulty dropdown
+            DropdownButtonFormField<String>(
+              value: _selectedDifficulty,
+              decoration: const InputDecoration(
+                labelText: 'Difficulty Level',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.trending_up),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Easy', child: Text('Easy')),
+                DropdownMenuItem(value: 'Medium', child: Text('Medium')),
+                DropdownMenuItem(value: 'Hard', child: Text('Hard')),
+                DropdownMenuItem(value: 'Mixed', child: Text('Mixed')),
+              ],
+              onChanged: (value) =>
+                  setState(() => _selectedDifficulty = value!),
             ),
             const SizedBox(height: 16),
 
@@ -224,28 +418,179 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Total marks text field
-            TextFormField(
-              controller: _totalMarksController,
-              decoration: const InputDecoration(
-                labelText: 'Total Marks',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.format_list_numbered),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter total marks';
-                }
-                final marks = int.tryParse(value);
-                if (marks == null || marks <= 0) {
-                  return 'Please enter a valid number';
-                }
-                if (marks < _numQuestions) {
-                  return 'Total marks must be at least $_numQuestions';
-                }
-                return null;
-              },
+            // Total marks and time limit
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _totalMarksController,
+                    decoration: const InputDecoration(
+                      labelText: 'Total Marks',
+                      hintText: 'e.g. 100',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.format_list_numbered),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Required';
+                      }
+                      final marks = int.tryParse(value);
+                      if (marks == null || marks <= 0) {
+                        return 'Invalid number';
+                      }
+                      if (marks < _numQuestions) {
+                        return 'Min $_numQuestions';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    controller: _timeLimitController,
+                    decoration: const InputDecoration(
+                      labelText: 'Time Limit',
+                      hintText: 'e.g. 90 mins',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.timer),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Required';
+                      }
+                      final time = int.tryParse(value);
+                      if (time == null || time <= 0) {
+                        return 'Invalid time';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Schedule Test Section
+            Row(
+              children: [
+                Icon(Icons.schedule, color: Colors.blue.shade700, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Schedule Test',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Date and Time Pickers
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: _scheduledDate ?? DateTime.now(),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setState(() {
+                          _scheduledDate = date;
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 20,
+                            color: Colors.blue.shade700,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _scheduledDate == null
+                                  ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
+                                  : '${_scheduledDate!.day}/${_scheduledDate!.month}/${_scheduledDate!.year}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: _scheduledDate == null
+                                    ? Colors.grey.shade600
+                                    : Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: _scheduledTime ?? TimeOfDay.now(),
+                      );
+                      if (time != null) {
+                        setState(() {
+                          _scheduledTime = time;
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 20,
+                            color: Colors.blue.shade700,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _scheduledTime == null
+                                  ? TimeOfDay.now().format(context)
+                                  : _scheduledTime!.format(context),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: _scheduledTime == null
+                                    ? Colors.grey.shade600
+                                    : Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 
@@ -623,6 +968,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         section: _selectedSection!,
         subject: _selectedSubject!,
         topic: _topicController.text.trim(),
+        difficulty: _selectedDifficulty,
         totalMarks: int.parse(_totalMarksController.text),
         numQuestions: _numQuestions,
         previousQuestions: previousQuestions.isNotEmpty
@@ -789,6 +1135,18 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         (sum, q) => sum + q.marks,
       );
 
+      // Parse time limit
+      final timeLimit = int.tryParse(_timeLimitController.text) ?? 60;
+
+      // Create scheduled DateTime
+      final scheduledDateTime = DateTime(
+        _scheduledDate?.year ?? DateTime.now().year,
+        _scheduledDate?.month ?? DateTime.now().month,
+        _scheduledDate?.day ?? DateTime.now().day,
+        _scheduledTime?.hour ?? TimeOfDay.now().hour,
+        _scheduledTime?.minute ?? TimeOfDay.now().minute,
+      );
+
       // Create test document
       final testDoc = {
         'testName': '${_selectedSubject} - ${_topicController.text.trim()}',
@@ -797,16 +1155,19 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         'subject': _selectedSubject,
         'topic': _topicController.text.trim(),
         'totalMarks': totalMarks,
+        'timeLimit': timeLimit,
         'questionCount': _generatedQuestions!.length,
         'teacherId': currentUser.uid,
         'teacherName': currentUser.displayName ?? 'Teacher',
         'teacherEmail': currentUser.email ?? '',
         'questions': _generatedQuestions!.map((q) => q.toFirestore()).toList(),
         'status': 'scheduled',
+        'scheduledAt': scheduledDateTime,
         'autoPublished': false,
         'resultsPublished': false,
         'generatedByAI': true,
         'aiTopic': _topicController.text.trim(),
+        'createdAt': DateTime.now(),
       };
 
       // Save to Firestore

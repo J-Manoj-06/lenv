@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../config/ai_config.dart';
+import '../config/ai_test_config.dart';
 import '../models/test_question.dart';
 import '../exceptions/ai_exceptions.dart';
 
@@ -32,6 +33,7 @@ class AITestService {
   /// - [section]: Section name (e.g., "A")
   /// - [subject]: Subject name (e.g., "Mathematics")
   /// - [topic]: Specific topic for the test (e.g., "Pythagorean Theorem")
+  /// - [difficulty]: Difficulty level (Easy, Medium, Hard, Mixed)
   /// - [totalMarks]: Total marks for the entire test
   /// - [numQuestions]: Number of questions to generate
   /// - [previousQuestions]: Optional list of recent questions to avoid duplicates
@@ -51,6 +53,7 @@ class AITestService {
     required String section,
     required String subject,
     required String topic,
+    required String difficulty,
     required int totalMarks,
     required int numQuestions,
     List<Map<String, dynamic>>? previousQuestions,
@@ -62,6 +65,7 @@ class AITestService {
       section: section,
       subject: subject,
       topic: topic,
+      difficulty: difficulty,
       totalMarks: totalMarks,
       numQuestions: numQuestions,
     );
@@ -72,6 +76,7 @@ class AITestService {
       section: section,
       subject: subject,
       topic: topic,
+      difficulty: difficulty,
       totalMarks: totalMarks,
       numQuestions: numQuestions,
       previousQuestions: previousQuestions,
@@ -99,6 +104,7 @@ class AITestService {
     required String section,
     required String subject,
     required String topic,
+    required String difficulty,
     required int totalMarks,
     required int numQuestions,
   }) {
@@ -115,6 +121,10 @@ class AITestService {
     }
     if (topic.trim().isEmpty) {
       errors['topic'] = 'Topic is required';
+    }
+    final validDifficulties = ['Easy', 'Medium', 'Hard', 'Mixed'];
+    if (!validDifficulties.contains(difficulty)) {
+      errors['difficulty'] = 'Invalid difficulty level';
     }
     if (totalMarks <= 0) {
       errors['totalMarks'] = 'Total marks must be greater than 0';
@@ -144,6 +154,7 @@ class AITestService {
     required String section,
     required String subject,
     required String topic,
+    required String difficulty,
     required int totalMarks,
     required int numQuestions,
     List<Map<String, dynamic>>? previousQuestions,
@@ -151,48 +162,40 @@ class AITestService {
   }) {
     final buffer = StringBuffer();
 
-    buffer.writeln('Generate $numQuestions test questions for:');
-    buffer.writeln('- Class: $className, Section: $section');
-    buffer.writeln('- Subject: $subject');
-    buffer.writeln('- Topic: $topic');
-    buffer.writeln('- Total Marks: $totalMarks');
+    buffer.writeln('Create $numQuestions unique exam questions.');
+    buffer.writeln();
+    buffer.writeln('Class: $className');
+    buffer.writeln('Section: $section');
+    buffer.writeln('Subject: $subject');
+    buffer.writeln('Topic: $topic');
+    buffer.writeln('Difficulty Level: $difficulty');
+    buffer.writeln('Total Marks: $totalMarks');
     buffer.writeln();
 
-    buffer.writeln('REQUIREMENTS:');
-    buffer.writeln('1. Create exactly $numQuestions questions');
-    buffer.writeln('2. Mix of MCQ (multiple choice) and True/False questions');
-    buffer.writeln('3. For MCQ: provide exactly 4 options labeled A, B, C, D');
-    buffer.writeln('4. For MCQ: correctAnswer must be "A", "B", "C", or "D"');
-    buffer.writeln(
-      '5. For True/False: correctAnswer must be "true" or "false" (lowercase)',
-    );
-    buffer.writeln('6. Questions must be appropriate for $className level');
-    buffer.writeln('7. Questions must be clear and unambiguous');
-    buffer.writeln('8. Avoid duplicates with previous questions');
-    buffer.writeln();
-
-    // Add previous questions context (limit to 5)
+    // Add previous questions to avoid
     if (previousQuestions != null && previousQuestions.isNotEmpty) {
-      buffer.writeln('AVOID these recently used questions:');
-      final recent = previousQuestions.take(5);
-      for (var i = 0; i < recent.length; i++) {
-        final q = recent.elementAt(i);
+      buffer.writeln('Avoid ALL previous questions below:');
+      for (var i = 0; i < previousQuestions.length && i < 10; i++) {
+        final q = previousQuestions[i];
         buffer.writeln('${i + 1}. ${q['questionText']}');
       }
       buffer.writeln();
     }
 
-    // Add difficult questions context
-    if (difficultQuestions != null && difficultQuestions.isNotEmpty) {
-      buffer.writeln(
-        'Students found these questions difficult (create similar ones):',
-      );
-      for (var i = 0; i < difficultQuestions.length; i++) {
-        final q = difficultQuestions[i];
-        buffer.writeln('${i + 1}. ${q['questionText']}');
-      }
-      buffer.writeln();
-    }
+    buffer.writeln('Rules:');
+    buffer.writeln('- Output must be STRICT JSON array only.');
+    buffer.writeln('- MCQ must contain exactly 4 options.');
+    buffer.writeln('- True/False must contain no options.');
+    buffer.writeln('- Difficulty rules:');
+    buffer.writeln('  Easy: memory + basics');
+    buffer.writeln('  Medium: mix of conceptual + direct');
+    buffer.writeln('  Hard: application-level reasoning');
+    buffer.writeln('  Mixed: random blend');
+    buffer.writeln('- NO repeated or similar questions.');
+    buffer.writeln(
+      '- Ensure every question is different from previous question history.',
+    );
+    buffer.writeln();
 
     buffer.writeln('OUTPUT FORMAT:');
     buffer.writeln(
@@ -221,18 +224,18 @@ class AITestService {
   /// Call proxy with exponential backoff retry
   Future<String> _callProxyWithRetry(String prompt) async {
     int attempt = 0;
-    int delayMs = AIConfig.initialRetryDelayMs;
+    Duration delay = AITestConfig.initialRetryDelay;
 
-    while (attempt <= AIConfig.maxRetries) {
+    while (attempt <= AITestConfig.maxRetries) {
       try {
         final content = await _callProxy(prompt);
         return content;
       } on RateLimitException {
         rethrow; // Don't retry rate limits
       } on TimeoutException {
-        if (attempt == AIConfig.maxRetries) rethrow;
+        if (attempt == AITestConfig.maxRetries) rethrow;
       } on NetworkException {
-        if (attempt == AIConfig.maxRetries) rethrow;
+        if (attempt == AITestConfig.maxRetries) rethrow;
       } on ApiException catch (e) {
         // Don't retry client errors (4xx)
         if (e.statusCode != null &&
@@ -240,65 +243,66 @@ class AITestService {
             e.statusCode! < 500) {
           rethrow;
         }
-        if (attempt == AIConfig.maxRetries) rethrow;
+        if (attempt == AITestConfig.maxRetries) rethrow;
       }
 
       // Calculate delay with jitter
       final jitter = _random.nextInt(1000); // 0-1000ms jitter
-      final totalDelay = delayMs + jitter;
-      final cappedDelay = totalDelay > AIConfig.maxRetryDelayMs
-          ? AIConfig.maxRetryDelayMs
-          : totalDelay;
+      final totalDelay = delay.inMilliseconds + jitter;
 
       print(
-        'Retry attempt ${attempt + 1}/${AIConfig.maxRetries} after ${cappedDelay}ms',
+        'Retry attempt ${attempt + 1}/${AITestConfig.maxRetries} after ${totalDelay}ms',
       );
 
-      await Future.delayed(Duration(milliseconds: cappedDelay));
+      await Future.delayed(Duration(milliseconds: totalDelay));
 
       // Exponential backoff
-      delayMs *= 2;
+      delay *= 2;
       attempt++;
     }
 
-    throw NetworkException('Failed after ${AIConfig.maxRetries} retries');
+    throw NetworkException('Failed after ${AITestConfig.maxRetries} retries');
   }
 
-  /// Call the AI proxy
+  /// Call the AI proxy (Firebase Cloud Function or Direct API)
   Future<String> _callProxy(String prompt) async {
+    // Print configuration status
+    AITestConfig.printStatus();
+
+    // Check if configured
+    if (!AITestConfig.isConfigured) {
+      throw ApiException(AITestConfig.statusMessage, statusCode: 401);
+    }
+
     try {
       final requestBody = jsonEncode({
-        'model': AIConfig.model,
+        'model': AITestConfig.model,
         'messages': [
-          {'role': 'system', 'content': AIConfig.systemMessage},
+          {'role': 'system', 'content': AITestConfig.systemPrompt},
           {'role': 'user', 'content': prompt},
         ],
-        'temperature': AIConfig.temperature,
-        'max_tokens': AIConfig.maxTokens,
+        'temperature': AITestConfig.temperature,
+        'max_tokens': AITestConfig.maxTokens,
       });
 
-      print('Calling AI API: ${AIConfig.proxyUrl}');
-      print('Using model: ${AIConfig.model}');
+      print('🤖 Calling AI: ${AITestConfig.apiEndpoint}');
+      print(
+        '📝 Mode: ${AITestConfig.useDirectAPI ? "Direct API (Testing)" : "Firebase Function (Production)"}',
+      );
+      print('📝 Using model: ${AITestConfig.model}');
 
       final response = await _client
           .post(
-            Uri.parse(AIConfig.proxyUrl),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ${AIConfig.apiKey}',
-              'HTTP-Referer': AIConfig.siteUrl.isNotEmpty
-                  ? AIConfig.siteUrl
-                  : 'https://education-rewards-app.com',
-              'X-Title': AIConfig.siteName,
-            },
+            Uri.parse(AITestConfig.apiEndpoint),
+            headers: AITestConfig.headers,
             body: requestBody,
           )
           .timeout(
-            Duration(seconds: AIConfig.requestTimeoutSeconds),
+            AITestConfig.requestTimeout,
             onTimeout: () {
               throw TimeoutException(
-                'Request timed out',
-                timeoutSeconds: AIConfig.requestTimeoutSeconds,
+                'Request timed out after ${AIConfig.requestTimeout.inSeconds}s',
+                timeoutSeconds: AIConfig.requestTimeout.inSeconds,
               );
             },
           );
