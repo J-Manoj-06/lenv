@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../../services/ai_test_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/teacher_service.dart';
 import '../../models/test_question.dart';
 import '../../exceptions/ai_exceptions.dart';
+import '../../models/test_model.dart' as tm;
+import '../../models/user_model.dart';
+import '../../providers/auth_provider.dart' as auth_provider;
+import '../../providers/test_provider.dart';
 
 /// Screen for generating tests using AI
 ///
@@ -24,6 +29,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
   final _teacherService = TeacherService();
 
   // Form controllers
+  final _titleController = TextEditingController();
   final _topicController = TextEditingController();
   final _totalMarksController = TextEditingController(text: '10');
   final _timeLimitController = TextEditingController();
@@ -61,6 +67,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
 
   @override
   void dispose() {
+    _titleController.dispose();
     _topicController.dispose();
     _totalMarksController.dispose();
     _timeLimitController.dispose();
@@ -176,7 +183,6 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         _isLoadingTeacherData = false;
       });
     } catch (e) {
-      print('Error loading teacher data: $e');
       setState(() => _isLoadingTeacherData = false);
     }
   }
@@ -238,39 +244,6 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header
-            Card(
-              color: Colors.blue.shade50,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.auto_awesome, color: Colors.blue.shade700),
-                        const SizedBox(width: 8),
-                        Text(
-                          'AI Test Generator',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: Colors.blue.shade900,
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Automatically generate test questions using AI. Fill in the parameters below and click Generate.',
-                      style: TextStyle(color: Colors.grey.shade700),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
             // Class dropdown
             DropdownButtonFormField<String>(
               value: _selectedClass,
@@ -327,6 +300,24 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                   : (value) => setState(() => _selectedSection = value),
               validator: (value) =>
                   value == null ? 'Please select a section' : null,
+            ),
+            const SizedBox(height: 16),
+
+            // Title field
+            TextFormField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Test Title',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.title),
+                hintText: 'e.g., Mathematics Mid-Term Test',
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a test title';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 16),
 
@@ -530,9 +521,11 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                                   : '${_scheduledDate!.day}/${_scheduledDate!.month}/${_scheduledDate!.year}',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: _scheduledDate == null
-                                    ? Colors.grey.shade600
-                                    : Colors.black87,
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium?.color ??
+                                    Colors.black87,
                               ),
                             ),
                           ),
@@ -579,9 +572,11 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                                   : _scheduledTime!.format(context),
                               style: TextStyle(
                                 fontSize: 14,
-                                color: _scheduledTime == null
-                                    ? Colors.grey.shade600
-                                    : Colors.black87,
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium?.color ??
+                                    Colors.black87,
                               ),
                             ),
                           ),
@@ -613,32 +608,8 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
               ),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blue,
+                backgroundColor: const Color(0xFF6366F1),
                 foregroundColor: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Info card
-            Card(
-              color: Colors.amber.shade50,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.amber.shade900),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Generation may take 10-30 seconds. Please wait...',
-                        style: TextStyle(
-                          color: Colors.amber.shade900,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ],
@@ -656,19 +627,38 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         // Header
         Container(
           width: double.infinity,
-          color: Colors.green.shade50,
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1B4332)
+                : Colors.green.shade50,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.green.shade700
+                    : Colors.green.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+          ),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.green.shade700),
+                  Icon(
+                    Icons.check_circle,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.green.shade400
+                        : Colors.green.shade700,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Test Generated Successfully!',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Colors.green.shade900,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.green.shade300
+                          : Colors.green.shade900,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -677,7 +667,11 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
               const SizedBox(height: 4),
               Text(
                 '${questions.length} questions • Total marks: ${questions.fold<int>(0, (sum, q) => sum + q.marks)}',
-                style: TextStyle(color: Colors.grey.shade700),
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey.shade400
+                      : Colors.grey.shade700,
+                ),
               ),
             ],
           ),
@@ -699,7 +693,17 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1E1E1E)
+                : Colors.white,
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey.shade800
+                    : Theme.of(context).dividerColor,
+                width: 1,
+              ),
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.1),
@@ -755,14 +759,18 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade100,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.blue.withOpacity(0.2)
+                        : Colors.blue.shade100,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     'Q${index + 1}',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade900,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.blue.shade300
+                          : Colors.blue.shade900,
                     ),
                   ),
                 ),
@@ -777,7 +785,9 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                             : 'True/False',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -786,14 +796,21 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                           Icon(
                             Icons.star,
                             size: 14,
-                            color: Colors.amber.shade700,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? Colors.amber.shade400
+                                : Colors.amber.shade700,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             '${question.marks} marks',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: Colors.amber.shade900,
+                              color:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.amber.shade400
+                                  : Colors.amber.shade900,
                             ),
                           ),
                         ],
@@ -842,12 +859,20 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isCorrect
-                          ? Colors.green.shade50
-                          : Colors.grey.shade50,
+                          ? (Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFF1B4332)
+                                : Colors.green.shade50)
+                          : (Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFF2D2D2D)
+                                : Colors.grey.shade50),
                       border: Border.all(
                         color: isCorrect
-                            ? Colors.green.shade300
-                            : Colors.grey.shade300,
+                            ? (Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.green.shade400
+                                  : Colors.green.shade300)
+                            : (Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade300),
                         width: isCorrect ? 2 : 1,
                       ),
                       borderRadius: BorderRadius.circular(8),
@@ -859,26 +884,47 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                           height: 28,
                           decoration: BoxDecoration(
                             color: isCorrect
-                                ? Colors.green.shade700
-                                : Colors.grey.shade300,
+                                ? (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.green.shade600
+                                      : Colors.green.shade700)
+                                : (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.grey.shade700
+                                      : Colors.grey.shade300),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
                             child: Text(
                               optionLetter,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: isCorrect ? Colors.white : Colors.black,
+                                color: Colors.white,
                               ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Expanded(child: Text(optionText)),
+                        Expanded(
+                          child: Text(
+                            optionText,
+                            style: TextStyle(
+                              color:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black87,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
                         if (isCorrect)
                           Icon(
                             Icons.check_circle,
-                            color: Colors.green.shade700,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? Colors.green.shade400
+                                : Colors.green.shade700,
                           ),
                       ],
                     ),
@@ -891,9 +937,12 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
             if (question.type == QuestionTypeAI.trueFalse) ...[
               Row(
                 children: [
-                  const Text(
+                  Text(
                     'Correct Answer: ',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -901,15 +950,23 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade100,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.green.withOpacity(0.2)
+                          : Colors.green.shade100,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.green.shade700),
+                      border: Border.all(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.green.shade400
+                            : Colors.green.shade700,
+                      ),
                     ),
                     child: Text(
                       question.correctAnswer.toUpperCase(),
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.green.shade900,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.green.shade300
+                            : Colors.green.shade900,
                       ),
                     ),
                   ),
@@ -934,22 +991,110 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                const Text(
-                  'Generating test questions...',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+          builder: (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'This may take 10-30 seconds. Please wait.',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                ),
-              ],
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6366F1).withOpacity(0.3),
+                    spreadRadius: 2,
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // AI Icon with glow effect
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome,
+                      size: 48,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Title
+                  const Text(
+                    '✨ AI Magic in Progress',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  // Loading indicator
+                  const SizedBox(
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Colors.white24,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Description
+                  Text(
+                    'Crafting intelligent questions\njust for you...',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.9),
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  // Time estimate
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.schedule,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '10-30 seconds',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.95),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1106,6 +1251,12 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
       return;
     }
 
+    // Validate title
+    if (_titleController.text.trim().isEmpty) {
+      _showErrorDialog('Missing Title', 'Please enter a test title.');
+      return;
+    }
+
     try {
       // Show loading
       showDialog(
@@ -1123,17 +1274,16 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         ),
       );
 
-      // Get current user
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) {
-        throw Exception('User not authenticated');
-      }
-
-      // Calculate total marks
-      final totalMarks = _generatedQuestions!.fold<int>(
-        0,
-        (sum, q) => sum + q.marks,
+      final auth = Provider.of<auth_provider.AuthProvider>(
+        context,
+        listen: false,
       );
+      final testProv = Provider.of<TestProvider>(context, listen: false);
+      final user = auth.currentUser;
+
+      if (user == null || user.role != UserRole.teacher) {
+        throw Exception('Please login as a teacher to continue');
+      }
 
       // Parse time limit
       final timeLimit = int.tryParse(_timeLimitController.text) ?? 60;
@@ -1147,48 +1297,87 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         _scheduledTime?.minute ?? TimeOfDay.now().minute,
       );
 
-      // Create test document
-      final testDoc = {
-        'testName': '${_selectedSubject} - ${_topicController.text.trim()}',
-        'className': _selectedClass,
-        'section': _selectedSection,
-        'subject': _selectedSubject,
-        'topic': _topicController.text.trim(),
-        'totalMarks': totalMarks,
-        'timeLimit': timeLimit,
-        'questionCount': _generatedQuestions!.length,
-        'teacherId': currentUser.uid,
-        'teacherName': currentUser.displayName ?? 'Teacher',
-        'teacherEmail': currentUser.email ?? '',
-        'questions': _generatedQuestions!.map((q) => q.toFirestore()).toList(),
-        'status': 'scheduled',
-        'scheduledAt': scheduledDateTime,
-        'autoPublished': false,
-        'resultsPublished': false,
-        'generatedByAI': true,
-        'aiTopic': _topicController.text.trim(),
-        'createdAt': DateTime.now(),
-      };
+      final endDate = scheduledDateTime.add(Duration(minutes: timeLimit));
 
-      // Save to Firestore
-      await _firestoreService.saveScheduledTest(testDoc);
+      // Convert AI questions to test model questions
+      final modelQuestions = _generatedQuestions!.map((q) {
+        tm.QuestionType questionType;
+        if (q.type == QuestionTypeAI.mcq) {
+          questionType = tm.QuestionType.multipleChoice;
+        } else {
+          questionType = tm.QuestionType.trueFalse;
+        }
+
+        return tm.Question(
+          id: q.questionText.hashCode.toString(),
+          type: questionType,
+          question: q.questionText,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          points: q.marks,
+        );
+      }).toList();
+
+      final totalPoints = _generatedQuestions!.fold<int>(
+        0,
+        (sum, q) => sum + q.marks,
+      );
+
+      // Build className and section
+      final gradeClassName = 'Grade ${_selectedClass!.trim()}';
+      final normalizedSection = (_selectedSection ?? '').trim();
+
+      final test = tm.TestModel(
+        id: '',
+        title: _titleController.text.trim(),
+        description:
+            'Generated by AI for topic: ${_topicController.text.trim()}',
+        teacherId: user.uid,
+        teacherName: user.name,
+        instituteId: user.instituteId ?? '',
+        subject: _selectedSubject!,
+        className: gradeClassName,
+        section: normalizedSection,
+        questions: modelQuestions,
+        totalPoints: totalPoints,
+        duration: timeLimit,
+        startDate: scheduledDateTime,
+        endDate: endDate,
+        status: tm.TestStatus.published, // Published so students can see it
+        assignedStudentIds: const [],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Save as scheduled test to assign to students
+      final ok = await testProv.createScheduledTest(
+        test,
+        scheduledDate: _scheduledDate ?? DateTime.now(),
+        scheduledTime: _scheduledTime ?? TimeOfDay.now(),
+      );
 
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
 
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Test saved successfully!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
+      if (ok) {
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Test scheduled and assigned successfully!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
 
-        // Go back to previous screen
-        Navigator.of(context).pop();
-        Navigator.of(context).pop();
+          // Go back to previous screen
+          Navigator.of(context).pop();
+        }
+      } else {
+        _showErrorDialog(
+          'Save Failed',
+          'Failed to save test: ${testProv.errorMessage ?? 'Unknown error'}',
+        );
       }
     } catch (e) {
       if (mounted) Navigator.of(context).pop();

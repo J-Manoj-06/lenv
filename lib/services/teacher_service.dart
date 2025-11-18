@@ -6,7 +6,6 @@ class TeacherService {
   /// Get teacher details by email
   Future<Map<String, dynamic>?> getTeacherByEmail(String email) async {
     try {
-      print('📚 Fetching teacher data for: $email');
       final querySnapshot = await _firestore
           .collection('teachers')
           .where('email', isEqualTo: email)
@@ -16,17 +15,11 @@ class TeacherService {
       if (querySnapshot.docs.isNotEmpty) {
         final data = querySnapshot.docs.first.data();
         data['id'] = querySnapshot.docs.first.id;
-        print('✅ Teacher found: ${data['teacherName']}');
-        print('   classesHandled: ${data['classesHandled']}');
-        print('   section: ${data['section']}');
-        print('   sections: ${data['sections']}');
         return data;
       }
 
-      print('⚠️ No teacher found with email: $email');
       return null;
     } catch (e) {
-      print('❌ Error fetching teacher: $e');
       return null;
     }
   }
@@ -64,26 +57,17 @@ class TeacherService {
 
       // First, try using classesHandled + sections if available
       if (classesHandled != null && classesHandled.isNotEmpty) {
-        print(
-          '📚 Fetching students for classes: $classesHandled and sections: $sections',
-        );
-
         final sectionList = _normalizeSections(sections);
         if (sectionList.isEmpty) {
-          print('⚠️ No sections provided, cannot query students');
           return [];
         }
 
         for (final classItem in classesHandled) {
           final className = classItem.toString(); // e.g., "Grade 5"
-          print('  Class: $className, Sections: $sectionList');
 
           for (final section in sectionList) {
             if (section.isEmpty) continue;
 
-            print(
-              '  🔍 Querying WHERE schoolCode == "$schoolId" AND className == "$className" AND section == "$section"',
-            );
             final querySnapshot = await _firestore
                 .collection('students')
                 .where('schoolCode', isEqualTo: schoolId)
@@ -91,9 +75,6 @@ class TeacherService {
                 .where('section', isEqualTo: section)
                 .get();
 
-            print(
-              '     ✅ Found ${querySnapshot.docs.length} students in $className - $section',
-            );
             for (var doc in querySnapshot.docs) {
               final studentData = doc.data();
               studentData['id'] = doc.id;
@@ -127,14 +108,6 @@ class TeacherService {
                     } else if (rpRaw is String) {
                       rewardPoints = int.tryParse(rpRaw) ?? 0;
                     }
-
-                    print(
-                      '   💰 ${studentData['studentName']}: $rewardPoints points (from users/$actualUid)',
-                    );
-                  } else {
-                    print(
-                      '   ⚠️ No users doc found for ${studentData['studentName']} (email: $studentEmail)',
-                    );
                   }
                 }
 
@@ -151,18 +124,12 @@ class TeacherService {
                   }
                   if (aggregated > 0) {
                     studentData['aggregatedRewardPoints'] = aggregated;
-                    print(
-                      '   📊 Aggregated $aggregated points from student_rewards for ${studentData['studentName']}',
-                    );
                   }
                   rewardPoints = aggregated;
                 }
 
                 studentData['rewardPoints'] = rewardPoints;
               } catch (e) {
-                print(
-                  '   ⚠️ Error fetching rewardPoints for ${studentData['studentName']}: $e',
-                );
                 studentData['rewardPoints'] = 0;
               }
 
@@ -170,23 +137,19 @@ class TeacherService {
             }
           }
         }
-        print('✅ Found ${allStudents.length} students');
         return allStudents;
       }
 
       // Fallback: Use classAssignments (e.g., "Grade 10: A, Science")
-      print('⚠️ No classesHandled; trying classAssignments fallback');
       final formatted = getTeacherClasses(
         null,
         null,
         classAssignments: classAssignments,
       );
       if (formatted.isEmpty) {
-        print('⚠️ No formatted classes from assignments; returning empty');
         return [];
       }
 
-      print('📚 Fetching students for formatted classes: $formatted');
       for (final fc in formatted) {
         // fc like "10 - A" -> className="Grade 10", section="A"
         final parts = fc.split(' - ');
@@ -194,9 +157,6 @@ class TeacherService {
         final className = 'Grade ${parts[0].trim()}';
         final section = parts[1].trim();
 
-        print(
-          '  🔍 Querying WHERE schoolCode == "$schoolId" AND className == "$className" AND section == "$section"',
-        );
         final querySnapshot = await _firestore
             .collection('students')
             .where('schoolCode', isEqualTo: schoolId)
@@ -204,9 +164,6 @@ class TeacherService {
             .where('section', isEqualTo: section)
             .get();
 
-        print(
-          '     ✅ Found ${querySnapshot.docs.length} students in $className - $section',
-        );
         for (var doc in querySnapshot.docs) {
           final studentData = doc.data();
           studentData['id'] = doc.id;
@@ -240,14 +197,6 @@ class TeacherService {
                 } else if (rpRaw is String) {
                   rewardPoints = int.tryParse(rpRaw) ?? 0;
                 }
-
-                print(
-                  '   💰 ${studentData['studentName']}: $rewardPoints points (from users/$actualUid)',
-                );
-              } else {
-                print(
-                  '   ⚠️ No users doc found for ${studentData['studentName']} (email: $studentEmail)',
-                );
               }
             }
 
@@ -263,18 +212,12 @@ class TeacherService {
               }
               if (aggregated > 0) {
                 studentData['aggregatedRewardPoints'] = aggregated;
-                print(
-                  '   📊 Aggregated $aggregated points from student_rewards for ${studentData['studentName']}',
-                );
               }
               rewardPoints = aggregated;
             }
 
             studentData['rewardPoints'] = rewardPoints;
           } catch (e) {
-            print(
-              '   ⚠️ Error fetching rewardPoints for ${studentData['studentName']}: $e',
-            );
             studentData['rewardPoints'] = 0;
           }
 
@@ -282,10 +225,8 @@ class TeacherService {
         }
       }
 
-      print('✅ Found ${allStudents.length} students (assignments fallback)');
       return allStudents;
     } catch (e) {
-      print('❌ Error fetching students: $e');
       return [];
     }
   }
@@ -314,10 +255,8 @@ class TeacherService {
 
       // Filter students who take the teacher's subjects
       // (In a real system, you'd have a student-subject mapping)
-      print('✅ Found ${students.length} students taking subjects');
       return students;
     } catch (e) {
-      print('❌ Error fetching students by subject: $e');
       return [];
     }
   }
@@ -368,17 +307,11 @@ class TeacherService {
     try {
       // Try primary format first: classesHandled + sections
       if (classesHandled != null && classesHandled.isNotEmpty) {
-        print(
-          '📋 Formatting classes from: $classesHandled and sections: $sections',
-        );
-
         // Normalize sections input (supports list or comma-separated string)
         final sectionList = _normalizeSections(sections);
-        print('  Sections: $sectionList');
 
         if (sectionList.isEmpty) {
-          print('⚠️ No sections data, trying classAssignments fallback');
-          return _parseFromClassAssignments(classAssignments);
+          return _parseClassAssignments(classAssignments);
         }
 
         final List<String> result = [];
@@ -392,23 +325,18 @@ class TeacherService {
               .replaceAll('grade ', '')
               .trim();
 
-          print('  Grade: $grade');
-
           // Add all sections for this grade
           for (final section in sectionList) {
             result.add('$grade - $section');
           }
         }
 
-        print('✅ Formatted classes: $result');
         return result;
       }
 
       // Fallback: Parse from classAssignments
-      print('⚠️ No classesHandled data, trying classAssignments fallback');
-      return _parseFromClassAssignments(classAssignments);
+      return _parseClassAssignments(classAssignments);
     } catch (e) {
-      print('❌ Error formatting classes: $e');
       return [];
     }
   }
@@ -416,13 +344,10 @@ class TeacherService {
   /// Parse classes from classAssignments format
   /// Input: ["Grade 10: A, Science", "Grade 10: B, Science"]
   /// Output: ["10 - A", "10 - B"]
-  List<String> _parseFromClassAssignments(List<dynamic>? classAssignments) {
+  List<String> _parseClassAssignments(List<dynamic>? classAssignments) {
     if (classAssignments == null || classAssignments.isEmpty) {
-      print('⚠️ No classAssignments data available');
       return [];
     }
-
-    print('📋 Parsing from classAssignments: $classAssignments');
 
     final Set<String> uniqueClasses = {};
 

@@ -105,16 +105,8 @@ class _ClassesScreenState extends State<ClassesScreen> {
               .replaceAll('grade ', '')
               .trim();
 
-          print(
-            '  Comparing: student grade=$studentGrade section=$studentSection vs class grade=$gradeNum section=$section',
-          );
-
           return studentGrade == gradeNum && studentSection == section;
         }).toList();
-
-        print(
-          '✅ Grade $className - Section $section has ${studentsInSection.length} students',
-        );
 
         classes.add(
           ClassItem(

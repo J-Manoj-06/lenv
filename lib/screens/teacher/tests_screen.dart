@@ -33,7 +33,7 @@ class _TestsScreenState extends State<TestsScreen> {
     });
   }
 
-  final List<String> _tabs = ['All', 'Live', 'Scheduled', 'Past'];
+  final List<String> _tabs = ['All', 'Live', 'Past'];
   List<String> _buildClassFilters(List<TestModel> tests) {
     final set = <String>{'All Classes'};
     for (final t in tests) {
