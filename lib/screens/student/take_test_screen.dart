@@ -426,7 +426,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                           ),
                           const SizedBox(height: 24),
 
-                          // Options
+                          // Options for MCQ
                           if (question.type == QuestionType.multipleChoice &&
                               question.options != null) ...[
                             ...question.options!.map((option) {
@@ -438,6 +438,54 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               );
                             }).toList(),
                             // Clear Response Button for MCQ
+                            if (answers.containsKey(currentQuestionIndex))
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      answers.remove(currentQuestionIndex);
+                                    });
+                                  },
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    size: 18,
+                                    color: Colors.red,
+                                  ),
+                                  label: const Text(
+                                    'Clear Response',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ] else if (question.type ==
+                              QuestionType.trueFalse) ...[
+                            // True/False options
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: _buildOptionButton(
+                                'True',
+                                answers[currentQuestionIndex] == 'True',
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: _buildOptionButton(
+                                'False',
+                                answers[currentQuestionIndex] == 'False',
+                              ),
+                            ),
+                            // Clear Response Button for True/False
                             if (answers.containsKey(currentQuestionIndex))
                               Padding(
                                 padding: const EdgeInsets.only(top: 8),
@@ -575,14 +623,22 @@ class _TakeTestScreenState extends State<TakeTestScreen>
               ),
             ),
 
-            // Footer Navigation
+            // Footer Navigation - Always visible
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFFCFAF8).withOpacity(0.8),
+                color: Colors.white,
                 border: const Border(top: BorderSide(color: Color(0xFFE8DBCE))),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
               ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
@@ -593,46 +649,46 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               : null,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: const BorderSide(color: Colors.grey),
+                            side: BorderSide(
+                              color: currentQuestionIndex > 0
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade300,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             'Previous',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Colors.grey,
+                              color: currentQuestionIndex > 0
+                                  ? Colors.grey.shade700
+                                  : Colors.grey.shade400,
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: OutlinedButton(
+                        child: ElevatedButton(
                           onPressed:
                               currentQuestionIndex <
                                   widget.test.questions.length - 1
                               ? _nextQuestion
                               : null,
-                          style: OutlinedButton.styleFrom(
+                          style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: BorderSide(
-                              color:
-                                  currentQuestionIndex <
-                                      widget.test.questions.length - 1
-                                  ? const Color(0xFFF2800D)
-                                  : Colors.grey.shade300,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
                             backgroundColor:
                                 currentQuestionIndex <
                                     widget.test.questions.length - 1
-                                ? null
-                                : Colors.grey.shade100,
+                                ? const Color(0xFFF2800D)
+                                : Colors.grey.shade300,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            disabledBackgroundColor: Colors.grey.shade300,
                           ),
                           child: Text(
                             'Next',
@@ -642,8 +698,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               color:
                                   currentQuestionIndex <
                                       widget.test.questions.length - 1
-                                  ? const Color(0xFFF2800D)
-                                  : Colors.grey.shade400,
+                                  ? Colors.white
+                                  : Colors.grey.shade500,
                             ),
                           ),
                         ),
@@ -651,17 +707,18 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
+                  // Submit Test button - Always visible
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _isSubmitting ? null : _submitTest,
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: const Color(0xFFF2800D),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        elevation: 4,
+                        elevation: 2,
                       ),
                       child: _isSubmitting
                           ? const SizedBox(
