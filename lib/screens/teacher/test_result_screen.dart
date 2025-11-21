@@ -29,6 +29,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   TestModel? _test;
   List<TestResultModel> _results = [];
+  int _totalAssignedStudents = 0; // Track total students assigned
   bool _isLoading = true;
   String? _error;
 
@@ -45,9 +46,9 @@ class _TestResultScreenState extends State<TestResultScreen> {
         _error = null;
       });
 
-      // Fetch test details
+      // Fetch test details from scheduledTests collection
       final testDoc = await _firestore
-          .collection('tests')
+          .collection('scheduledTests')
           .doc(widget.testId)
           .get();
       if (!testDoc.exists) {
@@ -58,21 +59,38 @@ class _TestResultScreenState extends State<TestResultScreen> {
         return;
       }
 
-      final test = TestModel.fromJson(testDoc.data()!);
+      final test = TestModel.fromScheduledTest(testDoc.id, testDoc.data()!);
 
-      // Fetch all results for this test
-      final resultsSnapshot = await _firestore
+      // Fetch all testResults (both completed and assigned) for this test
+      final allResultsSnapshot = await _firestore
           .collection('testResults')
           .where('testId', isEqualTo: widget.testId)
           .get();
 
-      final results = resultsSnapshot.docs
+      // Filter completed results (those with actual scores)
+      final results = allResultsSnapshot.docs
+          .where((doc) {
+            final data = doc.data();
+            final status = data['status'] as String?;
+            // Only include if status is completed OR if resultId exists (old format)
+            return status == 'completed' ||
+                data['resultId'] != null ||
+                data['score'] != null;
+          })
           .map((doc) => TestResultModel.fromFirestore(doc))
           .toList();
+
+      // Count total assigned students (unique studentIds with any status)
+      final assignedStudentIds = allResultsSnapshot.docs
+          .map((doc) => doc.data()['studentId'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .toSet()
+          .length;
 
       setState(() {
         _test = test;
         _results = results;
+        _totalAssignedStudents = assignedStudentIds;
         _isLoading = false;
       });
     } catch (e) {
@@ -319,7 +337,9 @@ class _TestResultScreenState extends State<TestResultScreen> {
     final highestPercentage = percentages.reduce(math.max);
     final lowestPercentage = percentages.reduce(math.min);
     final participatedCount = _results.length;
-    final totalStudents = _test?.assignedStudentIds.length ?? participatedCount;
+    final totalStudents = _totalAssignedStudents > 0
+        ? _totalAssignedStudents
+        : participatedCount;
 
     return Container(
       decoration: BoxDecoration(

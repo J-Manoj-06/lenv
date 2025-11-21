@@ -74,9 +74,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       final classesManaged = classesFormatted.length;
 
-      // Count tests created by this teacher (one-shot)
+      // Count tests created by this teacher from scheduledTests collection
       final testsSnap = await FirebaseFirestore.instance
-          .collection('tests')
+          .collection('scheduledTests')
           .where('teacherId', isEqualTo: user.uid)
           .get();
       final testsConducted = testsSnap.size;

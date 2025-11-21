@@ -22,7 +22,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _initAndLoad();
+  }
+
+  Future<void> _initAndLoad() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.ensureInitialized();
+    await _loadData();
   }
 
   Future<void> _loadData() async {
@@ -37,6 +43,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       final email = currentUser?.email;
 
       if (email == null) {
+        // Avoid showing error until auth fully initialized
+        if (!authProvider.isInitialized) {
+          setState(() {
+            _isLoading = true;
+            _error = null;
+          });
+          return;
+        }
         setState(() {
           _error = 'No user logged in';
           _isLoading = false;
@@ -549,7 +563,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               'Student ${index + 1}';
           final points = _getStudentPoints(student);
           final gradeSection = _formatGradeSection(student);
-
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Container(

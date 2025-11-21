@@ -9,26 +9,28 @@ import 'dart:convert';
 class DailyChallengeProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Cache management
-  Map<String, dynamic>? _cachedChallenge;
+  // Cache management - per student
+  final Map<String, Map<String, dynamic>?> _cachedChallenges = {};
   String? _cachedDate;
-  bool _isLoading = false;
+  final Map<String, bool> _loadingStates = {};
   String? _errorMessage;
 
-  // Answer state
-  String? _selectedAnswer;
-  bool _isSubmitting = false;
-  bool _hasAnsweredToday = false;
-  String? _todayResult; // 'correct' or 'incorrect'
+  // Answer state - per student
+  final Map<String, String?> _selectedAnswers = {};
+  final Map<String, bool> _submittingStates = {};
+  final Map<String, bool> _hasAnsweredStates = {};
+  final Map<String, String?> _resultStates = {}; // 'correct' or 'incorrect'
 
-  // Getters
-  Map<String, dynamic>? get cachedChallenge => _cachedChallenge;
-  bool get isLoading => _isLoading;
+  // Getters - now require studentId
+  Map<String, dynamic>? getCachedChallenge(String studentId) =>
+      _cachedChallenges[studentId];
+  bool isLoading(String studentId) => _loadingStates[studentId] ?? false;
   String? get errorMessage => _errorMessage;
-  String? get selectedAnswer => _selectedAnswer;
-  bool get isSubmitting => _isSubmitting;
-  bool get hasAnsweredToday => _hasAnsweredToday;
-  String? get todayResult => _todayResult;
+  String? getSelectedAnswer(String studentId) => _selectedAnswers[studentId];
+  bool isSubmitting(String studentId) => _submittingStates[studentId] ?? false;
+  bool hasAnsweredToday(String studentId) =>
+      _hasAnsweredStates[studentId] ?? false;
+  String? getTodayResult(String studentId) => _resultStates[studentId];
 
   /// Get today's date in yyyy-MM-dd format
   String _getTodayDate() {
@@ -40,46 +42,56 @@ class DailyChallengeProvider with ChangeNotifier {
     final today = _getTodayDate();
 
     // Load from cache first for instant display
-    await _loadFromCache(today);
+    await _loadFromCache(studentId, today);
 
-    // Check if answered today
+    // Check if THIS student has answered today
     await _checkIfAnsweredToday(studentId);
 
     // Then fetch fresh data in background
     await fetchChallenge(studentId, forceRefresh: false);
   }
 
-  /// Load cached challenge from SharedPreferences
-  Future<void> _loadFromCache(String today) async {
+  /// Load cached challenge from SharedPreferences (per student)
+  Future<void> _loadFromCache(String studentId, String today) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final cachedDatePref = prefs.getString('daily_challenge_date');
-      final cachedDataPref = prefs.getString('daily_challenge_data');
+      final cacheKey = 'daily_challenge_${studentId}_date';
+      final dataKey = 'daily_challenge_${studentId}_data';
+
+      final cachedDatePref = prefs.getString(cacheKey);
+      final cachedDataPref = prefs.getString(dataKey);
 
       // Only use cache if it's from today
       if (cachedDatePref == today && cachedDataPref != null) {
-        _cachedChallenge = jsonDecode(cachedDataPref);
+        _cachedChallenges[studentId] = jsonDecode(cachedDataPref);
         _cachedDate = cachedDatePref;
         notifyListeners();
       }
     } catch (e) {
       // Ignore cache errors
-      debugPrint('Error loading cache: $e');
+      debugPrint('Error loading cache for student $studentId: $e');
     }
   }
 
-  /// Save challenge to cache
-  Future<void> _saveToCache(String date, Map<String, dynamic> data) async {
+  /// Save challenge to cache (per student)
+  Future<void> _saveToCache(
+    String studentId,
+    String date,
+    Map<String, dynamic> data,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('daily_challenge_date', date);
-      await prefs.setString('daily_challenge_data', jsonEncode(data));
+      final cacheKey = 'daily_challenge_${studentId}_date';
+      final dataKey = 'daily_challenge_${studentId}_data';
+
+      await prefs.setString(cacheKey, date);
+      await prefs.setString(dataKey, jsonEncode(data));
     } catch (e) {
-      debugPrint('Error saving cache: $e');
+      debugPrint('Error saving cache for student $studentId: $e');
     }
   }
 
-  /// Check if student has already answered today's challenge
+  /// Check if THIS SPECIFIC student has already answered today's challenge
   Future<void> _checkIfAnsweredToday(String studentId) async {
     try {
       final today = _getTodayDate();
@@ -89,14 +101,20 @@ class DailyChallengeProvider with ChangeNotifier {
           .get();
 
       if (answerDoc.exists) {
-        _hasAnsweredToday = true;
-        _todayResult = answerDoc.data()?['isCorrect'] == true
-            ? 'correct'
-            : 'incorrect';
-        notifyListeners();
+        _hasAnsweredStates[studentId] = true;
+        final isCorrect = answerDoc.data()?['isCorrect'] == true;
+        _resultStates[studentId] = isCorrect ? 'correct' : 'incorrect';
+        debugPrint(
+          '✅ Student $studentId has already answered today: ${isCorrect ? "correct" : "incorrect"}',
+        );
+      } else {
+        _hasAnsweredStates[studentId] = false;
+        _resultStates[studentId] = null;
+        debugPrint('📝 Student $studentId has NOT answered today');
       }
+      notifyListeners();
     } catch (e) {
-      debugPrint('Error checking answer status: $e');
+      debugPrint('Error checking answer status for student $studentId: $e');
     }
   }
 
@@ -108,11 +126,13 @@ class DailyChallengeProvider with ChangeNotifier {
     final today = _getTodayDate();
 
     // Return cached data if available and not forcing refresh
-    if (!forceRefresh && _cachedDate == today && _cachedChallenge != null) {
+    if (!forceRefresh &&
+        _cachedDate == today &&
+        _cachedChallenges[studentId] != null) {
       return;
     }
 
-    _isLoading = true;
+    _loadingStates[studentId] = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -125,48 +145,52 @@ class DailyChallengeProvider with ChangeNotifier {
           .get();
 
       if (querySnapshot.docs.isNotEmpty) {
-        _cachedChallenge = querySnapshot.docs.first.data();
+        _cachedChallenges[studentId] = querySnapshot.docs.first.data();
         _cachedDate = today;
         _errorMessage = null;
 
         // Save to cache
-        await _saveToCache(today, _cachedChallenge!);
+        await _saveToCache(studentId, today, _cachedChallenges[studentId]!);
       } else {
-        _cachedChallenge = null;
+        _cachedChallenges[studentId] = null;
         _errorMessage = 'No challenge available today';
       }
     } catch (e) {
       _errorMessage = 'Error loading challenge: ${e.toString()}';
       debugPrint(_errorMessage);
     } finally {
-      _isLoading = false;
+      _loadingStates[studentId] = false;
       notifyListeners();
     }
   }
 
-  /// Set selected answer (without triggering reload)
-  void setSelectedAnswer(String answer) {
-    if (!_hasAnsweredToday && !_isSubmitting) {
-      _selectedAnswer = answer;
+  /// Set selected answer for THIS student (without triggering reload)
+  void setSelectedAnswer(String studentId, String answer) {
+    if (!(_hasAnsweredStates[studentId] ?? false) &&
+        !(_submittingStates[studentId] ?? false)) {
+      _selectedAnswers[studentId] = answer;
       notifyListeners();
     }
   }
 
-  /// Submit the selected answer
+  /// Submit the selected answer for THIS student
   Future<bool> submitAnswer(String studentId, String studentEmail) async {
-    if (_selectedAnswer == null || _cachedChallenge == null) {
+    final selectedAnswer = _selectedAnswers[studentId];
+    final cachedChallenge = _cachedChallenges[studentId];
+
+    if (selectedAnswer == null || cachedChallenge == null) {
       return false;
     }
 
-    _isSubmitting = true;
+    _submittingStates[studentId] = true;
     notifyListeners();
 
     try {
-      final correctAnswer = _cachedChallenge!['correctAnswer'] as String;
-      final isCorrect = _selectedAnswer == correctAnswer;
+      final correctAnswer = cachedChallenge['correctAnswer'] as String;
+      final isCorrect = selectedAnswer == correctAnswer;
       final today = _getTodayDate();
 
-      // Save answer record
+      // Save answer record to daily_challenge_answers with student-specific doc ID
       await _firestore
           .collection('daily_challenge_answers')
           .doc('${studentId}_$today')
@@ -174,28 +198,58 @@ class DailyChallengeProvider with ChangeNotifier {
             'studentId': studentId,
             'studentEmail': studentEmail,
             'date': today,
-            'selectedAnswer': _selectedAnswer,
+            'selectedAnswer': selectedAnswer,
             'correctAnswer': correctAnswer,
             'isCorrect': isCorrect,
             'answeredAt': FieldValue.serverTimestamp(),
           });
 
+      debugPrint(
+        '📝 Student $studentId answered: $selectedAnswer (${isCorrect ? "CORRECT" : "WRONG"})',
+      );
+
       if (isCorrect) {
-        // Update student's reward points
-        await _firestore.collection('users').doc(studentId).update({
-          'rewardPoints': FieldValue.increment(5),
+        debugPrint(
+          '🎯 Daily Challenge: Awarding 5 points to student $studentId',
+        );
+
+        // Create student_rewards entry for THIS student only
+        final rewardDoc = _firestore.collection('student_rewards').doc();
+        await rewardDoc.set({
+          'id': rewardDoc.id,
+          'studentId': studentId,
+          'testId': 'daily_challenge_$today',
+          'marks': 1.0,
+          'totalMarks': 1.0,
+          'pointsEarned': 5,
+          'timestamp': FieldValue.serverTimestamp(),
+          'source': 'daily_challenge',
+          'date': today,
         });
+
+        // Update THIS student's rewardPoints
+        await _firestore.collection('users').doc(studentId).set({
+          'rewardPoints': FieldValue.increment(5),
+        }, SetOptions(merge: true));
+
+        debugPrint(
+          '✅ Student $studentId: Points saved to student_rewards and users collection',
+        );
       }
 
-      _hasAnsweredToday = true;
-      _todayResult = isCorrect ? 'correct' : 'incorrect';
-      _isSubmitting = false;
+      // Update THIS student's state
+      _hasAnsweredStates[studentId] = true;
+      _resultStates[studentId] = isCorrect ? 'correct' : 'incorrect';
+      _submittingStates[studentId] = false;
       notifyListeners();
 
       return isCorrect;
     } catch (e) {
       _errorMessage = 'Error submitting answer: ${e.toString()}';
-      _isSubmitting = false;
+      debugPrint(
+        '❌ Error submitting daily challenge for student $studentId: $e',
+      );
+      _submittingStates[studentId] = false;
       notifyListeners();
       return false;
     }
@@ -203,24 +257,37 @@ class DailyChallengeProvider with ChangeNotifier {
 
   /// Reset provider for new day
   void reset() {
-    _cachedChallenge = null;
+    _cachedChallenges.clear();
     _cachedDate = null;
-    _selectedAnswer = null;
-    _hasAnsweredToday = false;
-    _todayResult = null;
+    _selectedAnswers.clear();
+    _hasAnsweredStates.clear();
+    _resultStates.clear();
     _errorMessage = null;
+    _loadingStates.clear();
+    _submittingStates.clear();
     notifyListeners();
   }
 
-  /// Clear cache (for debugging)
-  Future<void> clearCache() async {
+  /// Clear cache for specific student (for debugging)
+  Future<void> clearCache(String studentId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('daily_challenge_date');
-      await prefs.remove('daily_challenge_data');
-      reset();
+      final cacheKey = 'daily_challenge_${studentId}_date';
+      final dataKey = 'daily_challenge_${studentId}_data';
+
+      await prefs.remove(cacheKey);
+      await prefs.remove(dataKey);
+
+      _cachedChallenges.remove(studentId);
+      _selectedAnswers.remove(studentId);
+      _hasAnsweredStates.remove(studentId);
+      _resultStates.remove(studentId);
+      _loadingStates.remove(studentId);
+      _submittingStates.remove(studentId);
+
+      notifyListeners();
     } catch (e) {
-      debugPrint('Error clearing cache: $e');
+      debugPrint('Error clearing cache for student $studentId: $e');
     }
   }
 }

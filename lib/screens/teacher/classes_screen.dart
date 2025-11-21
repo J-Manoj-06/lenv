@@ -15,30 +15,38 @@ class _ClassesScreenState extends State<ClassesScreen> {
   int selectedNavIndex = 1; // Classes is selected
 
   final TeacherService _teacherService = TeacherService();
-  List<ClassItem> _classes = [];
-  bool _isLoading = true;
+  Map<String, dynamic>? _teacherData;
+  List<String> _classNames = [];
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadClasses();
+    _initAndLoad();
   }
 
-  Future<void> _loadClasses() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+  Future<void> _initAndLoad() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    // Wait for auth initialization
+    await authProvider.ensureInitialized();
+    await _loadTeacherData();
+  }
 
+  Future<void> _loadTeacherData() async {
+    try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
 
       if (currentUser == null) {
+        // If auth still not ready show loading instead of error
+        if (!authProvider.isInitialized) {
+          setState(() {
+            _error = null;
+          });
+          return;
+        }
         setState(() {
           _error = 'No user logged in';
-          _isLoading = false;
         });
         return;
       }
@@ -51,7 +59,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
       if (teacherData == null) {
         setState(() {
           _error = 'Teacher data not found';
-          _isLoading = false;
         });
         return;
       }
@@ -60,74 +67,22 @@ class _ClassesScreenState extends State<ClassesScreen> {
       final dynamic sections =
           teacherData['sections'] ?? teacherData['section'];
 
-      // Get formatted classes (e.g., ["4 - A", "4 - B"]) from classesHandled + sections
+      // Get formatted classes (e.g., ["4 - A", "4 - B"])
       final classNames = _teacherService.getTeacherClasses(
-        teacherData['classesHandled'],
-        sections,
-        classAssignments: teacherData['classAssignments'], // Fallback
-      );
-
-      // Get students for each class and create ClassItem objects
-      final classes = <ClassItem>[];
-      final grade =
-          teacherData['classesHandled']?[0]
-              ?.toString()
-              .replaceAll('Grade ', '')
-              .replaceAll('grade ', '')
-              .trim() ??
-          '';
-      final schoolId =
-          currentUser.instituteId ?? teacherData['schoolCode'] ?? '';
-
-      // First, get ALL students for all sections
-      final allStudents = await _teacherService.getStudentsByTeacher(
-        schoolId,
         teacherData['classesHandled'],
         sections,
         classAssignments: teacherData['classAssignments'],
       );
 
-      print('🔍 Total students fetched: ${allStudents.length}');
-
-      for (var className in classNames) {
-        // Extract section from className (e.g., "5 - A" -> "A")
-        final section = className.split(' - ').last.trim();
-
-        // Extract grade from className (e.g., "7 - A" -> "7")
-        final gradeNum = className.split(' - ').first.trim();
-
-        // Filter students for THIS specific section
-        final studentsInSection = allStudents.where((student) {
-          final studentSection = student['section']?.toString().trim() ?? '';
-          final studentClassName = student['className']?.toString() ?? '';
-          final studentGrade = studentClassName
-              .replaceAll('Grade ', '')
-              .replaceAll('grade ', '')
-              .trim();
-
-          return studentGrade == gradeNum && studentSection == section;
-        }).toList();
-
-        classes.add(
-          ClassItem(
-            name: 'Grade $className',
-            studentCount: studentsInSection.length,
-            averageScore: 0, // Will calculate from test results later
-            section: section,
-            grade: grade,
-          ),
-        );
-      }
-
       setState(() {
-        _classes = classes;
-        _isLoading = false;
+        _teacherData = teacherData;
+        _classNames = classNames;
+        _error = null;
       });
     } catch (e) {
-      print('❌ Error loading classes: $e');
+      print('❌ Error loading teacher data: $e');
       setState(() {
-        _error = 'Failed to load classes: $e';
-        _isLoading = false;
+        _error = 'Failed to load teacher data: $e';
       });
     }
   }
@@ -150,33 +105,152 @@ class _ClassesScreenState extends State<ClassesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(_error!),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadTeacherData,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final authProviderListen = Provider.of<AuthProvider>(
+      context,
+    ); // listen to auth changes
+    if (!authProviderListen.isInitialized) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_teacherData == null) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final schoolId =
+        currentUser?.instituteId ?? _teacherData?['schoolCode'] ?? '';
+    final sections = _teacherData?['sections'] ?? _teacherData?['section'];
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(_error!),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _loadClasses,
-                    child: const Text('Retry'),
-                  ),
-                ],
+      body: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _teacherService.getStudentsByTeacherStream(
+                schoolId,
+                _teacherData?['classesHandled'],
+                sections,
+                classAssignments: _teacherData?['classAssignments'],
               ),
-            )
-          : Column(
-              children: [
-                _buildHeader(),
-                Expanded(child: _buildClassesList()),
-              ],
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text('Error: ${snapshot.error}'),
+                      ],
+                    ),
+                  );
+                }
+
+                final allStudents = snapshot.data ?? [];
+                final classes = _buildClassItems(allStudents);
+
+                if (classes.isEmpty) {
+                  return const Center(child: Text('No classes found'));
+                }
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                  child: Column(
+                    children: classes.map((classItem) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildClassListItem(classItem),
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
             ),
+          ),
+        ],
+      ),
     );
+  }
+
+  List<ClassItem> _buildClassItems(List<Map<String, dynamic>> allStudents) {
+    final classes = <ClassItem>[];
+    final grade =
+        _teacherData?['classesHandled']?[0]
+            ?.toString()
+            .replaceAll('Grade ', '')
+            .replaceAll('grade ', '')
+            .trim() ??
+        '';
+
+    for (var className in _classNames) {
+      // Extract section from className (e.g., "5 - A" -> "A")
+      final section = className.split(' - ').last.trim();
+      // Extract grade from className (e.g., "7 - A" -> "7")
+      final gradeNum = className.split(' - ').first.trim();
+
+      // Filter students for THIS specific section
+      final studentsInSection = allStudents.where((student) {
+        final studentSection = student['section']?.toString().trim() ?? '';
+        final studentClassName = student['className']?.toString() ?? '';
+        final studentGrade = studentClassName
+            .replaceAll('Grade ', '')
+            .replaceAll('grade ', '')
+            .trim();
+
+        return studentGrade == gradeNum && studentSection == section;
+      }).toList();
+
+      classes.add(
+        ClassItem(
+          name: 'Grade $className',
+          studentCount: studentsInSection.length,
+          averageScore: 0,
+          section: section,
+          grade: grade,
+        ),
+      );
+    }
+
+    return classes;
   }
 
   Widget _buildHeader() {
@@ -227,24 +301,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildClassesList() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-      child: _buildListView(),
-    );
-  }
-
-  Widget _buildListView() {
-    return Column(
-      children: _classes.map((classItem) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: _buildClassListItem(classItem),
-        );
-      }).toList(),
     );
   }
 

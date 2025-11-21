@@ -225,19 +225,27 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       );
     }
 
-    // Stream the user document to get real-time reward points
-    return StreamBuilder<DocumentSnapshot>(
+    // Aggregate all points from student_rewards collection (tests + daily challenges)
+    return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(student.uid)
+          .collection('student_rewards')
+          .where('studentId', isEqualTo: student.uid)
           .snapshots(),
-      builder: (context, snapshot) {
-        int rewardPoints = student.rewardPoints;
+      builder: (context, rewardsSnapshot) {
+        int rewardPoints = 0;
 
-        if (snapshot.hasData && snapshot.data != null) {
-          final data = snapshot.data!.data() as Map<String, dynamic>?;
-          if (data != null && data.containsKey('rewardPoints')) {
-            rewardPoints = data['rewardPoints'] ?? 0;
+        // Sum all pointsEarned from student_rewards (tests + daily challenges)
+        if (rewardsSnapshot.hasData) {
+          for (final doc in rewardsSnapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>?;
+            if (data != null) {
+              final points = data['pointsEarned'];
+              if (points is int) {
+                rewardPoints += points;
+              } else if (points is num) {
+                rewardPoints += points.toInt();
+              }
+            }
           }
         }
 

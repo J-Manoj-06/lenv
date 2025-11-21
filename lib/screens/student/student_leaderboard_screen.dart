@@ -722,13 +722,47 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final uid = auth.currentUser?.uid;
     if (uid == null) return;
-    // Load tests assigned to me (published only)
-    final snap = await FirebaseFirestore.instance
-        .collection('tests')
-        .where('assignedStudentIds', arrayContains: uid)
-        .where('status', isEqualTo: 'published')
+
+    // Load tests assigned to me from testResults collection
+    final assignmentsSnap = await FirebaseFirestore.instance
+        .collection('testResults')
+        .where('studentId', isEqualTo: uid)
+        .where('status', whereIn: ['assigned', 'started', 'completed'])
         .get();
-    _myTests = snap.docs.map((d) => TestModel.fromJson(d.data())).toList();
+
+    // Extract unique test IDs
+    final testIds = assignmentsSnap.docs
+        .map((doc) => doc.data()['testId'] as String?)
+        .where((id) => id != null && id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (testIds.isEmpty) {
+      _myTests = [];
+      return;
+    }
+
+    // Fetch test details from scheduledTests in batches (10 at a time due to whereIn limit)
+    _myTests = [];
+    for (var i = 0; i < testIds.length; i += 10) {
+      final batch = testIds.skip(i).take(10).toList();
+      final testsSnap = await FirebaseFirestore.instance
+          .collection('scheduledTests')
+          .where(FieldPath.documentId, whereIn: batch)
+          .get();
+
+      for (var doc in testsSnap.docs) {
+        try {
+          final test = TestModel.fromScheduledTest(doc.id, doc.data());
+          // Only include published tests
+          if (test.status == TestStatus.published) {
+            _myTests.add(test);
+          }
+        } catch (e) {
+          print('❌ Error converting test ${doc.id}: $e');
+        }
+      }
+    }
   }
 
   // Build a stream for overall leaderboard from school path; fallback to service

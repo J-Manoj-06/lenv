@@ -14,6 +14,14 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _currentUser != null;
+  bool get isInitialized => _initialized;
+
+  /// Ensure auth is initialized (idempotent)
+  Future<void> ensureInitialized() async {
+    if (!_initialized) {
+      await initializeAuth();
+    }
+  }
 
   /// Initialize auth state from Firebase Auth
   Future<void> initializeAuth() async {

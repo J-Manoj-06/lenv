@@ -481,11 +481,11 @@ class StudentService {
   // Get student's pending tests count
   Future<int> getPendingTestsCount(String studentId) async {
     try {
+      // Query testResults collection for assignments with status='assigned'
       final snapshot = await _firestore
-          .collection('tests')
-          .where('studentIds', arrayContains: studentId)
-          .where('status', isEqualTo: 'active')
-          .where('endTime', isGreaterThan: Timestamp.now())
+          .collection('testResults')
+          .where('studentId', isEqualTo: studentId)
+          .where('status', isEqualTo: 'assigned')
           .get();
 
       return snapshot.docs.length;

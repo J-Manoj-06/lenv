@@ -106,22 +106,25 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
 
     return Consumer<DailyChallengeProvider>(
       builder: (context, provider, child) {
+        // Get this student's cached challenge
+        final cachedChallenge = provider.getCachedChallenge(widget.studentId);
+
         // Loading state (only show on first load, not on selection change)
-        if (provider.isLoading && provider.cachedChallenge == null) {
+        if (provider.isLoading(widget.studentId) && cachedChallenge == null) {
           return _buildLoadingCard(theme);
         }
 
         // Error state
-        if (provider.errorMessage != null && provider.cachedChallenge == null) {
+        if (provider.errorMessage != null && cachedChallenge == null) {
           return _buildErrorCard(theme, provider.errorMessage!);
         }
 
         // No challenge available
-        if (provider.cachedChallenge == null) {
+        if (cachedChallenge == null) {
           return _buildNoChallengeCard(theme);
         }
 
-        final challenge = provider.cachedChallenge!;
+        final challenge = cachedChallenge;
         final question = challenge['question'] as String? ?? '';
         final options =
             (challenge['options'] as List<dynamic>?)
@@ -376,8 +379,10 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
                 const SizedBox(height: 20),
 
                 // Already answered today
-                if (provider.hasAnsweredToday) ...[
-                  _buildAnsweredState(provider.todayResult),
+                if (provider.hasAnsweredToday(widget.studentId)) ...[
+                  _buildAnsweredState(
+                    provider.getTodayResult(widget.studentId),
+                  ),
                 ] else ...[
                   // Options in 2-column grid
                   GridView.builder(
@@ -410,8 +415,9 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
                       scale: _scaleAnimation,
                       child: ElevatedButton(
                         onPressed:
-                            provider.selectedAnswer == null ||
-                                provider.isSubmitting
+                            provider.getSelectedAnswer(widget.studentId) ==
+                                    null ||
+                                provider.isSubmitting(widget.studentId)
                             ? null
                             : () => _submitAnswer(provider),
                         style: ElevatedButton.styleFrom(
@@ -425,7 +431,7 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
                           disabledBackgroundColor: Colors.grey[300],
                           disabledForegroundColor: Colors.grey[500],
                         ),
-                        child: provider.isSubmitting
+                        child: provider.isSubmitting(widget.studentId)
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
@@ -461,12 +467,12 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
     List<String> allOptions,
     DailyChallengeProvider provider,
   ) {
-    final isSelected = provider.selectedAnswer == option;
+    final isSelected = provider.getSelectedAnswer(widget.studentId) == option;
     final theme = Theme.of(context);
 
     return GestureDetector(
       onTap: () {
-        provider.setSelectedAnswer(option);
+        provider.setSelectedAnswer(widget.studentId, option);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),

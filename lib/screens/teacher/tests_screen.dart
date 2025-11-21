@@ -12,25 +12,53 @@ class TestsScreen extends StatefulWidget {
   State<TestsScreen> createState() => _TestsScreenState();
 }
 
-class _TestsScreenState extends State<TestsScreen> {
+class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   int _selectedTabIndex = 0;
   String _selectedClassFilter = 'All Classes';
+  bool _initialLoadDone = false; // ensure we wait for auth user
 
   @override
   void initState() {
     super.initState();
-    // Load tests for the current teacher after first frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = Provider.of<AuthProvider>(context, listen: false);
-      final user = auth.currentUser;
-      if (user != null) {
-        Provider.of<TestProvider>(
-          context,
-          listen: false,
-        ).loadTestsByTeacher(user.uid);
-      }
-    });
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Attempt loading once auth provider has a user
+    final auth = Provider.of<AuthProvider>(context);
+    final user = auth.currentUser;
+    if (!_initialLoadDone && user != null) {
+      _initialLoadDone = true;
+      print('🚀 Initial auth ready, loading tests for ${user.uid}');
+      Provider.of<TestProvider>(
+        context,
+        listen: false,
+      ).loadTestsByTeacher(user.uid);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh when app comes back to foreground
+      _loadTests();
+    }
+  }
+
+  void _loadTests() {
+    // Manual refresh path (pull-to-refresh)
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    print('🔁 Manual refresh - currentUser: ${user?.email}, uid: ${user?.uid}');
+    if (user != null) {
+      Provider.of<TestProvider>(
+        context,
+        listen: false,
+      ).loadTestsByTeacher(user.uid);
+    }
   }
 
   final List<String> _tabs = ['All', 'Live', 'Past'];
@@ -49,6 +77,7 @@ class _TestsScreenState extends State<TestsScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
   }
@@ -77,13 +106,37 @@ class _TestsScreenState extends State<TestsScreen> {
                 child: testProv.isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : filtered.isEmpty
-                    ? const Center(child: Text('No tests found'))
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                        itemCount: filtered.length,
-                        itemBuilder: (_, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: _buildTestCardFromModel(filtered[i]),
+                    ? RefreshIndicator(
+                        onRefresh: () async {
+                          _loadTests();
+                          // Wait a bit for the refresh to complete
+                          await Future.delayed(
+                            const Duration(milliseconds: 500),
+                          );
+                        },
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.5,
+                            child: const Center(child: Text('No tests found')),
+                          ),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          _loadTests();
+                          // Wait a bit for the refresh to complete
+                          await Future.delayed(
+                            const Duration(milliseconds: 500),
+                          );
+                        },
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                          itemCount: filtered.length,
+                          itemBuilder: (_, i) => Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _buildTestCardFromModel(filtered[i]),
+                          ),
                         ),
                       ),
               ),
@@ -293,16 +346,23 @@ class _TestsScreenState extends State<TestsScreen> {
   List<TestModel> _applyFilters(List<TestModel> tests) {
     final query = _searchController.text.trim().toLowerCase();
     DateTime now = DateTime.now();
+
+    // Debug logging
+    print(
+      '🔍 Filtering ${tests.length} tests, selectedTabIndex: $_selectedTabIndex',
+    );
+
     bool matchesTab(TestModel t) {
       final isLive = t.startDate.isBefore(now) && t.endDate.isAfter(now);
       final isScheduled = t.startDate.isAfter(now);
       final isPast = t.endDate.isBefore(now);
+
       switch (_selectedTabIndex) {
-        case 1:
+        case 0: // All
+          return true;
+        case 1: // Live
           return isLive;
-        case 2:
-          return isScheduled;
-        case 3:
+        case 2: // Past (note: Past is index 2, not Scheduled)
           return isPast;
         default:
           return true;
@@ -331,6 +391,8 @@ class _TestsScreenState extends State<TestsScreen> {
         .where(matchesSearch)
         .toList();
     filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    print('✅ After filtering: ${filtered.length} tests');
     return filtered;
   }
 

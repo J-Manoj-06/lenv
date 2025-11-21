@@ -160,4 +160,120 @@ class TestModel {
           : null,
     );
   }
+
+  /// Factory constructor for converting from scheduledTests collection format
+  factory TestModel.fromScheduledTest(String id, Map<String, dynamic> json) {
+    // Parse questions from scheduledTests format
+    final List<Question> questions = [];
+    if (json['questions'] != null) {
+      final questionsData = json['questions'] as List;
+      for (var i = 0; i < questionsData.length; i++) {
+        final q = questionsData[i] as Map<String, dynamic>;
+
+        // Determine question type from scheduledTests format
+        QuestionType type;
+        final typeStr = (q['type'] as String?)?.toLowerCase() ?? 'mcq';
+        if (typeStr == 'mcq' || typeStr == 'multiplechoice') {
+          type = QuestionType.multipleChoice;
+        } else if (typeStr == 'tf' || typeStr == 'truefalse') {
+          type = QuestionType.trueFalse;
+        } else if (typeStr == 'short' || typeStr == 'shortanswer') {
+          type = QuestionType.shortAnswer;
+        } else if (typeStr == 'essay') {
+          type = QuestionType.essay;
+        } else {
+          type = QuestionType.multipleChoice;
+        }
+
+        questions.add(
+          Question(
+            id: q['id'] ?? 'q_${i + 1}',
+            type: type,
+            question: q['questionText'] ?? q['question'] ?? '',
+            options: q['options'] != null
+                ? List<String>.from(q['options'])
+                : null,
+            correctAnswer: q['correctAnswer'],
+            points: q['marks'] ?? q['points'] ?? 1,
+          ),
+        );
+      }
+    }
+
+    // Parse dates - scheduledTests might have different formats
+    DateTime startDate;
+    DateTime endDate;
+
+    try {
+      if (json['startDate'] is Timestamp) {
+        startDate = (json['startDate'] as Timestamp).toDate();
+      } else if (json['date'] is String) {
+        // Parse string date format "YYYY-MM-DD"
+        final dateStr = json['date'] as String;
+        final timeStr = json['startTime'] as String? ?? '00:00';
+        startDate = DateTime.parse('$dateStr $timeStr');
+      } else {
+        startDate = DateTime.now();
+      }
+
+      if (json['endDate'] is Timestamp) {
+        endDate = (json['endDate'] as Timestamp).toDate();
+      } else if (json['date'] is String) {
+        // Parse string date format "YYYY-MM-DD"
+        final dateStr = json['date'] as String;
+        final endTimeStr =
+            json['endTime'] as String? ??
+            json['scheduledTime'] as String? ??
+            '23:59';
+        final durationMinutes = json['duration'] as int? ?? 60;
+
+        // Calculate end date from start + duration
+        final tempStart = DateTime.parse('$dateStr $endTimeStr');
+        endDate = tempStart.add(Duration(minutes: durationMinutes));
+      } else {
+        endDate = DateTime.now().add(const Duration(hours: 1));
+      }
+    } catch (e) {
+      startDate = DateTime.now();
+      endDate = DateTime.now().add(const Duration(hours: 1));
+    }
+
+    // Calculate total points
+    int totalPoints = 0;
+    for (var q in questions) {
+      totalPoints += q.points;
+    }
+
+    return TestModel(
+      id: id,
+      title: json['title'] ?? json['testTitle'] ?? '',
+      description: json['description'] ?? '',
+      teacherId: json['teacherId'] ?? '',
+      teacherName: json['teacherName'] ?? '',
+      instituteId: json['schoolCode'] ?? json['instituteId'] ?? '',
+      subject: json['subject'] ?? '',
+      className: json['class'] ?? json['className'],
+      section: json['section'],
+      questions: questions,
+      totalPoints: json['totalMarks'] ?? totalPoints,
+      duration: json['duration'] ?? 60,
+      startDate: startDate,
+      endDate: endDate,
+      status: TestStatus.published, // scheduledTests are always published
+      assignedStudentIds: [], // Not used in new system
+      createdAt: json['createdAt'] is Timestamp
+          ? (json['createdAt'] as Timestamp).toDate()
+          : (json['dateCreated'] is Timestamp
+                ? (json['dateCreated'] as Timestamp).toDate()
+                : DateTime.now()),
+      updatedAt: json['updatedAt'] is Timestamp
+          ? (json['updatedAt'] as Timestamp).toDate()
+          : null,
+      resultsPublished:
+          json['resultsPublished'] ?? json['autoPublished'] ?? false,
+      publishedAt: json['publishedAt'] is Timestamp
+          ? (json['publishedAt'] as Timestamp).toDate()
+          : null,
+    );
+  }
 }

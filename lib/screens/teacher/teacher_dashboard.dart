@@ -1743,30 +1743,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   Widget _buildClassSummary() {
-    List<Map<String, dynamic>> filteredStudents = _students;
-
-    if (selectedClass != null && selectedClass!.isNotEmpty) {
-      final parts = selectedClass!.split(' - ');
-      if (parts.length == 2) {
-        final selectedGrade = parts[0].trim();
-        final selectedSection = parts[1].trim();
-
-        filteredStudents = _students.where((student) {
-          final studentClassName = student['className']?.toString() ?? '';
-          final studentGrade = studentClassName
-              .replaceAll('Grade ', '')
-              .replaceAll('grade ', '')
-              .trim();
-          final studentSection = student['section']?.toString() ?? '';
-
-          return studentGrade == selectedGrade &&
-              studentSection == selectedSection;
-        }).toList();
-      }
-    }
-
-    final totalStudents = filteredStudents.length;
-    final totalAllStudents = _students.length;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    final instituteId =
+        currentUser?.instituteId ?? _teacherData?['schoolCode'] ?? '';
+    final sections = _teacherData?['sections'] ?? _teacherData?['section'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1780,28 +1761,66 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSummaryCard(
-                icon: Icons.people,
-                iconColor: Colors.green,
-                iconBgColor: Colors.green.withOpacity(0.1),
-                value: '$totalStudents',
-                label: 'Students in Class',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildSummaryCard(
-                icon: Icons.school,
-                iconColor: Colors.orange,
-                iconBgColor: Colors.orange.withOpacity(0.1),
-                value: '$totalAllStudents',
-                label: 'Total Students',
-              ),
-            ),
-          ],
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: _teacherService.getStudentsByTeacherStream(
+            instituteId,
+            _teacherData?['classesHandled'],
+            sections,
+            classAssignments: _teacherData?['classAssignments'],
+          ),
+          builder: (context, snapshot) {
+            final allStudents = snapshot.data ?? _students;
+
+            List<Map<String, dynamic>> filteredStudents = allStudents;
+
+            if (selectedClass != null && selectedClass!.isNotEmpty) {
+              final parts = selectedClass!.split(' - ');
+              if (parts.length == 2) {
+                final selectedGrade = parts[0].trim();
+                final selectedSection = parts[1].trim();
+
+                filteredStudents = allStudents.where((student) {
+                  final studentClassName =
+                      student['className']?.toString() ?? '';
+                  final studentGrade = studentClassName
+                      .replaceAll('Grade ', '')
+                      .replaceAll('grade ', '')
+                      .trim();
+                  final studentSection = student['section']?.toString() ?? '';
+
+                  return studentGrade == selectedGrade &&
+                      studentSection == selectedSection;
+                }).toList();
+              }
+            }
+
+            final totalStudents = filteredStudents.length;
+            final totalAllStudents = allStudents.length;
+
+            return Row(
+              children: [
+                Expanded(
+                  child: _buildSummaryCard(
+                    icon: Icons.people,
+                    iconColor: Colors.green,
+                    iconBgColor: Colors.green.withOpacity(0.1),
+                    value: '$totalStudents',
+                    label: 'Students in Class',
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildSummaryCard(
+                    icon: Icons.school,
+                    iconColor: Colors.orange,
+                    iconBgColor: Colors.orange.withOpacity(0.1),
+                    value: '$totalAllStudents',
+                    label: 'Total Students',
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );

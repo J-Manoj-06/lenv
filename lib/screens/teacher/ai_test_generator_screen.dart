@@ -278,7 +278,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   }) async {
     try {
       final tests = await FirebaseFirestore.instance
-          .collection('tests')
+          .collection('scheduledTests')
           .where('className', isEqualTo: className)
           .where('section', isEqualTo: section)
           .where('subject', isEqualTo: subject)

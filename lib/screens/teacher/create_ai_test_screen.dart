@@ -1360,6 +1360,9 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
       if (mounted) Navigator.of(context).pop();
 
       if (ok) {
+        // Stream will automatically update with new test
+        // No need to manually refresh
+
         // Show success message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

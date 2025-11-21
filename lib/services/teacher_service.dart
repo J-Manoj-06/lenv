@@ -79,13 +79,13 @@ class TeacherService {
               final studentData = doc.data();
               studentData['id'] = doc.id;
 
-              // Fetch rewardPoints from users collection
+              // Fetch total points by summing all pointsEarned from student_rewards
               try {
                 final studentEmail =
                     studentData['email'] as String? ??
                     studentData['studentEmail'] as String?;
                 String? actualUid;
-                int rewardPoints = 0;
+                int totalPoints = 0;
 
                 // Step 1: Find the user by email to get the real Auth UID
                 if (studentEmail != null && studentEmail.isNotEmpty) {
@@ -99,40 +99,27 @@ class TeacherService {
                     final userDoc = userQuery.docs.first;
                     final userData = userDoc.data();
                     actualUid = userData['uid'] as String? ?? userDoc.id;
-
-                    final rpRaw = userData['rewardPoints'];
-                    if (rpRaw is int) {
-                      rewardPoints = rpRaw;
-                    } else if (rpRaw is num) {
-                      rewardPoints = rpRaw.toInt();
-                    } else if (rpRaw is String) {
-                      rewardPoints = int.tryParse(rpRaw) ?? 0;
-                    }
                   }
                 }
 
-                // Step 2: If rewardPoints is 0 or user not found, aggregate from student_rewards
-                if (rewardPoints == 0 && actualUid != null) {
+                // Step 2: Sum ALL pointsEarned from student_rewards (tests + daily challenges)
+                if (actualUid != null) {
                   final rewardsSnap = await _firestore
                       .collection('student_rewards')
                       .where('studentId', isEqualTo: actualUid)
                       .get();
-                  int aggregated = 0;
+
                   for (final rd in rewardsSnap.docs) {
-                    aggregated +=
+                    final points =
                         (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
+                    totalPoints += points;
                   }
-                  if (aggregated > 0) {
-                    studentData['aggregatedRewardPoints'] = aggregated;
-                  }
-                  rewardPoints = aggregated;
                 }
 
-                studentData['rewardPoints'] = rewardPoints;
+                studentData['rewardPoints'] = totalPoints;
               } catch (e) {
                 studentData['rewardPoints'] = 0;
               }
-
               allStudents.add(studentData);
             }
           }
@@ -168,13 +155,13 @@ class TeacherService {
           final studentData = doc.data();
           studentData['id'] = doc.id;
 
-          // Fetch rewardPoints from users collection
+          // Fetch total points by summing all pointsEarned from student_rewards
           try {
             final studentEmail =
                 studentData['email'] as String? ??
                 studentData['studentEmail'] as String?;
             String? actualUid;
-            int rewardPoints = 0;
+            int totalPoints = 0;
 
             // Step 1: Find the user by email to get the real Auth UID
             if (studentEmail != null && studentEmail.isNotEmpty) {
@@ -188,35 +175,24 @@ class TeacherService {
                 final userDoc = userQuery.docs.first;
                 final userData = userDoc.data();
                 actualUid = userData['uid'] as String? ?? userDoc.id;
-
-                final rpRaw = userData['rewardPoints'];
-                if (rpRaw is int) {
-                  rewardPoints = rpRaw;
-                } else if (rpRaw is num) {
-                  rewardPoints = rpRaw.toInt();
-                } else if (rpRaw is String) {
-                  rewardPoints = int.tryParse(rpRaw) ?? 0;
-                }
               }
             }
 
-            // Step 2: If rewardPoints is 0 or user not found, aggregate from student_rewards
-            if (rewardPoints == 0 && actualUid != null) {
+            // Step 2: Sum ALL pointsEarned from student_rewards (tests + daily challenges)
+            if (actualUid != null) {
               final rewardsSnap = await _firestore
                   .collection('student_rewards')
                   .where('studentId', isEqualTo: actualUid)
                   .get();
-              int aggregated = 0;
+
               for (final rd in rewardsSnap.docs) {
-                aggregated += (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
+                final points =
+                    (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
+                totalPoints += points;
               }
-              if (aggregated > 0) {
-                studentData['aggregatedRewardPoints'] = aggregated;
-              }
-              rewardPoints = aggregated;
             }
 
-            studentData['rewardPoints'] = rewardPoints;
+            studentData['rewardPoints'] = totalPoints;
           } catch (e) {
             studentData['rewardPoints'] = 0;
           }
@@ -373,5 +349,99 @@ class TeacherService {
     final result = uniqueClasses.toList()..sort();
     print('✅ Parsed classes: $result');
     return result;
+  }
+
+  /// Stream version of getStudentsByTeacher for real-time updates
+  Stream<List<Map<String, dynamic>>> getStudentsByTeacherStream(
+    String schoolId,
+    List<dynamic>? classesHandled,
+    dynamic sections, {
+    List<dynamic>? classAssignments,
+  }) {
+    try {
+      // For simplicity, we'll query all students in the school and filter locally
+      // This is more efficient than managing multiple stream subscriptions
+      return _firestore
+          .collection('students')
+          .where('schoolCode', isEqualTo: schoolId)
+          .snapshots()
+          .asyncMap((snapshot) async {
+            final List<Map<String, dynamic>> allStudents = [];
+
+            // Filter students based on teacher's classes
+            final sectionList = _normalizeSections(sections);
+
+            for (var doc in snapshot.docs) {
+              final studentData = doc.data();
+              studentData['id'] = doc.id;
+
+              // Check if student belongs to teacher's classes
+              final studentClassName =
+                  studentData['className']?.toString() ?? '';
+              final studentSection = studentData['section']?.toString() ?? '';
+
+              bool matchesClass = false;
+
+              if (classesHandled != null && classesHandled.isNotEmpty) {
+                for (final classItem in classesHandled) {
+                  if (studentClassName == classItem.toString() &&
+                      sectionList.contains(studentSection)) {
+                    matchesClass = true;
+                    break;
+                  }
+                }
+              }
+
+              if (matchesClass) {
+                // Fetch total points by summing all pointsEarned from student_rewards
+                try {
+                  final studentEmail =
+                      studentData['email'] as String? ??
+                      studentData['studentEmail'] as String?;
+                  String? actualUid;
+                  int totalPoints = 0;
+
+                  if (studentEmail != null && studentEmail.isNotEmpty) {
+                    final userQuery = await _firestore
+                        .collection('users')
+                        .where('email', isEqualTo: studentEmail)
+                        .limit(1)
+                        .get();
+
+                    if (userQuery.docs.isNotEmpty) {
+                      final userData = userQuery.docs.first.data();
+                      actualUid =
+                          userData['uid'] as String? ?? userQuery.docs.first.id;
+                    }
+                  }
+
+                  // Sum ALL pointsEarned from student_rewards
+                  if (actualUid != null) {
+                    final rewardsSnap = await _firestore
+                        .collection('student_rewards')
+                        .where('studentId', isEqualTo: actualUid)
+                        .get();
+
+                    for (final rd in rewardsSnap.docs) {
+                      final points =
+                          (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
+                      totalPoints += points;
+                    }
+                  }
+
+                  studentData['rewardPoints'] = totalPoints;
+                } catch (e) {
+                  studentData['rewardPoints'] = 0;
+                }
+
+                allStudents.add(studentData);
+              }
+            }
+
+            return allStudents;
+          });
+    } catch (e) {
+      return Stream.value([]);
+    }
   }
 }

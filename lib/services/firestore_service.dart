@@ -45,7 +45,8 @@ class FirestoreService {
 
   // Test Operations
   Future<String> createTest(TestModel test) async {
-    final docRef = _db.collection('tests').doc();
+    // Store test definitions in scheduledTests collection instead of tests
+    final docRef = _db.collection('scheduledTests').doc();
     final data = test.toJson();
     data['id'] = docRef.id;
 
@@ -84,6 +85,7 @@ class FirestoreService {
     }
 
     await docRef.set(data);
+    print('✅ Test created in scheduledTests collection: ${docRef.id}');
     return docRef.id;
   }
 
@@ -91,16 +93,25 @@ class FirestoreService {
   Future<void> assignTestToClass(String testId, String teacherAuthUid) async {
     try {
       // Fetch test document to get the target className and section
-      final testDoc = await _db.collection('tests').doc(testId).get();
+      final testDoc = await _db.collection('scheduledTests').doc(testId).get();
       if (!testDoc.exists) {
+        print('❌ Test document not found: $testId');
         return;
       }
       final testData = testDoc.data()!;
-      final targetClassName = testData['className'] as String? ?? '';
+      final targetClassName =
+          testData['class'] ?? testData['className'] as String? ?? '';
       final targetSection = testData['section'] as String? ?? '';
+      final testTitle =
+          testData['title'] ?? testData['testTitle'] ?? 'Untitled Test';
+      final subject = testData['subject'] ?? '';
+      final teacherName = testData['teacherName'] ?? '';
 
-      // Fetch teacher document by querying with Auth UID (email lookup)
-      // First try direct doc lookup, then query by email
+      print(
+        '📝 Assigning test "$testTitle" to class: $targetClassName, section: $targetSection',
+      );
+
+      // Fetch teacher document
       var teacherDoc = await _db
           .collection('teachers')
           .doc(teacherAuthUid)
@@ -113,10 +124,6 @@ class FirestoreService {
         final userEmail = currentUser?.email;
 
         if (userEmail != null) {
-          // Pre-assignment audit: count how many students have UID for this teacher
-          try {
-            await countStudentsUidByTeacherEmail(userEmail);
-          } catch (e) {}
           final teacherQuery = await _db
               .collection('teachers')
               .where('email', isEqualTo: userEmail)
@@ -124,19 +131,21 @@ class FirestoreService {
               .get();
           if (teacherQuery.docs.isNotEmpty) {
             teacherData = teacherQuery.docs.first.data();
-          } else {}
-        } else {}
+          }
+        }
       } else {
         teacherData = teacherDoc.data();
       }
 
       if (teacherData == null) {
+        print('❌ Teacher data not found');
         return;
       }
 
       final schoolCode = teacherData['schoolCode'] as String? ?? '';
 
       if (schoolCode.isEmpty || targetClassName.isEmpty) {
+        print('❌ Missing schoolCode or className');
         return;
       }
 
@@ -150,89 +159,113 @@ class FirestoreService {
       }
       final snapshot = await query.get();
 
-      // Map emails to Auth UIDs
-      final emails = <String>[];
+      print('👥 Found ${snapshot.docs.length} students in class');
+
+      // Get student emails and UIDs
+      final studentAssignments = <Map<String, String>>[];
+
       for (var doc in snapshot.docs) {
         final data = doc.data();
         final email =
             data['email'] as String? ?? data['studentEmail'] as String?;
+
         if (email != null && email.isNotEmpty) {
-          emails.add(email);
-        }
-      }
+          // Look up Auth UID from users collection
+          final userQuery = await _db
+              .collection('users')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
 
-      // Look up Auth UIDs by checking users collection
-      final studentUids = <String>[];
-      final emailToUidMap = <String, String>{};
+          if (userQuery.docs.isNotEmpty) {
+            final userDoc = userQuery.docs.first;
+            final userData = userDoc.data();
+            final uid = (userData['uid'] as String?)?.trim();
 
-      // Get UIDs from users collection
-      for (final email in emails) {
-        final userQuery = await _db
-            .collection('users')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get();
-        if (userQuery.docs.isNotEmpty) {
-          final userDoc = userQuery.docs.first;
-          final data = userDoc.data();
-
-          // Use the uid field if it exists and is not empty
-          final uid = (data['uid'] as String?)?.trim();
-          if (uid != null && uid.isNotEmpty) {
-            emailToUidMap[email] = uid;
-            studentUids.add(uid);
-          } else {}
-        } else {}
-      }
-
-      // Update test document with BOTH UIDs and emails
-      // Emails serve as fallback for students who haven't logged in yet
-      await _db.collection('tests').doc(testId).update({
-        'assignedStudentIds': studentUids,
-        'assignedStudentEmails': emails,
-      });
-
-      // Batch update users counters
-      final batchSize = 500;
-      int successCount = 0;
-      int errorCount = 0;
-      for (int i = 0; i < studentUids.length; i += batchSize) {
-        final batchStudentIds = studentUids.skip(i).take(batchSize).toList();
-        final batch = _db.batch();
-        for (final studentId in batchStudentIds) {
-          final userDoc = await _db.collection('users').doc(studentId).get();
-          if (userDoc.exists) {
-            batch.update(userDoc.reference, {
-              'pendingTests': FieldValue.increment(1),
-              'newNotifications': FieldValue.increment(1),
-            });
-            successCount++;
-          } else {
-            final altQuery = await _db
-                .collection('users')
-                .where('uid', isEqualTo: studentId)
-                .limit(1)
-                .get();
-            if (altQuery.docs.isNotEmpty) {
-              batch.update(altQuery.docs.first.reference, {
-                'pendingTests': FieldValue.increment(1),
-                'newNotifications': FieldValue.increment(1),
+            if (uid != null && uid.isNotEmpty) {
+              studentAssignments.add({
+                'studentId': uid,
+                'studentEmail': email,
+                'studentName': data['name'] as String? ?? '',
               });
-              successCount++;
-            } else {
-              errorCount++;
             }
           }
         }
+      }
+
+      print('✅ Found ${studentAssignments.length} students with valid UIDs');
+
+      // Create individual assignment documents for each student
+      // Store in testResults collection with status="assigned"
+      int successCount = 0;
+      int errorCount = 0;
+
+      for (final student in studentAssignments) {
         try {
-          await batch.commit();
+          final assignmentDoc = {
+            'testId': testId,
+            'studentId': student['studentId']!,
+            'studentEmail': student['studentEmail']!,
+            'studentName': student['studentName']!,
+            'testTitle': testTitle,
+            'subject': subject,
+            'className': targetClassName,
+            'section': targetSection,
+            'teacherId': teacherAuthUid,
+            'teacherName': teacherName,
+            'status': 'assigned', // assigned, started, completed
+            'assignedAt': FieldValue.serverTimestamp(),
+            'startedAt': null,
+            'submittedAt': null,
+            'score': null,
+            'totalMarks': testData['totalMarks'] ?? 0,
+            'createdAt': FieldValue.serverTimestamp(),
+          };
+
+          // Create document in testResults collection
+          final assignmentRef = await _db
+              .collection('testResults')
+              .add(assignmentDoc);
+          print(
+            '✅ Created assignment ${assignmentRef.id} for ${student['studentEmail']} (UID: ${student['studentId']})',
+          );
+
+          // Update user's pendingTests counter (only if user document exists)
+          try {
+            final userDocRef = _db
+                .collection('users')
+                .doc(student['studentId']);
+            final userDocSnap = await userDocRef.get();
+
+            if (userDocSnap.exists) {
+              await userDocRef.update({
+                'pendingTests': FieldValue.increment(1),
+                'newNotifications': FieldValue.increment(1),
+              });
+            } else {
+              print(
+                '⚠️  User document not found for ${student['studentEmail']}, skipping counter update',
+              );
+            }
+          } catch (e) {
+            print(
+              '⚠️  Could not update counters for ${student['studentEmail']}: $e',
+            );
+          }
+
+          successCount++;
         } catch (e) {
-          errorCount += batchStudentIds.length;
+          print('❌ Error assigning to ${student['studentEmail']}: $e');
+          errorCount++;
         }
       }
-      // no-op reference to avoid unused variable warnings
-      if (successCount < 0 || errorCount < 0) {}
+
+      print('✅ Successfully assigned test to $successCount students');
+      if (errorCount > 0) {
+        print('⚠️  Failed to assign to $errorCount students');
+      }
     } catch (e) {
+      print('❌ Error in assignTestToClass: $e');
       rethrow;
     }
   }
@@ -371,50 +404,67 @@ class FirestoreService {
   }
 
   Future<TestModel?> getTest(String testId) async {
-    final doc = await _db.collection('tests').doc(testId).get();
+    // Try scheduledTests first (new location)
+    final doc = await _db.collection('scheduledTests').doc(testId).get();
     if (doc.exists) {
-      return TestModel.fromJson(doc.data()!);
+      return TestModel.fromScheduledTest(doc.id, doc.data()!);
     }
     return null;
   }
 
   Future<void> updateTest(String testId, Map<String, dynamic> data) async {
-    await _db.collection('tests').doc(testId).update(data);
+    await _db.collection('scheduledTests').doc(testId).update(data);
+    print('✅ Test updated in scheduledTests: $testId');
   }
 
   Future<void> deleteTest(String testId) async {
-    await _db.collection('tests').doc(testId).delete();
+    await _db.collection('scheduledTests').doc(testId).delete();
+    print('✅ Test deleted from scheduledTests: $testId');
   }
 
   /// Safer delete: remove the test and clean up related data
-  /// - Deletes all testResults for this test
+  /// - Deletes all testResults for this test (both assignments and completions)
   /// - Decrements pendingTests for assigned students (best-effort)
-  /// - Deletes the test document
+  /// - Deletes the test document from scheduledTests
   Future<void> deleteTestCascade(String testId) async {
     try {
-      final testRef = _db.collection('tests').doc(testId);
-      final snap = await testRef.get();
-      List<dynamic> assigned = const [];
-      if (snap.exists) {
-        assigned = (snap.data()?['assignedStudentIds'] as List?) ?? const [];
-      }
+      final testRef = _db.collection('scheduledTests').doc(testId);
 
-      // Delete results in batches
-      final resultsQ = await _db
+      // Find all assignments for this test from testResults collection
+      final assignmentsQ = await _db
           .collection('testResults')
           .where('testId', isEqualTo: testId)
           .get();
-      for (final chunk in _chunk(resultsQ.docs, 400)) {
+
+      // Extract student IDs who have assignments (status='assigned')
+      final assignedStudentIds = assignmentsQ.docs
+          .where((doc) {
+            final status = (doc.data()['status'] as String?) ?? '';
+            return status == 'assigned';
+          })
+          .map((doc) => doc.data()['studentId'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toList();
+
+      // Delete all testResults documents (assignments and completions) in batches
+      for (final chunk in _chunk(assignmentsQ.docs, 400)) {
         final batch = _db.batch();
         for (final d in chunk) {
           batch.delete(d.reference);
         }
         await batch.commit();
       }
+      print(
+        '✅ Deleted ${assignmentsQ.docs.length} testResults for test $testId',
+      );
 
-      // Best-effort: decrement pendingTests for students still pending
-      if (assigned.isNotEmpty) {
-        for (final chunk in _chunk<String>(assigned.cast<String>(), 400)) {
+      // Best-effort: decrement pendingTests for students who had pending assignments
+      if (assignedStudentIds.isNotEmpty) {
+        print(
+          '📉 Decrementing pendingTests for ${assignedStudentIds.length} students',
+        );
+        for (final chunk in _chunk<String>(assignedStudentIds, 400)) {
           final batch = _db.batch();
           for (final sid in chunk) {
             batch.update(_db.collection('users').doc(sid), {
@@ -427,12 +477,14 @@ class FirestoreService {
         }
       }
 
-      // Finally delete the test
+      // Finally delete the test from scheduledTests
       await testRef.delete();
+      print('✅ Test deleted from scheduledTests: $testId');
     } catch (e) {
       // Fallback to simple delete if anything goes wrong
+      print('❌ Error in deleteTestCascade: $e');
       try {
-        await _db.collection('tests').doc(testId).delete();
+        await _db.collection('scheduledTests').doc(testId).delete();
       } catch (_) {}
       rethrow;
     }
@@ -590,74 +642,88 @@ class FirestoreService {
   }
 
   Stream<List<TestModel>> getTestsByTeacher(String teacherId) {
-    // Index is enabled (teacherId asc, createdAt desc) — use server-side ordering
+    // Query scheduledTests collection - sort in memory to avoid index requirement
+    print(
+      '🔍 FirestoreService.getTestsByTeacher called with teacherId: $teacherId',
+    );
     return _db
-        .collection('tests')
+        .collection('scheduledTests')
         .where('teacherId', isEqualTo: teacherId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => TestModel.fromJson(doc.data()))
-              .toList(),
-        );
+        .map((snapshot) {
+          print('📊 Snapshot received with ${snapshot.docs.length} documents');
+          for (var doc in snapshot.docs) {
+            print('   - Test: ${doc.data()['title']} (${doc.id})');
+          }
+
+          // Parse all tests
+          final tests = snapshot.docs
+              .map((doc) => TestModel.fromScheduledTest(doc.id, doc.data()))
+              .toList();
+
+          // Sort by createdAt in memory (newest first)
+          tests.sort((a, b) {
+            final aTime = a.createdAt;
+            final bTime = b.createdAt;
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return bTime.compareTo(aTime); // Descending order
+          });
+
+          return tests;
+        });
   }
 
   Stream<List<TestModel>> getAvailableTestsForStudent(
     String studentId, {
     String? studentEmail,
   }) async* {
-    // First, try querying by UID
-    var byUidQuery = _db
-        .collection('tests')
-        .where('assignedStudentIds', arrayContains: studentId)
-        .where('status', isEqualTo: 'published')
+    // Query testResults collection for assignments to this student
+    var assignmentsQuery = _db
+        .collection('testResults')
+        .where('studentId', isEqualTo: studentId)
+        .where('status', whereIn: ['assigned', 'started'])
         .snapshots();
 
-    await for (var snapshot in byUidQuery) {
-      var tests = snapshot.docs
-          .map((doc) => TestModel.fromJson(doc.data()))
+    await for (var assignmentsSnapshot in assignmentsQuery) {
+      // Extract unique test IDs from assignments
+      final testIds = assignmentsSnapshot.docs
+          .map((doc) => doc.data()['testId'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .toSet()
           .toList();
 
-      // If no tests found by UID and email is provided, try querying by email
-      if (tests.isEmpty && studentEmail != null && studentEmail.isNotEmpty) {
-        final byEmailSnapshot = await _db
-            .collection('tests')
-            .where('assignedStudentEmails', arrayContains: studentEmail)
-            .where('status', isEqualTo: 'published')
-            .get();
-
-        tests = byEmailSnapshot.docs
-            .map((doc) => TestModel.fromJson(doc.data()))
-            .toList();
+      if (testIds.isEmpty) {
+        yield [];
+        continue;
       }
 
-      // Filter to only published tests
-      final publishedTests = tests
-          .where((test) => test.status == TestStatus.published)
-          .toList();
+      // Fetch test details from scheduledTests collection
+      // Firestore whereIn has a limit of 10, so we need to batch if more than 10
+      final List<TestModel> tests = [];
 
-      // Debug: Check all published tests
-      final allPublishedSnapshot = await _db
-          .collection('tests')
-          .where('status', isEqualTo: 'published')
-          .get();
-      for (var doc in allPublishedSnapshot.docs) {
-        final data = doc.data();
-        final assignedIds = data['assignedStudentIds'] as List<dynamic>? ?? [];
-        final assignedEmails =
-            data['assignedStudentEmails'] as List<dynamic>? ?? [];
-        // final testTitle = data['title'] ?? 'Untitled';
+      for (var i = 0; i < testIds.length; i += 10) {
+        final batch = testIds.skip(i).take(10).toList();
+        final testsSnapshot = await _db
+            .collection('scheduledTests')
+            .where(FieldPath.documentId, whereIn: batch)
+            .get();
 
-        if (assignedIds.contains(studentId)) {
-        } else if (studentEmail != null &&
-            assignedEmails.contains(studentEmail)) {
-        } else {
-          if (assignedEmails.isNotEmpty && studentEmail != null) {}
+        for (var doc in testsSnapshot.docs) {
+          try {
+            final test = TestModel.fromScheduledTest(doc.id, doc.data());
+            // Only include published tests
+            if (test.status == TestStatus.published) {
+              tests.add(test);
+            }
+          } catch (e) {
+            print('❌ Error converting test ${doc.id}: $e');
+          }
         }
       }
 
-      yield publishedTests;
+      yield tests;
     }
   }
 
@@ -846,6 +912,8 @@ class FirestoreService {
 
   // Submit Test Result
   Future<void> submitTestResult(TestResultModel result) async {
+    String? schoolCode; // Declare at method level for use in violations
+
     try {
       // Create the test result document
       final resultDoc = _db.collection('testResults').doc();
@@ -862,11 +930,40 @@ class FirestoreService {
           final sc = (stSnap.data()?['schoolCode'] as String?)?.trim();
           if (sc != null && sc.isNotEmpty) {
             resultData['schoolCode'] = sc;
+            schoolCode = sc; // Save for use in violations
           }
         }
       } catch (_) {}
 
       await resultDoc.set(resultData);
+
+      print('✅ Test result saved: ${resultDoc.id}');
+
+      // Update the assignment document status from "assigned" to "completed"
+      try {
+        final assignmentQuery = await _db
+            .collection('testResults')
+            .where('studentId', isEqualTo: result.studentId)
+            .where('testId', isEqualTo: result.testId)
+            .where('status', isEqualTo: 'assigned')
+            .limit(1)
+            .get();
+
+        if (assignmentQuery.docs.isNotEmpty) {
+          final assignmentDoc = assignmentQuery.docs.first;
+          await assignmentDoc.reference.update({
+            'status': 'completed',
+            'submittedAt': FieldValue.serverTimestamp(),
+            'score': result.score,
+            'resultId': resultDoc.id,
+          });
+          print('✅ Updated assignment status to completed');
+        } else {
+          print('⚠️  No assignment document found for this test');
+        }
+      } catch (e) {
+        print('❌ Error updating assignment status: $e');
+      }
 
       // Update student counters (users collection preferred, fallback to students)
       bool countersUpdated = false;
@@ -917,7 +1014,10 @@ class FirestoreService {
       }
 
       if (countersUpdated) {
-      } else {}
+        print('✅ Student counters updated');
+      } else {
+        print('⚠️  Could not update student counters');
+      }
 
       // Rewards: also log earned points record for this test
       try {
@@ -945,44 +1045,8 @@ class FirestoreService {
         print('❌ ERROR saving points: $e');
       }
 
-      // Update test document with completion info
-      final testDoc = _db.collection('tests').doc(result.testId);
-      final testSnap = await testDoc.get();
-
-      // Best-effort: attach schoolCode for result/test to avoid cross-school confusion
-      String? schoolCode;
-      try {
-        final stSnap = await _db
-            .collection('students')
-            .doc(result.studentId)
-            .get();
-        if (stSnap.exists) {
-          schoolCode = (stSnap.data()?['schoolCode'] as String?)?.trim();
-        }
-      } catch (_) {}
-
-      if (!testSnap.exists) {
-        // Create a minimal test document so updates won't fail
-        final minimal = {
-          'id': result.testId,
-          'title': result.testTitle,
-          'subject': result.subject,
-          'status': 'published',
-          'assignedStudentIds': [result.studentId],
-          'assignedStudentEmails': [result.studentEmail],
-          'createdAt': FieldValue.serverTimestamp(),
-          if (schoolCode != null && schoolCode.isNotEmpty)
-            'schoolCode': schoolCode,
-        };
-        await testDoc.set(minimal, SetOptions(merge: true));
-      }
-
-      await testDoc.update({
-        'completedBy': FieldValue.arrayUnion([result.studentId]),
-        'completedCount': FieldValue.increment(1),
-        if (schoolCode != null && schoolCode.isNotEmpty)
-          'schoolCode': schoolCode,
-      });
+      // NOTE: We no longer update the "tests" collection as it's being phased out
+      // All test information is now stored in scheduledTests and testResults
 
       // If violation detected, log it separately
       if (result.violationDetected) {
