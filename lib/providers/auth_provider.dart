@@ -111,6 +111,9 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Callback to notify other providers when user changes
+  void Function()? onUserChanged;
+
   // Reset password
   Future<bool> resetPassword(String email) async {
     try {

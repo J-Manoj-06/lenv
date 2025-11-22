@@ -46,6 +46,24 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
   }
 
   @override
+  void didUpdateWidget(DailyChallengeCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If studentId changes (new student logged in), re-initialize
+    if (oldWidget.studentId != widget.studentId) {
+      _initialized = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _initialized = true;
+          debugPrint(
+            '🔄 DailyChallengeCard: Re-initializing for new student ${widget.studentId}',
+          );
+          context.read<DailyChallengeProvider>().initialize(widget.studentId);
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _animationController.dispose();
     super.dispose();

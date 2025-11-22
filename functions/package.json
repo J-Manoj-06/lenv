@@ -8,8 +8,8 @@
   "scripts": {
     "lint": "eslint --ext .js . || true",
     "serve": "firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions:generateQuestions",
-    "logs": "firebase functions:log --only generateQuestions"
+    "deploy": "firebase deploy --only functions:generateQuestions,functions:onScheduledTestCreate",
+    "logs": "firebase functions:log --only generateQuestions,onScheduledTestCreate"
   },
   "dependencies": {
     "axios": "^1.13.2",

@@ -155,11 +155,18 @@ class _AllTestsTab extends StatelessWidget {
     print('🔍 Building _AllTestsTab for student: $studentId');
 
     // Query assigned tests from student's own testResults collection
+    // Unified stream: fetch all testResult documents for this student with statuses that could be active.
+    // We classify locally as pending vs completed so that if the website forgot to update 'status' to 'completed'
+    // but did set score/submittedAt, we still treat it as completed.
+    // Include 'submitted' status for website compatibility.
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('testResults')
           .where('studentId', isEqualTo: studentId)
-          .where('status', isEqualTo: 'assigned')
+          .where(
+            'status',
+            whereIn: ['assigned', 'started', 'completed', 'submitted'],
+          )
           .snapshots(),
       builder: (context, assignedSnap) {
         if (assignedSnap.connectionState == ConnectionState.waiting) {
@@ -174,28 +181,29 @@ class _AllTestsTab extends StatelessWidget {
         }
         print('   Found ${assignedSnap.data?.docs.length ?? 0} assigned tests');
 
-        // Get test IDs from assigned tests
-        final assignedDocs = assignedSnap.data?.docs ?? [];
-        if (assignedDocs.isEmpty) {
-          print('   No tests assigned to this student');
+        // All candidate documents (may include ones effectively completed)
+        final resultDocs = assignedSnap.data?.docs ?? [];
+        if (resultDocs.isEmpty) {
+          print('   No tests for this student');
           return const _EmptyState(message: 'No tests assigned yet');
         }
 
-        // Debug: Print all assignment documents
-        for (var doc in assignedDocs) {
+        // Debug: Print all documents
+        for (var doc in resultDocs) {
           final data = doc.data() as Map<String, dynamic>;
           print(
-            '   📄 Assignment: testId=${data['testId']}, status=${data['status']}, title=${data['testTitle']}',
+            '   📄 Result/Assignment: testId=${data['testId']}, status=${data['status']}, score=${data['score']}, submittedAt=${data['submittedAt']}',
           );
         }
 
-        // Fetch test details for assigned tests
-        final testIds = assignedDocs
+        // Collect all unique test IDs (limit Firestore whereIn batch to 10)
+        final testIds = resultDocs
             .map(
               (doc) =>
                   (doc.data() as Map<String, dynamic>)['testId'] as String?,
             )
             .where((id) => id != null && id.isNotEmpty)
+            .toSet()
             .take(10)
             .toList();
 
@@ -212,16 +220,12 @@ class _AllTestsTab extends StatelessWidget {
               .where(FieldPath.documentId, whereIn: testIds)
               .snapshots()
               .map((s) {
-                print(
-                  '   🔍 ScheduledTests query returned ${s.docs.length} documents',
-                );
                 final tests = <TestModel>[];
                 for (var d in s.docs) {
                   try {
                     final data = d.data();
                     final test = TestModel.fromScheduledTest(d.id, data);
                     tests.add(test);
-                    print('   ✅ Loaded test: ${test.title} (${d.id})');
                   } catch (e) {
                     print('   ❌ Error converting test ${d.id}: $e');
                   }
@@ -235,106 +239,174 @@ class _AllTestsTab extends StatelessWidget {
 
             final tests = testsSnap.data ?? [];
 
-            print('📝 Available tests: ${tests.length}');
-            if (tests.isNotEmpty) {
-              print('   Test list:');
-              for (final t in tests) {
-                print('     - ${t.title} (${t.className} ${t.section})');
+            // Fallback: include assignments whose scheduledTests doc is missing
+            final existingIds = tests.map((e) => e.id).toSet();
+            for (final doc in resultDocs) {
+              final data = doc.data() as Map<String, dynamic>;
+              final testId = data['testId'] as String?;
+              if (testId == null || testId.isEmpty) continue;
+              if (existingIds.contains(testId)) continue;
+
+              // Build synthetic TestModel from assignment data so it appears in UI
+              try {
+                final title = data['testTitle'] ?? data['title'] ?? 'Untitled';
+                final teacherName = data['teacherName'] ?? '';
+                final teacherId = (data['teacherId'] ?? '') as String;
+                final instituteId = (data['schoolCode'] ?? '') as String;
+                final subject = data['subject'] ?? '';
+                final className = data['className'];
+                final section = data['section'];
+                final duration = (data['duration'] as int?) ?? 60;
+                final dateStr = data['date'] as String?; // YYYY-MM-DD
+                final startTimeStr = data['startTime'] as String? ?? '00:00';
+                DateTime startDate;
+                try {
+                  startDate = dateStr != null
+                      ? DateTime.parse('$dateStr $startTimeStr')
+                      : DateTime.now();
+                } catch (_) {
+                  startDate = DateTime.now();
+                }
+                final endDate = startDate.add(Duration(minutes: duration));
+                final createdAtTs = data['createdAt'];
+                final createdAt = createdAtTs is Timestamp
+                    ? createdAtTs.toDate()
+                    : DateTime.now();
+                final updatedAtTs = data['updatedAt'];
+                final updatedAt = updatedAtTs is Timestamp
+                    ? updatedAtTs.toDate()
+                    : null;
+
+                tests.add(
+                  TestModel(
+                    id: testId,
+                    title: title,
+                    description: '',
+                    teacherId: teacherId,
+                    teacherName: teacherName,
+                    instituteId: instituteId,
+                    subject: subject,
+                    className: className,
+                    section: section,
+                    questions: const [],
+                    totalPoints: (data['totalMarks'] as int?) ?? 0,
+                    duration: duration,
+                    startDate: startDate,
+                    endDate: endDate,
+                    status: TestStatus.published,
+                    assignedStudentIds: const [],
+                    createdAt: createdAt,
+                    updatedAt: updatedAt,
+                    resultsPublished: false,
+                    publishedAt: null,
+                  ),
+                );
+                existingIds.add(testId);
+                print(
+                  '⚠️ Added synthetic test for missing scheduledTests doc: $testId',
+                );
+              } catch (e) {
+                print('❌ Failed to build synthetic test for $testId: $e');
               }
             }
 
-            if (tests.isEmpty) {
+            print('📝 Available tests (including synthetic): ${tests.length}');
+            if (tests.isNotEmpty) {
+              for (final t in tests) {
+                print('     - ${t.title} (${t.className} ${t.section})');
+              }
+            } else {
               return const _EmptyState();
             }
 
-            // Query for ACTUAL completed results (not assignments)
-            // These are documents that have a completedAt timestamp and score
-            return StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('testResults')
-                  .where('studentId', isEqualTo: studentId)
-                  .where('status', isEqualTo: 'completed')
-                  .snapshots(),
-              builder: (context, completedSnap) {
-                if (completedSnap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            // Classify completion locally: completed if status == completed OR has a non-null submittedAt OR score.
+            final items = <_TestListItem>[];
 
-                final completedDocs = completedSnap.data?.docs ?? [];
-                print(
-                  '✅ Found ${completedDocs.length} completed tests for this student',
+            for (final t in tests) {
+              // Locate matching testResult document safely
+              QueryDocumentSnapshot? matchingDoc;
+              for (final doc in resultDocs) {
+                final raw = doc.data() as Map<String, dynamic>;
+                final docTestId = raw['testId'] as String?;
+                if (docTestId == t.id) {
+                  matchingDoc = doc;
+                  break;
+                }
+              }
+
+              if (matchingDoc == null) {
+                // No result doc yet; treat as pending
+                items.add(_TestListItem.pending(test: t));
+                continue;
+              }
+
+              final data = matchingDoc.data() as Map<String, dynamic>;
+              final status = (data['status'] ?? '') as String;
+              final submittedAt = data['submittedAt'];
+              final score = data['score'];
+              // Recognize both 'completed' (app) and 'submitted' (website) as completed
+              final isCompleted =
+                  status == 'completed' ||
+                  status == 'submitted' ||
+                  submittedAt != null ||
+                  (score is num && score > 0);
+
+              if (!isCompleted) {
+                items.add(_TestListItem.pending(test: t));
+                continue;
+              }
+
+              // Build TestResultModel
+              final endDate = t.endDate;
+              try {
+                final result = TestResultModel.fromFirestore(
+                  matchingDoc as DocumentSnapshot<Map<String, dynamic>>,
                 );
-
-                // Build a set of completed test IDs for THIS student only
-                final completedTestIds = <String>{};
-                for (var doc in completedDocs) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final testId = data['testId'] as String?;
-                  if (testId != null) {
-                    completedTestIds.add(testId);
-                    print('   ✅ Test $testId is completed');
-                  }
-                }
-
-                final now = DateTime.now();
-
-                // Build items list - all tests are pending unless specifically completed by THIS student
-                final items = <_TestListItem>[];
-                for (final t in tests) {
-                  if (completedTestIds.contains(t.id)) {
-                    // This student has completed this test - try to find the result
-                    final resultDoc = completedDocs.firstWhere(
-                      (doc) =>
-                          (doc.data() as Map<String, dynamic>)['testId'] ==
-                          t.id,
-                      orElse: () => completedDocs.first,
+                // Original gating: only show results after endDate
+                // endDate is always non-null for TestModel; show results only after endDate
+                final canShow = DateTime.now().isAfter(endDate);
+                items.add(
+                  _TestListItem.completed(
+                    result: result,
+                    showResult: canShow,
+                    endDate: endDate,
+                  ),
+                );
+                if (status != 'completed') {
+                  matchingDoc.reference.update({'status': 'completed'}).catchError((
+                    e,
+                  ) {
+                    print(
+                      '⚠️ Auto-heal status update failed for testResult ${matchingDoc!.id}: $e',
                     );
-
-                    try {
-                      final result = TestResultModel.fromFirestore(
-                        resultDoc as DocumentSnapshot<Map<String, dynamic>>,
-                      );
-                      final canShow = now.isAfter(t.endDate);
-                      items.add(
-                        _TestListItem.completed(
-                          result: result,
-                          showResult: canShow,
-                          endDate: t.endDate,
-                        ),
-                      );
-                    } catch (e) {
-                      print('❌ Error converting result for test ${t.id}: $e');
-                      // If conversion fails, show as pending
-                      items.add(_TestListItem.pending(test: t));
-                    }
-                  } else {
-                    // Test is still pending for this student
-                    items.add(_TestListItem.pending(test: t));
-                  }
+                  });
                 }
+              } catch (e) {
+                print('❌ Error converting result for test ${t.id}: $e');
+                items.add(_TestListItem.pending(test: t));
+              }
+            }
 
-                // Sort: show most recent first by created/completed date
-                items.sort((a, b) {
-                  final aDate = a.isPending
-                      ? a.test!.createdAt
-                      : a.result!.completedAt;
-                  final bDate = b.isPending
-                      ? b.test!.createdAt
-                      : b.result!.completedAt;
-                  return bDate.compareTo(aDate);
-                });
+            // Sort by date
+            items.sort((a, b) {
+              final aDate = a.isPending
+                  ? a.test!.createdAt
+                  : a.result!.completedAt;
+              final bDate = b.isPending
+                  ? b.test!.createdAt
+                  : b.result!.completedAt;
+              return bDate.compareTo(aDate);
+            });
 
-                if (items.isEmpty) {
-                  return const _EmptyState();
-                }
+            if (items.isEmpty) {
+              return const _EmptyState();
+            }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemBuilder: (ctx, i) => _TestCard(item: items[i]),
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemCount: items.length,
-                );
-              },
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (ctx, i) => _TestCard(item: items[i]),
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemCount: items.length,
             );
           },
         );
@@ -354,14 +426,31 @@ class _PendingTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('testResults')
           .where('studentId', isEqualTo: studentId)
-          .where('status', isEqualTo: 'assigned')
+          .where(
+            'status',
+            whereIn: ['assigned', 'started', 'completed', 'submitted'],
+          )
           .snapshots(),
       builder: (context, assignedSnap) {
         if (assignedSnap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final assignedDocs = assignedSnap.data?.docs ?? [];
+        // Filter only truly pending (exclude those that have submittedAt or score or status completed/submitted)
+        final allDocs = assignedSnap.data?.docs ?? [];
+        final assignedDocs = allDocs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final status = (data['status'] ?? '') as String;
+          final submittedAt = data['submittedAt'];
+          final score = data['score'];
+          // Exclude both 'completed' (app) and 'submitted' (website)
+          final isCompleted =
+              status == 'completed' ||
+              status == 'submitted' ||
+              submittedAt != null ||
+              (score is num && score > 0);
+          return !isCompleted; // keep only pending
+        }).toList();
         if (assignedDocs.isEmpty) {
           return const _EmptyState(message: 'No pending tests');
         }
@@ -429,14 +518,29 @@ class _CompletedTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('testResults')
           .where('studentId', isEqualTo: studentId)
-          .where('status', isEqualTo: 'completed')
+          .where(
+            'status',
+            whereIn: ['assigned', 'started', 'completed', 'submitted'],
+          )
           .snapshots(),
       builder: (context, assignmentsSnap) {
         if (assignmentsSnap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final assignmentDocs = assignmentsSnap.data?.docs ?? [];
+        final allDocs = assignmentsSnap.data?.docs ?? [];
+        // Completed classification: status completed/submitted OR submittedAt/score present
+        final assignmentDocs = allDocs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final status = (data['status'] ?? '') as String;
+          final submittedAt = data['submittedAt'];
+          final score = data['score'];
+          // Recognize both 'completed' (app) and 'submitted' (website)
+          return status == 'completed' ||
+              status == 'submitted' ||
+              submittedAt != null ||
+              (score is num && score > 0);
+        }).toList();
         print(
           '📊 Completed tests query returned ${assignmentDocs.length} assignments',
         );
@@ -490,24 +594,35 @@ class _CompletedTab extends StatelessWidget {
             }
 
             // Build items from completed assignments directly
-            final now = DateTime.now();
             final items = <_TestListItem>[];
+            final now = DateTime.now();
 
             for (final assignmentDoc in assignmentDocs) {
               final assignmentData =
                   assignmentDoc.data() as Map<String, dynamic>;
               final testId = assignmentData['testId'] as String?;
-
               if (testId == null) continue;
 
-              final test = testById[testId];
+              TestModel? test = testById[testId];
+              DateTime? endDate = test?.endDate;
+              if (test == null) {
+                // Fallback compute endDate from assignment data
+                try {
+                  final dateStr = assignmentData['date'] as String?;
+                  final startTimeStr =
+                      assignmentData['startTime'] as String? ?? '00:00';
+                  final duration = (assignmentData['duration'] as int?) ?? 60;
+                  if (dateStr != null) {
+                    final startDate = DateTime.parse('$dateStr $startTimeStr');
+                    endDate = startDate.add(Duration(minutes: duration));
+                  }
+                } catch (_) {}
+              }
 
-              // Create TestResultModel from the assignment document
               try {
                 final result = TestResultModel.fromFirestore(
                   assignmentDoc as DocumentSnapshot<Map<String, dynamic>>,
                 );
-                final endDate = test?.endDate;
                 final canShow = endDate == null ? true : now.isAfter(endDate);
                 items.add(
                   _TestListItem.completed(

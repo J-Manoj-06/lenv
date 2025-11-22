@@ -4,6 +4,7 @@ import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../widgets/teacher_bottom_nav.dart';
+import '../../services/firestore_service.dart';
 
 class TestsScreen extends StatefulWidget {
   const TestsScreen({Key? key}) : super(key: key);
@@ -17,6 +18,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   int _selectedTabIndex = 0;
   String _selectedClassFilter = 'All Classes';
   bool _initialLoadDone = false; // ensure we wait for auth user
+  bool _migrationRan = false; //  Run migration once
 
   @override
   void initState() {
@@ -37,6 +39,23 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
         context,
         listen: false,
       ).loadTestsByTeacher(user.uid);
+
+      // Run migration once when teacher opens Tests screen
+      if (!_migrationRan) {
+        _migrationRan = true;
+        _runMigration();
+      }
+    }
+  }
+
+  Future<void> _runMigration() async {
+    try {
+      print('🔄 Starting testResults studentId migration...');
+      final result = await FirestoreService()
+          .migrateLegacyTestResultsStudentIds();
+      print('✅ Migration complete: $result');
+    } catch (e) {
+      print('⚠️ Migration error: $e');
     }
   }
 
@@ -165,6 +184,122 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.sync),
+                  iconSize: 24,
+                  color: const Color(0xFF6366F1),
+                  tooltip: 'Sync assignments for website tests',
+                  onPressed: () async {
+                    final auth = Provider.of<AuthProvider>(
+                      context,
+                      listen: false,
+                    );
+                    if (auth.currentUser == null) return;
+
+                    // Show confirmation dialog first
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Sync Test Assignments'),
+                        content: const Text(
+                          'This will create student assignments for any tests created from the website that are missing assignments.\n\nDo you want to continue?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6366F1),
+                            ),
+                            child: const Text('Sync Now'),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirm != true) return;
+
+                    // Show loading dialog
+                    if (mounted) {
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) =>
+                            const Center(child: CircularProgressIndicator()),
+                      );
+                    }
+
+                    try {
+                      final result = await FirestoreService()
+                          .syncAllTestAssignments(auth.currentUser!.uid);
+
+                      if (mounted) Navigator.pop(context); // Close loading
+
+                      if (result['success'] == true) {
+                        if (mounted) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text('Sync Complete'),
+                                ],
+                              ),
+                              content: Text(
+                                '✅ Successfully synced: ${result['synced']} tests\n'
+                                '⏭️ Already had assignments: ${result['skipped']} tests\n'
+                                '${result['errors'] > 0 ? '❌ Errors: ${result['errors']} tests' : ''}',
+                              ),
+                              actions: [
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        // Refresh test list
+                        _loadTests();
+                      } else {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: ${result['error']}'),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 5),
+                            ),
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      if (mounted) Navigator.pop(context); // Close loading
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 5),
+                          ),
+                        );
+                      }
+                    }
+                  },
                 ),
               ),
               IconButton(

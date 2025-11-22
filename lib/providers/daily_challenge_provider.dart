@@ -268,6 +268,20 @@ class DailyChallengeProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clear all state completely (used on logout/user switch)
+  void clearAllState() {
+    _cachedChallenges.clear();
+    _cachedDate = null;
+    _selectedAnswers.clear();
+    _hasAnsweredStates.clear();
+    _resultStates.clear();
+    _errorMessage = null;
+    _loadingStates.clear();
+    _submittingStates.clear();
+    debugPrint('🧹 DailyChallengeProvider: All state cleared for user switch');
+    notifyListeners();
+  }
+
   /// Clear cache for specific student (for debugging)
   Future<void> clearCache(String studentId) async {
     try {

@@ -186,7 +186,9 @@ class FirestoreService {
               studentAssignments.add({
                 'studentId': uid,
                 'studentEmail': email,
-                'studentName': data['name'] as String? ?? '',
+                'studentName':
+                    data['studentName'] as String? ??
+                    (data['name'] as String? ?? ''),
               });
             }
           }
@@ -202,6 +204,42 @@ class FirestoreService {
 
       for (final student in studentAssignments) {
         try {
+          // CHECK if assignment already exists for this student
+          final existingAssignment = await _db
+              .collection('testResults')
+              .where('testId', isEqualTo: testId)
+              .where('studentId', isEqualTo: student['studentId'])
+              .limit(1)
+              .get();
+
+          if (existingAssignment.docs.isNotEmpty) {
+            print(
+              '⏭️  Assignment already exists for ${student['studentEmail']}, skipping',
+            );
+            successCount++; // Count as success since assignment exists
+            continue;
+          }
+
+          // Extract more fields from testData for complete assignment structure
+          final duration = testData['duration'] ?? 60;
+          final totalQuestions =
+              (testData['questions'] as List?)?.length ??
+              testData['questionCount'] ??
+              testData['totalQuestions'] ??
+              0;
+          final startDate = testData['startDate'] ?? testData['date'];
+          final startTime = testData['startTime'] ?? '';
+
+          // Format date string
+          String dateStr = '';
+          if (startDate is Timestamp) {
+            final dt = startDate.toDate();
+            dateStr =
+                '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+          } else if (startDate is String) {
+            dateStr = startDate;
+          }
+
           final assignmentDoc = {
             'testId': testId,
             'studentId': student['studentId']!,
@@ -213,13 +251,25 @@ class FirestoreService {
             'section': targetSection,
             'teacherId': teacherAuthUid,
             'teacherName': teacherName,
+            'teacherEmail': teacherData['email'] ?? '',
             'status': 'assigned', // assigned, started, completed
             'assignedAt': FieldValue.serverTimestamp(),
             'startedAt': null,
             'submittedAt': null,
-            'score': null,
+            'score': 0,
             'totalMarks': testData['totalMarks'] ?? 0,
+            'totalQuestions': totalQuestions,
+            'totalPoints': 0,
+            'correctAnswers': 0,
+            'earnedPoints': 0,
+            'duration': duration,
+            'date': dateStr,
+            'startTime': startTime,
+            'timeTaken': 0,
+            'schoolCode': schoolCode,
+            'answers': [],
             'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           };
 
           // Create document in testResults collection
@@ -680,6 +730,7 @@ class FirestoreService {
     String? studentEmail,
   }) async* {
     // Query testResults collection for assignments to this student
+    // Only fetch tests that are NOT completed/submitted (pending tests only)
     var assignmentsQuery = _db
         .collection('testResults')
         .where('studentId', isEqualTo: studentId)
@@ -800,6 +851,97 @@ class FirestoreService {
       return PerformanceModel.fromJson(doc.data()!);
     }
     return null;
+  }
+
+  // ------------------------------------------------------------
+  // Migration Utilities (one-off) - does NOT change schema
+  // ------------------------------------------------------------
+  // This updates legacy testResults documents whose studentId field
+  // contains a non-auth identifier (e.g. classroom code or students doc id)
+  // to use the Firebase Auth UID resolved via users.email mapping.
+  // Safe to run multiple times; only updates when mismatch detected.
+  Future<Map<String, int>> migrateLegacyTestResultsStudentIds() async {
+    int scanned = 0;
+    int needsUpdate = 0;
+    int updated = 0;
+    int skipped = 0;
+    int errors = 0;
+
+    // Fetch all testResults (could paginate if large; current scale assumed manageable)
+    final snapshot = await _db.collection('testResults').get();
+    WriteBatch batch = _db.batch();
+    int batchCount = 0;
+
+    for (final doc in snapshot.docs) {
+      scanned++;
+      final data = doc.data();
+      final legacyStudentId = data['studentId'];
+      final studentEmail = data['studentEmail'];
+
+      if (studentEmail == null || studentEmail.toString().isEmpty) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        // Look up user by email to get auth UID
+        final userQuery = await _db
+            .collection('users')
+            .where('email', isEqualTo: studentEmail)
+            .limit(1)
+            .get();
+
+        if (userQuery.docs.isEmpty) {
+          skipped++;
+          continue;
+        }
+
+        final userDoc = userQuery.docs.first;
+        final authUid = userDoc.data()['uid'] ?? userDoc.id;
+
+        if (authUid == null || authUid.toString().isEmpty) {
+          skipped++;
+          continue;
+        }
+
+        // If already matches, skip
+        if (authUid == legacyStudentId) {
+          skipped++;
+          continue;
+        }
+
+        needsUpdate++;
+        batch.update(doc.reference, {'studentId': authUid});
+        batchCount++;
+
+        // Commit periodically to avoid exceeding batch limit (500)
+        if (batchCount >= 450) {
+          await batch.commit();
+          updated += batchCount;
+          batch = _db.batch();
+          batchCount = 0;
+        }
+      } catch (e) {
+        errors++;
+        print('⚠️  Migration error (${doc.id}): $e');
+      }
+    }
+
+    // Final commit if pending ops
+    if (batchCount > 0) {
+      await batch.commit();
+      updated += batchCount;
+    }
+
+    final summary = {
+      'scanned': scanned,
+      'needsUpdate': needsUpdate,
+      'updated': updated,
+      'skipped': skipped,
+      'errors': errors,
+    };
+    print('✅ Migration summary: $summary');
+    return summary;
   }
 
   Stream<PerformanceModel?> getPerformanceStream(String studentId) {
@@ -1447,6 +1589,90 @@ class FirestoreService {
     } catch (e) {
       print('⚠️ Error fetching previous questions: $e');
       return []; // Return empty list on error, don't fail the generation
+    }
+  }
+
+  /// UTILITY: Retroactively create assignments for a specific test
+  /// Use this when a test was created on website without assignment generation
+  /// Returns map with success status and counts
+  Future<Map<String, dynamic>> syncTestAssignments(String testId) async {
+    try {
+      print('🔄 Syncing assignments for test: $testId');
+
+      // Fetch test document
+      final testDoc = await _db.collection('scheduledTests').doc(testId).get();
+      if (!testDoc.exists) {
+        return {'success': false, 'error': 'Test not found'};
+      }
+
+      final testData = testDoc.data()!;
+      final teacherId = testData['teacherId'] as String?;
+      if (teacherId == null || teacherId.isEmpty) {
+        return {'success': false, 'error': 'Teacher ID missing'};
+      }
+
+      // Call existing assignTestToClass logic
+      await assignTestToClass(testId, teacherId);
+
+      return {'success': true, 'message': 'Assignments created successfully'};
+    } catch (e) {
+      print('❌ Error syncing assignments: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// UTILITY: Sync ALL tests for a teacher that are missing assignments
+  /// Finds tests in scheduledTests that have no corresponding testResults entries
+  /// and creates assignments for them
+  Future<Map<String, dynamic>> syncAllTestAssignments(String teacherId) async {
+    try {
+      print('🔄 Syncing all test assignments for teacher: $teacherId');
+
+      // Get all tests by this teacher
+      final testsSnapshot = await _db
+          .collection('scheduledTests')
+          .where('teacherId', isEqualTo: teacherId)
+          .get();
+
+      int total = testsSnapshot.docs.length;
+      int synced = 0;
+      int skipped = 0;
+      int errors = 0;
+
+      for (final testDoc in testsSnapshot.docs) {
+        final testId = testDoc.id;
+        final testData = testDoc.data();
+        final className = testData['class'] ?? testData['className'];
+
+        // Skip if no className (not assigned to any class)
+        if (className == null || className.toString().isEmpty) {
+          skipped++;
+          continue;
+        }
+
+        // ALWAYS attempt sync - the assignTestToClass function handles duplicates
+        // This ensures ALL students in the class get assignments (not just the first few)
+        try {
+          print('🔄 Attempting to sync test: ${testData['title']} ($testId)');
+          await assignTestToClass(testId, teacherId);
+          synced++;
+          print('✅ Synced assignments for test: ${testData['title']}');
+        } catch (e) {
+          print('❌ Error syncing test $testId: $e');
+          errors++;
+        }
+      }
+
+      return {
+        'success': true,
+        'total': total,
+        'synced': synced,
+        'skipped': skipped,
+        'errors': errors,
+      };
+    } catch (e) {
+      print('❌ Error in syncAllTestAssignments: $e');
+      return {'success': false, 'error': e.toString()};
     }
   }
 }

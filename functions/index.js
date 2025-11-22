@@ -8,7 +8,16 @@
  */
 
 const functions = require('firebase-functions');
+const admin = require('firebase-admin');
 const axios = require('axios').default;
+
+// Initialize Admin SDK once
+try {
+  admin.app();
+} catch (e) {
+  admin.initializeApp();
+}
+const db = admin.firestore();
 
 // Region and runtime options
 const REGION = 'us-central1';
@@ -181,3 +190,122 @@ exports.generateQuestions = functions
       throw new functions.https.HttpsError('internal', 'Unexpected error.');
     }
   });
+
+/**
+ * Firestore Trigger: Auto-assign website-created tests
+ * When a document is created in `scheduledTests`, create per-student
+ * assignments in `testResults` matching the exact structure used by the app
+ * and the website (as provided).
+ */
+exports.onScheduledTestCreate = functions
+  .region(REGION)
+  .runWith(RUNTIME_OPTS)
+  .firestore.document('scheduledTests/{testId}')
+  .onCreate(async (snap, context) => {
+    const testId = context.params.testId;
+    const data = snap.data() || {};
+
+    try {
+      // Required fields from provided structure
+      const className = data.className || data.class || '';
+      const section = data.section || '';
+      const schoolCode = data.schoolCode || '';
+      const teacherId = data.teacherId || '';
+      const teacherEmail = data.teacherEmail || '';
+      const teacherName = data.teacherName || '';
+      const date = data.date || '';
+      const startTime = data.startTime || '';
+      const duration = Number.isFinite(data.duration) ? data.duration : 0;
+      const title = data.title || data.testTitle || 'Untitled';
+      const subject = data.subject || '';
+      const totalMarks = Number.isFinite(data.totalMarks) ? data.totalMarks : 0;
+      const totalQuestions = Number.isFinite(data.questionCount)
+        ? data.questionCount
+        : Array.isArray(data.questions) ? data.questions.length : 0;
+
+      if (!schoolCode || !className) {
+        console.log(`onScheduledTestCreate: Missing schoolCode/className for ${testId}; skipping.`);
+        return null;
+      }
+
+      // Find target students
+      let q = db.collection('students')
+        .where('schoolCode', '==', schoolCode)
+        .where('className', '==', className);
+      if (section) q = q.where('section', '==', section);
+      const studentsSnap = await q.get();
+
+      if (studentsSnap.empty) {
+        console.log(`onScheduledTestCreate: No students found for ${className} ${section || ''}`);
+        return null;
+      }
+
+      let created = 0;
+      let skipped = 0;
+
+      for (const stuDoc of studentsSnap.docs) {
+        const stu = stuDoc.data() || {};
+        const studentEmail = stu.email || stu.studentEmail || '';
+        const studentName = stu.studentName || stu.name || '';
+        if (!studentEmail) { skipped++; continue; }
+
+        // Resolve auth uid from users collection
+        const userQ = await db.collection('users')
+          .where('email', '==', studentEmail)
+          .limit(1)
+          .get();
+        if (userQ.empty) { skipped++; continue; }
+        const studentId = userQ.docs[0].id;
+
+        // Idempotency: skip if assignment exists
+        const existQ = await db.collection('testResults')
+          .where('testId', '==', testId)
+          .where('studentId', '==', studentId)
+          .limit(1)
+          .get();
+        if (!existQ.empty) { skipped++; continue; }
+
+        const payload = {
+          answers: [],
+          assignedAt: admin.firestore.FieldValue.serverTimestamp(),
+          className: className,
+          correctAnswers: 0,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          date: date,                 // string e.g. "2025-11-22"
+          duration: duration,
+          earnedPoints: 0,
+          schoolCode: schoolCode,
+          score: 0,
+          section: section,
+          startTime: startTime,       // string e.g. "16:23"
+          startedAt: null,
+          status: 'assigned',
+          studentEmail: studentEmail,
+          studentId: studentId,       // auth uid
+          studentName: studentName,
+          subject: subject,
+          submittedAt: null,
+          teacherEmail: teacherEmail,
+          teacherId: teacherId,
+          teacherName: teacherName,
+          testId: testId,
+          testTitle: title,
+          timeTaken: 0,
+          totalMarks: totalMarks,
+          totalPoints: 0,
+          totalQuestions: totalQuestions,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        await db.collection('testResults').add(payload);
+        created++;
+      }
+
+      console.log(`onScheduledTestCreate: testId=${testId} created=${created} skipped=${skipped}`);
+      return null;
+    } catch (err) {
+      console.error('onScheduledTestCreate error:', err);
+      return null;
+    }
+  });
+

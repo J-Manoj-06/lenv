@@ -86,7 +86,20 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TestProvider()),
         ChangeNotifierProvider(create: (_) => RewardProvider()),
         ChangeNotifierProvider(create: (_) => StudentProvider()),
-        ChangeNotifierProvider(create: (_) => DailyChallengeProvider()),
+        ChangeNotifierProxyProvider<
+          local_auth.AuthProvider,
+          DailyChallengeProvider
+        >(
+          create: (_) => DailyChallengeProvider(),
+          update: (context, auth, previous) {
+            // When user logs out, clear all cached challenge state
+            if (auth.currentUser == null && previous != null) {
+              print('🔄 User logged out - clearing daily challenge state');
+              previous.clearAllState();
+            }
+            return previous ?? DailyChallengeProvider();
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'LenV - Educational Ecosystem',
