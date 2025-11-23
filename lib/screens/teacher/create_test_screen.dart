@@ -187,26 +187,20 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
       section = sectionLabel.substring(8).trim();
     }
     if (section == null || section.isEmpty) {
-      // Aggregate subjects across all sections for the grade
-      final matchingKeys = _classSectionSubjects.keys.where(
-        (k) => k.startsWith('$grade|'),
-      );
-      final set = <String>{};
-      for (final k in matchingKeys) {
-        set.addAll(_classSectionSubjects[k]!);
-      }
-      if (set.isNotEmpty) {
-        final list = set.toList()..sort();
-        return list;
-      }
-      return _allSubjectsFallback;
+      // Return empty list if no section specified - force teacher to select section first
+      return [];
     }
     final key = '$grade|$section';
     final list = _classSectionSubjects[key];
     if (list != null && list.isNotEmpty) {
-      return (list.toList()..sort());
+      // Filter out "math" if there are other subjects available
+      final filtered = list.where((s) => s.toLowerCase() != 'math').toList();
+      // If only math exists, return it; otherwise return non-math subjects
+      final result = filtered.isEmpty ? list.toList() : filtered;
+      return (result..sort());
     }
-    return _allSubjectsFallback;
+    // No subjects found for this exact class+section combination
+    return [];
   }
 
   @override

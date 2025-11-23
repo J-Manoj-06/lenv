@@ -55,6 +55,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
   List<String> _sections = [];
   List<String> _subjects = [];
   final Map<String, List<String>> _gradeSections = {};
+  Map<String, List<String>> _classSectionSubjectsMap = {};
 
   @override
   void initState() {
@@ -101,8 +102,45 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         classAssignments: teacherData['classAssignments'],
       );
 
-      // Build grade -> sections map
+      // Build grade -> sections map AND grade|section -> subjects map
       _gradeSections.clear();
+      final Map<String, List<String>> classSectionSubjects = {};
+
+      // Parse classAssignments to build both maps
+      if (teacherData['classAssignments'] != null) {
+        final classAssignments = teacherData['classAssignments'];
+        if (classAssignments is List) {
+          for (final assignment in classAssignments) {
+            final s = assignment
+                .toString(); // e.g., "Grade 9: A, social studies"
+            final parts = s.split(':');
+            if (parts.length >= 2) {
+              final gradePart = parts[0].replaceAll('Grade', '').trim(); // "9"
+              final right = parts[1]; // " A, social studies"
+              final commaParts = right.split(',');
+              if (commaParts.length >= 2) {
+                final section = commaParts[0].trim(); // "A"
+                final subject = commaParts[1].trim(); // "social studies"
+
+                // Add to grade->sections map
+                _gradeSections.putIfAbsent(gradePart, () => <String>[]);
+                if (!_gradeSections[gradePart]!.contains(section)) {
+                  _gradeSections[gradePart]!.add(section);
+                }
+
+                // Add to grade|section->subjects map
+                final key = '$gradePart|$section';
+                classSectionSubjects.putIfAbsent(key, () => <String>[]);
+                if (!classSectionSubjects[key]!.contains(subject)) {
+                  classSectionSubjects[key]!.add(subject);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Also process formatted classes for backward compatibility
       for (final cls in formattedClasses) {
         final parts = cls.split(' - ');
         if (parts.length == 2) {
@@ -121,64 +159,40 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         entry.value.sort();
       }
 
-      // Load subjects from teacher data (with fallback to parse from classAssignments)
-      List<String> teacherSubjects = [];
-      if (teacherData['subjectsHandled'] != null) {
-        final subjectsData = teacherData['subjectsHandled'];
-        if (subjectsData is List) {
-          teacherSubjects.addAll(
-            subjectsData.map((s) => s.toString()).toList(),
-          );
-        } else if (subjectsData is String) {
-          teacherSubjects.addAll(
-            subjectsData
-                .split(',')
-                .map((s) => s.trim())
-                .where((s) => s.isNotEmpty),
-          );
-        }
-      }
-
-      // Fallback: Parse subjects from classAssignments if subjectsHandled is empty
-      if (teacherSubjects.isEmpty && teacherData['classAssignments'] != null) {
-        final Set<String> uniqueSubjects = {};
-        final classAssignments = teacherData['classAssignments'];
-        if (classAssignments is List) {
-          for (final assignment in classAssignments) {
-            final s = assignment.toString(); // e.g., "Grade 7: A, Algebra"
-            final parts = s.split(':');
-            if (parts.length >= 2) {
-              final right = parts[1]; // " A, Algebra"
-              final commaParts = right.split(',');
-              if (commaParts.length >= 2) {
-                final subject = commaParts[1].trim();
-                if (subject.isNotEmpty) uniqueSubjects.add(subject);
-              }
-            }
-          }
-        }
-        teacherSubjects = uniqueSubjects.toList();
-      }
-      teacherSubjects.sort();
-
-      // Initialize sections for the first grade
+      // Initialize sections and subjects for the first grade
       final String? initialGrade = gradeOnlyList.isNotEmpty
           ? gradeOnlyList.first
           : null;
       final List<String> initialSections = initialGrade != null
           ? (_gradeSections[initialGrade] ?? <String>[])
           : <String>[];
+      final String? initialSection = initialSections.isNotEmpty
+          ? initialSections.first
+          : null;
+
+      // Get subjects for initial grade+section combination
+      List<String> initialSubjects = [];
+      if (initialGrade != null && initialSection != null) {
+        final key = '$initialGrade|$initialSection';
+        final allSubjects = classSectionSubjects[key] ?? [];
+        // Filter out "math" if there are other subjects available
+        final filtered = allSubjects
+            .where((s) => s.toLowerCase() != 'math')
+            .toList();
+        // If only math exists, keep it; otherwise use non-math subjects
+        initialSubjects = filtered.isEmpty ? allSubjects : filtered;
+        initialSubjects.sort();
+      }
 
       setState(() {
         _classes = gradeOnlyList;
         _sections = initialSections;
-        _subjects = teacherSubjects;
+        _subjects = initialSubjects;
+        _classSectionSubjectsMap = classSectionSubjects;
         _selectedClass = initialGrade;
-        _selectedSection = initialSections.isNotEmpty
-            ? initialSections.first
-            : null;
-        _selectedSubject = teacherSubjects.isNotEmpty
-            ? teacherSubjects.first
+        _selectedSection = initialSection;
+        _selectedSubject = initialSubjects.isNotEmpty
+            ? initialSubjects.first
             : null;
         _isLoadingTeacherData = false;
       });
@@ -275,6 +289,24 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                         _selectedSection = _sections.isNotEmpty
                             ? _sections.first
                             : null;
+                        // Update subjects based on new class+section
+                        if (value != null && _selectedSection != null) {
+                          final key = '${value.trim()}|$_selectedSection';
+                          final allSubjects =
+                              _classSectionSubjectsMap[key] ?? [];
+                          // Filter out "math" if there are other subjects available
+                          final filtered = allSubjects
+                              .where((s) => s.toLowerCase() != 'math')
+                              .toList();
+                          _subjects = filtered.isEmpty ? allSubjects : filtered;
+                          _subjects.sort();
+                          _selectedSubject = _subjects.isNotEmpty
+                              ? _subjects.first
+                              : null;
+                        } else {
+                          _subjects = [];
+                          _selectedSubject = null;
+                        }
                       });
                     },
               validator: (value) =>
@@ -300,7 +332,26 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                     }).toList(),
               onChanged: _sections.isEmpty
                   ? null
-                  : (value) => setState(() => _selectedSection = value),
+                  : (value) {
+                      setState(() {
+                        _selectedSection = value;
+                        // Update subjects based on selected class+section
+                        if (_selectedClass != null && value != null) {
+                          final key = '$_selectedClass|$value';
+                          final allSubjects =
+                              _classSectionSubjectsMap[key] ?? [];
+                          // Filter out "math" if there are other subjects available
+                          final filtered = allSubjects
+                              .where((s) => s.toLowerCase() != 'math')
+                              .toList();
+                          _subjects = filtered.isEmpty ? allSubjects : filtered;
+                          _subjects.sort();
+                          _selectedSubject = _subjects.isNotEmpty
+                              ? _subjects.first
+                              : null;
+                        }
+                      });
+                    },
               validator: (value) =>
                   value == null ? 'Please select a section' : null,
             ),

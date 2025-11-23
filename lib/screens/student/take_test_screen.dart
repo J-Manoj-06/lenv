@@ -151,17 +151,87 @@ class _TakeTestScreenState extends State<TakeTestScreen>
 
       for (int i = 0; i < widget.test.questions.length; i++) {
         final question = widget.test.questions[i];
-        final userAnswer = answers[i] ?? '';
-        final isCorrect = userAnswer == question.correctAnswer;
+        final userAnswerRaw = answers[i] ?? '';
+        final userAnswer = userAnswerRaw.trim();
+        final correctRaw = (question.correctAnswer ?? '').trim();
 
-        if (isCorrect) {
-          correctAnswers++;
+        bool isCorrect = false;
+
+        // Multiple Choice logic: handle letter code (A-D), index (0-3 / 1-4), or direct text match
+        if (question.type == QuestionType.multipleChoice &&
+            question.options != null) {
+          final options = question.options!;
+          final upper = correctRaw.toUpperCase();
+          // If stored as letter A-D
+          if (upper.length == 1 &&
+              upper.codeUnitAt(0) >= 65 &&
+              upper.codeUnitAt(0) <= 68) {
+            final idx = upper.codeUnitAt(0) - 65; // A->0
+            if (idx >= 0 && idx < options.length) {
+              final expectedText = options[idx].trim();
+              if (userAnswer.toLowerCase() == expectedText.toLowerCase() ||
+                  userAnswer.toUpperCase() == upper) {
+                isCorrect = true;
+              }
+            }
+          } else {
+            // If stored as numeric index (0-based or 1-based)
+            final numeric = int.tryParse(correctRaw);
+            if (numeric != null) {
+              // Accept both 0-based and 1-based
+              final possibleIdxs = <int>{numeric, numeric - 1};
+              for (final idx in possibleIdxs) {
+                if (idx >= 0 && idx < options.length) {
+                  final expectedText = options[idx].trim();
+                  if (userAnswer.toLowerCase() == expectedText.toLowerCase()) {
+                    isCorrect = true;
+                    break;
+                  }
+                }
+              }
+            }
+            // Direct text match fallback
+            if (!isCorrect) {
+              if (userAnswer.toLowerCase() == correctRaw.toLowerCase()) {
+                isCorrect = true;
+              }
+            }
+          }
+        } else if (question.type == QuestionType.trueFalse) {
+          // True/False: case-insensitive comparison; allow variations (True/true)
+          if (userAnswer.toLowerCase() == correctRaw.toLowerCase()) {
+            isCorrect = true;
+          }
+        } else {
+          // Short answer / other types: simple case-insensitive comparison
+          if (userAnswer.isNotEmpty &&
+              userAnswer.toLowerCase() == correctRaw.toLowerCase()) {
+            isCorrect = true;
+          }
+        }
+
+        if (isCorrect) correctAnswers++;
+
+        // Store a normalized correct answer text for MCQ letter codes so teacher view is clearer
+        String storedCorrectAnswer = correctRaw;
+        if (question.type == QuestionType.multipleChoice &&
+            question.options != null) {
+          final upper = correctRaw.toUpperCase();
+          if (upper.length == 1 &&
+              upper.codeUnitAt(0) >= 65 &&
+              upper.codeUnitAt(0) <= 68) {
+            final idx = upper.codeUnitAt(0) - 65;
+            if (idx >= 0 && idx < question.options!.length) {
+              storedCorrectAnswer = question.options![idx].trim();
+            }
+          }
         }
 
         detailedAnswers.add({
           'questionText': question.question,
           'userAnswer': userAnswer,
-          'correctAnswer': question.correctAnswer,
+          'correctAnswer': storedCorrectAnswer,
+          'rawCorrectAnswer': correctRaw, // keep original for debugging
           'isCorrect': isCorrect,
         });
       }
