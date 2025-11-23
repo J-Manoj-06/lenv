@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/test_result_model.dart';
+import 'teacher_student_result_detail_screen.dart';
 import 'dart:math' as math;
 
 class TestResultScreen extends StatefulWidget {
@@ -493,11 +494,15 @@ class _TestResultScreenState extends State<TestResultScreen> {
       ),
       onTap: isCompleted
           ? () {
-              // Navigate to detailed student result
-              Navigator.pushNamed(
+              // Navigate to teacher-specific student result detail screen
+              Navigator.push(
                 context,
-                '/student-test-result',
-                arguments: {'resultId': assignment['id']},
+                MaterialPageRoute(
+                  builder: (context) => TeacherStudentResultDetailScreen(
+                    resultId: assignment['id'],
+                    testId: widget.testId,
+                  ),
+                ),
               );
             }
           : null,

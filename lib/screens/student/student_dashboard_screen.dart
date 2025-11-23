@@ -44,7 +44,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       } catch (e) {
         print('⚠️ Error processing ended tests: $e');
       }
-      
+
       await studentProvider.loadDashboardData(authProvider.currentUser!.uid);
     }
   }

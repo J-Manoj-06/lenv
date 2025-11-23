@@ -7,6 +7,7 @@ import '../../services/firestore_service.dart';
 import '../../services/messaging_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/teacher_bottom_nav.dart';
+import 'dart:math' as math;
 
 class StudentPerformanceScreen extends StatefulWidget {
   final String studentId;
@@ -29,8 +30,13 @@ class StudentPerformanceScreen extends StatefulWidget {
       _StudentPerformanceScreenState();
 }
 
-class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
+class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
+    with SingleTickerProviderStateMixin {
   final _firestoreService = FirestoreService();
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
   // Extras
   double? _attendancePct;
   int _totalPoints = 0;
@@ -44,7 +50,25 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+        );
+    _animationController.forward();
     _loadExtras();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadExtras() async {
@@ -153,29 +177,99 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
   Future<void> _fetchBadgesAndPoints() async {
     try {
       final authUid = _resolvedAuthUid ?? widget.studentId;
+
+      // Fetch from users collection for totalPoints
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(authUid)
+            .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data();
+          _totalPoints =
+              (userData?['totalPoints'] ?? userData?['rewardPoints'] ?? 0)
+                  as int;
+          debugPrint(
+            '📊 Total points from users collection: $_totalPoints (userData: ${userData?.keys.toList()})',
+          );
+        } else {
+          debugPrint('⚠️ User document not found: $authUid');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error fetching from users: $e');
+      }
+
+      // If still 0, try students collection
+      if (_totalPoints == 0) {
+        try {
+          final studentDoc = await FirebaseFirestore.instance
+              .collection('students')
+              .doc(widget.studentId)
+              .get();
+
+          if (studentDoc.exists) {
+            final studentData = studentDoc.data();
+            _totalPoints =
+                (studentData?['totalPoints'] ??
+                        studentData?['rewardPoints'] ??
+                        0)
+                    as int;
+            debugPrint(
+              '📊 Total points from students collection: $_totalPoints',
+            );
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error fetching from students: $e');
+        }
+      }
+
+      // Fetch badges from testResults
       final q = await FirebaseFirestore.instance
           .collection('testResults')
           .where('studentId', isEqualTo: authUid)
-          .limit(60)
+          .where('status', isEqualTo: 'completed')
+          .limit(100)
           .get();
+
       final Set<String> badgeSet = {};
-      int pts = 0;
+
       for (final doc in q.docs) {
         final data = doc.data();
-        pts += (data['totalPoints'] as num?)?.toInt() ?? 0;
+
+        // Get badges
         final badges = data['badges'];
         if (badges is List) {
           for (final b in badges) {
             if (b != null) badgeSet.add(b.toString());
           }
         }
+
+        // Award badges based on performance if not already set
+        final correctAnswers = (data['correctAnswers'] ?? 0) as int;
+        final totalQuestions = (data['totalQuestions'] ?? 1) as int;
+        final percentage = totalQuestions > 0
+            ? (correctAnswers / totalQuestions) * 100
+            : 0.0;
+
+        if (percentage == 100) {
+          badgeSet.add('Perfect Score');
+        } else if (percentage >= 90) {
+          badgeSet.add('Excellence');
+        } else if (percentage >= 75) {
+          badgeSet.add('Top Performer');
+        }
       }
+
       _badges = badgeSet.toList()..sort();
       _badgesCount = _badges.length;
-      _totalPoints = pts;
+
       debugPrint(
-        '📊 Badges/Points: $_badgesCount badges, $_totalPoints points',
+        '📊 Final: $_badgesCount badges ($_badges), $_totalPoints points',
       );
+
+      // Force UI update
+      if (mounted) setState(() {});
     } catch (e) {
       debugPrint('⚠️ badges/points error: $e');
     }
@@ -198,44 +292,90 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
                     _resolvedAuthUid ?? widget.studentId,
                   ),
                   builder: (context, snapshot) {
+                    // Show loading indicator while fetching data
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(48.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
+
                     final perf = snapshot.data;
+
+                    // Debug logging
+                    if (perf != null) {
+                      debugPrint('📊 Performance Data Loaded:');
+                      debugPrint('   Average Score: ${perf.averageScore}');
+                      debugPrint('   Total Tests: ${perf.totalTestsTaken}');
+                      debugPrint('   Submissions: ${perf.submissions.length}');
+                      if (perf.submissions.isNotEmpty) {
+                        debugPrint(
+                          '   Latest: ${perf.submissions.last.testTitle} - ${perf.submissions.last.percentage}%',
+                        );
+                      }
+                    } else {
+                      debugPrint(
+                        '⚠️ No performance data found for student: ${_resolvedAuthUid ?? widget.studentId}',
+                      );
+                    }
 
                     // Compute real-time stats from performance data
                     final avgScore = perf?.averageScore ?? 0.0;
                     final testsTaken = perf?.submissions.length ?? 0;
-                    final totalPoints =
+
+                    // Use totalPoints from users collection (_totalPoints) as primary source
+                    // Fall back to calculated points only if _totalPoints is 0
+                    int calculatedPoints =
                         perf?.submissions.fold<int>(
                           0,
                           (sum, s) => sum + s.totalPoints,
                         ) ??
-                        _totalPoints;
+                        0;
+
+                    final totalPoints = _totalPoints > 0
+                        ? _totalPoints
+                        : calculatedPoints;
+
                     final latestScore = perf?.submissions.isNotEmpty == true
-                        ? perf!.submissions.last.score.toDouble()
+                        ? perf!.submissions.last.percentage
                         : 0.0;
+
+                    debugPrint(
+                      '💰 Points calculation: _totalPoints=$_totalPoints, calculatedPoints=$calculatedPoints, using=$totalPoints',
+                    );
 
                     return SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          _buildQuickStats(
-                            theme,
-                            perf,
-                            avgScore,
-                            testsTaken,
-                            totalPoints,
-                            latestScore,
+                      child: FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: SlideTransition(
+                          position: _slideAnimation,
+                          child: Column(
+                            children: [
+                              _buildQuickStats(
+                                theme,
+                                perf,
+                                avgScore,
+                                testsTaken,
+                                totalPoints,
+                                latestScore,
+                              ),
+                              const SizedBox(height: 24),
+                              _buildPerformanceTrend(theme, perf),
+                              const SizedBox(height: 24),
+                              _buildRecentTests(theme, perf),
+                              const SizedBox(height: 24),
+                              _buildBadgesSection(theme),
+                              const SizedBox(height: 24),
+                              _buildPersonalDetails(theme),
+                              const SizedBox(height: 24),
+                              _buildMessageParent(theme),
+                              const SizedBox(height: 48),
+                            ],
                           ),
-                          const SizedBox(height: 24),
-                          _buildPerformanceTrend(theme, perf),
-                          const SizedBox(height: 24),
-                          const SizedBox(height: 24),
-                          _buildBadgesSection(theme),
-                          const SizedBox(height: 24),
-                          _buildPersonalDetails(theme),
-                          const SizedBox(height: 24),
-                          _buildMessageParent(theme),
-                          const SizedBox(height: 48),
-                        ],
+                        ),
                       ),
                     );
                   },
@@ -303,7 +443,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
                               width: 64,
                               height: 64,
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHighest,
+                                color:
+                                    theme.colorScheme.surfaceContainerHighest,
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -493,6 +634,182 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
     );
   }
 
+  Widget _buildRecentTests(ThemeData theme, PerformanceModel? perf) {
+    final submissions = (perf?.submissions ?? [])
+      ..sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+    final recent = submissions.take(5).toList();
+
+    if (recent.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.primary.withOpacity(0.7),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.history, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Recent Test History',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...recent
+              .map((submission) => _buildTestHistoryItem(theme, submission))
+              .toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTestHistoryItem(ThemeData theme, TestSubmission submission) {
+    final percentage = submission.percentage;
+    final color = _getScoreColor(percentage);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Center(
+              child: Text(
+                '${percentage.round()}%',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  submission.testTitle,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: 12,
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatDate(submission.submittedAt),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(
+                      Icons.stars,
+                      size: 12,
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${submission.totalPoints} pts',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            percentage >= 75
+                ? Icons.emoji_events
+                : percentage >= 50
+                ? Icons.thumb_up
+                : Icons.trending_up,
+            color: color,
+            size: 28,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getScoreColor(double percentage) {
+    if (percentage >= 90) return const Color(0xFF10B981);
+    if (percentage >= 75) return const Color(0xFF84CC16);
+    if (percentage >= 60) return const Color(0xFFF59E0B);
+    if (percentage >= 35) return const Color(0xFFF97316);
+    return const Color(0xFFEF4444);
+  }
+
+  String _formatDate(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays == 0) {
+      return 'Today';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else {
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    }
+  }
+
   // Quick stats with requested metrics
   Widget _buildQuickStats(
     ThemeData theme,
@@ -510,47 +827,128 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
     final latestScoreDisplay = latestScore > 0
         ? '${latestScore.round()}%'
         : '0%';
+
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.1),
+            theme.colorScheme.primaryContainer.withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.2),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Quick Stats',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
           Row(
             children: [
-              _statCard(theme, 'Avg Score', '${avg.round()}%'),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.primary.withOpacity(0.7),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.analytics,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
               const SizedBox(width: 12),
-              _statCard(theme, 'Attendance', attendanceStr),
+              Text(
+                'Quick Stats',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              _statCard(
+                theme,
+                'Avg Score',
+                '${avg.round()}%',
+                Icons.school,
+                _getScoreColor(avg),
+              ),
               const SizedBox(width: 12),
-              _statCard(theme, 'Total Points', totalPoints.toString()),
+              _statCard(
+                theme,
+                'Attendance',
+                attendanceStr,
+                Icons.event_available,
+                const Color(0xFF8B5CF6),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _statCard(theme, 'Badges', _badgesCount.toString()),
+              _statCard(
+                theme,
+                'Points',
+                totalPoints.toString(),
+                Icons.stars,
+                const Color(0xFFF59E0B),
+              ),
               const SizedBox(width: 12),
-              _statCard(theme, 'Tests', testsTaken.toString()),
+              _statCard(
+                theme,
+                'Tests',
+                testsTaken.toString(),
+                Icons.assignment,
+                const Color(0xFF06B6D4),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _statCard(
+                theme,
+                'Badges',
+                _badgesCount.toString(),
+                Icons.emoji_events,
+                const Color(0xFFEC4899),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _statCard(theme, 'Latest', latestScoreDisplay)),
+              _statCard(
+                theme,
+                'Latest',
+                latestScoreDisplay,
+                Icons.trending_up,
+                _getScoreColor(latestScore),
+              ),
             ],
           ),
         ],
@@ -558,30 +956,60 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
     );
   }
 
-  Widget _statCard(ThemeData theme, String label, String value) {
+  Widget _statCard(
+    ThemeData theme,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(12),
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
             Text(
               label,
               style: theme.textTheme.bodySmall?.copyWith(
                 fontSize: 12,
                 color: theme.colorScheme.onSurface.withOpacity(0.6),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -593,46 +1021,137 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
   Widget _buildBadgesSection(ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFFF59E0B).withOpacity(0.1),
+            const Color(0xFFEC4899).withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withOpacity(0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: const Color(0xFFF59E0B).withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Badges Earned',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF59E0B), Color(0xFFEC4899)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFF59E0B).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.emoji_events,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Badges Earned',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              if (!_loadingExtras && _badges.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_badges.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           if (_loadingExtras)
-            Text(
-              'Loading badges…',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Loading badges…',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           else if (_badges.isEmpty)
-            Text(
-              'No badges yet',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.emoji_events_outlined,
+                      size: 64,
+                      color: theme.colorScheme.onSurface.withOpacity(0.3),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No badges earned yet',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Keep working hard to earn badges!',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           else
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 10,
+              runSpacing: 10,
               children: _badges.map((b) => _badgeChip(theme, b)).toList(),
             ),
         ],
@@ -641,17 +1160,42 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
   }
 
   Widget _badgeChip(ThemeData theme, String label) {
+    final colors = [
+      [const Color(0xFF10B981), const Color(0xFF059669)],
+      [const Color(0xFF8B5CF6), const Color(0xFF7C3AED)],
+      [const Color(0xFFF59E0B), const Color(0xFFD97706)],
+      [const Color(0xFFEC4899), const Color(0xFFDB2777)],
+      [const Color(0xFF06B6D4), const Color(0xFF0891B2)],
+    ];
+    final colorPair = colors[label.hashCode % colors.length];
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withOpacity(0.18),
+        gradient: LinearGradient(colors: colorPair),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: colorPair[0].withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Text(
-        label,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.stars, color: Colors.white, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -661,128 +1205,313 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
     return Container(
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.2),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Personal Details',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.primary.withOpacity(0.7),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.person_outline,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Personal Details',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           if (_loadingExtras)
-            Text('Loading…', style: theme.textTheme.bodyMedium)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Loading details…',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
           else if (d == null)
-            Text(
-              'Student record not found',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.error,
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 48,
+                      color: theme.colorScheme.error.withOpacity(0.6),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Student record not found',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           else ...[
-            _detailRow(theme, 'Email', (d['email'] ?? '—').toString()),
             _detailRow(
               theme,
+              Icons.email_outlined,
+              'Email',
+              (d['email'] ?? '—').toString(),
+              const Color(0xFF10B981),
+            ),
+            const Divider(height: 24),
+            _detailRow(
+              theme,
+              Icons.phone_outlined,
               'Phone',
               (d['phoneNumber'] ?? d['phone'] ?? '—').toString(),
+              const Color(0xFF06B6D4),
             ),
-            _detailRow(theme, 'Roll No', (d['rollNo'] ?? '—').toString()),
+            const Divider(height: 24),
             _detailRow(
               theme,
+              Icons.badge_outlined,
+              'Roll No',
+              (d['rollNo'] ?? '—').toString(),
+              const Color(0xFF8B5CF6),
+            ),
+            const Divider(height: 24),
+            _detailRow(
+              theme,
+              Icons.phone_android_outlined,
               'Parent Phone',
               (d['parentPhone'] ?? '—').toString(),
+              const Color(0xFFF59E0B),
             ),
-            _detailRow(theme, 'Section', (d['section'] ?? '—').toString()),
+            const Divider(height: 24),
+            _detailRow(
+              theme,
+              Icons.class_outlined,
+              'Section',
+              (d['section'] ?? '—').toString(),
+              const Color(0xFFEC4899),
+            ),
           ],
         ],
       ),
     );
   }
 
-  Widget _detailRow(ThemeData theme, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
-              ),
-            ),
+  Widget _detailRow(
+    ThemeData theme,
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
+          child: Icon(icon, size: 20, color: color),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildMessageParent(ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF8B5CF6).withOpacity(0.1),
+            const Color(0xFF06B6D4).withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF8B5CF6).withOpacity(0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF8B5CF6).withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Message Parent',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Open a conversation with the parent to share progress or concerns.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _parentChatLoading ? null : _startParentChat,
-              icon: const Icon(Icons.chat),
-              label: Text(_parentChatLoading ? 'Opening...' : 'Message Parent'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF8B5CF6).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.chat_bubble_outline,
+                  color: Colors.white,
+                  size: 24,
                 ),
               ),
+              const SizedBox(width: 12),
+              Text(
+                'Message Parent',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Open a conversation with the parent to share progress, discuss concerns, or celebrate achievements.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _parentChatLoading ? null : _startParentChat,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                shadowColor: theme.colorScheme.primary.withOpacity(0.4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: _parentChatLoading
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Opening Chat...',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.chat_bubble, size: 20),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Start Conversation',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],
