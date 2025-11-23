@@ -38,6 +38,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
 
     if (authProvider.currentUser != null) {
+      // Process any ended tests to award pending points
+      try {
+        await FirestoreService().processEndedTests();
+      } catch (e) {
+        print('⚠️ Error processing ended tests: $e');
+      }
+      
       await studentProvider.loadDashboardData(authProvider.currentUser!.uid);
     }
   }

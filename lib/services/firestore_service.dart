@@ -963,14 +963,22 @@ class FirestoreService {
   }
 
   // Submit Test Result
-  Future<void> submitTestResult(TestResultModel result) async {
+  Future<void> submitTestResult(
+    TestResultModel result, {
+    required DateTime testEndDate,
+  }) async {
     String? schoolCode; // Declare at method level for use in violations
 
     try {
+      // Check if test has ended to determine if we should update points/leaderboard
+      final now = DateTime.now();
+      final testHasEnded = now.isAfter(testEndDate);
+      
       // Create the test result document
       final resultDoc = _db.collection('testResults').doc();
       final resultData = result.toFirestore();
       resultData['id'] = resultDoc.id;
+      resultData['pointsAwarded'] = testHasEnded; // Mark if points were awarded now
 
       // Add schoolCode if we can infer it from the student's profile
       try {
@@ -990,6 +998,12 @@ class FirestoreService {
       await resultDoc.set(resultData);
 
       print('✅ Test result saved: ${resultDoc.id}');
+      
+      if (testHasEnded) {
+        print('✅ Test has ended - updating points and leaderboard');
+      } else {
+        print('⏳ Test still active - points will be awarded after test ends at $testEndDate');
+      }
 
       // Update the assignment document status from "assigned" to "completed"
       try {
@@ -1007,9 +1021,20 @@ class FirestoreService {
             'status': 'completed',
             'submittedAt': FieldValue.serverTimestamp(),
             'score': result.score,
+            'correctAnswers': result.correctAnswers,
+            'answers': result.answers,
+            'completedAt': Timestamp.fromDate(result.completedAt),
+            'timeTaken': result.timeTaken,
+            'wasProctored': result.wasProctored,
+            'tabSwitchCount': result.tabSwitchCount,
+            'violationDetected': result.violationDetected,
+            if (result.violationReason != null)
+              'violationReason': result.violationReason,
             'resultId': resultDoc.id,
           });
-          print('✅ Updated assignment status to completed');
+          print(
+            '✅ Updated assignment status to completed with full result data',
+          );
         } else {
           print('⚠️  No assignment document found for this test');
         }
@@ -1017,84 +1042,91 @@ class FirestoreService {
         print('❌ Error updating assignment status: $e');
       }
 
-      // Update student counters (users collection preferred, fallback to students)
-      bool countersUpdated = false;
-      try {
-        final userByIdRef = _db.collection('users').doc(result.studentId);
-        final userByIdSnap = await userByIdRef.get();
-        if (userByIdSnap.exists) {
-          await userByIdRef.update({
-            'completedTests': FieldValue.increment(1),
-            'pendingTests': FieldValue.increment(-1),
-            'totalScore': FieldValue.increment(result.score.toInt()),
-            'totalPoints': FieldValue.increment(result.score.toInt()),
-          });
-          countersUpdated = true;
-        } else {
-          final uq = await _db
-              .collection('users')
-              .where('uid', isEqualTo: result.studentId)
-              .limit(1)
-              .get();
-          if (uq.docs.isNotEmpty) {
-            await uq.docs.first.reference.update({
-              'completedTests': FieldValue.increment(1),
-              'pendingTests': FieldValue.increment(-1),
-              'totalScore': FieldValue.increment(result.score.toInt()),
-              'totalPoints': FieldValue.increment(result.score.toInt()),
-            });
-            countersUpdated = true;
-          }
-        }
-      } catch (_) {}
-
-      if (!countersUpdated) {
-        // Fallback: update students collection counters if present
+      // Update student counters and points ONLY if test has ended
+      if (testHasEnded) {
+        // Update student counters (users collection preferred, fallback to students)
+        bool countersUpdated = false;
         try {
-          final sref = _db.collection('students').doc(result.studentId);
-          final ssnap = await sref.get();
-          if (ssnap.exists) {
-            await sref.update({
+          final userByIdRef = _db.collection('users').doc(result.studentId);
+          final userByIdSnap = await userByIdRef.get();
+          if (userByIdSnap.exists) {
+            await userByIdRef.update({
               'completedTests': FieldValue.increment(1),
               'pendingTests': FieldValue.increment(-1),
               'totalScore': FieldValue.increment(result.score.toInt()),
               'totalPoints': FieldValue.increment(result.score.toInt()),
             });
             countersUpdated = true;
+          } else {
+            final uq = await _db
+                .collection('users')
+                .where('uid', isEqualTo: result.studentId)
+                .limit(1)
+                .get();
+            if (uq.docs.isNotEmpty) {
+              await uq.docs.first.reference.update({
+                'completedTests': FieldValue.increment(1),
+                'pendingTests': FieldValue.increment(-1),
+                'totalScore': FieldValue.increment(result.score.toInt()),
+                'totalPoints': FieldValue.increment(result.score.toInt()),
+              });
+              countersUpdated = true;
+            }
           }
         } catch (_) {}
-      }
 
-      if (countersUpdated) {
-        print('✅ Student counters updated');
+        if (!countersUpdated) {
+          // Fallback: update students collection counters if present
+          try {
+            final sref = _db.collection('students').doc(result.studentId);
+            final ssnap = await sref.get();
+            if (ssnap.exists) {
+              await sref.update({
+                'completedTests': FieldValue.increment(1),
+                'pendingTests': FieldValue.increment(-1),
+                'totalScore': FieldValue.increment(result.score.toInt()),
+                'totalPoints': FieldValue.increment(result.score.toInt()),
+              });
+              countersUpdated = true;
+            }
+          } catch (_) {}
+        }
+
+        if (countersUpdated) {
+          print('✅ Student counters updated');
+        } else {
+          print('⚠️  Could not update student counters');
+        }
+
+        // Rewards: also log earned points record for this test
+        try {
+          final earnedPoints = calculatePoints(
+            total: result.totalQuestions.toDouble(),
+            obtained: result.correctAnswers.toDouble(),
+            basePoints: 100, // default baseline
+          );
+          print(
+            '🎯 Awarding $earnedPoints points to ${result.studentName} (${result.studentId}) for test ${result.testTitle}',
+          );
+          print(
+            '   Score: ${result.correctAnswers}/${result.totalQuestions} = ${(result.correctAnswers / result.totalQuestions * 100).toStringAsFixed(1)}%',
+          );
+
+          await savePointsToFirestore(
+            studentId: result.studentId,
+            testId: result.testId,
+            marks: result.correctAnswers.toDouble(),
+            totalMarks: result.totalQuestions.toDouble(),
+            points: earnedPoints,
+          );
+          print('✅ Points saved successfully!');
+        } catch (e) {
+          print('❌ ERROR saving points: $e');
+        }
       } else {
-        print('⚠️  Could not update student counters');
-      }
-
-      // Rewards: also log earned points record for this test
-      try {
-        final earnedPoints = calculatePoints(
-          total: result.totalQuestions.toDouble(),
-          obtained: result.correctAnswers.toDouble(),
-          basePoints: 100, // default baseline
-        );
-        print(
-          '🎯 Awarding $earnedPoints points to ${result.studentName} (${result.studentId}) for test ${result.testTitle}',
-        );
-        print(
-          '   Score: ${result.correctAnswers}/${result.totalQuestions} = ${(result.correctAnswers / result.totalQuestions * 100).toStringAsFixed(1)}%',
-        );
-
-        await savePointsToFirestore(
-          studentId: result.studentId,
-          testId: result.testId,
-          marks: result.correctAnswers.toDouble(),
-          totalMarks: result.totalQuestions.toDouble(),
-          points: earnedPoints,
-        );
-        print('✅ Points saved successfully!');
-      } catch (e) {
-        print('❌ ERROR saving points: $e');
+        // Test hasn't ended yet - mark for later processing
+        print('⏳ Skipping points/leaderboard update - test still active');
+        print('   Points and leaderboard will be updated after: $testEndDate');
       }
 
       // NOTE: We no longer update the "tests" collection as it's being phased out
@@ -1499,6 +1531,97 @@ class FirestoreService {
     } catch (e) {
       print('⚠️ Error fetching previous questions: $e');
       return []; // Return empty list on error, don't fail the generation
+    }
+  }
+
+  /// Process pending test results and award points for tests that have ended
+  /// This should be called when the app starts or when viewing dashboard
+  Future<void> processEndedTests() async {
+    try {
+      final now = DateTime.now();
+      print('🔄 Processing ended tests to award pending points...');
+
+      // Get all scheduledTests that have ended
+      final endedTestsSnapshot = await _db
+          .collection('scheduledTests')
+          .where('endDate', isLessThan: Timestamp.fromDate(now))
+          .get();
+
+      if (endedTestsSnapshot.docs.isEmpty) {
+        print('✅ No ended tests found');
+        return;
+      }
+
+      final endedTestIds = endedTestsSnapshot.docs.map((doc) => doc.id).toList();
+      print('📋 Found ${endedTestIds.length} ended tests');
+
+      // Get all completed test results that haven't awarded points yet
+      final resultsSnapshot = await _db
+          .collection('testResults')
+          .where('testId', whereIn: endedTestIds.take(10).toList()) // Firestore limit of 10 for whereIn
+          .where('status', isEqualTo: 'completed')
+          .get();
+
+      print('📊 Found ${resultsSnapshot.docs.length} completed results to process');
+
+      int processed = 0;
+      for (final resultDoc in resultsSnapshot.docs) {
+        final data = resultDoc.data();
+        final studentId = data['studentId'] as String?;
+        final testId = data['testId'] as String?;
+        final correctAnswers = (data['correctAnswers'] ?? 0) as int;
+        final totalQuestions = (data['totalQuestions'] ?? 0) as int;
+        final pointsAwarded = data['pointsAwarded'] as bool? ?? false;
+
+        if (studentId == null || testId == null || pointsAwarded) {
+          continue; // Skip if already processed or missing data
+        }
+
+        try {
+          // Calculate and award points
+          final earnedPoints = calculatePoints(
+            total: totalQuestions.toDouble(),
+            obtained: correctAnswers.toDouble(),
+            basePoints: 100,
+          );
+
+          if (earnedPoints > 0) {
+            await savePointsToFirestore(
+              studentId: studentId,
+              testId: testId,
+              marks: correctAnswers.toDouble(),
+              totalMarks: totalQuestions.toDouble(),
+              points: earnedPoints,
+            );
+
+            // Update student counters if not done yet
+            final userRef = _db.collection('users').doc(studentId);
+            final userSnap = await userRef.get();
+            if (userSnap.exists) {
+              // Only update if points haven't been added
+              await userRef.update({
+                'totalPoints': FieldValue.increment(earnedPoints),
+                'rewardPoints': FieldValue.increment(earnedPoints),
+              });
+            }
+
+            // Mark this result as processed
+            await resultDoc.reference.update({
+              'pointsAwarded': true,
+              'pointsAwardedAt': FieldValue.serverTimestamp(),
+            });
+
+            processed++;
+            print('✅ Awarded $earnedPoints points to $studentId for test $testId');
+          }
+        } catch (e) {
+          print('❌ Error processing result ${resultDoc.id}: $e');
+        }
+      }
+
+      print('✅ Processed $processed test results');
+    } catch (e) {
+      print('❌ Error processing ended tests: $e');
     }
   }
 

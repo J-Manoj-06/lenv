@@ -90,19 +90,24 @@ class _TestResultScreenState extends State<TestResultScreen> {
 
       if (testDoc.exists) {
         final testData = testDoc.data()!;
-        
+
         // Get questions list
         if (testData['questions'] != null) {
           _questions = List<Map<String, dynamic>>.from(
-            testData['questions'].map((q) => Map<String, dynamic>.from(q))
+            testData['questions'].map((q) => Map<String, dynamic>.from(q)),
           );
+          print('📝 Loaded ${_questions.length} questions');
+          for (var i = 0; i < _questions.length; i++) {
+            print(
+              'Q${i + 1}: ${_questions[i]['questionText'] ?? _questions[i]['question']}',
+            );
+            print('Options: ${_questions[i]['options']}');
+            print('Correct: ${_questions[i]['correctAnswer']}');
+          }
         }
-        
+
         _totalQuestions =
-            (testData['questionCount'] ??
-                    _questions.length ??
-                    0)
-                as int;
+            (testData['questionCount'] ?? _questions.length ?? 0) as int;
       }
 
       // Calculate statistics from completed results
@@ -565,7 +570,10 @@ class _TestResultScreenState extends State<TestResultScreen> {
                   children: [
                     const Text(
                       'Test Questions',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -597,8 +605,15 @@ class _TestResultScreenState extends State<TestResultScreen> {
   }
 
   Widget _buildQuestionItem(int questionNumber, Map<String, dynamic> question) {
-    final questionText = question['question'] ?? '';
-    final options = question['options'] as List? ?? [];
+    final questionText = question['questionText'] ?? question['question'] ?? '';
+    final questionType = question['type'] ?? 'mcq';
+    List<dynamic> options = question['options'] as List? ?? [];
+
+    // For True/False questions, create synthetic options if none exist
+    if (questionType == 'tf' && options.isEmpty) {
+      options = ['True', 'False'];
+    }
+
     final correctAnswer = question['correctAnswer'] ?? '';
     final marks = question['marks'] ?? 1;
 
@@ -644,22 +659,39 @@ class _TestResultScreenState extends State<TestResultScreen> {
         ),
         const SizedBox(height: 12),
         // Question text
-        Text(
-          questionText,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            height: 1.4,
-            color: Colors.white,
+        if (questionText.isNotEmpty)
+          Text(
+            questionText,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              height: 1.4,
+              color: Colors.white,
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
+        if (questionText.isNotEmpty) const SizedBox(height: 16),
+        if (questionText.isEmpty)
+          const Text(
+            '(Question text not available)',
+            style: TextStyle(
+              fontSize: 14,
+              fontStyle: FontStyle.italic,
+              color: Colors.grey,
+            ),
+          ),
+        if (questionText.isEmpty) const SizedBox(height: 12),
         // Options
         ...options.asMap().entries.map((entry) {
           final optionIndex = entry.key;
           final option = entry.value.toString();
-          final optionLabel = String.fromCharCode(65 + optionIndex); // A, B, C, D
-          final isCorrect = option == correctAnswer;
+          final optionLabel = String.fromCharCode(
+            65 + optionIndex,
+          ); // A, B, C, D
+
+          // Compare option label with correctAnswer (e.g., "A" == "A" or "true" == "true")
+          final isCorrect =
+              optionLabel == correctAnswer.toUpperCase() ||
+              option.toLowerCase() == correctAnswer.toLowerCase();
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -670,9 +702,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
                     ? Colors.green.withOpacity(0.25)
                     : Colors.grey[800],
                 border: Border.all(
-                  color: isCorrect
-                      ? Colors.green
-                      : Colors.grey[700]!,
+                  color: isCorrect ? Colors.green : Colors.grey[700]!,
                   width: isCorrect ? 3 : 1,
                 ),
                 borderRadius: BorderRadius.circular(8),
@@ -683,9 +713,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: isCorrect
-                          ? Colors.green
-                          : Colors.grey[700],
+                      color: isCorrect ? Colors.green : Colors.grey[700],
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -705,7 +733,9 @@ class _TestResultScreenState extends State<TestResultScreen> {
                       option,
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: isCorrect ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: isCorrect
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                         color: Colors.white,
                       ),
                     ),

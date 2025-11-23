@@ -262,7 +262,10 @@ class _TakeTestScreenState extends State<TakeTestScreen>
       );
 
       // Save to Firestore
-      await FirestoreService().submitTestResult(testResult);
+      await FirestoreService().submitTestResult(
+        testResult,
+        testEndDate: widget.test.endDate,
+      );
 
       if (!mounted) return;
 

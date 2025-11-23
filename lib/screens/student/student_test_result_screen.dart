@@ -81,22 +81,47 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data == null) {
-            return const Center(child: Text('Result not found'));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Result not found'),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Result ID: ${widget.resultId}',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
           }
           final result = snapshot.data!;
+          print('📊 Test Result Loaded:');
+          print('   ID: ${result.id}');
+          print('   Score: ${result.score}%');
+          print('   Total Questions: ${result.totalQuestions}');
+          print('   Correct Answers: ${result.correctAnswers}');
+          print('   Answers Array Length: ${result.answers.length}');
+          print('   Status: completedAt=${result.completedAt}');
           // Compute percentage safely with fallbacks to new fields
           final double pct = (() {
             if (result.percentage != null) {
               final p = result.percentage!;
+              print('   Using percentage field: $p');
               return p.clamp(0, 100).toDouble();
             }
             // Fallback: compute from correct/total if available
             final totalQ = result.totalQuestions;
             final correct = result.correctAnswers;
             if (totalQ > 0) {
-              return ((correct / totalQ) * 100).clamp(0.0, 100.0);
+              final computed = ((correct / totalQ) * 100).clamp(0.0, 100.0);
+              print(
+                '   Computed from correct/total: $computed ($correct/$totalQ)',
+              );
+              return computed;
             }
             // Last fallback: use score field (already a percentage in new model)
+            print('   Using score field: ${result.score}');
             return (result.score).clamp(0.0, 100.0);
           })();
 
@@ -153,6 +178,48 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                         ..._buildQuestionResults(
                           result,
                         ).map((q) => _buildQuestionTile(q)),
+                      ] else ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF1F2937)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF374151)
+                                  : Colors.grey.shade300,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 48,
+                                color: isDark ? Colors.white70 : Colors.grey,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Question details not available',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'This test result does not contain detailed answer information.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: isDark ? Colors.white70 : Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                       const SizedBox(height: 24),
                       // Badges (optional)
