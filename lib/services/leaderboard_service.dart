@@ -86,7 +86,7 @@ class LeaderboardService {
     final studentsSnap = await q.get();
     if (studentsSnap.docs.isEmpty) return <LeaderboardEntry>[];
 
-    // 2) For each student, calculate total score from test results
+    // 2) For each student, calculate total points from student_rewards (includes both tests and daily challenges)
     final entries = <Map<String, dynamic>>[];
     for (final sDoc in studentsSnap.docs) {
       final s = sDoc.data();
@@ -94,8 +94,7 @@ class LeaderboardService {
       final name = (s['name'] as String?) ?? s['studentName'] as String? ?? '';
       final photoUrl = s['photoUrl'] as String?;
       String? uidFromUsers;
-      int rewardPoints = 0;
-      double totalTestScore = 0.0;
+      int totalPoints = 0;
 
       if (email != null && email.isNotEmpty) {
         final uq = await _db
@@ -106,62 +105,38 @@ class LeaderboardService {
         if (uq.docs.isNotEmpty) {
           final u = uq.docs.first.data();
           uidFromUsers = (u['uid'] as String?) ?? uq.docs.first.id;
-          rewardPoints = (u['rewardPoints'] as num?)?.toInt() ?? 0;
-          // Fallback to sum of student_rewards if users.rewardPoints missing/zero
-          if (rewardPoints == 0) {
-            rewardPoints = await _sumStudentRewards(uidFromUsers);
-          }
 
-          // Calculate total score from test results
-          final testResultsSnap = await _db
-              .collection('testResults')
-              .where('studentId', isEqualTo: uidFromUsers)
-              .get();
+          // Sum ALL points from student_rewards (this includes both test scores and daily challenges)
+          totalPoints = await _sumStudentRewards(uidFromUsers);
 
-          // Sum all test scores (deduplicated by testId, keeping highest)
-          final bestScoreByTest = <String, double>{};
-          for (final doc in testResultsSnap.docs) {
-            final data = doc.data();
-            final testId = data['testId'] as String?;
-            final score = (data['score'] as num?)?.toDouble() ?? 0.0;
-            if (testId != null && testId.isNotEmpty) {
-              if (!bestScoreByTest.containsKey(testId) ||
-                  score > bestScoreByTest[testId]!) {
-                bestScoreByTest[testId] = score;
-              }
-            }
+          // If still zero, try to get from users.rewardPoints as fallback
+          if (totalPoints == 0) {
+            totalPoints = (u['rewardPoints'] as num?)?.toInt() ?? 0;
           }
-          totalTestScore = bestScoreByTest.values.fold(
-            0.0,
-            (sum, score) => sum + score,
-          );
         }
       }
 
       // If we didn't find a users doc, try fallback using students doc id
-      if ((uidFromUsers == null || uidFromUsers.isEmpty) && rewardPoints == 0) {
+      if ((uidFromUsers == null || uidFromUsers.isEmpty) || totalPoints == 0) {
         final fallbackUid =
             sDoc['studentId'] as String? ??
             sDoc['uid'] as String? ??
             sDoc['id'] as String? ??
             sDoc['email'] as String? ??
             sDoc['rollNumber'] as String?;
-        if (fallbackUid != null && fallbackUid.isNotEmpty) {
-          rewardPoints = await _sumStudentRewards(fallbackUid);
-          uidFromUsers = fallbackUid;
+        if (fallbackUid != null && fallbackUid.isNotEmpty && totalPoints == 0) {
+          totalPoints = await _sumStudentRewards(fallbackUid);
+          if (uidFromUsers == null || uidFromUsers.isEmpty) {
+            uidFromUsers = fallbackUid;
+          }
         }
       }
-
-      // Use total test score if available, otherwise fall back to reward points
-      final displayScore = totalTestScore > 0
-          ? totalTestScore
-          : rewardPoints.toDouble();
 
       entries.add({
         'uid': uidFromUsers ?? sDoc.id,
         'name': name,
         'photoUrl': photoUrl,
-        'points': displayScore,
+        'points': totalPoints.toDouble(),
       });
     }
 

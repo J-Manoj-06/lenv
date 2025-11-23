@@ -410,15 +410,13 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           _buildHeader(),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 80),
+              padding: const EdgeInsets.only(bottom: 160),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildInputFields(),
-                    const SizedBox(height: 24),
-                    _buildGenerateButton(),
                     if (hasGenerated) ...[
                       const SizedBox(height: 32),
                       _buildGeneratedQuestions(),
@@ -956,7 +954,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          elevation: 0,
+          elevation: 2,
         ),
         child: isGenerating
             ? const SizedBox(
@@ -1363,7 +1361,62 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   }
 
   Widget _buildBottomNavigationBar() {
-    return const TeacherBottomNav(selectedIndex: 2);
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Generate Button
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isGenerating ? null : _generateQuestions,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                  ),
+                  child: isGenerating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Generate Test with AI',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+            // Bottom Navigation
+            const TeacherBottomNav(selectedIndex: 2),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showScheduleDialog() {

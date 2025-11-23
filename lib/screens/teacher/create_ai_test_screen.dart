@@ -194,6 +194,9 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
       body: _generatedQuestions == null
           ? _buildFormView()
           : _buildPreviewView(),
+      bottomNavigationBar: _generatedQuestions == null
+          ? _buildBottomSection()
+          : null,
     );
   }
 
@@ -238,7 +241,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
       child: Form(
         key: _formKey,
         child: Column(
@@ -587,10 +590,34 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            // const SizedBox(height: 2),
+          ],
+        ),
+      ),
+    );
+  }
 
-            // Generate button
-            ElevatedButton.icon(
+  /// Fixed bottom section with Generate button
+  Widget _buildBottomSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1E1E1E)
+            : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
               onPressed: _isGenerating ? null : _generateTest,
               icon: _isGenerating
                   ? const SizedBox(
@@ -604,15 +631,22 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                   : const Icon(Icons.auto_awesome),
               label: Text(
                 _isGenerating ? 'Generating...' : 'Generate Test with AI',
-                style: const TextStyle(fontSize: 16),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: const Color(0xFF6366F1),
                 foregroundColor: Colors.white,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
