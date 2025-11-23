@@ -249,7 +249,33 @@ class TestRulesScreen extends StatelessWidget {
                           );
                           return;
                         }
-                        // Check if already submitted
+
+                        // Check if test has expired
+                        if (DateTime.now().isAfter(test.endDate)) {
+                          await showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Test Expired'),
+                              content: const Text(
+                                'This test has ended and is no longer available. The allocated time has passed.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context); // Close dialog
+                                    Navigator.pop(
+                                      context,
+                                    ); // Go back to test list
+                                  },
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Check if already submitted (status: completed or submitted)
                         final existing = await FirebaseFirestore.instance
                             .collection('testResults')
                             .where('studentId', isEqualTo: studentId)
@@ -258,41 +284,50 @@ class TestRulesScreen extends StatelessWidget {
                             .get();
 
                         if (existing.docs.isNotEmpty) {
-                          final endPassed = DateTime.now().isAfter(
-                            test.endDate,
-                          );
-                          if (endPassed) {
-                            // Navigate to results page
-                            final resultId = existing.docs.first.id;
-                            if (context.mounted) {
-                              Navigator.pushReplacementNamed(
-                                context,
-                                '/student-test-result',
-                                arguments: {'resultId': resultId},
-                              );
-                            }
-                          } else {
-                            // Show info dialog
-                            if (context.mounted) {
-                              await showDialog(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                  title: const Text('Already Submitted'),
-                                  content: const Text(
-                                    'You have already completed this test. Results will be available after the due time.',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('OK'),
+                          final status =
+                              existing.docs.first.data()['status'] as String?;
+                          final isSubmitted =
+                              status == 'completed' || status == 'submitted';
+
+                          // Only show "Already Submitted" if actually completed/submitted
+                          if (isSubmitted) {
+                            final endPassed = DateTime.now().isAfter(
+                              test.endDate,
+                            );
+                            if (endPassed) {
+                              // Navigate to results page
+                              final resultId = existing.docs.first.id;
+                              if (context.mounted) {
+                                Navigator.pushReplacementNamed(
+                                  context,
+                                  '/student-test-result',
+                                  arguments: {'resultId': resultId},
+                                );
+                              }
+                            } else {
+                              // Show info dialog
+                              if (context.mounted) {
+                                await showDialog(
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: const Text('Already Submitted'),
+                                    content: const Text(
+                                      'You have already completed this test. Results will be available after the due time.',
                                     ),
-                                  ],
-                                ),
-                              );
-                              Navigator.pop(context);
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('OK'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                Navigator.pop(context);
+                              }
                             }
+                            return; // Exit only if actually submitted
                           }
-                          return;
+                          // If status is 'assigned' or 'started', allow continuing the test
                         }
 
                         if (context.mounted) {

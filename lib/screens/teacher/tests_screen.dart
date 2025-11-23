@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
@@ -18,12 +19,14 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   int _selectedTabIndex = 0;
   String _selectedClassFilter = 'All Classes';
   bool _initialLoadDone = false; // ensure we wait for auth user
-  bool _migrationRan = false; //  Run migration once
+  // Migration flag removed (website now writes correct studentId values).
+  Timer? _ticker; // drives live countdown and status transitions
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _armTicker();
   }
 
   @override
@@ -39,23 +42,6 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
         context,
         listen: false,
       ).loadTestsByTeacher(user.uid);
-
-      // Run migration once when teacher opens Tests screen
-      if (!_migrationRan) {
-        _migrationRan = true;
-        _runMigration();
-      }
-    }
-  }
-
-  Future<void> _runMigration() async {
-    try {
-      print('🔄 Starting testResults studentId migration...');
-      final result = await FirestoreService()
-          .migrateLegacyTestResultsStudentIds();
-      print('✅ Migration complete: $result');
-    } catch (e) {
-      print('⚠️ Migration error: $e');
     }
   }
 
@@ -80,6 +66,25 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _armTicker() {
+    // Recreate ticker with cadence based on selected tab
+    _ticker?.cancel();
+    Duration? cadence;
+    // 0=All, 1=Live, 2=Past
+    if (_selectedTabIndex == 1) {
+      cadence = const Duration(seconds: 2); // Live slowed to 2s cadence
+    } else if (_selectedTabIndex == 0) {
+      cadence = null; // All disabled (cards self-update individually)
+    } else {
+      cadence = null; // Past doesn't need ticking
+    }
+    if (cadence != null) {
+      _ticker = Timer.periodic(cadence, (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
   final List<String> _tabs = ['All', 'Live', 'Past'];
   List<String> _buildClassFilters(List<TestModel> tests) {
     final set = <String>{'All Classes'};
@@ -98,6 +103,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
+    _ticker?.cancel();
     super.dispose();
   }
 
@@ -186,122 +192,6 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                   color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.sync),
-                  iconSize: 24,
-                  color: const Color(0xFF6366F1),
-                  tooltip: 'Sync assignments for website tests',
-                  onPressed: () async {
-                    final auth = Provider.of<AuthProvider>(
-                      context,
-                      listen: false,
-                    );
-                    if (auth.currentUser == null) return;
-
-                    // Show confirmation dialog first
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Sync Test Assignments'),
-                        content: const Text(
-                          'This will create student assignments for any tests created from the website that are missing assignments.\n\nDo you want to continue?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF6366F1),
-                            ),
-                            child: const Text('Sync Now'),
-                          ),
-                        ],
-                      ),
-                    );
-
-                    if (confirm != true) return;
-
-                    // Show loading dialog
-                    if (mounted) {
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) =>
-                            const Center(child: CircularProgressIndicator()),
-                      );
-                    }
-
-                    try {
-                      final result = await FirestoreService()
-                          .syncAllTestAssignments(auth.currentUser!.uid);
-
-                      if (mounted) Navigator.pop(context); // Close loading
-
-                      if (result['success'] == true) {
-                        if (mounted) {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.check_circle,
-                                    color: Colors.green,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text('Sync Complete'),
-                                ],
-                              ),
-                              content: Text(
-                                '✅ Successfully synced: ${result['synced']} tests\n'
-                                '⏭️ Already had assignments: ${result['skipped']} tests\n'
-                                '${result['errors'] > 0 ? '❌ Errors: ${result['errors']} tests' : ''}',
-                              ),
-                              actions: [
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('OK'),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        // Refresh test list
-                        _loadTests();
-                      } else {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: ${result['error']}'),
-                              backgroundColor: Colors.red,
-                              duration: const Duration(seconds: 5),
-                            ),
-                          );
-                        }
-                      }
-                    } catch (e) {
-                      if (mounted) Navigator.pop(context); // Close loading
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error: $e'),
-                            backgroundColor: Colors.red,
-                            duration: const Duration(seconds: 5),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                ),
-              ),
               IconButton(
                 icon: const Icon(Icons.notifications_outlined),
                 iconSize: 24,
@@ -365,6 +255,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                 setState(() {
                   _selectedTabIndex = index;
                 });
+                _armTicker();
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 13),
@@ -482,10 +373,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     final query = _searchController.text.trim().toLowerCase();
     DateTime now = DateTime.now();
 
-    // Debug logging
-    print(
-      '🔍 Filtering ${tests.length} tests, selectedTabIndex: $_selectedTabIndex',
-    );
+    // Debug logging removed to reduce console spam
 
     bool matchesTab(TestModel t) {
       final isLive = t.startDate.isBefore(now) && t.endDate.isAfter(now);
@@ -527,80 +415,91 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
         .toList();
     filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    print('✅ After filtering: ${filtered.length} tests');
+    // Debug logging removed
     return filtered;
   }
 
   Widget _buildTestCardFromModel(TestModel t) {
-    final now = DateTime.now();
-    final isLive = t.startDate.isBefore(now) && t.endDate.isAfter(now);
-    final isScheduled = t.startDate.isAfter(now);
-    final statusText = isLive ? 'Live' : (isScheduled ? 'Scheduled' : 'Past');
-    final statusColor = isLive
-        ? const Color(0xFF10B981)
-        : (isScheduled ? const Color(0xFF6366F1) : const Color(0xFF1F2937));
-    final statusBg = isLive
-        ? const Color(0xFFD1FAE5)
-        : (isScheduled
-              ? const Color(0xFF6366F1).withOpacity(0.2)
-              : const Color(0xFFE5E7EB));
+    // Make each card self-updating every second
+    return StreamBuilder<DateTime>(
+      stream: Stream<DateTime>.periodic(
+        const Duration(seconds: 1),
+        (_) => DateTime.now(),
+      ),
+      builder: (context, snapshot) {
+        final now = snapshot.data ?? DateTime.now();
+        final isLive = t.startDate.isBefore(now) && t.endDate.isAfter(now);
+        final isScheduled = t.startDate.isAfter(now);
+        final statusText = isLive
+            ? 'Live'
+            : (isScheduled ? 'Scheduled' : 'Past');
+        final statusColor = isLive
+            ? const Color(0xFF10B981)
+            : (isScheduled ? const Color(0xFF6366F1) : const Color(0xFF1F2937));
+        final statusBg = isLive
+            ? const Color(0xFFD1FAE5)
+            : (isScheduled
+                  ? const Color(0xFF6366F1).withOpacity(0.2)
+                  : const Color(0xFFE5E7EB));
 
-    final subtitle = (t.className ?? '').isNotEmpty
-        ? (t.section != null && (t.section ?? '').isNotEmpty
-              ? '${t.className} - ${t.section}'
-              : t.className!)
-        : t.subject;
+        final subtitle = (t.className ?? '').isNotEmpty
+            ? (t.section != null && (t.section ?? '').isNotEmpty
+                  ? '${t.className} - ${t.section}'
+                  : t.className!)
+            : t.subject;
 
-    String footerText;
-    IconData footerIcon;
-    Color footerIconColor;
-    if (isLive) {
-      final remaining = t.endDate.difference(now);
-      final hh = remaining.inHours.toString().padLeft(2, '0');
-      final mm = (remaining.inMinutes % 60).toString().padLeft(2, '0');
-      final ss = (remaining.inSeconds % 60).toString().padLeft(2, '0');
-      footerText = 'Ends in: $hh:$mm:$ss';
-      footerIcon = Icons.timer_outlined;
-      footerIconColor = const Color(0xFF6366F1);
-    } else if (isScheduled) {
-      footerText = _formatDateTime(t.startDate);
-      footerIcon = Icons.calendar_today_outlined;
-      footerIconColor = const Color(0xFF6B7280);
-    } else {
-      footerText = 'Total: ${t.totalPoints} pts';
-      footerIcon = Icons.leaderboard_outlined;
-      footerIconColor = const Color(0xFF6366F1);
-    }
-
-    return _buildTestCard(
-      testId: t.id,
-      title: t.title,
-      subtitle: subtitle,
-      status: statusText,
-      statusColor: statusColor,
-      statusBgColor: statusBg,
-      footerIcon: footerIcon,
-      footerText: footerText,
-      footerIconColor: footerIconColor,
-      showEditButton: false,
-      showDeleteButton: true,
-      showStatsButton: !isScheduled,
-      onDelete: () async {
-        final prov = Provider.of<TestProvider>(context, listen: false);
-        final ok = await prov.deleteTest(t.id);
-        if (ok && mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Deleted ${t.title}')));
+        String footerText;
+        IconData footerIcon;
+        Color footerIconColor;
+        if (isLive) {
+          final remaining = t.endDate.difference(now);
+          final hh = remaining.inHours.toString().padLeft(2, '0');
+          final mm = (remaining.inMinutes % 60).toString().padLeft(2, '0');
+          final ss = (remaining.inSeconds % 60).toString().padLeft(2, '0');
+          footerText = 'Ends in: $hh:$mm:$ss';
+          footerIcon = Icons.timer_outlined;
+          footerIconColor = const Color(0xFF6366F1);
+        } else if (isScheduled) {
+          footerText = _formatDateTime(t.startDate);
+          footerIcon = Icons.calendar_today_outlined;
+          footerIconColor = const Color(0xFF6B7280);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Failed to delete: ${prov.errorMessage ?? 'Unknown error'}',
-              ),
-            ),
-          );
+          footerText = 'Total: ${t.totalPoints} pts';
+          footerIcon = Icons.leaderboard_outlined;
+          footerIconColor = const Color(0xFF6366F1);
         }
+
+        return _buildTestCard(
+          testId: t.id,
+          title: t.title,
+          subtitle: subtitle,
+          status: statusText,
+          statusColor: statusColor,
+          statusBgColor: statusBg,
+          footerIcon: footerIcon,
+          footerText: footerText,
+          footerIconColor: footerIconColor,
+          showEditButton: false,
+          showDeleteButton: true,
+          showStatsButton: !isScheduled,
+          onDelete: () async {
+            final prov = Provider.of<TestProvider>(context, listen: false);
+            final ok = await prov.deleteTest(t.id);
+            if (ok && mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Deleted ${t.title}')));
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Failed to delete: ${prov.errorMessage ?? 'Unknown error'}',
+                  ),
+                ),
+              );
+            }
+          },
+        );
       },
     );
   }
@@ -803,7 +702,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
       right: 24,
       child: FloatingActionButton(
         onPressed: () {
-          Navigator.pushNamed(context, '/create-test');
+          Navigator.pushNamed(context, '/create-test-entry');
         },
         backgroundColor: const Color(0xFF6366F1),
         child: const Icon(Icons.add, size: 30, color: Colors.white),

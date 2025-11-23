@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/leaderboard_service.dart';
 import '../../services/student_service.dart';
+import '../../services/firestore_service.dart';
 import '../../models/student_model.dart';
+import '../../models/performance_model.dart';
 import '../../utils/session_manager.dart';
 
 class StudentProfileScreen extends StatefulWidget {
@@ -19,6 +22,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   Future<StudentStats>? _statsFuture;
   StudentModel? _studentData;
   bool _isLoadingStudent = true;
+  // Live performance + attendance
+  double? _attendancePct;
+  bool _attendanceLoading = true;
+  int? _classRank; // from leaderboard stats (static until refresh)
 
   @override
   void didChangeDependencies() {
@@ -43,6 +50,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           _isLoadingStudent = false;
         });
       }
+      // After loading student data, compute attendance once
+      await _fetchAttendancePercentage();
+      // Resolve class rank from stats future
+      final stats = await _statsFuture;
+      if (mounted) setState(() => _classRank = stats?.classRank);
     } catch (e) {
       print('Error loading student data: $e');
       if (mounted) {
@@ -50,6 +62,57 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           _isLoadingStudent = false;
         });
       }
+    }
+  }
+
+  Future<void> _fetchAttendancePercentage() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final schoolCode = authProvider.currentUser?.instituteId ?? '';
+      if (schoolCode.isEmpty) {
+        setState(() => _attendanceLoading = false);
+        return;
+      }
+      final className =
+          _studentData?.className; // e.g. "Grade 10" or "Grade 10 - B"
+      if (className == null || className.isEmpty) {
+        setState(() => _attendanceLoading = false);
+        return;
+      }
+      final gradeMatch = RegExp(r'Grade\s+(\d+)').firstMatch(className);
+      final sectionMatch = RegExp(r'-\s*([A-Za-z])').firstMatch(className);
+      final grade = gradeMatch?.group(1);
+      final section = sectionMatch?.group(1); // may be null
+      if (grade == null) {
+        setState(() => _attendanceLoading = false);
+        return;
+      }
+      var query = FirebaseFirestore.instance
+          .collection('attendance')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('standard', isEqualTo: grade);
+      if (section != null && section.isNotEmpty) {
+        query = query.where('section', isEqualTo: section);
+      }
+      final snapshot = await query.limit(120).get();
+      int total = 0;
+      int present = 0;
+      for (final doc in snapshot.docs) {
+        final students = doc.data()['students'] as Map<String, dynamic>?;
+        if (students == null) continue;
+        // Direct lookup by auth UID (simplified schema)
+        final info = students[_studentData?.uid] as Map<String, dynamic>?;
+        if (info == null) continue; // student not found in this attendance doc
+        total++;
+        if ((info['status']?.toString().toLowerCase() ?? 'present') ==
+            'present')
+          present++;
+      }
+      if (total > 0) _attendancePct = (present / total * 100).clamp(0, 100);
+    } catch (e) {
+      print('⚠️ attendance fetch error (profile): $e');
+    } finally {
+      if (mounted) setState(() => _attendanceLoading = false);
     }
   }
 
@@ -211,17 +274,32 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   Widget _buildStatsCards() {
-    return FutureBuilder<StudentStats>(
-      future: _statsFuture,
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final uid = authProvider.currentUser?.uid;
+    if (uid == null) {
+      return const SizedBox.shrink();
+    }
+    return StreamBuilder<PerformanceModel?>(
+      stream: FirestoreService().getPerformanceStream(uid),
       builder: (context, snapshot) {
-        final testsTaken = snapshot.data?.testsTaken ?? 0;
-        final avg = snapshot.data?.averageScore ?? 0.0;
-        final rank = snapshot.data?.classRank;
+        final perf = snapshot.data;
+        final testsTaken = perf?.submissions.length ?? 0;
+        final avg = perf?.averageScore ?? 0.0;
+        final latest = (perf?.submissions.isNotEmpty ?? false)
+            ? perf!.submissions.last.percentage
+            : avg;
+        final rank = _classRank;
+        final attendanceDisplay = _attendancePct != null
+            ? '${_attendancePct!.round()}%'
+            : _attendanceLoading
+            ? '…'
+            : '--';
         final stats = [
           {'label': 'Tests Taken', 'value': '$testsTaken'},
           {'label': 'Average Score', 'value': '${avg.toStringAsFixed(1)}%'},
           {'label': 'Class Rank', 'value': rank != null ? '$rank' : '--'},
-          {'label': 'Attendance', 'value': '--'},
+          {'label': 'Attendance', 'value': attendanceDisplay},
+          {'label': 'Latest', 'value': '${latest.toStringAsFixed(1)}%'},
         ];
         return Padding(
           padding: const EdgeInsets.all(16),
@@ -414,48 +492,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     ).showSnackBar(const SnackBar(content: Text('Change photo coming soon!')));
   }
 
-  void _onEditProfile() {
-    if (_studentData == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please wait for profile data to load')),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => _EditProfileDialog(
-        studentData: _studentData!,
-        onSave: (updatedData) async {
-          try {
-            await _studentService.updateStudentProfile(
-              uid: _studentData!.uid,
-              name: updatedData['name'],
-              phone: updatedData['phone'],
-              schoolName: updatedData['schoolName'],
-              parentPhone: updatedData['parentPhone'],
-              className: updatedData['className'],
-            );
-
-            // Reload data
-            await _loadStudentData(_studentData!.uid);
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Profile updated successfully!')),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error updating profile: $e')),
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
+  // _onEditProfile removed (unused)
 
   Future<void> _onLogout() async {
     // Show attractive confirmation dialog

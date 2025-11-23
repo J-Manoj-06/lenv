@@ -805,38 +805,12 @@ class TeacherDashboardScreen extends StatelessWidget {
 */
 
 import 'package:flutter/material.dart';
-import '../../services/firestore_service.dart';
 import '../../widgets/teacher_bottom_nav.dart';
 
 /// Minimal teacher dashboard screen to restore app routing.
 /// You can replace its content later with the full dashboard UI.
-class TeacherDashboardScreen extends StatefulWidget {
+class TeacherDashboardScreen extends StatelessWidget {
   const TeacherDashboardScreen({Key? key}) : super(key: key);
-
-  @override
-  State<TeacherDashboardScreen> createState() => _TeacherDashboardScreenState();
-}
-
-class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
-  bool _migrationRan = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _runMigrationOnce();
-  }
-
-  Future<void> _runMigrationOnce() async {
-    if (_migrationRan) return;
-    _migrationRan = true;
-
-    try {
-      // Silent background migration - fixes legacy studentId values
-      await FirestoreService().migrateLegacyTestResultsStudentIds();
-    } catch (e) {
-      print('⚠️ Migration silent error: $e');
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -854,15 +828,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'This is a placeholder screen. The full dashboard\\nUI can be restored once routing compiles cleanly.',
+              'This is a placeholder screen. The full dashboard\nUI can be restored once routing compiles cleanly.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pushNamed(context, '/classes');
-              },
+              onPressed: () => Navigator.pushNamed(context, '/classes'),
               icon: const Icon(Icons.class_outlined),
               label: const Text('Go to Classes'),
             ),

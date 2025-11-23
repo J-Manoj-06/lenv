@@ -932,7 +932,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       scale: 1.05,
                       child: Container(
                         width: 150,
-                        height: 180,
+                        // Increased height to prevent RenderFlex overflow (was 180 causing ~16px spill)
+                        height: 200,
                         decoration: BoxDecoration(
                           color: bgColor,
                           borderRadius: BorderRadius.circular(20),

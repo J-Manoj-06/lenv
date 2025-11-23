@@ -221,15 +221,18 @@ class TestModel {
       } else if (json['date'] is String) {
         // Parse string date format "YYYY-MM-DD"
         final dateStr = json['date'] as String;
-        final endTimeStr =
-            json['endTime'] as String? ??
-            json['scheduledTime'] as String? ??
-            '23:59';
-        final durationMinutes = json['duration'] as int? ?? 60;
+        final startTimeStr = json['startTime'] as String? ?? '00:00';
 
-        // Calculate end date from start + duration
-        final tempStart = DateTime.parse('$dateStr $endTimeStr');
-        endDate = tempStart.add(Duration(minutes: durationMinutes));
+        // If we have a duration field, calculate endDate as startDate + duration
+        if (json['duration'] != null) {
+          final durationMinutes = (json['duration'] as num).toInt();
+          startDate = DateTime.parse('$dateStr $startTimeStr');
+          endDate = startDate.add(Duration(minutes: durationMinutes));
+        } else {
+          // Fallback to endTime field or default to end of day
+          final endTimeStr = json['endTime'] as String? ?? '23:59';
+          endDate = DateTime.parse('$dateStr $endTimeStr');
+        }
       } else {
         endDate = DateTime.now().add(const Duration(hours: 1));
       }

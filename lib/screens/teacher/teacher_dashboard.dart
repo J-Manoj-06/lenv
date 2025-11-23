@@ -29,6 +29,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   List<Map<String, dynamic>> _students = [];
   List<String> _classes = [];
   Map<String, int> _classStudentCounts = {};
+  Map<String, String> _classSubjectMap = {};
   bool _isLoading = true;
   String? _error;
 
@@ -164,6 +165,45 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             }).length;
 
             _classStudentCounts[className] = count;
+          }
+        }
+
+        // Build subject mapping from classAssignments if available (e.g. "Grade 10: A, Science")
+        _classSubjectMap = {};
+        final assignments = teacherData['classAssignments'];
+        if (assignments is List) {
+          for (final assignment in assignments) {
+            final assignmentStr = assignment.toString();
+            final colonParts = assignmentStr.split(':');
+            if (colonParts.length < 2) continue;
+            final gradeRaw = colonParts[0].trim(); // e.g. "Grade 10"
+            final rightSide = colonParts[1]; // e.g. " A, Science"
+            final commaParts = rightSide.split(',');
+            if (commaParts.isEmpty) continue;
+            final sectionPart = commaParts[0].trim(); // "A"
+            String? subjectPart;
+            if (commaParts.length > 1) {
+              subjectPart = commaParts[1].trim();
+            }
+            // Extract number from grade
+            final grade = gradeRaw
+                .replaceAll('Grade ', '')
+                .replaceAll('grade ', '')
+                .trim();
+            final key = '$grade - $sectionPart';
+            if (subjectPart != null && subjectPart.isNotEmpty) {
+              _classSubjectMap[key] = subjectPart;
+            }
+          }
+        }
+        // Fallback: if no mapping derived but subjectsHandled exists, apply first subject to all classes
+        if (_classSubjectMap.isEmpty) {
+          final subjectsHandled = teacherData['subjectsHandled'];
+          if (subjectsHandled is List && subjectsHandled.isNotEmpty) {
+            final fallbackSubject = subjectsHandled.first.toString();
+            for (final c in classes) {
+              _classSubjectMap[c] = fallbackSubject;
+            }
           }
         }
 
@@ -316,10 +356,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     ),
                   ),
                   items: _classes.map((String className) {
-                    final count = _classStudentCounts[className] ?? 0;
+                    final subject = _classSubjectMap[className];
+                    final display = subject != null && subject.isNotEmpty
+                        ? '$className - $subject'
+                        : className;
                     return DropdownMenuItem<String>(
                       value: className,
-                      child: Text('$className ($count students)'),
+                      child: Text(display),
                     );
                   }).toList(),
                   onChanged: (String? newValue) {

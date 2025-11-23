@@ -44,6 +44,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   List<String> sections = [];
   // Map of grade -> sections available for that grade (e.g., {"8": ["A"], "9": ["A","B"]})
   final Map<String, List<String>> _gradeSections = {};
+  // Map of grade|section -> subjects handled specifically for that combination
+  final Map<String, List<String>> _classSectionSubjects = {};
+  // Fallback full subject list (all handled by teacher across classes)
+  List<String> _allSubjectsFallback = [];
 
   bool _loadingMeta = true;
 
@@ -77,26 +81,48 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
       final svc = TeacherService();
       final data = await svc.getTeacherByEmail(user.email);
 
-      // Get subjects (fallback to parse from classAssignments if needed)
-      List<String> subjs = (data?['subjectsHandled'] is List)
+      // Build mapping of subjects per class-section from classAssignments
+      List<String> globalSubjects = (data?['subjectsHandled'] is List)
           ? List<String>.from(data!['subjectsHandled'] as List)
           : <String>[];
-      if (subjs.isEmpty && data?['classAssignments'] is List) {
-        final Set<String> uniqueSubjects = {};
+      _classSectionSubjects.clear();
+      if (data?['classAssignments'] is List) {
         for (final assignment in (data!['classAssignments'] as List)) {
-          final s = assignment.toString(); // e.g., "Grade 10: A, Science"
-          final parts = s.split(':');
-          if (parts.length >= 2) {
-            final right = parts[1]; // " A, Science"
-            final commaParts = right.split(',');
-            if (commaParts.length >= 2) {
-              final subject = commaParts[1].trim();
-              if (subject.isNotEmpty) uniqueSubjects.add(subject);
+          final raw = assignment.toString(); // "Grade 10: A, Science"
+          final colonParts = raw.split(':');
+          if (colonParts.length < 2) continue;
+          final gradePart = colonParts[0].trim(); // "Grade 10"
+          final rightSide = colonParts[1]; // " A, Science"
+          final commaParts = rightSide.split(',');
+          if (commaParts.isEmpty) continue;
+          final sectionPart = commaParts[0].trim();
+          String? subjectPart;
+          if (commaParts.length > 1) subjectPart = commaParts[1].trim();
+          final gradeNormalized = gradePart
+              .replaceAll('Grade ', '')
+              .replaceAll('grade ', '')
+              .trim();
+          final key = '$gradeNormalized|$sectionPart';
+          if (subjectPart != null && subjectPart.isNotEmpty) {
+            _classSectionSubjects.putIfAbsent(key, () => <String>[]);
+            if (!_classSectionSubjects[key]!.contains(subjectPart)) {
+              _classSectionSubjects[key]!.add(subjectPart);
+            }
+            if (!globalSubjects.contains(subjectPart)) {
+              globalSubjects.add(subjectPart);
             }
           }
         }
-        subjs = uniqueSubjects.toList()..sort();
       }
+      // Normalize fallback subject list
+      if (globalSubjects.isEmpty && _classSectionSubjects.isNotEmpty) {
+        globalSubjects = _classSectionSubjects.values
+            .expand((e) => e)
+            .toSet()
+            .toList();
+      }
+      globalSubjects.sort();
+      _allSubjectsFallback = globalSubjects;
 
       // Get formatted classes using the service (handles both formats)
       final dynamic sectionsData = data?['sections'] ?? data?['section'];
@@ -134,19 +160,53 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
       final List<String> sectionDisplay =
           initialSections.map((s) => 'Section $s').toList()..sort();
 
+      // Determine initial class and its sections
       setState(() {
-        subjects = subjs;
         // Show only the standard (grade) in the class dropdown
         classes = gradeOnlyList;
         sections = sectionDisplay;
-        selectedSubject = subjects.isNotEmpty ? subjects.first : null;
         selectedClass = initialGrade;
         selectedSection = sections.isNotEmpty ? sections.first : null;
+        // Populate subjects filtered by initial selection
+        subjects = _filteredSubjectsForSelection();
+        selectedSubject = subjects.isNotEmpty ? subjects.first : null;
         _loadingMeta = false;
       });
     } catch (e) {
       setState(() => _loadingMeta = false);
     }
+  }
+
+  List<String> _filteredSubjectsForSelection() {
+    final grade = selectedClass?.trim();
+    if (grade == null || grade.isEmpty) return _allSubjectsFallback;
+    final sectionLabel = selectedSection?.trim();
+    String? section;
+    if (sectionLabel != null &&
+        sectionLabel.toLowerCase().startsWith('section ')) {
+      section = sectionLabel.substring(8).trim();
+    }
+    if (section == null || section.isEmpty) {
+      // Aggregate subjects across all sections for the grade
+      final matchingKeys = _classSectionSubjects.keys.where(
+        (k) => k.startsWith('$grade|'),
+      );
+      final set = <String>{};
+      for (final k in matchingKeys) {
+        set.addAll(_classSectionSubjects[k]!);
+      }
+      if (set.isNotEmpty) {
+        final list = set.toList()..sort();
+        return list;
+      }
+      return _allSubjectsFallback;
+    }
+    final key = '$grade|$section';
+    final list = _classSectionSubjects[key];
+    if (list != null && list.isNotEmpty) {
+      return (list.toList()..sort());
+    }
+    return _allSubjectsFallback;
   }
 
   @override
@@ -314,6 +374,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                   ? sections.first
                                   : null;
                             }
+                            // Update subjects filtered by new class/section
+                            subjects = _filteredSubjectsForSelection();
+                            if (!subjects.contains(selectedSubject)) {
+                              selectedSubject = subjects.isNotEmpty
+                                  ? subjects.first
+                                  : null;
+                            }
                           });
                         },
                 ),
@@ -331,6 +398,12 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                 : (value) {
                     setState(() {
                       selectedSection = value;
+                      subjects = _filteredSubjectsForSelection();
+                      if (!subjects.contains(selectedSubject)) {
+                        selectedSubject = subjects.isNotEmpty
+                            ? subjects.first
+                            : null;
+                      }
                     });
                   },
           ),

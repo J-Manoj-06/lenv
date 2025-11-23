@@ -359,6 +359,113 @@ class TeacherService {
     List<dynamic>? classAssignments,
   }) {
     try {
+      print(
+        '🔍 Stream query - schoolId: $schoolId, classesHandled: $classesHandled, sections: $sections, classAssignments: $classAssignments',
+      );
+
+      // If no classesHandled, try to extract from classAssignments
+      if ((classesHandled == null || classesHandled.isEmpty) &&
+          classAssignments != null) {
+        print('📚 Using classAssignments fallback');
+        // Parse classAssignments to get class-section combinations
+        final formatted = getTeacherClasses(
+          null,
+          null,
+          classAssignments: classAssignments,
+        );
+        print('📚 Formatted classes from assignments: $formatted');
+
+        return _firestore
+            .collection('students')
+            .where('schoolCode', isEqualTo: schoolId)
+            .snapshots()
+            .asyncMap((snapshot) async {
+              print(
+                '📦 Stream received ${snapshot.docs.length} student documents (classAssignments mode)',
+              );
+              final List<Map<String, dynamic>> allStudents = [];
+
+              for (var fc in formatted) {
+                // fc like "10 - A" -> className="Grade 10", section="A"
+                final parts = fc.split(' - ');
+                if (parts.length != 2) continue;
+                final className = 'Grade ${parts[0].trim()}';
+                final section = parts[1].trim();
+
+                print(
+                  '🔎 Looking for students: className=$className, section=$section',
+                );
+
+                for (var doc in snapshot.docs) {
+                  final studentData = doc.data();
+                  final studentClassName =
+                      studentData['className']?.toString() ?? '';
+                  final studentSection =
+                      studentData['section']?.toString() ?? '';
+
+                  if (studentClassName == className &&
+                      studentSection == section) {
+                    studentData['id'] = doc.id;
+                    print(
+                      '   ✅ Matched student: ${studentData['studentName']}',
+                    );
+
+                    // Fetch reward points
+                    try {
+                      final studentEmail =
+                          studentData['email'] as String? ??
+                          studentData['studentEmail'] as String?;
+                      String? actualUid;
+                      int totalPoints = 0;
+
+                      if (studentEmail != null && studentEmail.isNotEmpty) {
+                        final userQuery = await _firestore
+                            .collection('users')
+                            .where('email', isEqualTo: studentEmail)
+                            .limit(1)
+                            .get();
+
+                        if (userQuery.docs.isNotEmpty) {
+                          final userData = userQuery.docs.first.data();
+                          actualUid =
+                              userData['uid'] as String? ??
+                              userQuery.docs.first.id;
+                        }
+                      }
+
+                      if (actualUid != null) {
+                        final rewardsSnap = await _firestore
+                            .collection('student_rewards')
+                            .where('studentId', isEqualTo: actualUid)
+                            .get();
+
+                        for (final rd in rewardsSnap.docs) {
+                          final points =
+                              (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
+                          totalPoints += points;
+                        }
+                      }
+
+                      studentData['rewardPoints'] = totalPoints;
+                    } catch (e) {
+                      studentData['rewardPoints'] = 0;
+                    }
+
+                    allStudents.add(studentData);
+                  }
+                }
+              }
+
+              print(
+                '✅ Stream returning ${allStudents.length} matched students (classAssignments mode)',
+              );
+              return allStudents;
+            });
+      }
+
+      // Original classesHandled logic
+      print('📚 Using classesHandled logic');
+
       // For simplicity, we'll query all students in the school and filter locally
       // This is more efficient than managing multiple stream subscriptions
       return _firestore
@@ -366,10 +473,14 @@ class TeacherService {
           .where('schoolCode', isEqualTo: schoolId)
           .snapshots()
           .asyncMap((snapshot) async {
+            print(
+              '📦 Stream received ${snapshot.docs.length} student documents',
+            );
             final List<Map<String, dynamic>> allStudents = [];
 
             // Filter students based on teacher's classes
             final sectionList = _normalizeSections(sections);
+            print('📋 Normalized sections: $sectionList');
 
             for (var doc in snapshot.docs) {
               final studentData = doc.data();
@@ -384,9 +495,22 @@ class TeacherService {
 
               if (classesHandled != null && classesHandled.isNotEmpty) {
                 for (final classItem in classesHandled) {
-                  if (studentClassName == classItem.toString() &&
+                  // Normalize comparison: both should have "Grade" prefix
+                  String normalizedTeacherClass = classItem.toString();
+                  if (!normalizedTeacherClass.toLowerCase().startsWith(
+                    'grade',
+                  )) {
+                    normalizedTeacherClass = 'Grade $normalizedTeacherClass';
+                  }
+
+                  print(
+                    '🔎 Comparing: student "$studentClassName" (section: "$studentSection") with teacher class "$normalizedTeacherClass"',
+                  );
+
+                  if (studentClassName == normalizedTeacherClass &&
                       sectionList.contains(studentSection)) {
                     matchesClass = true;
+                    print('   ✅ Match found!');
                     break;
                   }
                 }
@@ -438,9 +562,11 @@ class TeacherService {
               }
             }
 
+            print('✅ Stream returning ${allStudents.length} matched students');
             return allStudents;
           });
     } catch (e) {
+      print('❌ Stream error: $e');
       return Stream.value([]);
     }
   }

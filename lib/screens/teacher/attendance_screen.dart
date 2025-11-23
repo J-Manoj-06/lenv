@@ -130,15 +130,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         print("  collection: 'students'");
       }
 
-      final students = snapshot.docs.map((doc) {
+      final List<Map<String, dynamic>> students = [];
+      for (final doc in snapshot.docs) {
         final data = doc.data();
-        return {
-          'id': doc.id,
+        // Use uid field directly from students collection (auth UID)
+        final authUid =
+            data['uid'] as String? ?? doc.id; // fallback to doc id if missing
+        students.add({
+          'id': authUid, // canonical key (auth UID)
+          'legacyId': doc.id, // for reading old attendance docs
           'name': data['studentName'] ?? data['name'] ?? 'Unknown',
           'rollNo': data['rollNo'] ?? data['studentId'] ?? '—',
-          ...data,
-        };
-      }).toList();
+          'email': data['email'],
+        });
+      }
 
       // Sort by roll number or name
       students.sort((a, b) {
@@ -150,7 +155,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       // Initialize attendance map with default "present" for all
       final attendanceMap = <String, AttendanceStatus>{};
       for (var student in students) {
-        attendanceMap[student['id']] = AttendanceStatus.present;
+        attendanceMap[student['id']] =
+            AttendanceStatus.present; // keyed by auth UID
       }
 
       setState(() {
@@ -198,25 +204,34 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return;
       }
 
-      // Prefill statuses from the students map in the document
+      // Prefill statuses; support legacy docId keys and new auth UID keys
       final data = docSnap.data();
       final studentsData = data?['students'] as Map<String, dynamic>?;
-
       if (studentsData != null) {
         for (final entry in studentsData.entries) {
-          final studentId = entry.key;
-          final studentInfo = entry.value as Map<String, dynamic>;
-          final status = studentInfo['status']?.toString() ?? 'present';
-
-          final mapped = switch (status) {
+          final key = entry
+              .key; // could be auth UID (new) or legacy student doc id (old)
+          final info = entry.value as Map<String, dynamic>;
+          final status = info['status']?.toString() ?? 'present';
+          AttendanceStatus mapped = switch (status) {
             'present' => AttendanceStatus.present,
             'absent' => AttendanceStatus.absent,
             _ => AttendanceStatus.present,
           };
-          _attendanceMap[studentId] = mapped;
+          // Resolve auth UID: if key matches a student's canonical id use directly; else try match via legacyId
+          String resolvedKey = key;
+          if (!_attendanceMap.containsKey(key)) {
+            // attempt legacy match
+            final match = _students.firstWhere(
+              (s) => s['legacyId'] == key,
+              orElse: () => {},
+            );
+            if (match.isNotEmpty) {
+              resolvedKey = match['id']; // use auth UID
+            }
+          }
+          _attendanceMap[resolvedKey] = mapped;
         }
-
-        // Lock if attendance exists
         setState(() {
           _isSubmitted = true;
           _isEditing = false;
@@ -244,13 +259,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final docId =
           '${schoolCode}_${dateStr}_${_selectedStandard}_${_selectedSection}';
 
-      // Build students map
+      // Build students map keyed ONLY by auth UID (canonical)
       final studentsMap = <String, Map<String, dynamic>>{};
       for (final student in _students) {
-        final studentId = student['id'] as String;
-        final status = _attendanceMap[studentId]?.name ?? 'present';
-
-        studentsMap[studentId] = {
+        final authUid = student['id'] as String; // canonical key
+        final status = _attendanceMap[authUid]?.name ?? 'present';
+        studentsMap[authUid] = {
           'name': student['name'] ?? '',
           'rollNo': student['rollNo'] ?? '',
           'status': status,
@@ -265,7 +279,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         'date': dateStr,
         'teacherId': teacherId,
         'timestamp': FieldValue.serverTimestamp(),
-        'students': studentsMap,
+        'students':
+            studentsMap, // schema: { authUid: { name, rollNo, status } }
       });
 
       if (mounted) {

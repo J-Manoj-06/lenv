@@ -20,10 +20,14 @@ class AITestGeneratorScreen extends StatefulWidget {
 class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   final _testNameController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _subjectController = TextEditingController();
   final _topicsController = TextEditingController();
   final _questionCountController = TextEditingController();
   final _totalMarksController = TextEditingController();
+
+  String? selectedSubject; // subject dropdown selection
+  List<String> _allSubjectsFallback = [];
+  final Map<String, List<String>> _classSectionSubjects =
+      {}; // key grade|section -> subjects
 
   String selectedDifficulty = 'Medium';
   String? selectedClass;
@@ -53,7 +57,6 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   void dispose() {
     _testNameController.dispose();
     _descriptionController.dispose();
-    _subjectController.dispose();
     _topicsController.dispose();
     _questionCountController.dispose();
     _totalMarksController.dispose();
@@ -80,6 +83,45 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     try {
       final svc = TeacherService();
       final data = await svc.getTeacherByEmail(user.email);
+
+      // Build subject mapping from classAssignments & subjectsHandled
+      if (data?['classAssignments'] is List) {
+        for (final assignment in (data!['classAssignments'] as List)) {
+          final raw = assignment.toString(); // "Grade 10: A, Science"
+          final colonParts = raw.split(':');
+          if (colonParts.length < 2) continue;
+          final gradePart = colonParts[0].trim();
+          final rightSide = colonParts[1];
+          final commaParts = rightSide.split(',');
+          if (commaParts.isEmpty) continue;
+          final sectionPart = commaParts[0].trim();
+          String? subjectPart;
+          if (commaParts.length > 1) subjectPart = commaParts[1].trim();
+          final gradeNormalized = gradePart
+              .replaceAll('Grade ', '')
+              .replaceAll('grade ', '')
+              .trim();
+          final key = '$gradeNormalized|$sectionPart';
+          if (subjectPart != null && subjectPart.isNotEmpty) {
+            _classSectionSubjects.putIfAbsent(key, () => <String>[]);
+            if (!_classSectionSubjects[key]!.contains(subjectPart)) {
+              _classSectionSubjects[key]!.add(subjectPart);
+            }
+            if (!_allSubjectsFallback.contains(subjectPart)) {
+              _allSubjectsFallback.add(subjectPart);
+            }
+          }
+        }
+      }
+      if (data?['subjectsHandled'] is List) {
+        for (final s in (data!['subjectsHandled'] as List)) {
+          final subj = s.toString().trim();
+          if (subj.isNotEmpty && !_allSubjectsFallback.contains(subj)) {
+            _allSubjectsFallback.add(subj);
+          }
+        }
+      }
+      _allSubjectsFallback.sort();
 
       // Get formatted classes using the service (handles both formats)
       final dynamic sectionsData = data?['sections'] ?? data?['section'];
@@ -123,11 +165,39 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
         sections = sectionDisplay;
         selectedClass = initialGrade;
         selectedSection = sections.isNotEmpty ? sections.first : null;
+        final initSubjects = _filteredSubjectsForSelection();
+        selectedSubject = initSubjects.isNotEmpty ? initSubjects.first : null;
         _loadingMeta = false;
       });
     } catch (e) {
       setState(() => _loadingMeta = false);
     }
+  }
+
+  List<String> _filteredSubjectsForSelection() {
+    final grade = selectedClass?.trim();
+    if (grade == null || grade.isEmpty) return _allSubjectsFallback;
+    final sectionLabel = selectedSection?.trim();
+    String? section;
+    if (sectionLabel != null &&
+        sectionLabel.toLowerCase().startsWith('section ')) {
+      section = sectionLabel.substring(8).trim();
+    }
+    if (section == null || section.isEmpty) {
+      final keys = _classSectionSubjects.keys.where(
+        (k) => k.startsWith('$grade|'),
+      );
+      final set = <String>{};
+      for (final k in keys) {
+        set.addAll(_classSectionSubjects[k]!);
+      }
+      if (set.isNotEmpty) return set.toList()..sort();
+      return _allSubjectsFallback;
+    }
+    final key = '$grade|$section';
+    final list = _classSectionSubjects[key];
+    if (list != null && list.isNotEmpty) return list.toList()..sort();
+    return _allSubjectsFallback;
   }
 
   void _generateQuestions() {
@@ -147,8 +217,8 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
       setState(() => isGenerating = false);
       return;
     }
-    if (_subjectController.text.trim().isEmpty) {
-      _showErrorDialog('\u26a0\ufe0f Please enter a subject');
+    if (selectedSubject == null || selectedSubject!.trim().isEmpty) {
+      _showErrorDialog('\u26a0\ufe0f Please select a subject');
       setState(() => isGenerating = false);
       return;
     }
@@ -206,13 +276,13 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     _fetchPreviousQuestions(
           className: selectedClass!,
           section: sectionValue,
-          subject: _subjectController.text.trim(),
+          subject: selectedSubject!.trim(),
         )
         .then((previousQuestions) {
           return aiTestService.generateTest(
             className: selectedClass!,
             section: sectionValue,
-            subject: _subjectController.text.trim(),
+            subject: selectedSubject!.trim(),
             topic: _topicsController.text.trim(),
             difficulty: selectedDifficulty,
             totalMarks: totalMarks,
@@ -485,6 +555,12 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                     : (value) {
                         setState(() {
                           selectedSection = value;
+                          final subjs = _filteredSubjectsForSelection();
+                          if (!subjs.contains(selectedSubject)) {
+                            selectedSubject = subjs.isNotEmpty
+                                ? subjs.first
+                                : null;
+                          }
                         });
                       },
               ),
@@ -497,10 +573,15 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildTextField(
+              child: _buildDropdown(
                 label: 'Subject *',
-                controller: _subjectController,
-                placeholder: 'e.g., Mathematics',
+                value: selectedSubject,
+                items: _filteredSubjectsForSelection(),
+                onChanged: (val) {
+                  setState(() {
+                    selectedSubject = val;
+                  });
+                },
               ),
             ),
             const SizedBox(width: 16),
@@ -1155,7 +1236,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           const SizedBox(height: 16),
           _buildMetadataRow(
             'Prompt:',
-            'Subject: ${_subjectController.text}, Topics: ${_topicsController.text}, Difficulty: $selectedDifficulty...',
+            'Subject: ${selectedSubject ?? ''}, Topics: ${_topicsController.text}, Difficulty: $selectedDifficulty...',
           ),
           const SizedBox(height: 8),
           _buildMetadataRow('Generated:', 'Oct 26, 2023, 2:30 PM'),
@@ -1542,7 +1623,7 @@ extension on _AITestGeneratorScreenState {
       teacherId: user.uid,
       teacherName: user.name,
       instituteId: user.instituteId ?? '',
-      subject: _subjectController.text.trim(),
+      subject: selectedSubject?.trim() ?? '',
       className: selectedClass,
       section: normalizedSection,
       questions: modelQuestions,

@@ -9,8 +9,8 @@ class TestResultScreen extends StatefulWidget {
   final String testId;
   final String testName;
   final String className;
-  final String status;
-  final String endTime;
+  final String status; // initial status from list (may be stale)
+  final String endTime; // initial text (not used after live binding)
 
   const TestResultScreen({
     Key? key,
@@ -29,9 +29,26 @@ class _TestResultScreenState extends State<TestResultScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   TestModel? _test;
   List<TestResultModel> _results = [];
+  List<Map<String, dynamic>> _allAssignedStudents =
+      []; // All students (completed + pending)
   int _totalAssignedStudents = 0; // Track total students assigned
   bool _isLoading = true;
   String? _error;
+
+  bool get _isLiveNow {
+    final t = _test;
+    if (t == null) return false;
+    final now = DateTime.now();
+    return t.startDate.isBefore(now) && t.endDate.isAfter(now);
+  }
+
+  String _formatRemaining(Duration d) {
+    if (d.isNegative) return '00:00:00';
+    final hh = d.inHours.toString().padLeft(2, '0');
+    final mm = (d.inMinutes % 60).toString().padLeft(2, '0');
+    final ss = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$hh:$mm:$ss';
+  }
 
   @override
   void initState() {
@@ -68,29 +85,206 @@ class _TestResultScreenState extends State<TestResultScreen> {
           .get();
 
       // Filter completed results (those with actual scores)
+      // Exclude records with status='assigned' as those are pending
       final results = allResultsSnapshot.docs
           .where((doc) {
             final data = doc.data();
             final status = data['status'] as String?;
-            // Only include if status is completed OR if resultId exists (old format)
-            return status == 'completed' ||
-                data['resultId'] != null ||
-                data['score'] != null;
+            // Only include if status is NOT 'assigned'
+            // Status can be 'completed', null, or other values for actual submissions
+            if (status == 'assigned') return false;
+            // Include if has actual submission data
+            return data['completedAt'] != null ||
+                data['submittedAt'] != null ||
+                data['resultId'] != null;
           })
           .map((doc) => TestResultModel.fromFirestore(doc))
           .toList();
 
-      // Count total assigned students (unique studentIds with any status)
-      final assignedStudentIds = allResultsSnapshot.docs
-          .map((doc) => doc.data()['studentId'] as String?)
-          .where((id) => id != null && id.isNotEmpty)
-          .toSet()
-          .length;
+      // Try to fetch from studentAssignments for accurate total
+      int totalStudents = 0;
+      List<Map<String, dynamic>> allStudents = [];
+      try {
+        final assignmentsSnapshot = await _firestore
+            .collection('studentAssignments')
+            .where('testId', isEqualTo: widget.testId)
+            .get();
+
+        if (assignmentsSnapshot.docs.isNotEmpty) {
+          // Use studentAssignments as source of truth
+          totalStudents = assignmentsSnapshot.docs.length;
+
+          // Build comprehensive student list with status
+          for (var assignDoc in assignmentsSnapshot.docs) {
+            final assignData = assignDoc.data();
+            final studentId = assignData['studentId'] as String?;
+            final studentName =
+                assignData['studentName'] as String? ?? 'Unknown';
+
+            // Find matching completed result (filtered results already exclude 'assigned' status)
+            final matchingResult = results.firstWhere(
+              (r) => r.studentId == studentId,
+              orElse: () => TestResultModel(
+                id: '',
+                studentId: studentId ?? '',
+                studentName: studentName,
+                studentEmail: '',
+                testId: widget.testId,
+                testTitle: '',
+                subject: '',
+                score: 0,
+                totalQuestions: 0,
+                correctAnswers: 0,
+                completedAt: DateTime.now(),
+                timeTaken: 0,
+                answers: [],
+              ),
+            );
+
+            final hasCompleted = matchingResult.id.isNotEmpty;
+            final studentStatus = hasCompleted ? 'completed' : 'not_attempted';
+            print(
+              '📊 Student: $studentName | Status: $studentStatus | Score: ${hasCompleted ? matchingResult.score : "N/A"} | Result ID: ${matchingResult.id}',
+            );
+
+            allStudents.add({
+              'studentId': studentId,
+              'studentName': studentName,
+              'result': hasCompleted ? matchingResult : null,
+              'status': studentStatus,
+            });
+          }
+        } else {
+          // Fallback: Build unique student list from testResults
+          // Group by studentId and prioritize completed over assigned
+          final studentMap = <String, Map<String, dynamic>>{};
+
+          for (var doc in allResultsSnapshot.docs) {
+            final data = doc.data();
+            final studentId = data['studentId'] as String?;
+            final studentName = data['studentName'] as String? ?? 'Unknown';
+            final status = data['status'] as String?;
+
+            if (studentId == null || studentId.isEmpty) continue;
+
+            // If student already exists, only replace if current record is completed
+            if (studentMap.containsKey(studentId)) {
+              final existingStatus =
+                  studentMap[studentId]!['status'] as String?;
+              // Skip if existing is already completed, or if both are assigned
+              if (existingStatus != 'assigned' || status == 'assigned')
+                continue;
+            }
+
+            studentMap[studentId] = {
+              'studentId': studentId,
+              'studentName': studentName,
+              'status': status,
+            };
+          }
+
+          totalStudents = studentMap.length;
+
+          // Build list from unique students
+          for (var studentInfo in studentMap.values) {
+            final studentId = studentInfo['studentId'] as String;
+            final studentName = studentInfo['studentName'] as String;
+
+            // Find matching completed result (excludes status='assigned')
+            final matchingResult = results.firstWhere(
+              (r) => r.studentId == studentId,
+              orElse: () => TestResultModel(
+                id: '',
+                studentId: studentId,
+                studentName: studentName,
+                studentEmail: '',
+                testId: widget.testId,
+                testTitle: '',
+                subject: '',
+                score: 0,
+                totalQuestions: 0,
+                correctAnswers: 0,
+                completedAt: DateTime.now(),
+                timeTaken: 0,
+                answers: [],
+              ),
+            );
+
+            final hasCompleted = matchingResult.id.isNotEmpty;
+            allStudents.add({
+              'studentId': studentId,
+              'studentName': studentName,
+              'result': hasCompleted ? matchingResult : null,
+              'status': hasCompleted ? 'completed' : 'not_attempted',
+            });
+          }
+        }
+      } catch (e) {
+        print('Error fetching student assignments: $e');
+        // Fallback: Build unique student list from testResults
+        final studentMap = <String, Map<String, dynamic>>{};
+
+        for (var doc in allResultsSnapshot.docs) {
+          final data = doc.data();
+          final studentId = data['studentId'] as String?;
+          final studentName = data['studentName'] as String? ?? 'Unknown';
+          final status = data['status'] as String?;
+
+          if (studentId == null || studentId.isEmpty) continue;
+
+          // Prioritize completed records over assigned
+          if (studentMap.containsKey(studentId)) {
+            final existingStatus = studentMap[studentId]!['status'] as String?;
+            if (existingStatus != 'assigned' || status == 'assigned') continue;
+          }
+
+          studentMap[studentId] = {
+            'studentId': studentId,
+            'studentName': studentName,
+          };
+        }
+
+        totalStudents = studentMap.length;
+
+        // Build from unique students
+        for (var studentInfo in studentMap.values) {
+          final studentId = studentInfo['studentId'] as String;
+          final studentName = studentInfo['studentName'] as String;
+
+          final matchingResult = results.firstWhere(
+            (r) => r.studentId == studentId,
+            orElse: () => TestResultModel(
+              id: '',
+              studentId: studentId,
+              studentName: studentName,
+              studentEmail: '',
+              testId: widget.testId,
+              testTitle: '',
+              subject: '',
+              score: 0,
+              totalQuestions: 0,
+              correctAnswers: 0,
+              completedAt: DateTime.now(),
+              timeTaken: 0,
+              answers: [],
+            ),
+          );
+
+          final hasCompleted = matchingResult.id.isNotEmpty;
+          allStudents.add({
+            'studentId': studentId,
+            'studentName': studentName,
+            'result': hasCompleted ? matchingResult : null,
+            'status': hasCompleted ? 'completed' : 'not_attempted',
+          });
+        }
+      }
 
       setState(() {
         _test = test;
         _results = results;
-        _totalAssignedStudents = assignedStudentIds;
+        _allAssignedStudents = allStudents;
+        _totalAssignedStudents = totalStudents;
         _isLoading = false;
       });
     } catch (e) {
@@ -137,34 +331,744 @@ class _TestResultScreenState extends State<TestResultScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF121212)
+          : Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           Column(
             children: [
-              _buildHeader(context),
+              _buildRedesignedHeader(),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  padding: const EdgeInsets.only(bottom: 120),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildTestInfo(),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildTopTestCard(),
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildPerformanceGaugeSection(),
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildStudentResultsRedesigned(context),
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildQuestionsRedesigned(),
+                      ),
                       const SizedBox(height: 24),
-                      _buildClassPerformance(),
-                      const SizedBox(height: 24),
-                      _buildStudentResults(context),
-                      const SizedBox(height: 24),
-                      _buildQuestionsList(),
                     ],
                   ),
                 ),
               ),
             ],
           ),
-          if (widget.status == 'Live') _buildEndTestButton(context),
+          if (_isLiveNow) _buildEndTestButton(context),
         ],
       ),
       bottomNavigationBar: const TeacherBottomNav(selectedIndex: 2),
+    );
+  }
+
+  /// ---------------- Redesigned UI Components (HTML -> Flutter) ----------------
+  Widget _buildRedesignedHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF121212) : Theme.of(context).cardColor)
+            .withOpacity(0.9),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? const Color(0xFF2F2F2F)
+                : Theme.of(context).dividerColor,
+            width: 1,
+          ),
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                color: isDark ? const Color(0xFFE0E0E0) : null,
+                onPressed: () => Navigator.pop(context),
+              ),
+              Expanded(
+                child: Text(
+                  'Test Result',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark
+                        ? const Color(0xFFE0E0E0)
+                        : Theme.of(context).textTheme.bodyLarge?.color,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_vert),
+                color: isDark ? const Color(0xFFE0E0E0) : null,
+                onPressed: () => _showMoreOptions(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopTestCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isLive = _isLiveNow;
+    final isScheduled =
+        !isLive && (_test != null && DateTime.now().isBefore(_test!.startDate));
+    Color chipBg;
+    Color chipText;
+    if (isLive) {
+      chipBg = const Color(0xFF28A745).withOpacity(0.2);
+      chipText = const Color(0xFF28A745);
+    } else if (isScheduled) {
+      chipBg = const Color(0xFF007BFF).withOpacity(0.15);
+      chipText = const Color(0xFF007BFF);
+    } else {
+      chipBg = (isDark ? const Color(0xFF2F2F2F) : const Color(0xFFE5E7EB));
+      chipText = isDark ? const Color(0xFFA0A0A0) : const Color(0xFF374151);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? const Color(0xFF2F2F2F)
+              : Theme.of(context).dividerColor,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  widget.testName,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: isDark
+                        ? const Color(0xFFE0E0E0)
+                        : Theme.of(context).textTheme.bodyLarge?.color,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: chipBg,
+                  borderRadius: BorderRadius.circular(50),
+                  boxShadow: isLive
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF28A745).withOpacity(0.4),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isLive)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF28A745),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    if (isLive) const SizedBox(width: 6),
+                    Text(
+                      isLive ? 'Live' : (isScheduled ? 'Scheduled' : 'Past'),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: chipText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 1,
+            color: isDark
+                ? const Color(0xFF2F2F2F)
+                : Theme.of(context).dividerColor,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                widget.className,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark
+                      ? const Color(0xFFA0A0A0)
+                      : Theme.of(context).textTheme.bodyMedium?.color,
+                ),
+              ),
+              if (_test != null)
+                StreamBuilder<DateTime>(
+                  stream: Stream<DateTime>.periodic(
+                    const Duration(seconds: 1),
+                    (_) => DateTime.now(),
+                  ),
+                  builder: (context, snap) {
+                    final now = snap.data ?? DateTime.now();
+                    final remaining = _test!.endDate.difference(now);
+                    final label = remaining.isNegative
+                        ? 'Ended'
+                        : 'Ends in: ${_formatRemaining(remaining)}';
+                    return Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark
+                            ? const Color(0xFFA0A0A0)
+                            : Theme.of(context).textTheme.bodyMedium?.color,
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPerformanceGaugeSection() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (_results.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark
+                ? const Color(0xFF2F2F2F)
+                : Theme.of(context).dividerColor,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.people_outline,
+                size: 48,
+                color: isDark ? const Color(0xFF2F2F2F) : Colors.grey[400],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No submissions yet',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? const Color(0xFFA0A0A0) : Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final scores = _results.map((r) => r.score).toList();
+    final totalPoints = _test?.totalPoints ?? 100;
+    final percentages = scores.map((s) => (s / totalPoints) * 100).toList();
+    final avgPercentage =
+        percentages.reduce((a, b) => a + b) / percentages.length;
+    final highestPercentage = percentages.reduce(math.max);
+    final lowestPercentage = percentages.reduce(math.min);
+    final participatedCount = _results.length;
+    final totalStudents = _totalAssignedStudents > 0
+        ? _totalAssignedStudents
+        : participatedCount;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? const Color(0xFF2F2F2F)
+              : Theme.of(context).dividerColor,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Class Performance',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDark
+                  ? const Color(0xFFE0E0E0)
+                  : Theme.of(context).textTheme.bodyLarge?.color,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: SizedBox(
+              height: 150,
+              width: 300,
+              child: CustomPaint(
+                painter: SemiGaugePainter(progress: avgPercentage / 100),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Average Score',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: isDark
+                                ? const Color(0xFFA0A0A0)
+                                : Theme.of(context).textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                        Text(
+                          '${avgPercentage.toStringAsFixed(0)}%',
+                          style: TextStyle(
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? const Color(0xFFE0E0E0)
+                                : Theme.of(context).textTheme.bodyLarge?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _miniStat(
+                icon: Icons.arrow_upward,
+                label: 'Highest',
+                value: '${highestPercentage.toStringAsFixed(0)}%',
+                color: const Color(0xFF28A745),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: isDark
+                    ? const Color(0xFF2F2F2F)
+                    : Theme.of(context).dividerColor,
+              ),
+              _miniStat(
+                icon: Icons.arrow_downward,
+                label: 'Lowest',
+                value: '${lowestPercentage.toStringAsFixed(0)}%',
+                color: const Color(0xFFDC3545),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.groups, size: 20, color: Color(0xFFA0A0A0)),
+              const SizedBox(width: 6),
+              Text(
+                'Participated: $participatedCount / $totalStudents Students',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? const Color(0xFFA0A0A0)
+                      : Theme.of(context).textTheme.bodyMedium?.color,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStat({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFA0A0A0)
+                      : Theme.of(context).textTheme.bodyMedium?.color,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFE0E0E0)
+                      : Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentResultsRedesigned(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final totalPoints = _test?.totalPoints ?? 100;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? const Color(0xFF2F2F2F)
+              : Theme.of(context).dividerColor,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+            child: Text(
+              'Student Results',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark
+                    ? const Color(0xFFE0E0E0)
+                    : Theme.of(context).textTheme.bodyLarge?.color,
+              ),
+            ),
+          ),
+          if (_allAssignedStudents.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Text(
+                'No students assigned',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? const Color(0xFFA0A0A0) : Colors.grey[600],
+                ),
+              ),
+            )
+          else
+            Column(
+              children: _allAssignedStudents.map((studentData) {
+                final status = studentData['status'] as String;
+                final result = studentData['result'] as TestResultModel?;
+                final studentName = studentData['studentName'] as String;
+
+                // Determine status: not_attempted, failed (<60%), passed (≥60%)
+                IconData statusIcon;
+                Color statusColor;
+                Color barColor;
+                double pct = 0.0;
+
+                if (status == 'not_attempted' ||
+                    result == null ||
+                    result.id.isEmpty) {
+                  statusIcon = Icons.warning_amber_rounded;
+                  statusColor = const Color(0xFFFFC107); // Yellow
+                  barColor = const Color(0xFF6B7280); // Gray
+                  pct = 0.0;
+                } else {
+                  pct = (result.score / totalPoints).clamp(0, 1);
+                  final passingThreshold = 0.60;
+
+                  if (pct >= passingThreshold) {
+                    statusIcon = Icons.check_circle;
+                    statusColor = const Color(0xFF28A745); // Green
+                    if (pct >= 0.85) {
+                      barColor = const Color(0xFF28A745);
+                    } else {
+                      barColor = const Color(0xFFFFC107);
+                    }
+                  } else {
+                    statusIcon = Icons.cancel;
+                    statusColor = const Color(0xFFDC3545); // Red
+                    barColor = const Color(0xFFDC3545);
+                  }
+                }
+
+                return InkWell(
+                  onTap: () {},
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                          color: isDark
+                              ? const Color(0xFF2F2F2F)
+                              : Theme.of(context).dividerColor,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                studentName,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? const Color(0xFFE0E0E0)
+                                      : Theme.of(
+                                          context,
+                                        ).textTheme.bodyLarge?.color,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: pct.toDouble(),
+                                  minHeight: 6,
+                                  backgroundColor: isDark
+                                      ? const Color(0xFF2F2F2F)
+                                      : const Color(0xFFE5E7EB),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    barColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Row(
+                          children: [
+                            Icon(statusIcon, size: 22, color: statusColor),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 64,
+                              child: Text(
+                                status == 'not_attempted' ||
+                                        result == null ||
+                                        result.id.isEmpty
+                                    ? '-'
+                                    : '${result.score.toStringAsFixed((result.score % 1) == 0 ? 0 : 1)} / $totalPoints',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? const Color(0xFFA0A0A0)
+                                      : Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium?.color,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.chevron_right,
+                              size: 20,
+                              color: Color(0xFFA0A0A0),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestionsRedesigned() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (_test == null || _test!.questions.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark
+                ? const Color(0xFF2F2F2F)
+                : Theme.of(context).dividerColor,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.quiz_outlined,
+                size: 48,
+                color: isDark ? const Color(0xFF2F2F2F) : Colors.grey[400],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No questions found',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? const Color(0xFFA0A0A0) : Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final questions = _test!.questions;
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? const Color(0xFF2F2F2F)
+              : Theme.of(context).dividerColor,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.quiz_outlined,
+                size: 20,
+                color: Color(0xFF007BFF),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Test Questions',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark
+                      ? const Color(0xFFE0E0E0)
+                      : Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF007BFF).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${questions.length} Questions',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF007BFF),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'All questions with options and correct answers',
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark
+                  ? const Color(0xFFA0A0A0)
+                  : Theme.of(context).textTheme.bodyMedium?.color,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ...questions.asMap().entries.map((entry) {
+            final idx = entry.key + 1;
+            final q = entry.value;
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: idx == questions.length ? 0 : 16,
+              ),
+              child: _buildQuestionCard(q, idx),
+            );
+          }).toList(),
+        ],
+      ),
     );
   }
 
@@ -216,10 +1120,14 @@ class _TestResultScreenState extends State<TestResultScreen> {
     Color statusBgColor;
     Color statusTextColor;
 
-    if (widget.status == 'Live') {
+    final isLive = _isLiveNow;
+    final isScheduled =
+        !isLive && (_test != null && DateTime.now().isBefore(_test!.startDate));
+
+    if (isLive) {
       statusBgColor = const Color(0xFFD1FAE5);
       statusTextColor = const Color(0xFF065F46);
-    } else if (widget.status == 'Scheduled') {
+    } else if (isScheduled) {
       statusBgColor = const Color(0xFF6366F1).withOpacity(0.2);
       statusTextColor = const Color(0xFF6366F1);
     } else {
@@ -268,7 +1176,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (widget.status == 'Live')
+                  if (isLive)
                     Container(
                       width: 8,
                       height: 8,
@@ -277,9 +1185,9 @@ class _TestResultScreenState extends State<TestResultScreen> {
                         shape: BoxShape.circle,
                       ),
                     ),
-                  if (widget.status == 'Live') const SizedBox(width: 8),
+                  if (isLive) const SizedBox(width: 8),
                   Text(
-                    widget.status,
+                    isLive ? 'Live' : (isScheduled ? 'Scheduled' : 'Past'),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -292,13 +1200,27 @@ class _TestResultScreenState extends State<TestResultScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        Text(
-          'Ends in: ${widget.endTime}',
-          style: TextStyle(
-            fontSize: 14,
-            color: Theme.of(context).textTheme.bodyMedium?.color,
+        if (_test != null)
+          StreamBuilder<DateTime>(
+            stream: Stream<DateTime>.periodic(
+              const Duration(seconds: 1),
+              (_) => DateTime.now(),
+            ),
+            builder: (context, snap) {
+              final now = snap.data ?? DateTime.now();
+              final remaining = _test!.endDate.difference(now);
+              final label = remaining.isNegative
+                  ? 'Ended'
+                  : 'Ends in: ${_formatRemaining(remaining)}';
+              return Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
+                ),
+              );
+            },
           ),
-        ),
       ],
     );
   }
@@ -873,10 +1795,35 @@ class _TestResultScreenState extends State<TestResultScreen> {
             ...question.options!.asMap().entries.map((entry) {
               final optionIndex = entry.key;
               final option = entry.value;
-              final isCorrect = option == question.correctAnswer;
               final optionLabel = String.fromCharCode(
                 65 + optionIndex,
               ); // A, B, C, D
+              final rawCorrect = question.correctAnswer?.trim();
+
+              bool isCorrect = false;
+              if (rawCorrect != null && rawCorrect.isNotEmpty) {
+                final normalizedOption = option.trim().toLowerCase();
+                final normalizedCorrect = rawCorrect.toLowerCase();
+                // Direct text match
+                if (normalizedOption == normalizedCorrect) {
+                  isCorrect = true;
+                } else {
+                  // Letter-based (A,B,C,D)
+                  final upper = rawCorrect.toUpperCase();
+                  if (upper.length == 1 &&
+                      upper.codeUnitAt(0) >= 65 &&
+                      upper.codeUnitAt(0) <= 68) {
+                    if (upper == optionLabel) isCorrect = true;
+                  }
+                  // Numeric index based (0,1,2,3 or 1-based 1..4)
+                  final asInt = int.tryParse(rawCorrect);
+                  if (asInt != null) {
+                    if (asInt == optionIndex || asInt - 1 == optionIndex) {
+                      isCorrect = true;
+                    }
+                  }
+                }
+              }
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -896,9 +1843,10 @@ class _TestResultScreenState extends State<TestResultScreen> {
                   ),
                   child: Row(
                     children: [
+                      // Leading badge (letter or check)
                       Container(
-                        width: 24,
-                        height: 24,
+                        width: 28,
+                        height: 28,
                         decoration: BoxDecoration(
                           color: isCorrect
                               ? const Color(0xFF10B981)
@@ -913,6 +1861,17 @@ class _TestResultScreenState extends State<TestResultScreen> {
                                       ? Colors.grey[700]!
                                       : const Color(0xFFD1D5DB)),
                           ),
+                          boxShadow: isCorrect
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF10B981,
+                                    ).withOpacity(0.4),
+                                    blurRadius: 6,
+                                    spreadRadius: 0.5,
+                                  ),
+                                ]
+                              : null,
                         ),
                         child: Center(
                           child: isCorrect
@@ -934,6 +1893,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
+                      // Option text
                       Expanded(
                         child: Text(
                           option,
@@ -948,23 +1908,36 @@ class _TestResultScreenState extends State<TestResultScreen> {
                           ),
                         ),
                       ),
+                      // Correct badge (only for correct option)
                       if (isCorrect)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
+                            horizontal: 10,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF10B981),
-                            borderRadius: BorderRadius.circular(4),
+                            color: const Color(0xFF10B981).withOpacity(0.12),
+                            border: Border.all(color: const Color(0xFF10B981)),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Text(
-                            'Correct',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                size: 14,
+                                color: Color(0xFF10B981),
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Correct',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],
@@ -1239,4 +2212,50 @@ class CircularProgressPainter extends CustomPainter {
   bool shouldRepaint(CircularProgressPainter oldDelegate) {
     return oldDelegate.progress != progress;
   }
+}
+
+/// Painter for the semicircle performance gauge (0% -> left, 100% -> right)
+class SemiGaugePainter extends CustomPainter {
+  final double progress; // 0.0 - 1.0
+  SemiGaugePainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = size.width;
+    final height = size.height;
+    final strokeWidth = 20.0;
+    final radius = (width - 60) / 2;
+    final center = Offset(width / 2, height - 10);
+
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final startAngle = math.pi; // draw from left to right along top
+    final sweepAngle = math.pi; // half circle
+
+    // Background arc
+    final bgPaint = Paint()
+      ..color = const Color(0xFF2F2F2F)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(rect, startAngle, sweepAngle, false, bgPaint);
+
+    // Gradient for progress
+    final gradient = SweepGradient(
+      startAngle: startAngle,
+      endAngle: startAngle + sweepAngle,
+      colors: const [Color(0xFFDC3545), Color(0xFFFFC107), Color(0xFF28A745)],
+      stops: const [0.0, 0.5, 1.0],
+    );
+    final progPaint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    final clamped = progress.clamp(0.0, 1.0);
+    canvas.drawArc(rect, startAngle, sweepAngle * clamped, false, progPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant SemiGaugePainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

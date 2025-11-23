@@ -259,15 +259,21 @@ class _AllTestsTab extends StatelessWidget {
                 final duration = (data['duration'] as int?) ?? 60;
                 final dateStr = data['date'] as String?; // YYYY-MM-DD
                 final startTimeStr = data['startTime'] as String? ?? '00:00';
+                final endTimeStr = data['endTime'] as String? ?? '23:59';
                 DateTime startDate;
+                DateTime endDate;
                 try {
                   startDate = dateStr != null
                       ? DateTime.parse('$dateStr $startTimeStr')
                       : DateTime.now();
+                  // endDate is the assignment deadline, not start + duration
+                  endDate = dateStr != null
+                      ? DateTime.parse('$dateStr $endTimeStr')
+                      : startDate.add(const Duration(hours: 24));
                 } catch (_) {
                   startDate = DateTime.now();
+                  endDate = startDate.add(const Duration(hours: 24));
                 }
-                final endDate = startDate.add(Duration(minutes: duration));
                 final createdAtTs = data['createdAt'];
                 final createdAt = createdAtTs is Timestamp
                     ? createdAtTs.toDate()

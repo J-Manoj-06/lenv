@@ -3,6 +3,7 @@ import '../screens/common/splash_screen.dart';
 import '../screens/common/role_selection_screen.dart';
 import '../screens/teacher/teacher_login_screen.dart';
 import '../screens/teacher/create_test_screen.dart';
+import '../screens/teacher/create_test_entry_screen.dart';
 import '../screens/teacher/create_ai_test_screen.dart';
 import '../screens/teacher/student_list_screen.dart';
 import '../screens/teacher/student_performance_screen.dart';
@@ -87,6 +88,9 @@ class AppRouter {
 
       case '/create-test':
         return MaterialPageRoute(builder: (_) => const CreateTestScreen());
+
+      case '/create-test-entry':
+        return MaterialPageRoute(builder: (_) => const CreateTestEntryScreen());
 
       case '/ai-test-generator':
         return MaterialPageRoute(builder: (_) => const CreateAITestScreen());
