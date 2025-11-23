@@ -12,12 +12,12 @@ class StatusViewScreen extends StatefulWidget {
   final VoidCallback? onStatusDeleted;
 
   const StatusViewScreen({
-    Key? key,
+    super.key,
     required this.statuses,
     this.initialIndex = 0,
     this.currentUserId,
     this.onStatusDeleted,
-  }) : super(key: key);
+  });
 
   @override
   State<StatusViewScreen> createState() => _StatusViewScreenState();

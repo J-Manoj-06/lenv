@@ -5,7 +5,7 @@ import '../../services/teacher_service.dart';
 import '../../widgets/teacher_bottom_nav.dart';
 
 class ClassesScreen extends StatefulWidget {
-  const ClassesScreen({Key? key}) : super(key: key);
+  const ClassesScreen({super.key});
 
   @override
   State<ClassesScreen> createState() => _ClassesScreenState();

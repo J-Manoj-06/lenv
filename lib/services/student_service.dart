@@ -256,8 +256,9 @@ class StudentService {
       if (monthlyProgress != null) updates['monthlyProgress'] = monthlyProgress;
       if (pendingTests != null) updates['pendingTests'] = pendingTests;
       if (completedTests != null) updates['completedTests'] = completedTests;
-      if (newNotifications != null)
+      if (newNotifications != null) {
         updates['newNotifications'] = newNotifications;
+      }
 
       if (updates.isNotEmpty) {
         await _firestore.collection('users').doc(uid).update(updates);

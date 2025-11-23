@@ -6,7 +6,7 @@ import '../../providers/student_provider.dart';
 /// Debug screen to help diagnose announcement visibility issues
 /// Navigate to this screen from student dashboard to see all relevant data
 class AnnouncementsDebugScreen extends StatelessWidget {
-  const AnnouncementsDebugScreen({Key? key}) : super(key: key);
+  const AnnouncementsDebugScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +210,7 @@ class AnnouncementsDebugScreen extends StatelessWidget {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         );
       },

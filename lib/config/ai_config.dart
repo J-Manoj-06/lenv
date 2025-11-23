@@ -6,6 +6,7 @@
 /// This is OK for testing, but for production you should use Firebase proxy.
 ///
 /// SETUP: Add your DeepSeek API key on line 14 below
+library;
 
 class AIConfig {
   // Private constructor to prevent instantiation

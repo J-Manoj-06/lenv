@@ -2,6 +2,7 @@
 ///
 /// This model represents a single question in an AI-generated test.
 /// Supports multiple choice (MCQ) and true/false question types.
+library;
 
 /// Question type for AI-generated questions
 enum QuestionTypeAI {

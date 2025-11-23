@@ -9,7 +9,7 @@ import 'package:intl/intl.dart';
 enum AttendanceStatus { present, absent }
 
 class AttendanceScreen extends StatefulWidget {
-  const AttendanceScreen({Key? key}) : super(key: key);
+  const AttendanceScreen({super.key});
 
   @override
   State<AttendanceScreen> createState() => _AttendanceScreenState();
@@ -188,7 +188,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       final dateKey = DateFormat('yyyy-MM-dd').format(_selectedDate);
       final docId =
-          '${schoolCode}_${dateKey}_${_selectedStandard}_${_selectedSection}';
+          '${schoolCode}_${dateKey}_${_selectedStandard}_$_selectedSection';
 
       // Check if attendance document exists
       final docSnap = await FirebaseFirestore.instance
@@ -257,7 +257,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       final docId =
-          '${schoolCode}_${dateStr}_${_selectedStandard}_${_selectedSection}';
+          '${schoolCode}_${dateStr}_${_selectedStandard}_$_selectedSection';
 
       // Build students map keyed ONLY by auth UID (canonical)
       final studentsMap = <String, Map<String, dynamic>>{};
@@ -799,7 +799,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       final docId =
-          '${schoolCode}_${dateStr}_${_selectedStandard}_${_selectedSection}';
+          '${schoolCode}_${dateStr}_${_selectedStandard}_$_selectedSection';
 
       // Build updated students map
       final studentsMap = <String, Map<String, dynamic>>{};

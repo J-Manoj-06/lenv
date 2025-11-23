@@ -4,8 +4,7 @@ import 'teacher_main_navigation.dart';
 class TeacherBottomNav extends StatelessWidget {
   final int selectedIndex;
 
-  const TeacherBottomNav({Key? key, required this.selectedIndex})
-    : super(key: key);
+  const TeacherBottomNav({super.key, required this.selectedIndex});
 
   @override
   Widget build(BuildContext context) {

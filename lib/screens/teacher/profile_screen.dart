@@ -8,7 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -644,7 +644,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     );
                   },
-                  activeColor: const Color(0xFF6366F1),
+                  activeThumbColor: const Color(0xFF6366F1),
                 ),
               ],
             ),

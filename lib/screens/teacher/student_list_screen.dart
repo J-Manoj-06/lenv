@@ -8,8 +8,7 @@ import '../../widgets/teacher_bottom_nav.dart';
 class StudentListScreen extends StatefulWidget {
   final String className;
 
-  const StudentListScreen({Key? key, required this.className})
-    : super(key: key);
+  const StudentListScreen({super.key, required this.className});
 
   @override
   State<StudentListScreen> createState() => _StudentListScreenState();
@@ -47,7 +46,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
       final gradePart = raw.split('-').first.trim();
       _classNameForQuery = gradePart.startsWith('Grade')
           ? gradePart
-          : 'Grade ${gradePart}';
+          : 'Grade $gradePart';
     }
   }
 
@@ -388,7 +387,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         shape: BoxShape.circle,
       ),
       child: Icon(

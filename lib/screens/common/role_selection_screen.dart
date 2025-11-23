@@ -4,7 +4,7 @@ import '../../models/user_model.dart';
 import '../../providers/role_provider.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
-  const RoleSelectionScreen({Key? key}) : super(key: key);
+  const RoleSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

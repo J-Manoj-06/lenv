@@ -9,7 +9,7 @@ import '../../widgets/teacher_bottom_nav.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // no longer needed: assignment computed server-side
 
 class CreateTestScreen extends StatefulWidget {
-  const CreateTestScreen({Key? key}) : super(key: key);
+  const CreateTestScreen({super.key});
 
   @override
   State<CreateTestScreen> createState() => _CreateTestScreenState();
@@ -623,7 +623,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             border: Border.all(color: theme.dividerColor),
           ),
           child: DropdownButtonFormField<String>(
-            value: (value != null && items.contains(value)) ? value : null,
+            initialValue: (value != null && items.contains(value)) ? value : null,
             isExpanded: true,
             decoration: InputDecoration(
               border: InputBorder.none,
@@ -736,16 +736,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                 ? List.from(question.options!)
                                 : null,
                             correctAnswerIndex: question.correctAnswerIndex,
-                            matchPairs: question.matchPairs != null
-                                ? question.matchPairs!
-                                      .map(
+                            matchPairs: question.matchPairs?.map(
                                         (p) => MatchPair(
                                           left: p.left,
                                           right: p.right,
                                         ),
                                       )
-                                      .toList()
-                                : null,
+                                      .toList(),
                           ),
                         );
                       });

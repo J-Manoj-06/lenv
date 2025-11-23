@@ -10,6 +10,7 @@
 /// - Automatic marks distribution
 /// - Duplicate question detection
 /// - Comprehensive error handling
+library;
 
 import 'dart:convert';
 import 'dart:math';

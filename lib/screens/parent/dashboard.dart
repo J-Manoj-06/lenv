@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ParentDashboard extends StatelessWidget {
-  const ParentDashboard({Key? key}) : super(key: key);
+  const ParentDashboard({super.key});
 
   @override
   Widget build(BuildContext context) {

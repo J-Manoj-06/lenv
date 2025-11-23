@@ -2,6 +2,7 @@
 ///
 /// These exceptions provide specific error handling for different failure scenarios
 /// when generating tests with AI.
+library;
 
 /// Base exception for AI-related errors
 class AIException implements Exception {

@@ -49,7 +49,7 @@ class QuestionService {
 
     // If backend ever returns parsed JSON directly (Map), support it gracefully.
     if (data is Map) {
-      return Map<String, dynamic>.from(data as Map);
+      return Map<String, dynamic>.from(data);
     }
 
     throw FormatException('Unexpected response type: ${data.runtimeType}');

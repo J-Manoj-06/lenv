@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Entry screen letting teacher choose manual creation or AI generation.
 class CreateTestEntryScreen extends StatelessWidget {
-  const CreateTestEntryScreen({Key? key}) : super(key: key);
+  const CreateTestEntryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +129,7 @@ class _OptionCard extends StatelessWidget {
   final bool glowPrimary;
 
   const _OptionCard({
-    Key? key,
+    super.key,
     required this.icon,
     required this.iconBg,
     required this.iconColor,
@@ -139,7 +139,7 @@ class _OptionCard extends StatelessWidget {
     required this.background,
     required this.onTap,
     this.glowPrimary = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

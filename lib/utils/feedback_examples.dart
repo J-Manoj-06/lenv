@@ -2,6 +2,7 @@
 ///
 /// This file demonstrates how to use the universal feedback system
 /// across different roles and scenarios.
+library;
 
 import 'package:flutter/material.dart';
 import 'feedback_handler.dart';
@@ -217,8 +218,7 @@ class FormValidationExamples {
 class CompleteLoginFlowExample extends StatefulWidget {
   final String role;
 
-  const CompleteLoginFlowExample({Key? key, required this.role})
-    : super(key: key);
+  const CompleteLoginFlowExample({super.key, required this.role});
 
   @override
   State<CompleteLoginFlowExample> createState() =>

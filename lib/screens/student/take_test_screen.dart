@@ -14,7 +14,7 @@ import '../../utils/visibility_stub.dart'
 class TakeTestScreen extends StatefulWidget {
   final TestModel test;
 
-  const TakeTestScreen({Key? key, required this.test}) : super(key: key);
+  const TakeTestScreen({super.key, required this.test});
 
   @override
   State<TakeTestScreen> createState() => _TakeTestScreenState();
@@ -536,7 +536,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                                   padding: const EdgeInsets.only(bottom: 16),
                                   child: _buildOptionButton(option, isSelected),
                                 );
-                              }).toList(),
+                              }),
                               // Clear Response Button for MCQ
                               if (answers.containsKey(currentQuestionIndex))
                                 Padding(

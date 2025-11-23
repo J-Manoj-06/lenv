@@ -8,7 +8,7 @@ import 'take_test_screen.dart';
 class TestRulesScreen extends StatelessWidget {
   final TestModel test;
 
-  const TestRulesScreen({Key? key, required this.test}) : super(key: key);
+  const TestRulesScreen({super.key, required this.test});
 
   @override
   Widget build(BuildContext context) {
@@ -195,11 +195,9 @@ class TestRulesScreen extends StatelessWidget {
                             builder: (context) => AlertDialog(
                               title: const Text('Test not started'),
                               content: Text(
-                                'This test will be available starting on ' +
-                                    '${test.startDate.toLocal()}'.split(
+                                'This test will be available starting on ${'${test.startDate.toLocal()}'.split(
                                       '.',
-                                    )[0] +
-                                    '. Please try again later.',
+                                    )[0]}. Please try again later.',
                               ),
                               actions: [
                                 TextButton(

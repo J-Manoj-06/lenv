@@ -152,7 +152,7 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                         const SizedBox(height: 12),
                         ..._buildQuestionResults(
                           result,
-                        ).map((q) => _buildQuestionTile(q)).toList(),
+                        ).map((q) => _buildQuestionTile(q)),
                       ],
                       const SizedBox(height: 24),
                       // Badges (optional)

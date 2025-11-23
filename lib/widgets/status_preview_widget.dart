@@ -9,12 +9,12 @@ class StatusPreviewWidget extends StatelessWidget {
   final double size;
 
   const StatusPreviewWidget({
-    Key? key,
+    super.key,
     required this.status,
     required this.onTap,
     this.hasUnseenStatus = false,
     this.size = 64,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -179,8 +179,7 @@ class AddStatusButton extends StatelessWidget {
   final VoidCallback onTap;
   final double size;
 
-  const AddStatusButton({Key? key, required this.onTap, this.size = 64})
-    : super(key: key);
+  const AddStatusButton({super.key, required this.onTap, this.size = 64});
 
   @override
   Widget build(BuildContext context) {

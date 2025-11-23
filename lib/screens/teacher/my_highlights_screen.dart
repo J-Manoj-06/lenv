@@ -7,7 +7,7 @@ import 'status_view_screen.dart';
 
 /// Screen showing teacher's own classroom highlights/statuses
 class MyHighlightsScreen extends StatelessWidget {
-  const MyHighlightsScreen({Key? key}) : super(key: key);
+  const MyHighlightsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

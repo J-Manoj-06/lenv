@@ -810,7 +810,7 @@ import '../../widgets/teacher_bottom_nav.dart';
 /// Minimal teacher dashboard screen to restore app routing.
 /// You can replace its content later with the full dashboard UI.
 class TeacherDashboardScreen extends StatelessWidget {
-  const TeacherDashboardScreen({Key? key}) : super(key: key);
+  const TeacherDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

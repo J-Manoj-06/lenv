@@ -8,7 +8,7 @@ import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
 
 class TeacherLoginScreen extends StatefulWidget {
-  const TeacherLoginScreen({Key? key}) : super(key: key);
+  const TeacherLoginScreen({super.key});
 
   @override
   State<TeacherLoginScreen> createState() => _TeacherLoginScreenState();
@@ -297,7 +297,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
             ),
           ),
         DropdownButtonFormField<String>(
-          value: _selectedSchool,
+          initialValue: _selectedSchool,
           dropdownColor: Theme.of(context).cardColor,
           decoration: InputDecoration(
             hintText: _isLoadingSchools

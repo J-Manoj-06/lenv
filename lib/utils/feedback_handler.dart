@@ -8,6 +8,7 @@
 /// - Teacher → Violet / Purple (#7e57c2)
 /// - Parent → Teal / Greenish (#009688)
 /// - Institute → Blue (#1976d2)
+library;
 
 import 'package:flutter/material.dart';
 import 'dart:async';

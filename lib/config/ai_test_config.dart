@@ -13,6 +13,7 @@
 /// ⚠️ Never commit this file with a real API key to Git!
 /// ⚠️ For production, use Firebase Cloud Functions (set useDirectAPI = false)
 ///
+library;
 
 class AITestConfig {
   // 📝 PASTE YOUR DEEPSEEK API KEY HERE:

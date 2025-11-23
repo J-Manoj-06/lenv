@@ -576,7 +576,7 @@ class FirestoreService {
       // 2) Build list of (className, section) pairs to query students
       List<Map<String, String>> targets = [];
 
-      List<String> _normalizeSections(dynamic sections) {
+      List<String> normalizeSections(dynamic sections) {
         if (sections == null) return <String>[];
         if (sections is List) {
           return sections
@@ -595,7 +595,7 @@ class FirestoreService {
       }
 
       if (classesHandled != null && classesHandled.isNotEmpty) {
-        final sections = _normalizeSections(sectionsRaw);
+        final sections = normalizeSections(sectionsRaw);
         for (final c in classesHandled) {
           final className = c.toString(); // e.g., "Grade 10"
           for (final s in sections) {
@@ -716,8 +716,6 @@ class FirestoreService {
             final aTime = a.createdAt;
             final bTime = b.createdAt;
             if (aTime == null && bTime == null) return 0;
-            if (aTime == null) return 1;
-            if (bTime == null) return -1;
             return bTime.compareTo(aTime); // Descending order
           });
 

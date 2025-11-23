@@ -11,7 +11,7 @@ import '../../widgets/teacher_bottom_nav.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // not needed; assignment handled server-side
 
 class AITestGeneratorScreen extends StatefulWidget {
-  const AITestGeneratorScreen({Key? key}) : super(key: key);
+  const AITestGeneratorScreen({super.key});
 
   @override
   State<AITestGeneratorScreen> createState() => _AITestGeneratorScreenState();
@@ -25,7 +25,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   final _totalMarksController = TextEditingController();
 
   String? selectedSubject; // subject dropdown selection
-  List<String> _allSubjectsFallback = [];
+  final List<String> _allSubjectsFallback = [];
   final Map<String, List<String>> _classSectionSubjects =
       {}; // key grade|section -> subjects
 
@@ -759,7 +759,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                 ),
               ),
               value: autoPublish,
-              activeColor: theme.primaryColor,
+              activeThumbColor: theme.primaryColor,
               onChanged: (value) {
                 setState(() {
                   autoPublish = value;
@@ -911,7 +911,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                 Theme.of(context).cardColor,
           ),
           child: DropdownButtonFormField<String>(
-            value: (value != null && items.contains(value)) ? value : null,
+            initialValue: (value != null && items.contains(value)) ? value : null,
             isExpanded: true,
             dropdownColor: Theme.of(context).cardColor,
             style: TextStyle(

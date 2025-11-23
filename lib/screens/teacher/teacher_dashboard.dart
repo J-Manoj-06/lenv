@@ -14,7 +14,7 @@ import 'status_view_screen.dart';
 import 'attendance_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
-  const TeacherDashboardScreen({Key? key}) : super(key: key);
+  const TeacherDashboardScreen({super.key});
 
   @override
   State<TeacherDashboardScreen> createState() => _TeacherDashboardScreenState();
@@ -346,7 +346,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   border: Border.all(color: Theme.of(context).dividerColor),
                 ),
                 child: DropdownButtonFormField<String>(
-                  value: selectedClass,
+                  initialValue: selectedClass,
                   dropdownColor: Theme.of(context).cardColor,
                   decoration: const InputDecoration(
                     border: InputBorder.none,
@@ -988,8 +988,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   String? mime;
                   final p = x.path.toLowerCase();
                   if (p.endsWith('.png')) mime = 'image/png';
-                  if (p.endsWith('.jpg') || p.endsWith('.jpeg'))
+                  if (p.endsWith('.jpg') || p.endsWith('.jpeg')) {
                     mime = 'image/jpeg';
+                  }
                   setSheetState(() {
                     previewBytes = bytes;
                     imageMime = mime ?? 'image/jpeg';
@@ -1095,7 +1096,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 constraints: BoxConstraints(maxHeight: maxHeight),
                 child: Container(
                   decoration: const BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [Color(0xFF6A5AE0), Color(0xFF8E7CFF)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,

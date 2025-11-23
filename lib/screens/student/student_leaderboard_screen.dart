@@ -331,9 +331,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           ),
         );
       }
-      if (_perTestStream == null) {
-        _perTestStream = _buildPerTestStream(_selectedTestId!);
-      }
+      _perTestStream ??= _buildPerTestStream(_selectedTestId!);
       return StreamBuilder<List<LeaderboardEntry>>(
         stream: _perTestStream,
         builder: (context, snap) {

@@ -16,13 +16,13 @@ class StudentPerformanceScreen extends StatefulWidget {
   final int averageScore; // fallback if no performance yet
 
   const StudentPerformanceScreen({
-    Key? key,
+    super.key,
     required this.studentId,
     required this.studentName,
     required this.studentClass,
     required this.imageUrl,
     required this.averageScore,
-  }) : super(key: key);
+  });
 
   @override
   State<StudentPerformanceScreen> createState() =>
@@ -303,7 +303,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen> {
                               width: 64,
                               height: 64,
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceVariant,
+                                color: theme.colorScheme.surfaceContainerHighest,
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(

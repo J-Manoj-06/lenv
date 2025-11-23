@@ -105,8 +105,9 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         if (info == null) continue; // student not found in this attendance doc
         total++;
         if ((info['status']?.toString().toLowerCase() ?? 'present') ==
-            'present')
+            'present') {
           present++;
+        }
       }
       if (total > 0) _attendancePct = (present / total * 100).clamp(0, 100);
     } catch (e) {
@@ -209,7 +210,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                               )
                             : null,
                         color: imageUrl == null
-                            ? theme.colorScheme.surfaceVariant
+                            ? theme.colorScheme.surfaceContainerHighest
                             : null,
                       ),
                       child: imageUrl == null

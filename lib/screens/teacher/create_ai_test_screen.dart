@@ -263,7 +263,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
           children: [
             // Class dropdown
             DropdownButtonFormField<String>(
-              value: _selectedClass,
+              initialValue: _selectedClass,
               decoration: const InputDecoration(
                 labelText: 'Class',
                 border: OutlineInputBorder(),
@@ -316,7 +316,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
 
             // Section dropdown
             DropdownButtonFormField<String>(
-              value: _selectedSection,
+              initialValue: _selectedSection,
               decoration: const InputDecoration(
                 labelText: 'Section',
                 border: OutlineInputBorder(),
@@ -377,7 +377,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
 
             // Subject dropdown
             DropdownButtonFormField<String>(
-              value: _selectedSubject,
+              initialValue: _selectedSubject,
               decoration: const InputDecoration(
                 labelText: 'Subject',
                 border: OutlineInputBorder(),
@@ -419,7 +419,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
 
             // Difficulty dropdown
             DropdownButtonFormField<String>(
-              value: _selectedDifficulty,
+              initialValue: _selectedDifficulty,
               decoration: const InputDecoration(
                 labelText: 'Difficulty Level',
                 border: OutlineInputBorder(),

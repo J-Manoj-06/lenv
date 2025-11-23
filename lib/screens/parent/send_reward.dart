@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class SendRewardScreen extends StatelessWidget {
-  const SendRewardScreen({Key? key}) : super(key: key);
+  const SendRewardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

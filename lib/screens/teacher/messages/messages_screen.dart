@@ -48,7 +48,7 @@ class MessagesScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF7A5CFF),
         icon: const Icon(Icons.add_comment),
         label: Text(
-          studentName != null ? 'Message ${studentName}' : 'New Message',
+          studentName != null ? 'Message $studentName' : 'New Message',
         ),
       ),
     );
@@ -72,7 +72,7 @@ class MessagesScreen extends StatelessWidget {
             const SizedBox(height: 24),
             Text(
               studentName != null
-                  ? 'Start a conversation with ${studentName}'
+                  ? 'Start a conversation with $studentName'
                   : 'Start a conversation',
               textAlign: TextAlign.center,
               style: const TextStyle(
@@ -104,7 +104,7 @@ class MessagesScreen extends StatelessWidget {
               ),
               icon: const Icon(Icons.add_comment),
               label: Text(
-                studentName != null ? 'Message ${studentName}' : 'New Message',
+                studentName != null ? 'Message $studentName' : 'New Message',
               ),
             ),
           ],
@@ -119,7 +119,7 @@ class MessagesScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          studentName != null ? 'Message ${studentName}' : 'New Message',
+          studentName != null ? 'Message $studentName' : 'New Message',
         ),
         content: TextField(
           controller: controller,

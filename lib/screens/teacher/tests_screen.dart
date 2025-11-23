@@ -8,7 +8,7 @@ import '../../widgets/teacher_bottom_nav.dart';
 import '../../services/firestore_service.dart';
 
 class TestsScreen extends StatefulWidget {
-  const TestsScreen({Key? key}) : super(key: key);
+  const TestsScreen({super.key});
 
   @override
   State<TestsScreen> createState() => _TestsScreenState();
@@ -762,7 +762,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                     Navigator.pop(context);
                   },
                 );
-              }).toList(),
+              }),
             ],
           ),
         );

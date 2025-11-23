@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ChildProgressScreen extends StatelessWidget {
-  const ChildProgressScreen({Key? key}) : super(key: key);
+  const ChildProgressScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
