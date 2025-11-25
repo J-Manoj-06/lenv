@@ -9,6 +9,7 @@ class StudentModel {
   final String? schoolCode; // Added: School code like "OAK001"
   final String? schoolName;
   final String? className;
+  final String? section; // Added: Section like "A", "B", etc.
   final String? phone;
   final String? parentPhone;
   final int rewardPoints;
@@ -30,6 +31,7 @@ class StudentModel {
     this.schoolCode, // Added
     this.schoolName,
     this.className,
+    this.section, // Added
     this.phone,
     this.parentPhone,
     this.rewardPoints = 0,
@@ -55,6 +57,7 @@ class StudentModel {
       schoolCode: data['schoolCode'], // Added: Read schoolCode from Firestore
       schoolName: data['schoolName'],
       className: data['className'],
+      section: data['section'], // Added: Read section from Firestore
       phone: data['phone'],
       parentPhone: data['parentPhone'],
       rewardPoints: data['rewardPoints'] ?? 0,
@@ -78,6 +81,7 @@ class StudentModel {
       'schoolCode': schoolCode, // Added: Write schoolCode to Firestore
       'schoolName': schoolName,
       'className': className,
+      'section': section, // Added: Write section to Firestore
       'phone': phone,
       'parentPhone': parentPhone,
       'rewardPoints': rewardPoints,
@@ -103,6 +107,7 @@ class StudentModel {
     String? schoolCode, // Added
     String? schoolName,
     String? className,
+    String? section, // Added
     String? phone,
     String? parentPhone,
     int? rewardPoints,
@@ -124,6 +129,7 @@ class StudentModel {
       schoolCode: schoolCode ?? this.schoolCode, // Added
       schoolName: schoolName ?? this.schoolName,
       className: className ?? this.className,
+      section: section ?? this.section, // Added
       phone: phone ?? this.phone,
       parentPhone: parentPhone ?? this.parentPhone,
       rewardPoints: rewardPoints ?? this.rewardPoints,

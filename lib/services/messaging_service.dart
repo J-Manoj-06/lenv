@@ -32,10 +32,10 @@ class MessagingService {
             final parentData = parentDoc.data();
             return {
               'parentId': parentDoc.id,
-              'parentName': parentData['parentName'] ?? 'Parent',
-              'parentEmail': parentData['email'] ?? '',
-              'parentPhotoUrl': parentData['photoUrl'],
-              'phoneNumber': parentData['phoneNumber'] ?? '',
+              'parentName': (parentData['parentName'] ?? 'Parent').toString(),
+              'parentEmail': (parentData['email'] ?? '').toString(),
+              'parentPhotoUrl': parentData['photoUrl']?.toString(),
+              'phoneNumber': (parentData['phoneNumber'] ?? '').toString(),
             };
           }
         }
@@ -57,10 +57,10 @@ class MessagingService {
           if (matched) {
             return {
               'parentId': doc.id,
-              'parentName': data['parentName'] ?? 'Parent',
-              'parentEmail': data['email'] ?? '',
-              'parentPhotoUrl': data['photoUrl'],
-              'phoneNumber': data['phoneNumber'] ?? '',
+              'parentName': (data['parentName'] ?? 'Parent').toString(),
+              'parentEmail': (data['email'] ?? '').toString(),
+              'parentPhotoUrl': data['photoUrl']?.toString(),
+              'phoneNumber': (data['phoneNumber'] ?? '').toString(),
             };
           }
         }
@@ -74,10 +74,10 @@ class MessagingService {
 
       return {
         'parentId': parentDoc.id,
-        'parentName': parentData['parentName'] ?? 'Parent',
-        'parentEmail': parentData['email'] ?? '',
-        'parentPhotoUrl': parentData['photoUrl'],
-        'phoneNumber': parentData['phoneNumber'] ?? '',
+        'parentName': (parentData['parentName'] ?? 'Parent').toString(),
+        'parentEmail': (parentData['email'] ?? '').toString(),
+        'parentPhotoUrl': parentData['photoUrl']?.toString(),
+        'phoneNumber': (parentData['phoneNumber'] ?? '').toString(),
       };
     } catch (e) {
       print('Error fetching parent for student: $e');

@@ -1022,31 +1022,106 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       );
     }
 
-    // Parse student's className to extract standard and section
+    // Use FutureBuilder to fetch section if needed
+    return FutureBuilder<Map<String, String>>(
+      future: _parseStudentInfo(student),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+
+        final userStandard = snapshot.data!['standard'] ?? '';
+        final userSection = snapshot.data!['section'] ?? '';
+
+        return _buildAnnouncementsStream(
+          theme,
+          student,
+          schoolIdentifier,
+          currentUserId,
+          userStandard,
+          userSection,
+        );
+      },
+    );
+  }
+
+  /// Parse student's className and fetch section from Firestore if needed
+  Future<Map<String, String>> _parseStudentInfo(StudentModel student) async {
     String userStandard = '';
     String userSection = '';
+
+    // First, check if section is directly available in StudentModel
+    if (student.section != null && student.section!.isNotEmpty) {
+      userSection = student.section!.trim();
+    }
 
     if (student.className != null && student.className!.isNotEmpty) {
       final className = student.className!;
 
+      // Handle formats like "Grade 10 - A" or "Grade 10-A"
       if (className.contains('-')) {
         final parts = className.split('-').map((e) => e.trim()).toList();
         if (parts.length == 2) {
-          userStandard = parts[0].replaceAll('Grade', '').trim();
+          userStandard = parts[0]
+              .replaceAll('Grade', '')
+              .replaceAll('grade', '')
+              .trim();
           userSection = parts[1].trim();
         }
-      } else if (className.contains(' ')) {
-        userStandard = className.replaceAll('Grade', '').trim();
-      } else {
+      }
+      // Handle format like "Grade 10" (no section in className, fetch from Firestore)
+      else if (className.toLowerCase().contains('grade')) {
+        userStandard = className
+            .replaceAll('Grade', '')
+            .replaceAll('grade', '')
+            .trim();
+      }
+      // Handle format like "10A"
+      else {
         final match = RegExp(r'^(\d+)([A-Z])$').firstMatch(className);
         if (match != null) {
           userStandard = match.group(1) ?? '';
           userSection = match.group(2) ?? '';
         } else {
-          userStandard = className;
+          userStandard = className.trim();
         }
       }
     }
+
+    // If section is still empty, fetch it from the student document in Firestore
+    if (userSection.isEmpty && student.uid.isNotEmpty) {
+      try {
+        final studentDoc = await FirebaseFirestore.instance
+            .collection('students')
+            .doc(student.uid)
+            .get();
+        if (studentDoc.exists) {
+          userSection =
+              (studentDoc.data()?['section'] as String?)?.trim() ?? '';
+        }
+      } catch (e) {
+        print('⚠️ Error fetching section: $e');
+      }
+    }
+
+    print(
+      '📊 Student Info - Standard: "$userStandard", Section: "$userSection"',
+    );
+    print('   className: "${student.className}"');
+
+    return {'standard': userStandard, 'section': userSection};
+  }
+
+  /// Build the actual announcements stream widget
+  Widget _buildAnnouncementsStream(
+    ThemeData theme,
+    StudentModel student,
+    String schoolIdentifier,
+    String currentUserId,
+    String userStandard,
+    String userSection,
+  ) {
+    print('   schoolCode: "$schoolIdentifier"');
 
     // TEMPORARY FIX: If schoolIdentifier is empty or doesn't match, query ALL announcements
     // and filter client-side. This helps diagnose the issue.
@@ -1088,7 +1163,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         announcement.instituteId == schoolIdentifier) {
                       final isVisible = announcement.isVisibleTo(
                         userStandard: userStandard,
-                        userSection: '$userStandard$userSection',
+                        userSection:
+                            userSection, // Pass just the section letter (e.g., 'A')
                       );
                       return isVisible;
                     }
@@ -1113,6 +1189,29 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     List<StatusModel> announcements,
     String currentUserId,
   ) {
+    // Group announcements by teacherId
+    final Map<String, List<StatusModel>> groupedByTeacher = {};
+    for (final announcement in announcements) {
+      final teacherId = announcement.teacherId;
+      if (!groupedByTeacher.containsKey(teacherId)) {
+        groupedByTeacher[teacherId] = [];
+      }
+      groupedByTeacher[teacherId]!.add(announcement);
+    }
+
+    // Convert to list of teacher groups (sorted by most recent announcement)
+    final teacherGroups = groupedByTeacher.entries.map((entry) {
+      final teacherAnnouncements = entry.value;
+      // Sort announcements by creation time (newest first)
+      teacherAnnouncements.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return teacherAnnouncements;
+    }).toList();
+
+    // Sort teacher groups by their most recent announcement
+    teacherGroups.sort(
+      (a, b) => b.first.createdAt.compareTo(a.first.createdAt),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1148,25 +1247,30 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         // Horizontal scrollable list
         SizedBox(
           height: 100,
-          child: announcements.isEmpty
+          child: teacherGroups.isEmpty
               ? _buildEmptyAnnouncementsList(theme)
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
-                  itemCount: announcements.length,
+                  itemCount: teacherGroups.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 16),
                   itemBuilder: (context, index) {
-                    final announcement = announcements[index];
-                    final isUnread = !announcement.viewedBy.contains(
-                      currentUserId,
+                    final teacherAnnouncements = teacherGroups[index];
+                    final latestAnnouncement = teacherAnnouncements.first;
+
+                    // Check if ANY announcement from this teacher is unread
+                    final hasUnread = teacherAnnouncements.any(
+                      (a) => !a.viewedBy.contains(currentUserId),
                     );
+
                     return _buildAnnouncementAvatar(
                       theme,
-                      announcement,
-                      isUnread,
+                      latestAnnouncement,
+                      hasUnread,
                       () {
-                        _openAnnouncementViewer(announcements, index);
+                        _openAnnouncementViewer(teacherAnnouncements, 0);
                       },
+                      announcementCount: teacherAnnouncements.length,
                     );
                   },
                 ),
@@ -1203,52 +1307,88 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     ThemeData theme,
     StatusModel announcement,
     bool isUnread,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    int announcementCount = 1, // Number of announcements from this teacher
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Avatar with gradient border if unread
-          Container(
-            width: 68,
-            height: 68,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: isUnread
-                  ? const LinearGradient(
-                      colors: [Color(0xFFFFA726), Color(0xFFF27F0D)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : null,
-              border: !isUnread
-                  ? Border.all(color: Colors.grey[300]!, width: 2)
-                  : null,
-            ),
-            padding: const EdgeInsets.all(3),
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: theme.scaffoldBackgroundColor,
-              ),
-              padding: const EdgeInsets.all(2),
-              child: CircleAvatar(
-                radius: 28,
-                backgroundColor: const Color(0xFFFFF5EB),
-                child: Text(
-                  announcement.teacherName.isNotEmpty
-                      ? announcement.teacherName[0].toUpperCase()
-                      : 'T',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFF27F0D),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: isUnread
+                      ? const LinearGradient(
+                          colors: [Color(0xFFFFA726), Color(0xFFF27F0D)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  border: !isUnread
+                      ? Border.all(color: Colors.grey[300]!, width: 2)
+                      : null,
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: theme.scaffoldBackgroundColor,
+                  ),
+                  padding: const EdgeInsets.all(2),
+                  child: CircleAvatar(
+                    radius: 28,
+                    backgroundColor: const Color(0xFFFFF5EB),
+                    child: Text(
+                      announcement.teacherName.isNotEmpty
+                          ? announcement.teacherName[0].toUpperCase()
+                          : 'T',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFF27F0D),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+              // Count badge (if more than 1 announcement)
+              if (announcementCount > 1)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF27F0D),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: theme.scaffoldBackgroundColor,
+                        width: 2,
+                      ),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 20),
+                    child: Text(
+                      '$announcementCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 6),
           // Teacher name (truncated)

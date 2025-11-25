@@ -102,12 +102,44 @@ class StatusModel {
     required String userStandard,
     required String userSection,
   }) {
-    if (audienceType == 'school') return true;
-    if (audienceType == 'standard' && standards.contains(userStandard)) {
+    print('🔍 Checking visibility for announcement:');
+    print('   audienceType: $audienceType');
+    print('   standards: $standards');
+    print('   sections: $sections');
+    print('   User: Grade $userStandard, Section $userSection');
+
+    if (audienceType == 'school') {
+      print('   ✅ Visible (school-wide)');
       return true;
     }
-    if (audienceType == 'section' && sections.contains(userSection)) {
+    if (audienceType == 'standard' && standards.contains(userStandard)) {
+      print('   ✅ Visible (standard match)');
       return true;
+    }
+    if (audienceType == 'section') {
+      // userSection is just the section letter (e.g., 'A')
+      // sections array may contain:
+      // - Combined format: "10A", "10B"
+      // - Separate format: "A", "B"
+      // - Hyphenated format: "10-A", "10-B"
+      final combinedSection = '$userStandard$userSection'; // e.g., "10A"
+      final hyphenatedSection = '$userStandard-$userSection'; // e.g., "10-A"
+
+      print(
+        '   Checking formats: "$userSection", "$combinedSection", "$hyphenatedSection"',
+      );
+
+      // Check if any format matches
+      for (final section in sections) {
+        if (section == userSection || // Just "A"
+            section == combinedSection || // "10A"
+            section == hyphenatedSection) {
+          // "10-A"
+          print('   ✅ Visible (section match: $section)');
+          return true;
+        }
+      }
+      print('   ❌ Not visible (no section match)');
     }
     return false;
   }

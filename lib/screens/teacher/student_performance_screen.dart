@@ -6,8 +6,6 @@ import '../../models/performance_model.dart';
 import '../../services/firestore_service.dart';
 import '../../services/messaging_service.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/teacher_bottom_nav.dart';
-import 'dart:math' as math;
 
 class StudentPerformanceScreen extends StatefulWidget {
   final String studentId;
@@ -354,6 +352,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                           position: _slideAnimation,
                           child: Column(
                             children: [
+                              _buildMessageParent(theme),
+                              const SizedBox(height: 24),
                               _buildQuickStats(
                                 theme,
                                 perf,
@@ -370,8 +370,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                               _buildBadgesSection(theme),
                               const SizedBox(height: 24),
                               _buildPersonalDetails(theme),
-                              const SizedBox(height: 24),
-                              _buildMessageParent(theme),
                               const SizedBox(height: 48),
                             ],
                           ),
@@ -385,7 +383,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           ),
         ],
       ),
-      bottomNavigationBar: const TeacherBottomNav(selectedIndex: 1),
     );
   }
 
@@ -1312,15 +1309,16 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               theme,
               Icons.phone_outlined,
               'Phone',
-              (d['phoneNumber'] ?? d['phone'] ?? '—').toString(),
+              (d['phoneNumber'] ?? d['phone'] ?? d['contactNumber'] ?? '—')
+                  .toString(),
               const Color(0xFF06B6D4),
             ),
             const Divider(height: 24),
             _detailRow(
               theme,
               Icons.badge_outlined,
-              'Roll No',
-              (d['rollNo'] ?? '—').toString(),
+              'Student ID',
+              (d['studentId'] ?? '—').toString(),
               const Color(0xFF8B5CF6),
             ),
             const Divider(height: 24),
@@ -1524,8 +1522,21 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final teacherId = auth.currentUser?.uid;
-      if (teacherId == null) return;
-      final parentPhone = _studentDetails?['parentPhone']?.toString();
+      if (teacherId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Teacher ID not found')));
+        }
+        return;
+      }
+
+      // Safely extract parent phone with null checks
+      String? parentPhone;
+      if (_studentDetails != null && _studentDetails!['parentPhone'] != null) {
+        parentPhone = _studentDetails!['parentPhone'].toString();
+      }
+
       final messaging = MessagingService();
       final parentData = await messaging.fetchParentForStudent(
         widget.studentId,

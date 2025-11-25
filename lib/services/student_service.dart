@@ -69,6 +69,7 @@ class StudentService {
               studentRefData['schoolCode'] as String?, // FIXED: Read schoolCode
           schoolName: resolvedSchoolName,
           className: studentRefData['className'] as String?,
+          section: studentRefData['section'] as String?, // FIXED: Read section
           phone: studentRefData['contactNumber'] as String?,
           parentPhone: studentRefData['parentPhone'] as String?,
           rewardPoints: 0,
@@ -133,6 +134,12 @@ class StudentService {
           ? base.className
           : (studentRefData?['className'] as String?);
 
+      // Resolve section from students collection
+      String? resolvedSection =
+          (base.section != null && base.section!.isNotEmpty)
+          ? base.section
+          : (studentRefData?['section'] as String?);
+
       // Resolve schoolCode from students collection
       String? resolvedSchoolCode = base.schoolCode;
       if ((resolvedSchoolCode == null || resolvedSchoolCode.isEmpty) &&
@@ -191,6 +198,11 @@ class StudentService {
           resolvedClassName != base.className) {
         updates['className'] = resolvedClassName;
       }
+      if (resolvedSection != null &&
+          resolvedSection.isNotEmpty &&
+          resolvedSection != base.section) {
+        updates['section'] = resolvedSection;
+      }
       if (resolvedSchoolCode != null &&
           resolvedSchoolCode.isNotEmpty &&
           resolvedSchoolCode != base.schoolCode) {
@@ -221,6 +233,7 @@ class StudentService {
         phone: resolvedPhone,
         parentPhone: resolvedParentPhone,
         className: resolvedClassName,
+        section: resolvedSection, // FIXED: Include section
         schoolCode: resolvedSchoolCode, // FIXED: Include schoolCode
         schoolName: resolvedSchoolName,
       );

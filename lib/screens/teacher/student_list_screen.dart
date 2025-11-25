@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
 import '../../services/messaging_service.dart';
-import '../../widgets/teacher_bottom_nav.dart';
 
 class StudentListScreen extends StatefulWidget {
   final String className;
@@ -147,7 +146,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 ),
               ],
             ),
-      bottomNavigationBar: const TeacherBottomNav(selectedIndex: 1),
     );
   }
 

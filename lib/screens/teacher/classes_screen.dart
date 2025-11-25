@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
-import '../../widgets/teacher_bottom_nav.dart';
 
 class ClassesScreen extends StatefulWidget {
   const ClassesScreen({super.key});
@@ -286,35 +285,16 @@ class _ClassesScreenState extends State<ClassesScreen> {
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.menu, size: 28),
-                onPressed: () {
-                  // Handle menu
-                },
-                color: Theme.of(context).iconTheme.color,
+          child: Center(
+            child: Text(
+              'My Classes',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
-              Expanded(
-                child: Text(
-                  'My Classes',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).textTheme.bodyLarge?.color,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add, size: 28),
-                onPressed: () {
-                  _showAddClassDialog();
-                },
-                color: Theme.of(context).iconTheme.color,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -426,40 +406,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 ],
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return const TeacherBottomNav(selectedIndex: 1);
-  }
-
-  void _showAddClassDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add New Class'),
-        content: const Text(
-          'This feature will allow you to create a new class.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Add class feature coming soon!')),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6366F1),
-            ),
-            child: const Text('Add'),
           ),
         ],
       ),

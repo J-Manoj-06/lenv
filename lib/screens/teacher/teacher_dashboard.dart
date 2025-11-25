@@ -947,8 +947,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     bool allStandards = false;
     bool allSections = false;
 
-    // Available standards (all grades)
-    final availableStandards = ['6', '7', '8', '9', '10', '11', '12'];
+    // Available standards (fetch from school's students)
+    final availableStandards = <String>[];
+    bool standardsLoaded = false;
 
     // Teacher's assigned sections (extract from _classes or _teacherData)
     final teacherSections = <String>[];
@@ -969,6 +970,52 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     // Sort sections for better display
     teacherSections.sort();
 
+    // Fetch available standards from the school's students
+    Future<void> fetchAvailableStandards() async {
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final schoolCode =
+            authProvider.currentUser?.instituteId ??
+            _teacherData?['schoolCode'] ??
+            '';
+
+        if (schoolCode.isEmpty) {
+          availableStandards.addAll(['6', '7', '8', '9', '10', '11', '12']);
+          return;
+        }
+
+        // Query students and extract unique standards
+        final studentsSnapshot = await FirebaseFirestore.instance
+            .collection('students')
+            .where('schoolCode', isEqualTo: schoolCode)
+            .get();
+
+        final uniqueStandards = <String>{};
+        for (final doc in studentsSnapshot.docs) {
+          final className = doc.data()['className']?.toString() ?? '';
+          // Extract grade number from formats like "Grade 10", "Grade 8", etc.
+          final grade = className
+              .replaceAll('Grade ', '')
+              .replaceAll('grade ', '')
+              .trim();
+
+          if (grade.isNotEmpty && RegExp(r'^\d+$').hasMatch(grade)) {
+            uniqueStandards.add(grade);
+          }
+        }
+
+        availableStandards.addAll(uniqueStandards.toList()..sort());
+
+        // Fallback: if no students found, show common grades
+        if (availableStandards.isEmpty) {
+          availableStandards.addAll(['6', '7', '8', '9', '10', '11', '12']);
+        }
+      } catch (e) {
+        // Fallback on error
+        availableStandards.addAll(['6', '7', '8', '9', '10', '11', '12']);
+      }
+    }
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -976,6 +1023,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
+            // Fetch standards on first build
+            if (availableStandards.isEmpty) {
+              fetchAvailableStandards().then((_) {
+                setSheetState(() {
+                  // Trigger rebuild after standards are loaded
+                });
+              });
+            }
             Future<void> pickImage() async {
               final picker = ImagePicker();
               final x = await picker.pickImage(
@@ -1009,17 +1064,40 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             Future<void> post() async {
               if (posting) return;
 
-              // Smart fallback: if no specific selection made, default to school-wide
+              // Validate message is not empty
+              final messageText = textController.text.trim();
+              if (messageText.isEmpty && previewBytes == null) {
+                showErrorSnackbar(
+                  context,
+                  'Please enter a message or add an image',
+                  role: 'teacher',
+                );
+                return;
+              }
+
+              // Validate standards selection (mandatory)
+              if (selectedAudience == 'standard' && selectedStandards.isEmpty) {
+                showErrorSnackbar(
+                  context,
+                  'Please select at least one standard',
+                  role: 'teacher',
+                );
+                return;
+              }
+
+              // Validate sections selection
+              if (selectedAudience == 'section' && selectedSections.isEmpty) {
+                showErrorSnackbar(
+                  context,
+                  'Please select at least one section',
+                  role: 'teacher',
+                );
+                return;
+              }
+
               String effectiveAudience = selectedAudience;
               List<String> effectiveStandards = selectedStandards.toList();
               List<String> effectiveSections = selectedSections.toList();
-              if (selectedAudience == 'standard' &&
-                  effectiveStandards.isEmpty) {
-                effectiveAudience = 'school';
-              }
-              if (selectedAudience == 'section' && effectiveSections.isEmpty) {
-                effectiveAudience = 'school';
-              }
 
               setSheetState(() => posting = true);
               try {
@@ -1362,48 +1440,66 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                             ],
                                           ),
                                           const SizedBox(height: 8),
-                                          Wrap(
-                                            spacing: 6,
-                                            runSpacing: 6,
-                                            children: [
-                                              for (final std
-                                                  in availableStandards)
-                                                FilterChip(
-                                                  label: Text(
-                                                    'Grade $std',
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 12,
+                                          availableStandards.isEmpty
+                                              ? const Center(
+                                                  child: Padding(
+                                                    padding: EdgeInsets.all(
+                                                      8.0,
                                                     ),
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          color: Colors.white70,
+                                                          strokeWidth: 2,
+                                                        ),
                                                   ),
-                                                  selected: selectedStandards
-                                                      .contains(std),
-                                                  backgroundColor: Colors.white
-                                                      .withOpacity(0.08),
-                                                  selectedColor: const Color(
-                                                    0xFF6C63FF,
-                                                  ),
-                                                  checkmarkColor: Colors.white,
-                                                  onSelected: (sel) {
-                                                    setSheetState(() {
-                                                      if (sel) {
-                                                        selectedStandards.add(
-                                                          std,
-                                                        );
-                                                      } else {
-                                                        selectedStandards
-                                                            .remove(std);
-                                                      }
-                                                      allStandards =
-                                                          selectedStandards
-                                                              .length ==
-                                                          availableStandards
-                                                              .length;
-                                                    });
-                                                  },
+                                                )
+                                              : Wrap(
+                                                  spacing: 6,
+                                                  runSpacing: 6,
+                                                  children: [
+                                                    for (final std
+                                                        in availableStandards)
+                                                      FilterChip(
+                                                        label: Text(
+                                                          'Grade $std',
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize: 12,
+                                                              ),
+                                                        ),
+                                                        selected:
+                                                            selectedStandards
+                                                                .contains(std),
+                                                        backgroundColor: Colors
+                                                            .white
+                                                            .withOpacity(0.08),
+                                                        selectedColor:
+                                                            const Color(
+                                                              0xFF6C63FF,
+                                                            ),
+                                                        checkmarkColor:
+                                                            Colors.white,
+                                                        onSelected: (sel) {
+                                                          setSheetState(() {
+                                                            if (sel) {
+                                                              selectedStandards
+                                                                  .add(std);
+                                                            } else {
+                                                              selectedStandards
+                                                                  .remove(std);
+                                                            }
+                                                            allStandards =
+                                                                selectedStandards
+                                                                    .length ==
+                                                                availableStandards
+                                                                    .length;
+                                                          });
+                                                        },
+                                                      ),
+                                                  ],
                                                 ),
-                                            ],
-                                          ),
                                         ],
                                       ),
                                     ),
@@ -1710,16 +1806,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
     if (currentUser == null) throw 'User not logged in';
+    
+    // Validate message content
     if ((text == null || text.isEmpty) && imageBytes == null) {
-      throw 'Add text or image to post.';
+      throw 'Message cannot be empty. Please add text or image.';
     }
 
-    // Validate audience selection
+    // Validate audience selection (mandatory)
     if (audienceType == 'standard' && standards.isEmpty) {
-      throw 'Please select at least one standard.';
+      throw 'Standards selection is mandatory. Please select at least one standard.';
     }
     if (audienceType == 'section' && sections.isEmpty) {
-      throw 'Please select at least one section.';
+      throw 'Section selection is mandatory. Please select at least one section.';
     }
 
     String? imageUrl;
