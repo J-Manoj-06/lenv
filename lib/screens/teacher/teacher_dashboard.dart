@@ -1806,7 +1806,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
     if (currentUser == null) throw 'User not logged in';
-    
+
     // Validate message content
     if ((text == null || text.isEmpty) && imageBytes == null) {
       throw 'Message cannot be empty. Please add text or image.';

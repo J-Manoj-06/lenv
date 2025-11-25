@@ -177,8 +177,9 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: brandOffWhite,
+      backgroundColor: isDark ? const Color(0xFF1A1A1A) : brandOffWhite,
       body: SafeArea(
         child: Form(
           key: _formKey,
@@ -270,21 +271,25 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   }
 
   Widget _buildWelcomeText() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
-        const Text(
+        Text(
           'Welcome Back, Student!',
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: brandBrownDark,
+            color: isDark ? Colors.white : brandBrownDark,
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
           'Enter your credentials to access your portal.',
-          style: TextStyle(fontSize: 15, color: brandBrownLight),
+          style: TextStyle(
+            fontSize: 15,
+            color: isDark ? Colors.grey[400] : brandBrownLight,
+          ),
           textAlign: TextAlign.center,
         ),
       ],
@@ -292,15 +297,20 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   }
 
   Widget _buildSchoolDropdown() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF2A2A2A) : brandLightGray;
+    final textColor = isDark ? Colors.white : brandBrownDark;
+    final hintColor = isDark ? Colors.grey[400]! : brandBrownLight;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Select School',
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: brandBrownDark,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -315,7 +325,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: brandLightGray,
+            color: bgColor,
           ),
           child: DropdownButtonFormField<String>(
             initialValue: _selectedSchool,
@@ -323,9 +333,9 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
               hintText: _isLoadingSchools
                   ? 'Loading schools...'
                   : 'Choose your school',
-              hintStyle: TextStyle(color: brandBrownLight),
+              hintStyle: TextStyle(color: hintColor),
               filled: true,
-              fillColor: brandLightGray,
+              fillColor: bgColor,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -352,16 +362,13 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(brandOrange),
                     ),
                   )
-                : Icon(Icons.keyboard_arrow_down, color: brandBrownLight),
-            dropdownColor: brandLightGray,
+                : Icon(Icons.keyboard_arrow_down, color: hintColor),
+            dropdownColor: bgColor,
             items: _schools
                 .map(
                   (s) => DropdownMenuItem(
                     value: s.id,
-                    child: Text(
-                      s.name,
-                      style: const TextStyle(color: brandBrownDark),
-                    ),
+                    child: Text(s.name, style: TextStyle(color: textColor)),
                   ),
                 )
                 .toList(),
@@ -383,27 +390,32 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   }
 
   Widget _buildEmailField() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF2A2A2A) : brandLightGray;
+    final textColor = isDark ? Colors.white : brandBrownDark;
+    final hintColor = isDark ? Colors.grey[400]! : brandBrownLight;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Email',
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: brandBrownDark,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
-          style: const TextStyle(color: brandBrownDark),
+          style: TextStyle(color: textColor),
           decoration: InputDecoration(
             hintText: 'you@example.com',
-            hintStyle: TextStyle(color: brandBrownLight),
+            hintStyle: TextStyle(color: hintColor),
             filled: true,
-            fillColor: brandLightGray,
+            fillColor: bgColor,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -444,27 +456,32 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   }
 
   Widget _buildPasswordField() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF2A2A2A) : brandLightGray;
+    final textColor = isDark ? Colors.white : brandBrownDark;
+    final hintColor = isDark ? Colors.grey[400]! : brandBrownLight;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Password',
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: brandBrownDark,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: _passwordController,
           obscureText: !_isPasswordVisible,
-          style: const TextStyle(color: brandBrownDark),
+          style: TextStyle(color: textColor),
           decoration: InputDecoration(
             hintText: '••••••••',
-            hintStyle: TextStyle(color: brandBrownLight),
+            hintStyle: TextStyle(color: hintColor),
             filled: true,
-            fillColor: brandLightGray,
+            fillColor: bgColor,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -492,7 +509,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
             suffixIcon: IconButton(
               icon: Icon(
                 _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                color: brandBrownLight,
+                color: hintColor,
               ),
               onPressed: () {
                 setState(() => _isPasswordVisible = !_isPasswordVisible);

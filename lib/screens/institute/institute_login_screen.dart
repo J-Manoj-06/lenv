@@ -7,14 +7,14 @@ import '../../models/school_model.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
 
-class TeacherLoginScreen extends StatefulWidget {
-  const TeacherLoginScreen({super.key});
+class InstituteLoginScreen extends StatefulWidget {
+  const InstituteLoginScreen({super.key});
 
   @override
-  State<TeacherLoginScreen> createState() => _TeacherLoginScreenState();
+  State<InstituteLoginScreen> createState() => _InstituteLoginScreenState();
 }
 
-class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
+class _InstituteLoginScreenState extends State<InstituteLoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -23,10 +23,11 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   bool _isPasswordVisible = false;
   bool _isLoading = false;
 
-  // Teacher brand colors
-  static const Color teacherPurple = Color(0xFF7E57C2);
-  static const Color teacherPurpleDark = Color(0xFF5E35B1);
-  static const Color teacherPurpleLight = Color(0xFFA78BFA);
+  // Institute brand theme
+  static const Color instituteTeal = Color(0xFF146D7A); // #146d7a
+  static const Color instituteTealLight = Color(
+    0xFFE0F7FA,
+  ); // light teal background
   static const Color brandBrownDark = Color(0xFF1C140D);
   static const Color brandBrownLight = Color(0xFF9C7349);
   static const Color brandOffWhite = Color(0xFFFCFAF8);
@@ -38,16 +39,16 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   String? _schoolLoadError;
 
   @override
+  void initState() {
+    super.initState();
+    _loadSchools();
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSchools();
   }
 
   Future<void> _loadSchools() async {
@@ -71,7 +72,6 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
         }
       }
     } catch (e) {
-      print('❌ Error loading schools in UI: $e');
       if (mounted) {
         setState(() {
           _isLoadingSchools = false;
@@ -101,10 +101,8 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
       );
 
       if (success) {
-        // Check if user is a teacher
         final user = authProvider.currentUser;
-        if (user?.role == UserRole.teacher) {
-          // Validate selected school matches user's instituteId
+        if (user?.role == UserRole.institute) {
           if (user?.instituteId == null || user!.instituteId!.isEmpty) {
             _showErrorSnackBar(
               'Your account is not linked to a school. Please contact admin.',
@@ -116,23 +114,21 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
             );
             await authProvider.signOut();
           } else {
-            // Save session
             await SessionManager.saveLoginSession(
               userId: user.uid,
-              userRole: 'teacher',
+              userRole: 'institute',
               schoolId: user.instituteId,
             );
             if (mounted) {
-              Navigator.pushReplacementNamed(context, '/teacher-dashboard');
+              Navigator.pushReplacementNamed(context, '/institute-dashboard');
             }
           }
         } else {
-          _showErrorSnackBar('Access denied. This is a teacher-only login.');
+          _showErrorSnackBar('Access denied. This is an institute-only login.');
           await authProvider.signOut();
         }
       } else {
         String errorMsg = authProvider.errorMessage ?? 'Login failed';
-        // Normalize with friendly messages
         errorMsg = getFriendlyErrorMessage(errorMsg);
         _showErrorSnackBar(errorMsg);
       }
@@ -147,8 +143,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   }
 
   void _showErrorSnackBar(String message) {
-    // Use universal, role-themed error snackbar
-    showErrorSnackbar(context, message, role: 'teacher');
+    showErrorSnackbar(context, message, role: 'institute');
   }
 
   void _handleForgotPassword() async {
@@ -167,7 +162,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
         showSuccessSnackbar(
           context,
           'Password reset email sent! Check your inbox.',
-          role: 'teacher',
+          role: 'institute',
         );
       }
     } else {
@@ -185,52 +180,29 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
           key: _formKey,
           child: Column(
             children: [
-              // Header with Logo
               _buildHeader(),
-
-              // Main Content (scrollable)
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     children: [
                       const SizedBox(height: 20),
-
-                      // Welcome Text
                       _buildWelcomeText(),
-
                       const SizedBox(height: 40),
-
-                      // School Dropdown
                       _buildSchoolDropdown(),
-
                       const SizedBox(height: 24),
-
-                      // Email Field
                       _buildEmailField(),
-
                       const SizedBox(height: 24),
-
-                      // Password Field
                       _buildPasswordField(),
-
                       const SizedBox(height: 16),
-
-                      // Forgot Password Link
                       _buildForgotPasswordLink(),
-
                       const SizedBox(height: 40),
-
-                      // Login Button
                       _buildLoginButton(),
-
                       const SizedBox(height: 20),
                     ],
                   ),
                 ),
               ),
-
-              // Footer
               _buildFooter(),
             ],
           ),
@@ -251,20 +223,21 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
             gradient: const LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFFA78BFA), // Light purple
-                Color(0xFF7E57C2), // Teacher purple
-              ],
+              colors: [instituteTealLight, instituteTeal],
             ),
             boxShadow: [
               BoxShadow(
-                color: teacherPurple.withOpacity(0.3),
+                color: instituteTeal.withOpacity(0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: const Icon(Icons.school, color: Colors.white, size: 36),
+          child: const Icon(
+            Icons.business_rounded,
+            color: Colors.white,
+            size: 36,
+          ),
         ),
       ),
     );
@@ -275,7 +248,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
     return Column(
       children: [
         Text(
-          'Welcome Back, Teacher!',
+          'Welcome Back, Institute!',
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -285,7 +258,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Enter your credentials to access your portal.',
+          'Sign in to manage your portal.',
           style: TextStyle(
             fontSize: 15,
             color: isDark ? Colors.grey[400] : brandBrownLight,
@@ -346,7 +319,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: teacherPurple, width: 2),
+                borderSide: const BorderSide(color: instituteTeal, width: 2),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -359,7 +332,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(teacherPurple),
+                      valueColor: AlwaysStoppedAnimation<Color>(instituteTeal),
                     ),
                   )
                 : Icon(Icons.keyboard_arrow_down, color: hintColor),
@@ -424,17 +397,17 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: teacherPurple, width: 2),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(color: instituteTeal, width: 2),
             ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+            errorBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(color: Colors.red, width: 2),
             ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+            focusedErrorBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(color: Colors.red, width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -490,17 +463,17 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: teacherPurple, width: 2),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(color: instituteTeal, width: 2),
             ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+            errorBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(color: Colors.red, width: 2),
             ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+            focusedErrorBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(color: Colors.red, width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -540,7 +513,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: teacherPurple,
+            color: instituteTeal,
           ),
         ),
       ),
@@ -556,14 +529,11 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFA78BFA), // Light purple
-            Color(0xFF7E57C2), // Teacher purple
-          ],
+          colors: [instituteTealLight, instituteTeal],
         ),
         boxShadow: [
           BoxShadow(
-            color: teacherPurple.withOpacity(0.4),
+            color: instituteTeal.withOpacity(0.4),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),

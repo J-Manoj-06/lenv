@@ -9,20 +9,27 @@ class RoleSelectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final roleProvider = Provider.of<RoleProvider>(context, listen: false);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFFFD4B3), // Lighter peachy orange
-              Color(0xFFFFB380), // Light orange
-              Color(0xFFF97316), // Main orange #F97316
-            ],
+            colors: isDark
+                ? [
+                    const Color(0xFF1A1A1A), // Dark background
+                    const Color(0xFF2A2A2A), // Slightly lighter
+                    const Color(0xFF3A3A3A), // Medium dark
+                  ]
+                : [
+                    const Color(0xFFFFD4B3), // Lighter peachy orange
+                    const Color(0xFFFFB380), // Light orange
+                    const Color(0xFFF97316), // Main orange #F97316
+                  ],
           ),
         ),
         child: SafeArea(
@@ -119,13 +126,7 @@ class RoleSelectionScreen extends StatelessWidget {
                                 icon: Icons.family_restroom_rounded,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.parent);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Parent portal coming soon',
-                                      ),
-                                    ),
-                                  );
+                                  Navigator.pushNamed(context, '/parent-login');
                                 },
                               ),
                             ),
@@ -138,12 +139,9 @@ class RoleSelectionScreen extends StatelessWidget {
                                 icon: Icons.business_rounded,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.institute);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Institute portal coming soon',
-                                      ),
-                                    ),
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/institute-login',
                                   );
                                 },
                               ),
@@ -195,16 +193,18 @@ class RoleSelectionScreen extends StatelessWidget {
     required IconData icon,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         height: 190,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.15),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -216,7 +216,7 @@ class RoleSelectionScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFF97316).withOpacity(0.1),
+                color: const Color(0xFFF97316).withOpacity(isDark ? 0.2 : 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -228,12 +228,10 @@ class RoleSelectionScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.w600,
-                color: Color(
-                  0xFF2D2D2D,
-                ), // Dark gray text for better readability
+                color: isDark ? Colors.white : const Color(0xFF2D2D2D),
               ),
             ),
           ],

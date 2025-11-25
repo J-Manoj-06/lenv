@@ -85,35 +85,15 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: Theme.of(context).cardColor),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(Icons.arrow_back, size: 24),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
+          // Removed back button - use bottom navigation instead
           Text(
             'Rewards',
             style: Theme.of(
               context,
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
-          const SizedBox(width: 40),
         ],
       ),
     );

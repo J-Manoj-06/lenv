@@ -70,24 +70,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: Icon(
-                      Icons.arrow_back,
-                      size: 24,
-                      color: theme.iconTheme.color,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
+                // Removed back button - use bottom navigation instead
                 Expanded(
                   child: Text(
                     'Leaderboards',
@@ -97,7 +82,6 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 40),
               ],
             ),
           ),

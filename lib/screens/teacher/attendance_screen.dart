@@ -18,10 +18,8 @@ class AttendanceScreen extends StatefulWidget {
 class _AttendanceScreenState extends State<AttendanceScreen> {
   final TeacherService _teacherService = TeacherService();
   DateTime _selectedDate = DateTime.now();
-  String? _selectedStandard;
-  String? _selectedSection;
-  List<String> _standards = [];
-  List<String> _sections = [];
+  String? _selectedClass; // Combined "Standard - Section" format
+  List<String> _classes = []; // List of "Standard - Section"
   List<Map<String, dynamic>> _students = [];
   Map<String, AttendanceStatus> _attendanceMap = {};
   bool _isLoading = true;
@@ -56,34 +54,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return;
       }
 
-      // Extract standards and sections
+      // Extract classes in "Standard - Section" format
       final classes = _teacherService.getTeacherClasses(
         teacherData['classesHandled'],
         teacherData['sections'] ?? teacherData['section'],
         classAssignments: teacherData['classAssignments'],
       );
 
-      final standardsSet = <String>{};
-      final sectionsSet = <String>{};
-
-      for (var className in classes) {
-        final parts = className.split(' - ');
-        if (parts.length == 2) {
-          standardsSet.add(parts[0].trim());
-          sectionsSet.add(parts[1].trim());
-        }
-      }
-
       setState(() {
-        _standards = standardsSet.toList()..sort();
-        _sections = sectionsSet.toList()..sort();
-        _selectedStandard = _standards.isNotEmpty ? _standards[0] : null;
-        _selectedSection = _sections.isNotEmpty ? _sections[0] : null;
+        _classes = classes..sort();
+        _selectedClass = _classes.isNotEmpty ? _classes[0] : null;
         _isLoading = false;
         _isEditing = false;
       });
 
-      if (_selectedStandard != null && _selectedSection != null) {
+      if (_selectedClass != null) {
         await _loadStudents();
       }
     } catch (e) {
@@ -93,11 +78,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Future<void> _loadStudents() async {
-    if (_selectedStandard == null || _selectedSection == null) return;
+    if (_selectedClass == null) return;
 
     setState(() => _isLoading = true);
 
     try {
+      // Parse standard and section from combined format "Standard - Section"
+      final parts = _selectedClass!.split(' - ');
+      if (parts.length < 2) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final selectedStandard = parts[0].trim();
+      final selectedSection = parts[1].trim();
+
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       final schoolCode = currentUser?.instituteId ?? '';
@@ -108,15 +103,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       }
 
       print(
-        'Loading students for school: $schoolCode, standard: $_selectedStandard, section: $_selectedSection',
+        'Loading students for school: $schoolCode, standard: $selectedStandard, section: $selectedSection',
       );
 
-      // Fetch students from 'students' collection (matches TeacherService)
+      // Fetch students from 'students' collection
       final snapshot = await FirebaseFirestore.instance
           .collection('students')
           .where('schoolCode', isEqualTo: schoolCode)
-          .where('className', isEqualTo: 'Grade $_selectedStandard')
-          .where('section', isEqualTo: _selectedSection)
+          .where('className', isEqualTo: 'Grade $selectedStandard')
+          .where('section', isEqualTo: selectedSection)
           .get();
 
       print('Found ${snapshot.docs.length} students');
@@ -125,8 +120,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       } else {
         print('No students found. Query params:');
         print('  schoolCode: $schoolCode');
-        print('  className: Grade $_selectedStandard');
-        print('  section: $_selectedSection');
+        print('  className: Grade $selectedStandard');
+        print('  section: $selectedSection');
         print("  collection: 'students'");
       }
 
@@ -136,12 +131,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         // Use uid field directly from students collection (auth UID)
         final authUid =
             data['uid'] as String? ?? doc.id; // fallback to doc id if missing
+
+        // Extract parent phone from multiple possible field names
+        final parentPhone =
+            (data['parentPhone'] ??
+                    data['parent_contact'] ??
+                    data['phoneNumber'] ??
+                    '')
+                .toString();
+
         students.add({
           'id': authUid, // canonical key (auth UID)
           'legacyId': doc.id, // for reading old attendance docs
           'name': data['studentName'] ?? data['name'] ?? 'Unknown',
           'rollNo': data['rollNo'] ?? data['studentId'] ?? '—',
-          'email': data['email'],
+          'email': data['email'] ?? '',
+          'parentPhone': parentPhone,
         });
       }
 
@@ -180,15 +185,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       final schoolCode = currentUser?.instituteId ?? '';
-      if (schoolCode.isEmpty ||
-          _selectedStandard == null ||
-          _selectedSection == null) {
+      if (schoolCode.isEmpty || _selectedClass == null) {
         return;
       }
 
+      // Parse standard and section
+      final parts = _selectedClass!.split(' - ');
+      if (parts.length < 2) return;
+
+      final selectedStandard = parts[0].trim();
+      final selectedSection = parts[1].trim();
+
       final dateKey = DateFormat('yyyy-MM-dd').format(_selectedDate);
       final docId =
-          '${schoolCode}_${dateKey}_${_selectedStandard}_$_selectedSection';
+          '${schoolCode}_${dateKey}_${selectedStandard}_$selectedSection';
 
       // Check if attendance document exists
       final docSnap = await FirebaseFirestore.instance
@@ -251,13 +261,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final teacherId = authProvider.currentUser?.uid;
       final schoolCode = authProvider.currentUser?.instituteId ?? '';
 
-      if (teacherId == null || schoolCode.isEmpty) {
-        throw Exception('Missing teacher or school information');
+      if (teacherId == null || schoolCode.isEmpty || _selectedClass == null) {
+        throw Exception('Missing teacher, school, or class information');
       }
+
+      // Parse standard and section
+      final parts = _selectedClass!.split(' - ');
+      if (parts.length < 2) {
+        throw Exception('Invalid class format');
+      }
+
+      final selectedStandard = parts[0].trim();
+      final selectedSection = parts[1].trim();
 
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       final docId =
-          '${schoolCode}_${dateStr}_${_selectedStandard}_$_selectedSection';
+          '${schoolCode}_${dateStr}_${selectedStandard}_$selectedSection';
 
       // Build students map keyed ONLY by auth UID (canonical)
       final studentsMap = <String, Map<String, dynamic>>{};
@@ -274,8 +293,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       // Save as a single document
       await FirebaseFirestore.instance.collection('attendance').doc(docId).set({
         'schoolCode': schoolCode,
-        'standard': _selectedStandard,
-        'section': _selectedSection,
+        'standard': selectedStandard,
+        'section': selectedSection,
         'date': dateStr,
         'teacherId': teacherId,
         'timestamp': FieldValue.serverTimestamp(),
@@ -323,65 +342,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
-  void _showStandardPicker() async {
-    if (_standards.isEmpty) return;
-
-    final selected = await showDialog<String>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Select Standard'),
-        children: _standards.map((std) {
-          return SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, std),
-            child: Text(std),
-          );
-        }).toList(),
-      ),
-    );
-
-    if (selected != null && selected != _selectedStandard) {
-      setState(() {
-        _selectedStandard = selected;
-        _isEditing = false;
-      });
-      await _loadStudents();
-    }
-  }
-
-  void _showSectionPicker() async {
-    if (_sections.isEmpty) return;
-
-    final selected = await showDialog<String>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Select Section'),
-        children: _sections.map((sec) {
-          return SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, sec),
-            child: Text(sec),
-          );
-        }).toList(),
-      ),
-    );
-
-    if (selected != null && selected != _selectedSection) {
-      setState(() {
-        _selectedSection = selected;
-        _isEditing = false;
-      });
-      await _loadStudents();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF7A5CFF), Color(0xFF9D8BFF)],
+            colors: isDark
+                ? [const Color(0xFF1A1A1A), const Color(0xFF2A2A2A)]
+                : [const Color(0xFF7A5CFF), const Color(0xFF9D8BFF)],
           ),
         ),
         child: SafeArea(
@@ -469,68 +442,75 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Widget _buildFilters() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          _buildFilterButton(
-            label: _selectedStandard ?? 'Standard',
-            onTap: _showStandardPicker,
-            isSelected: _selectedStandard != null,
-          ),
-          const SizedBox(width: 12),
-          _buildFilterButton(
-            label: _selectedSection ?? 'Section',
-            onTap: _showSectionPicker,
-            isSelected: _selectedSection != null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterButton({
-    required String label,
-    required VoidCallback onTap,
-    required bool isSelected,
-  }) {
-    return InkWell(
-      onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(24),
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.2)
+                : Colors.white.withOpacity(0.3),
+          ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? const Color(0xFF7A5CFF) : Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _selectedClass,
+            isExpanded: true,
+            dropdownColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+            icon: const Icon(Icons.expand_more, color: Colors.white),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
             ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.expand_more,
-              size: 18,
-              color: isSelected ? const Color(0xFF7A5CFF) : Colors.white,
+            hint: const Text(
+              'Select Class',
+              style: TextStyle(color: Colors.white70),
             ),
-          ],
+            items: _classes.map((className) {
+              return DropdownMenuItem<String>(
+                value: className,
+                child: Text(
+                  className,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF0F0C1D),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              );
+            }).toList(),
+            onChanged: (value) async {
+              if (value != null && value != _selectedClass) {
+                setState(() {
+                  _selectedClass = value;
+                  _isEditing = false;
+                });
+                await _loadStudents();
+              }
+            },
+          ),
         ),
       ),
     );
   }
 
   Widget _buildStudentList() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F5F8);
+
     if (_isLoading) {
       return Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFF6F5F8),
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
@@ -543,26 +523,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     if (_students.isEmpty) {
       return Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFF6F5F8),
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
         ),
-        child: const Center(
+        child: Center(
           child: Text(
             'No students found',
-            style: TextStyle(color: Colors.grey, fontSize: 16),
+            style: TextStyle(
+              color: isDark ? Colors.grey[400] : Colors.grey,
+              fontSize: 16,
+            ),
           ),
         ),
       );
     }
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF6F5F8),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
         ),
@@ -582,12 +565,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Widget _buildStudentCard(Map<String, dynamic> student) {
     final studentId = student['id'];
     final status = _attendanceMap[studentId] ?? AttendanceStatus.present;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: isDark
+            ? Border.all(color: Colors.white.withOpacity(0.1))
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -601,8 +588,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   children: [
                     Text(
                       '${student['name']} — Roll No. ${student['rollNo']}',
-                      style: const TextStyle(
-                        color: Color(0xFF0F0C1D),
+                      style: TextStyle(
+                        color: isDark ? Colors.white : const Color(0xFF0F0C1D),
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                       ),
@@ -686,11 +673,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Widget _buildSaveButton() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F5F8),
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F5F8),
+        border: Border(
+          top: BorderSide(
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.grey.shade200,
+          ),
+        ),
       ),
       child: Row(
         children: [
@@ -715,7 +710,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 child: const Text(
                   'Cancel',
                   style: TextStyle(
-                    color: Color(0xFF0F0C1D),
+                    color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -793,13 +788,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final teacherId = authProvider.currentUser?.uid;
       final schoolCode = authProvider.currentUser?.instituteId ?? '';
 
-      if (teacherId == null || schoolCode.isEmpty) {
-        throw Exception('Missing teacher or school information');
+      if (teacherId == null || schoolCode.isEmpty || _selectedClass == null) {
+        throw Exception('Missing teacher, school, or class information');
       }
+
+      // Parse standard and section
+      final parts = _selectedClass!.split(' - ');
+      if (parts.length < 2) {
+        throw Exception('Invalid class format');
+      }
+
+      final selectedStandard = parts[0].trim();
+      final selectedSection = parts[1].trim();
 
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       final docId =
-          '${schoolCode}_${dateStr}_${_selectedStandard}_$_selectedSection';
+          '${schoolCode}_${dateStr}_${selectedStandard}_$selectedSection';
 
       // Build updated students map
       final studentsMap = <String, Map<String, dynamic>>{};
@@ -880,12 +884,31 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     try {
       final messagingService = MessagingService();
 
-      // Fetch parent for this student (with phone fallback)
+      // Extract all possible parent contact info from student data
+      final studentId = (student['id'] ?? '').toString();
+      final parentPhone =
+          (student['parentPhone'] ??
+                  student['parent_contact'] ??
+                  student['phoneNumber'] ??
+                  '')
+              .toString()
+              .trim();
+      final studentEmail = (student['email'] ?? '').toString().trim();
+
+      print('🔍 Opening chat for student: ${student['name']}');
+      print('   Student ID: $studentId');
+      print(
+        '   Parent Phone: ${parentPhone.isEmpty ? "not provided" : parentPhone}',
+      );
+      print(
+        '   Student Email: ${studentEmail.isEmpty ? "not provided" : studentEmail}',
+      );
+
+      // Fetch parent for this student (with all available hints)
       final parentData = await messagingService.fetchParentForStudent(
-        (student['id'] ?? '').toString(),
-        parentPhone: (student['parentPhone'] ?? student['parent_contact'] ?? '')
-            .toString()
-            .trim(),
+        studentId,
+        parentPhone: parentPhone.isEmpty ? null : parentPhone,
+        studentEmail: studentEmail.isEmpty ? null : studentEmail,
       );
 
       if (!mounted) return;
@@ -893,16 +916,45 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       if (parentData == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No parent found for this student')),
+          SnackBar(
+            content: Text('No parent found for ${student['name']}'),
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Details',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Parent Not Found'),
+                    content: Text(
+                      'Could not locate parent for:\n\n'
+                      'Student: ${student['name']}\n'
+                      'Roll No: ${student['rollNo']}\n'
+                      'ID: $studentId\n\n'
+                      'Please ensure the parent account is created and linked to this student in Firebase.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
         );
         return;
       }
+
+      print('✅ Parent found: ${parentData['parentName']}');
 
       // Create or get conversation
       final conversationId = await messagingService.getOrCreateConversation(
         teacherId: teacherId,
         parentId: parentData['parentId'],
-        studentId: (student['id'] ?? '').toString(),
+        studentId: studentId,
         studentName: (student['name'] ?? '').toString(),
         parentName: parentData['parentName'],
         parentPhotoUrl: parentData['parentPhotoUrl'],
@@ -921,11 +973,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         },
       );
     } catch (e) {
+      print('❌ Error in _openChat: $e');
       if (!mounted) return;
       Navigator.pop(context); // Close loading
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 }

@@ -10,6 +10,10 @@ import '../screens/teacher/student_performance_screen.dart';
 import '../screens/teacher/test_result_screen.dart';
 import '../screens/teacher/my_highlights_screen.dart';
 import '../screens/student/student_login_screen.dart';
+import '../screens/parent/parent_login_screen.dart';
+import '../widgets/parent_main_navigation.dart';
+import '../screens/parent/parent_dashboard_screen.dart';
+import '../screens/institute/institute_login_screen.dart';
 import '../screens/dev/dev_tools_screen.dart';
 import '../screens/student/student_test_result_screen.dart';
 import '../screens/rewards/search_rewards_screen.dart';
@@ -35,6 +39,24 @@ class AppRouter {
 
       case '/student-login':
         return MaterialPageRoute(builder: (_) => const StudentLoginScreen());
+
+      case '/parent-login':
+        return MaterialPageRoute(builder: (_) => const ParentLoginScreen());
+
+      case '/institute-login':
+        return MaterialPageRoute(builder: (_) => const InstituteLoginScreen());
+
+      case '/parent-dashboard':
+        return MaterialPageRoute(
+          builder: (_) => const ParentMainNavigation(initialIndex: 0),
+        );
+
+      case '/institute-dashboard':
+        return MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text('Institute Dashboard - Coming Soon')),
+          ),
+        );
 
       case '/student-dashboard':
         return MaterialPageRoute(

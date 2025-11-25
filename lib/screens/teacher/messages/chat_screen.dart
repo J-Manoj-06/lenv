@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../models/chat_message.dart';
 import '../../../services/messaging_service.dart';
@@ -176,28 +175,45 @@ class _ChatScreenState extends State<ChatScreen> {
     return StreamBuilder<List<ChatMessage>>(
       stream: _messagingService.streamMessages(widget.conversationId),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
+        // Remove loading indicator - show previous data or empty state immediately
         if (snapshot.hasError) {
           return Center(
-            child: Text('Error loading messages: ${snapshot.error}'),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Unable to load messages',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+              ],
+            ),
           );
         }
 
         final messages = snapshot.data ?? [];
 
         // Any message IDs that appear in the stream are no longer pending
+        // Clean up pending IDs without setState to avoid error overlay
         final appearedIds = messages.map((m) => m.id).toSet();
         if (_pendingMessageIds.isNotEmpty) {
           final remove = _pendingMessageIds
               .where((id) => appearedIds.contains(id))
               .toList();
           if (remove.isNotEmpty) {
-            setState(() {
-              for (final id in remove) {
-                _pendingMessageIds.remove(id);
+            // Use post-frame callback to update state safely
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                setState(() {
+                  for (final id in remove) {
+                    _pendingMessageIds.remove(id);
+                  }
+                });
               }
             });
           }
@@ -303,7 +319,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    DateFormat('h:mm a').format(message.createdAt),
+                    _formatMessageTime(message.createdAt),
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                   ),
                   if (isTeacher) ...[
@@ -317,6 +333,20 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+
+  String _formatMessageTime(DateTime? timestamp) {
+    if (timestamp == null) return '';
+    try {
+      final hour = timestamp.hour > 12
+          ? timestamp.hour - 12
+          : (timestamp.hour == 0 ? 12 : timestamp.hour);
+      final minute = timestamp.minute.toString().padLeft(2, '0');
+      final period = timestamp.hour >= 12 ? 'PM' : 'AM';
+      return '$hour:$minute $period';
+    } catch (e) {
+      return '';
+    }
   }
 
   Widget _buildStatusTicks(ChatMessage message) {

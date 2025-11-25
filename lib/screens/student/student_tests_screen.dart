@@ -117,26 +117,17 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: Theme.of(context).cardColor.withOpacity(0.8),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: Icon(
-              Icons.arrow_back,
-              color: Theme.of(context).iconTheme.color,
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 40.0),
-              child: Text(
-                'Assigned Tests',
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ),
+          // Removed back button - use bottom navigation instead
+          Text(
+            'Assigned Tests',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
       ),

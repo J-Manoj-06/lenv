@@ -1531,45 +1531,92 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         return;
       }
 
-      // Safely extract parent phone with null checks
-      String? parentPhone;
-      if (_studentDetails != null && _studentDetails!['parentPhone'] != null) {
-        parentPhone = _studentDetails!['parentPhone'].toString();
-      }
+      // Extract student information with null safety
+      final studentId = _resolvedAuthUid ?? widget.studentId;
+      final parentPhone = _studentDetails?['parentPhone']?.toString().trim();
+      final studentEmail = _studentDetails?['email']?.toString().trim();
+
+      debugPrint('🔍 Starting parent chat for student: ${widget.studentName}');
+      debugPrint('   Student ID: $studentId');
+      debugPrint('   Parent Phone: ${parentPhone ?? "not available"}');
+      debugPrint('   Student Email: ${studentEmail ?? "not available"}');
 
       final messaging = MessagingService();
       final parentData = await messaging.fetchParentForStudent(
-        widget.studentId,
-        parentPhone: parentPhone,
+        studentId,
+        parentPhone: parentPhone?.isEmpty == true ? null : parentPhone,
+        studentEmail: studentEmail?.isEmpty == true ? null : studentEmail,
       );
+
+      if (!mounted) return;
+
       if (parentData == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Parent not found')));
+        debugPrint('❌ No parent found for student $studentId');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No parent found for ${widget.studentName}'),
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Details',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Parent Not Found'),
+                    content: Text(
+                      'Could not locate parent for:\n\n'
+                      'Student: ${widget.studentName}\n'
+                      'ID: $studentId\n\n'
+                      'Please ensure the parent account is created and linked to this student in Firebase.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
         return;
       }
+
+      debugPrint('✅ Parent found: ${parentData['parentName']}');
+
       final conversationId = await messaging.getOrCreateConversation(
         teacherId: teacherId,
         parentId: parentData['parentId'],
-        studentId: widget.studentId,
+        studentId: studentId,
         studentName: widget.studentName,
         parentName: parentData['parentName'],
         parentPhotoUrl: parentData['parentPhotoUrl'],
       );
+
       if (!mounted) return;
+
       Navigator.pushNamed(
         context,
         '/chat',
         arguments: {
           'conversationId': conversationId,
           'parentName': parentData['parentName'],
+          'parentPhotoUrl': parentData['parentPhotoUrl'],
+          'studentName': widget.studentName,
         },
       );
     } catch (e) {
-      debugPrint('⚠️ parent chat error: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error opening chat')));
+      debugPrint('❌ Error in _startParentChat: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening chat: ${e.toString()}'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _parentChatLoading = false);
     }

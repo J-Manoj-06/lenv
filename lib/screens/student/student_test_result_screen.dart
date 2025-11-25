@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../models/test_result_model.dart';
 import '../../services/student_service.dart';
-import '../../widgets/student_bottom_nav.dart';
 
 class StudentTestResultScreen extends StatefulWidget {
   final String resultId;
@@ -17,16 +16,39 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     with SingleTickerProviderStateMixin {
   final StudentService _service = StudentService();
   late Future<TestResultModel?> _future;
+  late Future<Map<String, dynamic>> _studentFuture;
   late AnimationController _ringController;
 
   @override
   void initState() {
     super.initState();
     _future = _service.getTestResultById(widget.resultId);
+    _studentFuture = _fetchStudentInfo();
     _ringController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..forward();
+  }
+
+  Future<Map<String, dynamic>> _fetchStudentInfo() async {
+    final student = await _service.getCurrentStudent();
+    if (student == null) return {};
+
+    // Parse standard and section from className (e.g., "10 - A - math")
+    String standard = '';
+    String section = student.section ?? '';
+
+    if (student.className?.isNotEmpty ?? false) {
+      final parts = student.className!.split(' - ');
+      if (parts.isNotEmpty) {
+        standard = 'Grade ${parts[0].trim()}';
+        if (parts.length > 1 && section.isEmpty) {
+          section = parts[1].trim();
+        }
+      }
+    }
+
+    return {'name': student.name, 'standard': standard, 'section': section};
   }
 
   // Build a unified list of QuestionResult from either legacy questions or new answers
@@ -73,7 +95,6 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
       backgroundColor: isDark
           ? const Color(0xFF111827)
           : const Color(0xFFF7F3EF),
-      bottomNavigationBar: const StudentBottomNav(currentIndex: 1),
       body: FutureBuilder<TestResultModel?>(
         future: _future,
         builder: (context, snapshot) {
@@ -162,6 +183,8 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                     children: [
                       const SizedBox(height: 16),
                       _buildScoreRing(pct),
+                      const SizedBox(height: 16),
+                      _buildStudentInfo(),
                       const SizedBox(height: 24),
                       if (pct >= 75) _buildTrophyBanner(),
                       const SizedBox(height: 24),
@@ -259,6 +282,81 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
           );
         },
       ),
+    );
+  }
+
+  Widget _buildStudentInfo() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _studentFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final info = snapshot.data!;
+        final name = info['name'] ?? '';
+        final standard = info['standard'] ?? '';
+        final section = info['section'] ?? '';
+
+        return Center(
+          child: Column(
+            children: [
+              if (name.isNotEmpty)
+                Text(
+                  name,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (standard.isNotEmpty) ...[
+                    Text(
+                      standard,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (section.isNotEmpty) ...[
+                      Text(
+                        ' - ',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF97316).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: const Color(0xFFF97316).withOpacity(0.3),
+                          ),
+                        ),
+                        child: Text(
+                          'Section $section',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: const Color(0xFFF97316),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

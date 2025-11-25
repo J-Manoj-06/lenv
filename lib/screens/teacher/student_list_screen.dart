@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
-import '../../services/messaging_service.dart';
 
 class StudentListScreen extends StatefulWidget {
   final String className;
@@ -361,13 +360,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   ],
                 ),
               ),
-              // Message icon
-              IconButton(
-                tooltip: 'Message student',
-                icon: const Icon(Icons.chat_bubble_outline),
-                color: theme.colorScheme.primary,
-                onPressed: () => _openChat(student),
-              ),
               // Details chevron
               Icon(
                 Icons.chevron_right,
@@ -407,75 +399,5 @@ class _StudentListScreenState extends State<StudentListScreen> {
         'studentId': (student['id'] ?? '').toString(),
       },
     );
-  }
-
-  Future<void> _openChat(Map<String, dynamic> student) async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final teacherId = authProvider.currentUser?.uid;
-
-    if (teacherId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Teacher not logged in')));
-      return;
-    }
-
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      final messagingService = MessagingService();
-
-      // Fetch parent for this student
-      final parentData = await messagingService.fetchParentForStudent(
-        (student['id'] ?? '').toString(),
-        parentPhone: (student['parentPhone'] ?? student['parent_contact'] ?? '')
-            .toString()
-            .trim(),
-      );
-
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading
-
-      if (parentData == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No parent found for this student')),
-        );
-        return;
-      }
-
-      // Create or get conversation
-      final conversationId = await messagingService.getOrCreateConversation(
-        teacherId: teacherId,
-        parentId: parentData['parentId'],
-        studentId: (student['id'] ?? '').toString(),
-        studentName: _displayName(student),
-        parentName: parentData['parentName'],
-        parentPhotoUrl: parentData['parentPhotoUrl'],
-      );
-
-      // Navigate to chat screen
-      if (!mounted) return;
-      Navigator.pushNamed(
-        context,
-        '/chat',
-        arguments: {
-          'conversationId': conversationId,
-          'parentName': parentData['parentName'],
-          'parentPhotoUrl': parentData['parentPhotoUrl'],
-          'studentName': _displayName(student),
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
   }
 }

@@ -6,7 +6,7 @@
 /// 🎨 ROLE-BASED THEMES:
 /// - Student → Orange / Amber (#f27f0d)
 /// - Teacher → Violet / Purple (#7e57c2)
-/// - Parent → Teal / Greenish (#009688)
+/// - Parent → Green (#14a670)
 /// - Institute → Blue (#1976d2)
 library;
 
@@ -23,7 +23,7 @@ Color getRoleColor(String role) {
     case 'teacher':
       return const Color(0xFF7E57C2);
     case 'parent':
-      return const Color(0xFF009688);
+      return const Color(0xFF14A670);
     case 'institute':
       return const Color(0xFF1976D2);
     default:
@@ -39,7 +39,7 @@ Color getRoleLightColor(String role) {
     case 'teacher':
       return const Color(0xFFF3E5F5);
     case 'parent':
-      return const Color(0xFFE0F2F1);
+      return const Color(0xFFF0F5FF);
     case 'institute':
       return const Color(0xFFE3F2FD);
     default:
@@ -55,7 +55,7 @@ List<Color> getRoleGradient(String role) {
     case 'teacher':
       return [const Color(0xFFA78BFA), const Color(0xFF7B61FF)];
     case 'parent':
-      return [const Color(0xFF4DB6AC), const Color(0xFF009688)];
+      return [const Color(0xFFD4F4E8), const Color(0xFF14A670)];
     case 'institute':
       return [const Color(0xFF42A5F5), const Color(0xFF1976D2)];
     default:
@@ -1241,12 +1241,14 @@ class _TopBannerState extends State<_TopBanner>
               borderRadius: BorderRadius.circular(12),
               child: GestureDetector(
                 onVerticalDragUpdate: (details) {
-                  if (details.primaryDelta != null && details.primaryDelta! > 6) {
+                  if (details.primaryDelta != null &&
+                      details.primaryDelta! > 6) {
                     _handleDismiss();
                   }
                 },
                 onVerticalDragEnd: (details) {
-                  if (details.primaryVelocity != null && details.primaryVelocity! > 250) {
+                  if (details.primaryVelocity != null &&
+                      details.primaryVelocity! > 250) {
                     _handleDismiss();
                   }
                 },

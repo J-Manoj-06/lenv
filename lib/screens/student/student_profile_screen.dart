@@ -251,7 +251,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                // Name and class info
+                // Name and class info with section
                 Text(
                   name,
                   textAlign: TextAlign.center,
@@ -259,18 +259,71 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (_studentData?.className != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Class: ${_studentData!.className}',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.textTheme.bodySmall?.color,
-                    ),
-                  ),
-                ],
+                const SizedBox(height: 8),
+                _buildClassAndSectionInfo(theme),
               ],
             ),
+    );
+  }
+
+  Widget _buildClassAndSectionInfo(ThemeData theme) {
+    if (_studentData?.className == null) {
+      return const SizedBox.shrink();
+    }
+
+    // Parse standard and section from className (e.g., "10 - A - math")
+    String standard = '';
+    String section = _studentData?.section ?? '';
+
+    if (_studentData!.className?.isNotEmpty ?? false) {
+      final parts = _studentData!.className!.split(' - ');
+      if (parts.isNotEmpty) {
+        standard = 'Grade ${parts[0].trim()}';
+        if (parts.length > 1 && section.isEmpty) {
+          section = parts[1].trim();
+        }
+      }
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (standard.isNotEmpty) ...[
+          Text(
+            standard,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (section.isNotEmpty) ...[
+            Text(
+              ' - ',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF97316).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: const Color(0xFFF97316).withOpacity(0.3),
+                ),
+              ),
+              child: Text(
+                'Section $section',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFFF97316),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ],
     );
   }
 

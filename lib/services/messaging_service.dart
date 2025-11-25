@@ -10,77 +10,126 @@ class MessagingService {
   Future<Map<String, dynamic>?> fetchParentForStudent(
     String studentId, {
     String? parentPhone,
+    String? studentEmail,
   }) async {
     try {
-      // Query parents collection where linkedStudents array contains this student
-      final parentSnapshot = await _firestore
+      print('🔍 Looking for parent of student: $studentId');
+      print('   Phone hint: ${parentPhone ?? "none"}');
+      print('   Email hint: ${studentEmail ?? "none"}');
+
+      // Strategy 1: Client-side scan of linkedStudents (most reliable)
+      // This approach handles various data structures and field names
+      print('📋 Strategy 1: Scanning parent linkedStudents arrays...');
+      final allParents = await _firestore
           .collection('parents')
-          .where('linkedStudents', arrayContains: {'id': studentId})
-          .limit(1)
+          .limit(100)
           .get();
 
-      if (parentSnapshot.docs.isEmpty) {
-        // Fallback 1: match by phone number if available
-        if (parentPhone != null && parentPhone.isNotEmpty) {
+      for (final doc in allParents.docs) {
+        final data = doc.data();
+        final linked = (data['linkedStudents'] as List?)?.cast<dynamic>() ?? [];
+
+        for (final entry in linked) {
+          if (entry is Map) {
+            // Check multiple possible field names for student ID
+            final entryId =
+                (entry['id'] ??
+                        entry['studentId'] ??
+                        entry['uid'] ??
+                        entry['student_id'])
+                    ?.toString() ??
+                '';
+
+            if (entryId == studentId) {
+              print('✅ Found parent via linkedStudents: ${doc.id}');
+              return {
+                'parentId': doc.id,
+                'parentName': (data['parentName'] ?? data['name'] ?? 'Parent')
+                    .toString(),
+                'parentEmail': (data['email'] ?? '').toString(),
+                'parentPhotoUrl': data['photoUrl']?.toString(),
+                'phoneNumber': (data['phoneNumber'] ?? data['phone'] ?? '')
+                    .toString(),
+              };
+            }
+          }
+        }
+      }
+
+      // Strategy 2: Match by phone number if available
+      if (parentPhone != null && parentPhone.isNotEmpty) {
+        print('📱 Strategy 2: Matching by phone: $parentPhone');
+
+        // Try multiple possible phone field names
+        for (final phoneField in ['phoneNumber', 'phone', 'parent_contact']) {
           final byPhone = await _firestore
               .collection('parents')
-              .where('phoneNumber', isEqualTo: parentPhone)
+              .where(phoneField, isEqualTo: parentPhone)
               .limit(1)
               .get();
+
           if (byPhone.docs.isNotEmpty) {
             final parentDoc = byPhone.docs.first;
             final parentData = parentDoc.data();
+            print('✅ Found parent via phone ($phoneField): ${parentDoc.id}');
             return {
               'parentId': parentDoc.id,
-              'parentName': (parentData['parentName'] ?? 'Parent').toString(),
+              'parentName':
+                  (parentData['parentName'] ?? parentData['name'] ?? 'Parent')
+                      .toString(),
               'parentEmail': (parentData['email'] ?? '').toString(),
               'parentPhotoUrl': parentData['photoUrl']?.toString(),
-              'phoneNumber': (parentData['phoneNumber'] ?? '').toString(),
+              'phoneNumber':
+                  (parentData['phoneNumber'] ?? parentData['phone'] ?? '')
+                      .toString(),
             };
           }
         }
-
-        // Fallback 2: small client-side scan to find a linkedStudents entry with matching id
-        // Limit to the first 50 parents to avoid heavy reads.
-        final limited = await _firestore.collection('parents').limit(50).get();
-        for (final doc in limited.docs) {
-          final data = doc.data();
-          final linked =
-              (data['linkedStudents'] as List?)?.cast<dynamic>() ?? [];
-          final matched = linked.any((e) {
-            if (e is Map) {
-              final id = (e['id'] ?? e['studentId'])?.toString();
-              return id == studentId;
-            }
-            return false;
-          });
-          if (matched) {
-            return {
-              'parentId': doc.id,
-              'parentName': (data['parentName'] ?? 'Parent').toString(),
-              'parentEmail': (data['email'] ?? '').toString(),
-              'parentPhotoUrl': data['photoUrl']?.toString(),
-              'phoneNumber': (data['phoneNumber'] ?? '').toString(),
-            };
-          }
-        }
-
-        print('No parent found for student $studentId');
-        return null;
       }
 
-      final parentDoc = parentSnapshot.docs.first;
-      final parentData = parentDoc.data();
+      // Strategy 3: Match by email pattern (if student email suggests parent email)
+      if (studentEmail != null && studentEmail.isNotEmpty) {
+        print('📧 Strategy 3: Attempting email pattern match...');
+        // Some schools use patterns like student@school.com and parent@school.com
+        // Or studentname.parent@school.com
+        final emailParts = studentEmail.split('@');
+        if (emailParts.length == 2) {
+          final possibleParentEmails = [
+            '${emailParts[0]}.parent@${emailParts[1]}',
+            'parent.${emailParts[0]}@${emailParts[1]}',
+          ];
 
-      return {
-        'parentId': parentDoc.id,
-        'parentName': (parentData['parentName'] ?? 'Parent').toString(),
-        'parentEmail': (parentData['email'] ?? '').toString(),
-        'parentPhotoUrl': parentData['photoUrl']?.toString(),
-        'phoneNumber': (parentData['phoneNumber'] ?? '').toString(),
-      };
+          for (final possibleEmail in possibleParentEmails) {
+            final byEmail = await _firestore
+                .collection('parents')
+                .where('email', isEqualTo: possibleEmail)
+                .limit(1)
+                .get();
+
+            if (byEmail.docs.isNotEmpty) {
+              final parentDoc = byEmail.docs.first;
+              final parentData = parentDoc.data();
+              print('✅ Found parent via email pattern: ${parentDoc.id}');
+              return {
+                'parentId': parentDoc.id,
+                'parentName':
+                    (parentData['parentName'] ?? parentData['name'] ?? 'Parent')
+                        .toString(),
+                'parentEmail': (parentData['email'] ?? '').toString(),
+                'parentPhotoUrl': parentData['photoUrl']?.toString(),
+                'phoneNumber':
+                    (parentData['phoneNumber'] ?? parentData['phone'] ?? '')
+                        .toString(),
+              };
+            }
+          }
+        }
+      }
+
+      print('❌ No parent found for student $studentId after all strategies');
+      return null;
     } catch (e) {
-      print('Error fetching parent for student: $e');
+      print('❌ Error fetching parent for student: $e');
       return null;
     }
   }
