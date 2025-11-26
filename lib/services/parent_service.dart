@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
@@ -331,6 +332,304 @@ class ParentService {
       print('❌ Error fetching announcements: $e');
       return [];
     }
+  }
+
+  /// Get announcements visible to a parent (aggregates announcements for all linked students)
+  Future<List<Map<String, dynamic>>> getAnnouncementsForParentEmail(
+    String parentEmail,
+  ) async {
+    try {
+      // Find parent document
+      final parentQuery = await _firestore
+          .collection('parents')
+          .where('email', isEqualTo: parentEmail)
+          .limit(1)
+          .get();
+
+      if (parentQuery.docs.isEmpty) return [];
+
+      final parentDoc = parentQuery.docs.first;
+      final parentData = parentDoc.data();
+      final linkedStudents = parentData['linkedStudents'] as List<dynamic>?;
+
+      if (linkedStudents == null || linkedStudents.isEmpty) return [];
+
+      final allDocs = <String, Map<String, dynamic>>{};
+
+      for (final studentInfo in linkedStudents) {
+        String className = (studentInfo['class'] as String?)?.trim() ?? '';
+        String section = (studentInfo['section'] as String?)?.trim() ?? '';
+        final studentId = (studentInfo['id'] as String?)?.trim();
+        String schoolCode = (parentData['schoolCode'] as String?)?.trim() ?? '';
+
+        // If schoolCode/class/section are missing in linkedStudents/parent, try to fetch student doc
+        if (schoolCode.isEmpty || className.isEmpty) {
+          if (studentId != null && studentId.isNotEmpty) {
+            try {
+              final studentDoc = await _firestore
+                  .collection('students')
+                  .doc(studentId)
+                  .get();
+              if (studentDoc.exists) {
+                final s = studentDoc.data();
+                schoolCode =
+                    (s?['schoolCode'] as String?)?.trim() ?? schoolCode;
+                className = (s?['className'] as String?)?.trim() ?? className;
+                section = (s?['section'] as String?)?.trim() ?? section;
+              }
+            } catch (_) {}
+          }
+        }
+
+        if (schoolCode.isEmpty) continue;
+        if (className.isEmpty) continue;
+
+        // Class-level announcements
+        try {
+          final classQuerySnapshot = await _firestore
+              .collection('announcements')
+              .where('schoolCode', isEqualTo: schoolCode)
+              .where('className', isEqualTo: className)
+              .orderBy('createdAt', descending: true)
+              .limit(50)
+              .get();
+
+          for (final doc in classQuerySnapshot.docs) {
+            final data = doc.data();
+            allDocs[doc.id] = {'id': doc.id, ...data};
+          }
+        } catch (e) {
+          print('❌ Error fetching class announcements for $className: $e');
+        }
+
+        // Section-level announcements
+        if (section.isNotEmpty) {
+          try {
+            final sectionQuerySnapshot = await _firestore
+                .collection('announcements')
+                .where('schoolCode', isEqualTo: schoolCode)
+                .where('className', isEqualTo: className)
+                .where('section', isEqualTo: section)
+                .orderBy('createdAt', descending: true)
+                .limit(50)
+                .get();
+
+            for (final doc in sectionQuerySnapshot.docs) {
+              final data = doc.data();
+              allDocs[doc.id] = {'id': doc.id, ...data};
+            }
+          } catch (e) {
+            print(
+              '❌ Error fetching section announcements for $className-$section: $e',
+            );
+          }
+        }
+      }
+
+      // Sort and return merged results
+      final results = allDocs.values.toList();
+      results.sort((a, b) {
+        final aTs = a['createdAt'];
+        final bTs = b['createdAt'];
+        DateTime? ad;
+        DateTime? bd;
+        if (aTs is Timestamp) ad = aTs.toDate();
+        if (bTs is Timestamp) bd = bTs.toDate();
+        if (ad != null && bd != null) {
+          return bd.compareTo(ad);
+        }
+        return 0;
+      });
+
+      return results.take(50).toList();
+    } catch (e) {
+      print('❌ Error fetching parent announcements: $e');
+      return [];
+    }
+  }
+
+  /// Stream announcements visible to a parent. This listens to the parent
+  /// document for linkedStudents changes and subscribes to the corresponding
+  /// announcements queries for real-time updates.
+  Stream<List<Map<String, dynamic>>> getAnnouncementsStreamForParent(
+    String parentEmail,
+  ) {
+    // Controller to emit merged announcement lists
+    final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+
+    // Track active subscriptions for announcement queries
+    final List<StreamSubscription<QuerySnapshot<Map<String, dynamic>>>> subs =
+        [];
+    final Map<String, Map<String, dynamic>> allDocs = {};
+
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? parentSub;
+
+    void emitMerged() {
+      final results = allDocs.values.toList();
+      results.sort((a, b) {
+        final aTs = a['createdAt'];
+        final bTs = b['createdAt'];
+        DateTime? ad;
+        DateTime? bd;
+        if (aTs is Timestamp) ad = aTs.toDate();
+        if (bTs is Timestamp) bd = bTs.toDate();
+        if (ad != null && bd != null) {
+          return bd.compareTo(ad);
+        }
+        return 0;
+      });
+      controller.add(results.take(50).toList());
+    }
+
+    // Start listening to the parent document
+    parentSub = _firestore
+        .collection('parents')
+        .where('email', isEqualTo: parentEmail)
+        .limit(1)
+        .snapshots()
+        .listen(
+          (parentQuery) {
+            // Cancel previous announcement listeners
+            for (final s in subs) {
+              s.cancel();
+            }
+            subs.clear();
+            allDocs.clear();
+
+            if (parentQuery.docs.isEmpty) {
+              controller.add([]);
+              return;
+            }
+
+            final parentDoc = parentQuery.docs.first;
+            final parentData = parentDoc.data();
+            final linkedStudents =
+                parentData['linkedStudents'] as List<dynamic>?;
+
+            if (linkedStudents == null || linkedStudents.isEmpty) {
+              controller.add([]);
+              return;
+            }
+
+            // For each linked student, create announcement listeners (class-level and section-level)
+            for (final studentInfo in linkedStudents) {
+              final studentId = (studentInfo['id'] as String?)?.trim();
+              String className =
+                  (studentInfo['class'] as String?)?.trim() ?? '';
+              String section =
+                  (studentInfo['section'] as String?)?.trim() ?? '';
+              String schoolCode =
+                  (parentData['schoolCode'] as String?)?.trim() ?? '';
+
+              // If critical fields missing, try to fetch student doc once (fire-and-forget)
+              if (schoolCode.isEmpty || className.isEmpty) {
+                if (studentId != null && studentId.isNotEmpty) {
+                  _firestore
+                      .collection('students')
+                      .doc(studentId)
+                      .get()
+                      .then((sd) {
+                        if (sd.exists) {
+                          final s = sd.data();
+                          schoolCode =
+                              (s?['schoolCode'] as String?)?.trim() ??
+                              schoolCode;
+                          className =
+                              (s?['className'] as String?)?.trim() ?? className;
+                          section =
+                              (s?['section'] as String?)?.trim() ?? section;
+                        }
+                      })
+                      .whenComplete(() {
+                        // After fetching student doc, we do not re-enter this parent listener callback
+                        // immediately; announcements for that student may arrive on next parent snapshot.
+                      });
+                }
+              }
+
+              if (schoolCode.isEmpty) continue;
+              if (className.isEmpty) continue;
+
+              try {
+                final classQuery = _firestore
+                    .collection('announcements')
+                    .where('schoolCode', isEqualTo: schoolCode)
+                    .where('className', isEqualTo: className)
+                    .orderBy('createdAt', descending: true)
+                    .limit(50)
+                    .withConverter<Map<String, dynamic>>(
+                      fromFirestore: (snap, _) => snap.data()!,
+                      toFirestore: (m, _) => m,
+                    );
+
+                final classSub = classQuery.snapshots().listen(
+                  (snap) {
+                    for (final doc in snap.docs) {
+                      final data = doc.data();
+                      allDocs[doc.id] = {'id': doc.id, ...data};
+                    }
+                    emitMerged();
+                  },
+                  onError: (e) {
+                    print('❌ Error in class announcements stream: $e');
+                  },
+                );
+
+                subs.add(classSub);
+              } catch (e) {
+                print('❌ Error subscribing to class announcements: $e');
+              }
+
+              if (section.isNotEmpty) {
+                try {
+                  final sectionQuery = _firestore
+                      .collection('announcements')
+                      .where('schoolCode', isEqualTo: schoolCode)
+                      .where('className', isEqualTo: className)
+                      .where('section', isEqualTo: section)
+                      .orderBy('createdAt', descending: true)
+                      .limit(50)
+                      .withConverter<Map<String, dynamic>>(
+                        fromFirestore: (snap, _) => snap.data()!,
+                        toFirestore: (m, _) => m,
+                      );
+
+                  final sectionSub = sectionQuery.snapshots().listen(
+                    (snap) {
+                      for (final doc in snap.docs) {
+                        final data = doc.data();
+                        allDocs[doc.id] = {'id': doc.id, ...data};
+                      }
+                      emitMerged();
+                    },
+                    onError: (e) {
+                      print('❌ Error in section announcements stream: $e');
+                    },
+                  );
+
+                  subs.add(sectionSub);
+                } catch (e) {
+                  print('❌ Error subscribing to section announcements: $e');
+                }
+              }
+            }
+          },
+          onError: (e) {
+            print('❌ Error listening to parent doc: $e');
+            controller.add([]);
+          },
+        );
+
+    // Handle cancellation: when no listeners remain, cleanup
+    controller.onCancel = () async {
+      for (final s in subs) {
+        await s.cancel();
+      }
+      subs.clear();
+      await parentSub?.cancel();
+    };
+
+    return controller.stream;
   }
 
   /// Get announcements stream for student's class

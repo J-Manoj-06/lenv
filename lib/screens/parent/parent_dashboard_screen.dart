@@ -235,7 +235,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final selectedIndex = parentProvider.selectedChildIndex;
 
     return SizedBox(
-      height: 300,
+      height: 240,
       child: PageView.builder(
         controller: _childrenPageController,
         onPageChanged: (index) {
@@ -247,11 +247,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           final isActive = index == selectedIndex;
 
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Opacity(
               opacity: isActive ? 1.0 : 0.7,
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 8),
+                margin: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   color: isActive
                       ? (isDark ? backgroundDark.withOpacity(0.5) : cardBg)
@@ -279,74 +279,115 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Profile Image
+                    // Profile Header with Gradient
                     Container(
-                      height: 150,
+                      height: 140,
                       decoration: BoxDecoration(
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(16),
                         ),
-                        color: parentGreen.withOpacity(0.1),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF14A670), Color(0xFF0F8A5A)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                       ),
-                      child: child.photoUrl != null
-                          ? ClipRRect(
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(16),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Initial Circle
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
                               ),
-                              child: Image.network(
-                                child.photoUrl!,
-                                fit: BoxFit.cover,
-                              ),
-                            )
-                          : Center(
-                              child: Icon(
-                                Icons.person,
-                                size: 80,
-                                color: parentGreen.withOpacity(0.5),
+                              child: Center(
+                                child: Text(
+                                  child.name.isNotEmpty
+                                      ? child.name[0].toUpperCase()
+                                      : 'S',
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF14A670),
+                                  ),
+                                ),
                               ),
                             ),
+                            const SizedBox(height: 10),
+                            // Name
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Text(
+                                (child.name.trim().isNotEmpty
+                                    ? child.name
+                                    : 'Student'),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // Class with icon
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.school,
+                                  color: Colors.white,
+                                  size: 13,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${child.className ?? "N/A"}${child.section != null ? " - ${child.section}" : ""}',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
 
                     // Child Info
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  (child.name.trim().isNotEmpty
-                                      ? child.name
-                                      : 'Student'),
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark ? Colors.white : textPrimary,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${child.className ?? "N/A"}${child.section != null ? " - ${child.section}" : ""}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: isDark
-                                        ? Colors.grey[400]
-                                        : Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
                                 onPressed: () {
-                                  if (!isActive) {
+                                  if (isActive) {
+                                    // Navigate to child profile screen
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/parent/child-profile',
+                                    );
+                                  } else {
                                     parentProvider.selectChild(index);
                                     _childrenPageController.animateToPage(
                                       index,
@@ -368,9 +409,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                                     vertical: 10,
                                   ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  elevation: 0,
+                                  elevation: isActive ? 2 : 0,
                                 ),
                                 child: Text(
                                   isActive ? 'View Profile' : 'Switch Profile',
@@ -381,7 +422,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 6),
                           ],
                         ),
                       ),

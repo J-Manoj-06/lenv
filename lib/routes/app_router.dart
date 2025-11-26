@@ -11,6 +11,7 @@ import '../screens/teacher/test_result_screen.dart';
 import '../screens/teacher/my_highlights_screen.dart';
 import '../screens/student/student_login_screen.dart';
 import '../screens/parent/parent_login_screen.dart';
+import '../screens/parent/child_profile_screen.dart';
 import '../widgets/parent_main_navigation.dart';
 import '../screens/parent/parent_dashboard_screen.dart';
 import '../screens/institute/institute_login_screen.dart';
@@ -50,6 +51,9 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => const ParentMainNavigation(initialIndex: 0),
         );
+
+      case '/parent/child-profile':
+        return MaterialPageRoute(builder: (_) => const ChildProfileScreen());
 
       case '/institute-dashboard':
         return MaterialPageRoute(

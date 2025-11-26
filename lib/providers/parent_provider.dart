@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
@@ -75,6 +76,9 @@ class ParentProvider with ChangeNotifier {
   String? get testsError => _testsError;
   String? get rewardsError => _rewardsError;
   String? get announcementsError => _announcementsError;
+
+  // Real-time announcements subscription (aggregated across linked students)
+  StreamSubscription<List<Map<String, dynamic>>>? _announcementsSub;
   String? get conversationsError => _conversationsError;
   String? get performanceError => _performanceError;
 
@@ -83,6 +87,8 @@ class ParentProvider with ChangeNotifier {
     _parentEmail = parentEmail;
     _parentId = parentId;
     await loadChildren();
+    // Start real-time aggregated announcements for this parent
+    startParentAnnouncementsStream();
   }
 
   /// Load all children linked to this parent
@@ -135,7 +141,8 @@ class ParentProvider with ChangeNotifier {
     await Future.wait([
       loadTestResults(child.uid),
       loadRewardRequests(child.uid),
-      loadAnnouncements(child.uid),
+      // Use aggregated parent announcements instead of per-child announcements
+      loadParentAnnouncements(),
       loadPerformanceStats(child.uid),
       loadUpcomingTests(child.uid),
       loadRewardHistory(child.uid),
@@ -204,6 +211,77 @@ class ParentProvider with ChangeNotifier {
       _isLoadingAnnouncements = false;
       notifyListeners();
     }
+  }
+
+  /// Load aggregated announcements for the parent across all linked students
+  Future<void> loadParentAnnouncements() async {
+    if (_parentEmail == null) return;
+
+    _isLoadingAnnouncements = true;
+    _announcementsError = null;
+    notifyListeners();
+
+    try {
+      _announcements = await _parentService.getAnnouncementsForParentEmail(
+        _parentEmail!,
+      );
+      print(
+        '✅ Loaded aggregated parent announcements: ${_announcements.length}',
+      );
+
+      // Fallback: if aggregated announcements are empty but children are present,
+      // load per-child announcements (some parent docs may not contain schoolCode)
+      if (_announcements.isEmpty && _children.isNotEmpty) {
+        final Map<String, Map<String, dynamic>> merged = {};
+        for (final child in _children) {
+          try {
+            final childAnnouncements = await _parentService
+                .getAnnouncementsForStudent(child.uid);
+            for (final a in childAnnouncements) {
+              merged[a['id'] as String? ?? UniqueKey().toString()] = a;
+            }
+          } catch (e) {
+            print('❌ Error loading announcements for child ${child.uid}: $e');
+          }
+        }
+        _announcements = merged.values.toList();
+        print(
+          '✅ Loaded fallback per-child announcements: ${_announcements.length}',
+        );
+      }
+    } catch (e) {
+      _announcementsError = 'Failed to load parent announcements: $e';
+      print('❌ Error loading parent announcements: $e');
+    } finally {
+      _isLoadingAnnouncements = false;
+      notifyListeners();
+    }
+  }
+
+  /// Start real-time aggregated announcements stream for the parent
+  void startParentAnnouncementsStream() {
+    if (_parentEmail == null) return;
+    // If already subscribed, do nothing
+    if (_announcementsSub != null) return;
+
+    _announcementsSub = _parentService
+        .getAnnouncementsStreamForParent(_parentEmail!)
+        .listen(
+          (list) {
+            _announcements = list;
+            notifyListeners();
+          },
+          onError: (e) {
+            _announcementsError = 'Parent announcements stream error: $e';
+            notifyListeners();
+          },
+        );
+  }
+
+  /// Stop the real-time announcements stream
+  Future<void> stopParentAnnouncementsStream() async {
+    await _announcementsSub?.cancel();
+    _announcementsSub = null;
   }
 
   /// Load performance statistics for a student
@@ -346,6 +424,8 @@ class ParentProvider with ChangeNotifier {
     _conversationsError = null;
     _performanceError = null;
     _notificationsEnabled = true;
+    // stop any active streams
+    stopParentAnnouncementsStream();
     notifyListeners();
   }
 
