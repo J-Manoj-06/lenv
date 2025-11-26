@@ -81,85 +81,105 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
           final studentClass = child.className!;
           final studentSection = child.section ?? '';
 
-          print(
-            '🔍 Looking for teachers for: $studentClass, Section: $studentSection, School: ${child.schoolCode}',
-          );
+          // Build efficient token for arrayContains query
+          // Token format: "Grade 10|A" or "Grade 10|" if no section
+          final token = studentSection.isEmpty
+              ? '$studentClass|'
+              : '$studentClass|$studentSection';
 
-          // Fetch teachers for this school
+          print('🔍 Efficient query token: "$token" for ${child.schoolCode}');
+
+          // OPTIMIZED: Single query with arrayContains on indexed field
           final teachersSnapshot = await FirebaseFirestore.instance
               .collection('teachers')
               .where('schoolCode', isEqualTo: child.schoolCode)
+              .where('classAssignmentTokens', arrayContains: token)
               .get();
 
-          // If no docs in teachers collection, try legacy users collection
+          // Fallback: if tokens are not populated, use legacy parsing
           final docsToScan = teachersSnapshot.docs.isNotEmpty
               ? teachersSnapshot.docs
               : (await FirebaseFirestore.instance
-                        .collection('users')
-                        .where('role', isEqualTo: 'teacher')
+                        .collection('teachers')
                         .where('schoolCode', isEqualTo: child.schoolCode)
                         .get())
                     .docs;
 
-          print('📚 Scanning ${docsToScan.length} teacher docs');
+          if (teachersSnapshot.docs.isEmpty) {
+            print(
+              'ℹ️ Tokens not populated yet. Using classAssignments parsing fallback',
+            );
+          } else {
+            print(
+              '✅ Found ${teachersSnapshot.docs.length} matching teachers directly',
+            );
+          }
 
           for (final doc in docsToScan) {
             final data = doc.data();
             final teacherId = doc.id;
 
-            // Check if teacher teaches this child's class
-            final classAssignments =
-                (data['classAssignments'] as List?) ??
-                (data['classes'] as List?);
+            // If using token query, any doc here is a match.
+            // If falling back, we need to check classAssignments.
+            bool matches = teachersSnapshot.docs.isNotEmpty;
+            String? subject;
 
-            if (classAssignments != null) {
-              // classAssignments format: ["Grade 10: A, math", "Grade 9: B, science"]
-              bool teachesThisClass = false;
-              String? teacherSubject;
-
-              for (final assignment in classAssignments) {
-                final assignmentStr = assignment.toString();
-                // Parse "Grade 10: A, math"
-                if (assignmentStr.contains(':')) {
-                  final parts = assignmentStr.split(':');
+            if (!matches) {
+              final assignments = (data['classAssignments'] as List?) ?? [];
+              for (final a in assignments) {
+                final str = a.toString();
+                // Expect format: "Grade 10: A, math"
+                if (str.contains(':')) {
+                  final parts = str.split(':');
                   final className = parts[0].trim();
-
-                  if (parts.length > 1) {
-                    final secondPart = parts[1].trim();
-                    final subParts = secondPart.split(',');
-                    final section = subParts.length > 0
-                        ? subParts[0].trim()
-                        : '';
-                    final subject = subParts.length > 1
-                        ? subParts[1].trim()
-                        : '';
-
-                    // Check if matches student's class and section
-                    if (className == studentClass &&
-                        (studentSection.isEmpty || section == studentSection)) {
-                      teachesThisClass = true;
-                      teacherSubject = subject;
+                  final second = parts.length > 1 ? parts[1].trim() : '';
+                  final subParts = second.split(',');
+                  final section = subParts.isNotEmpty ? subParts[0].trim() : '';
+                  final subj = subParts.length > 1 ? subParts[1].trim() : '';
+                  if (className == studentClass &&
+                      (studentSection.isEmpty || section == studentSection)) {
+                    matches = true;
+                    subject = subj.isNotEmpty ? subj : null;
+                    break;
+                  }
+                }
+              }
+            } else {
+              // We can still try to extract subject for display
+              final assignments = data['classAssignments'] as List?;
+              if (assignments != null) {
+                for (final a in assignments) {
+                  final str = a.toString();
+                  if (str.contains(studentClass) &&
+                      (studentSection.isEmpty ||
+                          str.contains(studentSection))) {
+                    final parts = str.split(',');
+                    if (parts.length > 1) {
+                      subject = parts.last.trim();
                       break;
                     }
                   }
                 }
               }
+            }
 
-              if (teachesThisClass && !teacherIds.contains(teacherId)) {
-                teacherIds.add(teacherId);
-                final teacherName =
-                    data['teacherName'] ?? data['name'] ?? 'Unknown Teacher';
-                print('✅ Added teacher: $teacherName - $teacherSubject');
+            if (matches && !teacherIds.contains(teacherId)) {
+              teacherIds.add(teacherId);
+              final teacherName =
+                  data['teacherName'] ?? data['name'] ?? 'Unknown Teacher';
+              print(
+                '✅ Teacher: $teacherName${subject != null ? " - $subject" : ""}',
+              );
 
-                teachersList.add({
-                  'id': teacherId,
-                  'name': teacherName,
-                  'email': data['email'] ?? '',
-                  'subject': teacherSubject ?? 'General',
-                  'className': studentClass,
-                  'profileImage': data['profileImage'],
-                });
-              }
+              final teacherUid = (data['uid'] as String?) ?? teacherId;
+              teachersList.add({
+                'id': teacherUid,
+                'name': teacherName,
+                'email': data['email'] ?? '',
+                'subject': subject ?? 'General',
+                'className': studentClass,
+                'profileImage': data['profileImage'],
+              });
             }
           }
         }
