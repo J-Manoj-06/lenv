@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
+import '../../models/test_result_model.dart';
 
 class ChildProfileScreen extends StatelessWidget {
   const ChildProfileScreen({super.key});
@@ -82,7 +83,11 @@ class ChildProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Academic Overview Card
-            _buildAcademicOverview(isDark, performanceStats),
+            _buildAcademicOverview(
+              isDark,
+              performanceStats,
+              parentProvider.testResults,
+            ),
             const SizedBox(height: 16),
 
             // Attendance Overview Card
@@ -178,7 +183,9 @@ class ChildProfileScreen extends StatelessWidget {
               _buildDetailRow(
                 isDark: isDark,
                 label1: 'Student ID',
-                value1: child.uid.substring(0, 8).toUpperCase(),
+                value1: child.studentId?.isNotEmpty == true
+                    ? child.studentId!
+                    : 'N/A',
                 label2: 'School Code',
                 value2: child.schoolCode?.isNotEmpty == true
                     ? child.schoolCode!
@@ -187,9 +194,13 @@ class ChildProfileScreen extends StatelessWidget {
               _buildDetailRow(
                 isDark: isDark,
                 label1: 'Phone Number',
-                value1: child.phone ?? child.parentPhone ?? 'N/A',
-                label2: 'Gender',
-                value2: 'N/A',
+                value1: child.phone?.isNotEmpty == true
+                    ? child.phone!
+                    : (child.parentPhone?.isNotEmpty == true
+                          ? child.parentPhone!
+                          : 'N/A'),
+                label2: 'Email',
+                value2: child.email.isNotEmpty ? child.email : 'N/A',
               ),
             ],
           ),
@@ -275,6 +286,7 @@ class ChildProfileScreen extends StatelessWidget {
   Widget _buildAcademicOverview(
     bool isDark,
     Map<String, dynamic> performanceStats,
+    List<dynamic> testResults,
   ) {
     final averageScore =
         (performanceStats['averageScore'] as num?)?.toDouble() ?? 0.0;
@@ -386,67 +398,91 @@ class ChildProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Progress Chart Placeholder
-          Container(
-            height: 120,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: isDark
-                  ? Colors.grey[800]!.withOpacity(0.3)
-                  : Colors.grey[100],
-            ),
-            child: Center(
+          // Academic Progress Chart
+          if (testResults.isNotEmpty)
+            Container(
+              height: 200,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                ),
+              ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.bar_chart,
-                    size: 40,
-                    color: isDark ? Colors.grey[600] : Colors.grey[400],
+                  Text(
+                    'Test Scores',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        for (int i = 0; i < testResults.length && i < 10; i++)
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                              ),
+                              child: _buildTestBar(
+                                isDark,
+                                testResults[i].score,
+                                testResults[i].testTitle,
+                                i,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Academic Progress Chart',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.grey[500] : Colors.grey[600],
-                    ),
-                  ),
-                  Text(
-                    '$totalTests tests completed',
+                    '$totalTests ${totalTests == 1 ? 'test' : 'tests'} completed',
                     style: TextStyle(
                       fontSize: 12,
-                      color: isDark ? Colors.grey[600] : Colors.grey[500],
+                      color: isDark ? Colors.grey[500] : Colors.grey[600],
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // View Detailed Report Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                // Navigate to detailed report
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: parentGreen.withOpacity(0.2),
-                foregroundColor: parentGreen,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            )
+          else
+            Container(
+              height: 120,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: isDark
+                    ? Colors.grey[800]!.withOpacity(0.3)
+                    : Colors.grey[100],
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.bar_chart,
+                      size: 40,
+                      color: isDark ? Colors.grey[600] : Colors.grey[400],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No test data available',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.grey[500] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: const Text(
-                'View Detailed Report',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
             ),
-          ),
         ],
       ),
     );
@@ -577,6 +613,35 @@ class ChildProfileScreen extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTestBar(bool isDark, double score, String testTitle, int index) {
+    final barHeight = (score / 100) * 120; // Max height 120
+    final barColor = score >= 75
+        ? Colors.green
+        : score >= 50
+        ? Colors.orange
+        : Colors.red;
+
+    return Tooltip(
+      message: '$testTitle: ${score.toStringAsFixed(1)}%',
+      child: Container(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          width: double.infinity,
+          height: barHeight,
+          decoration: BoxDecoration(
+            color: barColor.withOpacity(0.7),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [barColor, barColor.withOpacity(0.6)],
+            ),
+          ),
+        ),
       ),
     );
   }

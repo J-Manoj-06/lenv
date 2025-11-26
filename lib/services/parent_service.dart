@@ -59,6 +59,36 @@ class ParentService {
 
             if (studentDoc.exists) {
               var studentModel = StudentModel.fromFirestore(studentDoc);
+
+              // Always try to fetch rewardPoints from student_rewards collection
+              try {
+                final authUid = studentModel.uid;
+                final rewardsSnapshot = await _firestore
+                    .collection('student_rewards')
+                    .where('studentId', isEqualTo: authUid)
+                    .get();
+
+                int totalPoints = 0;
+                for (final doc in rewardsSnapshot.docs) {
+                  final data = doc.data();
+                  final points = data['pointsEarned'];
+                  if (points is int) {
+                    totalPoints += points;
+                  } else if (points is num) {
+                    totalPoints += points.toInt();
+                  }
+                }
+
+                studentModel = studentModel.copyWith(rewardPoints: totalPoints);
+                print(
+                  '  💰 Calculated total rewardPoints from student_rewards: $totalPoints',
+                );
+              } catch (e) {
+                print(
+                  '  ⚠️ Could not fetch rewardPoints from student_rewards: $e',
+                );
+              }
+
               // Fallback: if Firestore doc lacks name/class/section, use linkedStudents data
               final linkedName = (studentInfo['name'] as String?)?.trim();
               final linkedClass = (studentInfo['class'] as String?)?.trim();
@@ -91,9 +121,42 @@ class ParentService {
                   .get();
 
               if (querySnapshot.docs.isNotEmpty) {
-                children.add(
-                  StudentModel.fromFirestore(querySnapshot.docs.first),
+                var studentModel = StudentModel.fromFirestore(
+                  querySnapshot.docs.first,
                 );
+
+                // Fetch rewardPoints from student_rewards collection (sum of all pointsEarned)
+                try {
+                  final authUid = studentModel.uid;
+                  final rewardsSnapshot = await _firestore
+                      .collection('student_rewards')
+                      .where('studentId', isEqualTo: authUid)
+                      .get();
+
+                  int totalPoints = 0;
+                  for (final doc in rewardsSnapshot.docs) {
+                    final data = doc.data();
+                    final points = data['pointsEarned'];
+                    if (points is int) {
+                      totalPoints += points;
+                    } else if (points is num) {
+                      totalPoints += points.toInt();
+                    }
+                  }
+
+                  studentModel = studentModel.copyWith(
+                    rewardPoints: totalPoints,
+                  );
+                  print(
+                    '  💰 Calculated total rewardPoints from student_rewards: $totalPoints',
+                  );
+                } catch (e) {
+                  print(
+                    '  ⚠️ Could not fetch rewardPoints from student_rewards: $e',
+                  );
+                }
+
+                children.add(studentModel);
                 print(
                   '  ✅ Found student via uid query: ${studentInfo['name']}',
                 );
@@ -192,15 +255,24 @@ class ParentService {
   /// Get student's test results with detailed information
   Future<List<TestResultModel>> getStudentTestResults(String studentId) async {
     try {
+      print('🔍 Fetching test results for studentId: $studentId');
+
       final querySnapshot = await _firestore
           .collection('testResults')
           .where('studentId', isEqualTo: studentId)
           .orderBy('completedAt', descending: true)
           .get();
 
-      return querySnapshot.docs
-          .map((doc) => TestResultModel.fromFirestore(doc))
-          .toList();
+      print('📊 Found ${querySnapshot.docs.length} test result documents');
+
+      final results = querySnapshot.docs.map((doc) {
+        print(
+          '  - Test: ${doc.data()['testTitle']}, Status: ${doc.data()['status']}, Score: ${doc.data()['score']}',
+        );
+        return TestResultModel.fromFirestore(doc);
+      }).toList();
+
+      return results;
     } catch (e) {
       print('❌ Error fetching test results: $e');
       return [];
@@ -737,7 +809,8 @@ class ParentService {
       double lowestScore = 100;
 
       for (var result in completedTests) {
-        final percentage = result.percentage ?? 0;
+        // Use score field which is already a percentage (0-100)
+        final percentage = result.score;
         totalScore += percentage;
         if (percentage > highestScore) highestScore = percentage;
         if (percentage < lowestScore) lowestScore = percentage;
@@ -818,18 +891,83 @@ class ParentService {
   /// Get student's attendance percentage
   Future<double> getStudentAttendance(String studentId) async {
     try {
-      // This would query attendance records if implemented
-      // For now, return a default value
-      final studentDoc = await _firestore
-          .collection('students')
-          .doc(studentId)
-          .get();
+      // Get student details from users collection (using auth UID)
+      final userDoc = await _firestore.collection('users').doc(studentId).get();
 
-      if (studentDoc.exists) {
-        final data = studentDoc.data();
-        return (data?['attendancePercentage'] as num?)?.toDouble() ?? 0.0;
+      if (!userDoc.exists) {
+        print('❌ User document not found: $studentId');
+        return 0.0;
       }
-      return 0.0;
+
+      final userData = userDoc.data();
+      final className = userData?['className'] as String?;
+      final schoolCode = userData?['schoolCode'] as String?;
+
+      if (className == null || schoolCode == null || schoolCode.isEmpty) {
+        print('❌ Missing className or schoolCode for student: $studentId');
+        return 0.0;
+      }
+
+      // Parse grade and section from className (e.g., "Grade 10" or "Grade 10 - A")
+      final gradeMatch = RegExp(r'Grade\s+(\d+)').firstMatch(className);
+      final sectionMatch = RegExp(r'-\s*([A-Za-z])').firstMatch(className);
+      final grade = gradeMatch?.group(1);
+      final section = sectionMatch?.group(1);
+
+      if (grade == null) {
+        print('❌ Could not parse grade from className: $className');
+        return 0.0;
+      }
+
+      print(
+        '🔍 Fetching attendance for student $studentId, grade: $grade, section: $section, schoolCode: $schoolCode',
+      );
+
+      // Query attendance records
+      var query = _firestore
+          .collection('attendance')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('standard', isEqualTo: grade);
+
+      if (section != null && section.isNotEmpty) {
+        query = query.where('section', isEqualTo: section);
+      }
+
+      final snapshot = await query.limit(120).get();
+
+      int totalDays = 0;
+      int presentDays = 0;
+
+      for (final doc in snapshot.docs) {
+        final students = doc.data()['students'] as Map<String, dynamic>?;
+        if (students == null) continue;
+
+        // Look up student by auth UID (which is the studentId)
+        final studentInfo = students[studentId] as Map<String, dynamic>?;
+        if (studentInfo == null) continue;
+
+        totalDays++;
+        final status =
+            studentInfo['status']?.toString().toLowerCase() ?? 'present';
+        if (status == 'present') {
+          presentDays++;
+        }
+      }
+
+      if (totalDays == 0) {
+        print('⚠️ No attendance records found for student $studentId');
+        return 0.0;
+      }
+
+      final attendancePercentage = (presentDays / totalDays * 100).clamp(
+        0.0,
+        100.0,
+      );
+      print(
+        '✅ Calculated attendance: $presentDays/$totalDays = ${attendancePercentage.toStringAsFixed(1)}%',
+      );
+
+      return attendancePercentage;
     } catch (e) {
       print('❌ Error fetching attendance: $e');
       return 0.0;

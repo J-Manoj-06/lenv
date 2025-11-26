@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class StudentModel {
   final String uid;
+  final String? studentId; // Human-readable ID like "STU-G10A-03"
   final String email;
   final String name;
   final String? photoUrl;
@@ -24,6 +25,7 @@ class StudentModel {
 
   StudentModel({
     required this.uid,
+    this.studentId,
     required this.email,
     required this.name,
     this.photoUrl,
@@ -49,7 +51,10 @@ class StudentModel {
   factory StudentModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return StudentModel(
-      uid: doc.id,
+      uid:
+          data['uid'] ??
+          doc.id, // Use uid field from document, fallback to doc.id
+      studentId: data['studentId'],
       email: data['email'] ?? '',
       name: (data['name'] ?? data['studentName'] ?? '').toString(),
       photoUrl: data['photoUrl'],
@@ -74,6 +79,7 @@ class StudentModel {
   // To Firestore
   Map<String, dynamic> toFirestore() {
     return {
+      'studentId': studentId,
       'email': email,
       'name': name,
       'photoUrl': photoUrl,
@@ -100,6 +106,7 @@ class StudentModel {
   // Copy with
   StudentModel copyWith({
     String? uid,
+    String? studentId,
     String? email,
     String? name,
     String? photoUrl,
@@ -122,6 +129,7 @@ class StudentModel {
   }) {
     return StudentModel(
       uid: uid ?? this.uid,
+      studentId: studentId ?? this.studentId,
       email: email ?? this.email,
       name: name ?? this.name,
       photoUrl: photoUrl ?? this.photoUrl,

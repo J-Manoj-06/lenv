@@ -136,6 +136,10 @@ class ParentProvider with ChangeNotifier {
     if (child == null) return;
 
     print('📥 Loading data for child: ${child.name}');
+    print('  - Child UID: ${child.uid}');
+    print('  - Child rewardPoints: ${child.rewardPoints}');
+    print('  - Child className: ${child.className}');
+    print('  - Child schoolCode: ${child.schoolCode}');
 
     // Load all data in parallel
     await Future.wait([
@@ -295,6 +299,9 @@ class ParentProvider with ChangeNotifier {
         studentId,
       );
       print('✅ Loaded performance stats: $_performanceStats');
+      print('  - completedTests: ${_performanceStats['completedTests']}');
+      print('  - totalTests: ${_performanceStats['totalTests']}');
+      print('  - averageScore: ${_performanceStats['averageScore']}');
     } catch (e) {
       _performanceError = 'Failed to load performance stats: $e';
       print('❌ Error loading performance stats: $e');
@@ -347,6 +354,7 @@ class ParentProvider with ChangeNotifier {
   /// Load attendance for a student
   Future<void> loadAttendance(String studentId) async {
     try {
+      print('🔄 Loading attendance for student: $studentId');
       _attendance = await _parentService.getStudentAttendance(studentId);
       print('✅ Loaded attendance: $_attendance%');
       notifyListeners();
