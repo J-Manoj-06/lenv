@@ -27,6 +27,12 @@ class ParentProvider with ChangeNotifier {
   List<Map<String, dynamic>> _rewardHistory = [];
   Map<String, dynamic> _performanceStats = {};
   double _attendance = 0.0;
+  Map<String, int> _attendanceBreakdown = {
+    'present': 0,
+    'absent': 0,
+    'late': 0,
+    'total': 0,
+  };
 
   // Preferences
   bool _notificationsEnabled = true;
@@ -65,6 +71,7 @@ class ParentProvider with ChangeNotifier {
   List<Map<String, dynamic>> get rewardHistory => _rewardHistory;
   Map<String, dynamic> get performanceStats => _performanceStats;
   double get attendance => _attendance;
+  Map<String, int> get attendanceBreakdown => _attendanceBreakdown;
   bool get notificationsEnabled => _notificationsEnabled;
 
   bool get isLoadingTests => _isLoadingTests;
@@ -356,7 +363,13 @@ class ParentProvider with ChangeNotifier {
     try {
       print('🔄 Loading attendance for student: $studentId');
       _attendance = await _parentService.getStudentAttendance(studentId);
+      _attendanceBreakdown = await _parentService.getStudentAttendanceBreakdown(
+        studentId,
+      );
       print('✅ Loaded attendance: $_attendance%');
+      print(
+        '✅ Breakdown: present=${_attendanceBreakdown['present']}, absent=${_attendanceBreakdown['absent']}, late=${_attendanceBreakdown['late']}, total=${_attendanceBreakdown['total']}',
+      );
       notifyListeners();
     } catch (e) {
       print('❌ Error loading attendance: $e');
@@ -425,6 +438,7 @@ class ParentProvider with ChangeNotifier {
     _rewardHistory = [];
     _performanceStats = {};
     _attendance = 0.0;
+    _attendanceBreakdown = {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
     _childrenError = null;
     _testsError = null;
     _rewardsError = null;

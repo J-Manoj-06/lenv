@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/test_result_model.dart';
+import 'parent_test_result_detail_screen.dart';
 
 class ParentTestsScreen extends StatefulWidget {
   const ParentTestsScreen({super.key});
@@ -50,9 +51,9 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
           unselectedLabelColor: isDark ? Colors.grey[400] : Colors.grey[600],
           indicatorColor: parentGreen,
           tabs: const [
-            Tab(text: 'Upcoming'),
             Tab(text: 'Completed'),
-            Tab(text: 'All'),
+            Tab(text: 'Pending'),
+            Tab(text: 'Upcoming'),
           ],
         ),
       ),
@@ -76,9 +77,9 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildUpcomingTests(isDark, parentProvider),
                 _buildCompletedTests(isDark, parentProvider),
-                _buildAllTests(isDark, parentProvider),
+                _buildPendingTests(isDark, parentProvider),
+                _buildUpcomingTests(isDark, parentProvider),
               ],
             ),
           );
@@ -125,72 +126,20 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
     );
   }
 
-  Widget _buildAllTests(bool isDark, ParentProvider provider) {
-    final allTests = <Widget>[];
-
-    // Add upcoming tests
-    if (provider.upcomingTests.isNotEmpty) {
-      allTests.add(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'Upcoming Tests',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : textPrimary,
-            ),
-          ),
-        ),
-      );
-
-      for (final test in provider.upcomingTests) {
-        allTests.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: _buildUpcomingTestCard(isDark, test),
-          ),
-        );
-      }
+  Widget _buildPendingTests(bool isDark, ParentProvider provider) {
+    // Pending tests are upcoming tests that haven't been completed yet
+    if (provider.upcomingTests.isEmpty) {
+      return _buildEmptyState(isDark, 'No pending tests');
     }
 
-    // Add completed tests
-    final completedTests = provider.testResults.toList();
-
-    completedTests.sort((a, b) {
-      return b.completedAt.compareTo(a.completedAt);
-    });
-
-    if (completedTests.isNotEmpty) {
-      allTests.add(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'Completed Tests',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : textPrimary,
-            ),
-          ),
-        ),
-      );
-
-      for (final test in completedTests) {
-        allTests.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: _buildTestResultCard(isDark, test, provider),
-          ),
-        );
-      }
-    }
-
-    if (allTests.isEmpty) {
-      return _buildEmptyState(isDark, 'No tests found');
-    }
-
-    return ListView(children: allTests);
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: provider.upcomingTests.length,
+      itemBuilder: (context, index) {
+        final test = provider.upcomingTests[index];
+        return _buildUpcomingTestCard(isDark, test);
+      },
+    );
   }
 
   Widget _buildUpcomingTestCard(bool isDark, Map<String, dynamic> test) {
@@ -346,8 +295,12 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
-          // Navigate to detailed test result view
-          // Navigator.push(context, MaterialPageRoute(builder: (_) => TestResultDetailScreen(test: test)));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ParentTestResultDetailScreen(test: test),
+            ),
+          );
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(

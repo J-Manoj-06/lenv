@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/parent/parent_dashboard_screen.dart';
 import '../screens/parent/parent_rewards_screen.dart';
+import '../screens/parent/parent_messages_screen.dart';
 import '../screens/parent/parent_tests_screen.dart';
 import '../screens/parent/parent_reports_screen.dart';
-import '../screens/parent/parent_profile_screen.dart';
 
 /// Parent Main Navigation Wrapper
-/// Provides 5 tabs: Dashboard, Rewards, Tests, Reports, Profile
+/// Provides 5 tabs: Dashboard, Rewards, Messages, Tests, Reports
 /// Uses IndexedStack to preserve state while switching.
 class ParentMainNavigation extends StatefulWidget {
   final int initialIndex;
@@ -20,8 +19,16 @@ class ParentMainNavigation extends StatefulWidget {
 class _ParentMainNavigationState extends State<ParentMainNavigation> {
   static const Color parentGreen = Color(0xFF14A670);
   late int _currentIndex;
-  final List<Widget> _screens = [];
   bool _initialized = false;
+
+  // Define screens directly instead of using a list
+  static const List<Widget> _screens = [
+    ParentDashboardScreen(),
+    ParentRewardsScreen(),
+    ParentMessagesScreen(),
+    ParentTestsScreen(),
+    ParentReportsScreen(),
+  ];
 
   @override
   void initState() {
@@ -34,16 +41,6 @@ class _ParentMainNavigationState extends State<ParentMainNavigation> {
     super.didChangeDependencies();
     if (!_initialized) {
       _initialized = true;
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        _screens.addAll(const [
-          ParentDashboardScreen(),
-          ParentRewardsScreen(),
-          ParentTestsScreen(),
-          ParentReportsScreen(),
-          ParentProfileScreen(),
-        ]);
-      }
     }
   }
 
@@ -55,9 +52,6 @@ class _ParentMainNavigationState extends State<ParentMainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    if (_screens.isEmpty) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
     final theme = Theme.of(context);
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
@@ -90,25 +84,25 @@ class _ParentMainNavigationState extends State<ParentMainNavigation> {
                   color: parentGreen,
                 ),
                 _NavItem(
+                  icon: Icons.message_outlined,
+                  selectedIcon: Icons.message,
+                  label: 'Messages',
+                  isSelected: _currentIndex == 2,
+                  onTap: () => _onTap(2),
+                  color: parentGreen,
+                ),
+                _NavItem(
                   icon: Icons.quiz_outlined,
                   selectedIcon: Icons.quiz,
                   label: 'Tests',
-                  isSelected: _currentIndex == 2,
-                  onTap: () => _onTap(2),
+                  isSelected: _currentIndex == 3,
+                  onTap: () => _onTap(3),
                   color: parentGreen,
                 ),
                 _NavItem(
                   icon: Icons.assessment_outlined,
                   selectedIcon: Icons.assessment,
                   label: 'Reports',
-                  isSelected: _currentIndex == 3,
-                  onTap: () => _onTap(3),
-                  color: parentGreen,
-                ),
-                _NavItem(
-                  icon: Icons.person_outline,
-                  selectedIcon: Icons.person,
-                  label: 'Profile',
                   isSelected: _currentIndex == 4,
                   onTap: () => _onTap(4),
                   color: parentGreen,

@@ -91,7 +91,11 @@ class ChildProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Attendance Overview Card
-            _buildAttendanceOverview(isDark, attendance),
+            _buildAttendanceOverview(
+              isDark,
+              attendance,
+              parentProvider.attendanceBreakdown,
+            ),
             const SizedBox(height: 32),
           ],
         ),
@@ -488,13 +492,18 @@ class ChildProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAttendanceOverview(bool isDark, double attendance) {
-    // Calculate attendance breakdown (demo values)
-    final totalDays = 180;
-    final presentDays = (totalDays * attendance / 100).round();
-    final absentDays = ((totalDays * (100 - attendance) / 100) * 0.7).round();
-    final lateDays = totalDays - presentDays - absentDays;
-    final attendancePercent = attendance > 0 ? attendance : 95.0;
+  Widget _buildAttendanceOverview(
+    bool isDark,
+    double attendance,
+    Map<String, int> breakdown,
+  ) {
+    // Use actual breakdown from Firestore
+    final presentDays = breakdown['present'] ?? 0;
+    final absentDays = breakdown['absent'] ?? 0;
+    final totalDays = breakdown['total'] ?? (presentDays + absentDays);
+    final attendancePercent = attendance > 0
+        ? attendance
+        : (totalDays > 0 ? (presentDays / totalDays * 100) : 0.0);
 
     return Container(
       width: double.infinity,
@@ -538,19 +547,8 @@ class ChildProfileScreen extends StatelessWidget {
                   gradient: SweepGradient(
                     startAngle: 0,
                     endAngle: 3.14 * 2,
-                    colors: [
-                      Colors.green,
-                      Colors.green,
-                      Colors.red,
-                      Colors.yellow,
-                    ],
-                    stops: [
-                      0,
-                      attendancePercent / 100,
-                      (attendancePercent + (absentDays / totalDays * 100)) /
-                          100,
-                      1.0,
-                    ],
+                    colors: [Colors.green, Colors.green, Colors.red],
+                    stops: [0, attendancePercent / 100, 1.0],
                   ),
                 ),
                 child: Center(
@@ -592,13 +590,6 @@ class ChildProfileScreen extends StatelessWidget {
                       color: Colors.red,
                       label: 'Absent',
                       value: '$absentDays Days',
-                    ),
-                    const SizedBox(height: 12),
-                    _buildAttendanceLegendItem(
-                      isDark: isDark,
-                      color: Colors.yellow,
-                      label: 'Late',
-                      value: '$lateDays Days',
                     ),
                     const SizedBox(height: 12),
                     _buildAttendanceLegendItem(

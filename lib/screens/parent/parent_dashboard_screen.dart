@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
+import 'parent_profile_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -184,22 +185,32 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       color: isDark ? backgroundDark : backgroundLight,
       child: Row(
         children: [
-          // Profile Picture
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: parentGreen.withOpacity(0.2),
+          // Profile Picture - Now clickable
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ParentProfileScreen(),
+                ),
+              );
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: parentGreen.withOpacity(0.2),
+              ),
+              child: authProvider.currentUser?.profileImage != null
+                  ? ClipOval(
+                      child: Image.network(
+                        authProvider.currentUser!.profileImage!,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : Icon(Icons.person, color: parentGreen, size: 24),
             ),
-            child: authProvider.currentUser?.profileImage != null
-                ? ClipOval(
-                    child: Image.network(
-                      authProvider.currentUser!.profileImage!,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : Icon(Icons.person, color: parentGreen, size: 24),
           ),
 
           // Title

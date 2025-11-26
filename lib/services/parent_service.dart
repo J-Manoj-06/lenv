@@ -293,6 +293,128 @@ class ParentService {
         );
   }
 
+  /// Compute class average percentage for a given testId across all test results
+  Future<double?> getClassAverageForTest(String testId) async {
+    try {
+      final qs = await _firestore
+          .collection('testResults')
+          .where('testId', isEqualTo: testId)
+          .get();
+      if (qs.docs.isEmpty) {
+        print('⚠️ No test results found for testId: $testId');
+        return null;
+      }
+      double sum = 0;
+      int count = 0;
+      print('📊 Computing class average for testId: $testId');
+      for (final d in qs.docs) {
+        final data = d.data();
+        final totalQ = (data['totalQuestions'] ?? 0) as int;
+        final correct = (data['correctAnswers'] ?? 0) as int;
+        double pct;
+        if (totalQ > 0) {
+          pct = (correct / totalQ) * 100.0;
+        } else {
+          pct = (data['score'] ?? 0).toDouble();
+        }
+        print(
+          '  Student: ${data['studentName']} - Score: ${pct.toStringAsFixed(1)}%',
+        );
+        sum += pct;
+        count++;
+      }
+      final average = count > 0 ? (sum / count) : null;
+      print(
+        '✅ Class average: ${average?.toStringAsFixed(1)}% (from $count students)',
+      );
+      return average;
+    } catch (e) {
+      print('❌ Error computing class average for $testId: $e');
+      return null;
+    }
+  }
+
+  /// Get highest score percentage for a given testId across all test results
+  Future<double?> getHighestScoreForTest(String testId) async {
+    try {
+      final qs = await _firestore
+          .collection('testResults')
+          .where('testId', isEqualTo: testId)
+          .get();
+      if (qs.docs.isEmpty) return null;
+
+      double highest = 0.0;
+      for (final d in qs.docs) {
+        final data = d.data();
+        final totalQ = (data['totalQuestions'] ?? 0) as int;
+        final correct = (data['correctAnswers'] ?? 0) as int;
+        double pct;
+        if (totalQ > 0) {
+          pct = (correct / totalQ) * 100.0;
+        } else {
+          pct = (data['score'] ?? 0).toDouble();
+        }
+        if (pct > highest) {
+          highest = pct;
+        }
+      }
+      return highest;
+    } catch (e) {
+      print('❌ Error getting highest score for $testId: $e');
+      return null;
+    }
+  }
+
+  /// Fetch attendance breakdown: present/absent/late counts from Firestore
+  Future<Map<String, int>> getStudentAttendanceBreakdown(
+    String studentId,
+  ) async {
+    try {
+      final query = await _firestore.collection('attendance').get();
+
+      int present = 0;
+      int absent = 0;
+      int late = 0;
+      for (final doc in query.docs) {
+        final data = doc.data();
+        final students = data['students'];
+        if (students is Map<String, dynamic>) {
+          final entry = students[studentId];
+          if (entry != null) {
+            String? status;
+            if (entry is String) {
+              status = entry;
+            } else if (entry is Map<String, dynamic>) {
+              status = (entry['status'] ?? entry['attendance'] ?? '')
+                  .toString();
+            }
+            switch ((status ?? '').toLowerCase()) {
+              case 'present':
+                present++;
+                break;
+              case 'absent':
+                absent++;
+                break;
+              case 'late':
+                late++;
+                break;
+            }
+          }
+        }
+      }
+
+      return {
+        'present': present,
+        'absent': absent,
+        'late': late,
+        'total': present + absent + late,
+      };
+    } catch (e) {
+      print('❌ Error fetching attendance breakdown: $e');
+      return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
+    }
+  }
+
   /// Get student's reward requests
   Future<List<RewardRequestModel>> getStudentRewardRequests(
     String studentId,
