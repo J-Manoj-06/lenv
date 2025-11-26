@@ -51,7 +51,7 @@ class StudentModel {
     return StudentModel(
       uid: doc.id,
       email: data['email'] ?? '',
-      name: data['name'] ?? '',
+      name: (data['name'] ?? data['studentName'] ?? '').toString(),
       photoUrl: data['photoUrl'],
       schoolId: data['schoolId'],
       schoolCode: data['schoolCode'], // Added: Read schoolCode from Firestore

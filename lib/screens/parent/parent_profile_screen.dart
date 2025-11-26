@@ -1,30 +1,396 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/parent_provider.dart';
+import '../../models/student_model.dart';
 
 class ParentProfileScreen extends StatelessWidget {
   const ParentProfileScreen({super.key});
 
+  static const Color parentGreen = Color(0xFF14A670);
+  static const Color backgroundLight = Color(0xFFF6F6F8);
+  static const Color backgroundDark = Color(0xFF151022);
+  static const Color cardBg = Colors.white;
+  static const Color textPrimary = Color(0xFF110D1B);
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF151022)
-          : const Color(0xFFF6F6F8),
-      appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: isDark ? const Color(0xFF151022) : Colors.white,
-        foregroundColor: isDark ? Colors.white : const Color(0xFF110D1B),
-        elevation: 0.5,
-      ),
-      body: Center(
-        child: Text(
-          'Parent profile & settings coming soon',
-          style: TextStyle(
-            color: isDark ? Colors.grey[300] : Colors.grey[700],
-            fontSize: 14,
+    return Consumer2<AuthProvider, ParentProvider>(
+      builder: (context, authProvider, parentProvider, child) {
+        final user = authProvider.currentUser;
+
+        return Scaffold(
+          backgroundColor: isDark ? backgroundDark : backgroundLight,
+          appBar: AppBar(
+            backgroundColor: isDark ? backgroundDark : backgroundLight,
+            elevation: 0,
+            title: Text(
+              'Profile',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : textPrimary,
+              ),
+            ),
           ),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Parent Info Card
+                  _buildParentInfoCard(
+                    isDark,
+                    user?.name,
+                    user?.email,
+                    user?.profileImage,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Notification Preferences
+                  _buildNotificationsCard(context, isDark, parentProvider),
+
+                  const SizedBox(height: 24),
+
+                  // Linked Children
+                  _buildChildrenList(context, isDark, parentProvider.children),
+
+                  const SizedBox(height: 24),
+
+                  // App Settings + Logout
+                  _buildSettingsAndLogout(context, isDark, authProvider),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildParentInfoCard(
+    bool isDark,
+    String? name,
+    String? email,
+    String? photoUrl,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.1) : Colors.transparent,
         ),
       ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: parentGreen.withOpacity(0.2),
+            ),
+            child: photoUrl != null
+                ? ClipOval(child: Image.network(photoUrl, fit: BoxFit.cover))
+                : const Icon(Icons.person, color: parentGreen, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name ?? 'Parent',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  email ?? '-',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationsCard(
+    BuildContext context,
+    bool isDark,
+    ParentProvider parentProvider,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.1) : Colors.transparent,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Notifications',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Enable notifications',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.grey[300] : Colors.grey[700],
+                ),
+              ),
+              Switch(
+                value: parentProvider.notificationsEnabled,
+                activeColor: parentGreen,
+                onChanged: (value) {
+                  parentProvider.setNotificationsEnabled(value);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChildrenList(
+    BuildContext context,
+    bool isDark,
+    List<StudentModel> children,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Linked Children',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (children.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                'No linked children',
+                style: TextStyle(
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                ),
+              ),
+            ),
+          )
+        else
+          Column(
+            children: children.map((c) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: parentGreen.withOpacity(0.2),
+                      ),
+                      child: c.photoUrl != null
+                          ? ClipOval(
+                              child: Image.network(
+                                c.photoUrl!,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.person,
+                              color: parentGreen,
+                              size: 22,
+                            ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            c.name,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white : textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${c.className ?? "N/A"}${c.section != null ? " - ${c.section}" : ""}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        // Switch current selection in provider
+                        final index = children.indexWhere(
+                          (s) => s.uid == c.uid,
+                        );
+                        if (index != -1) {
+                          Provider.of<ParentProvider>(
+                            context,
+                            listen: false,
+                          ).selectChild(index);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Switched to selected child'),
+                              backgroundColor: parentGreen,
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text(
+                        'Switch',
+                        style: TextStyle(color: parentGreen),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsAndLogout(
+    BuildContext context,
+    bool isDark,
+    AuthProvider authProvider,
+  ) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'App Settings',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.color_lens, color: parentGreen),
+                title: const Text('Theme'),
+                subtitle: Text(isDark ? 'Dark' : 'Light'),
+                onTap: () {
+                  // Placeholder for theme toggle
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Theme settings are not available yet'),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.info_outline, color: parentGreen),
+                title: const Text('About'),
+                subtitle: const Text('Version 1.0.0'),
+                onTap: () {},
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () async {
+              await authProvider.signOut();
+              // ignore: use_build_context_synchronously
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[400],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Logout'),
+          ),
+        ),
+      ],
     );
   }
 }

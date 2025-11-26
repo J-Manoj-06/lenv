@@ -10,6 +10,7 @@ import 'providers/test_provider.dart';
 import 'providers/reward_provider.dart';
 import 'providers/student_provider.dart';
 import 'providers/daily_challenge_provider.dart';
+import 'providers/parent_provider.dart';
 import 'routes/app_router.dart';
 
 // Initial route is always '/' (Splash) which will resolve and redirect.
@@ -86,6 +87,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TestProvider()),
         ChangeNotifierProvider(create: (_) => RewardProvider()),
         ChangeNotifierProvider(create: (_) => StudentProvider()),
+        ChangeNotifierProvider(create: (_) => ParentProvider()),
         ChangeNotifierProxyProvider<
           local_auth.AuthProvider,
           DailyChallengeProvider
