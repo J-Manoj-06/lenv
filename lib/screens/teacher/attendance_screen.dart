@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
 import '../../services/messaging_service.dart';
 import 'package:intl/intl.dart';
+import 'teacher_chat_screen.dart';
 
 enum AttendanceStatus { present, absent }
 
@@ -950,27 +951,45 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       print('✅ Parent found: ${parentData['parentName']}');
 
-      // Create or get conversation
-      final conversationId = await messagingService.getOrCreateConversation(
-        teacherId: teacherId,
-        parentId: parentData['parentId'],
-        studentId: studentId,
-        studentName: (student['name'] ?? '').toString(),
-        parentName: parentData['parentName'],
-        parentPhotoUrl: parentData['parentPhotoUrl'],
-      );
+      // Build required chat params
+      final authProvider2 = Provider.of<AuthProvider>(context, listen: false);
+      final schoolCode = authProvider2.currentUser?.instituteId ?? '';
+      String className = (student['className'] ?? '').toString();
+      String? section = student['section']?.toString();
+      if (className.isEmpty && _selectedClass != null) {
+        final parts = _selectedClass!.split(' - ');
+        if (parts.length >= 2) {
+          className = 'Grade ${parts[0].trim()}';
+          section = parts[1].trim();
+        }
+      }
 
-      // Navigate to chat screen
+      if (schoolCode.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('School code not available')),
+        );
+        return;
+      }
+
+      // Navigate to new TeacherChatScreen (unified chat)
       if (!mounted) return;
-      Navigator.pushNamed(
+      Navigator.push(
         context,
-        '/chat',
-        arguments: {
-          'conversationId': conversationId,
-          'parentName': parentData['parentName'],
-          'parentPhotoUrl': parentData['parentPhotoUrl'],
-          'studentName': student['name'],
-        },
+        MaterialPageRoute(
+          builder: (_) => TeacherChatScreen(
+            schoolCode: schoolCode,
+            teacherId: teacherId,
+            parentId:
+                (parentData['parentAuthUid'] as String?)?.isNotEmpty == true
+                ? parentData['parentAuthUid'] as String
+                : parentData['parentId'] as String,
+            studentId: studentId,
+            parentName: parentData['parentName'],
+            className: className.isEmpty ? 'Grade ?' : className,
+            section: section,
+            parentAvatarUrl: parentData['parentPhotoUrl'],
+          ),
+        ),
       );
     } catch (e) {
       print('❌ Error in _openChat: $e');

@@ -6,7 +6,7 @@ class MessagingService {
 
   /// Fetch parent data for a given student ID
   /// Optional fallbacks: parentPhone to match by phone; if still not found, scans a small subset client-side.
-  /// Returns: {parentId, parentName, parentEmail, parentPhotoUrl}
+  /// Returns: {parentId, parentName, parentEmail, parentPhotoUrl, parentAuthUid}
   Future<Map<String, dynamic>?> fetchParentForStudent(
     String studentId, {
     String? parentPhone,
@@ -42,11 +42,32 @@ class MessagingService {
 
             if (entryId == studentId) {
               print('✅ Found parent via linkedStudents: ${doc.id}');
+              // Try to resolve parent's Auth UID from users collection by email
+              final parentEmail = (data['email'] ?? '').toString();
+              String? parentAuthUid;
+              if (parentEmail.isNotEmpty) {
+                final usersSnap = await _firestore
+                    .collection('users')
+                    .where('email', isEqualTo: parentEmail)
+                    .limit(1)
+                    .get();
+                if (usersSnap.docs.isNotEmpty) {
+                  final u = usersSnap.docs.first;
+                  final uData = u.data();
+                  parentAuthUid =
+                      (uData['uid']?.toString().trim().isNotEmpty ?? false)
+                      ? uData['uid']?.toString()
+                      : u.id;
+                  print('✅ Resolved parent auth UID via users: $parentAuthUid');
+                }
+              }
+
               return {
-                'parentId': doc.id,
+                'parentId': doc.id, // Firestore parents document ID (legacy)
+                'parentAuthUid': parentAuthUid, // Firebase Auth UID (preferred)
                 'parentName': (data['parentName'] ?? data['name'] ?? 'Parent')
                     .toString(),
-                'parentEmail': (data['email'] ?? '').toString(),
+                'parentEmail': parentEmail,
                 'parentPhotoUrl': data['photoUrl']?.toString(),
                 'phoneNumber': (data['phoneNumber'] ?? data['phone'] ?? '')
                     .toString(),
@@ -72,12 +93,33 @@ class MessagingService {
             final parentDoc = byPhone.docs.first;
             final parentData = parentDoc.data();
             print('✅ Found parent via phone ($phoneField): ${parentDoc.id}');
+            // Resolve parent auth UID
+            final parentEmail = (parentData['email'] ?? '').toString();
+            String? parentAuthUid;
+            if (parentEmail.isNotEmpty) {
+              final usersSnap = await _firestore
+                  .collection('users')
+                  .where('email', isEqualTo: parentEmail)
+                  .limit(1)
+                  .get();
+              if (usersSnap.docs.isNotEmpty) {
+                final u = usersSnap.docs.first;
+                final uData = u.data();
+                parentAuthUid =
+                    (uData['uid']?.toString().trim().isNotEmpty ?? false)
+                    ? uData['uid']?.toString()
+                    : u.id;
+                print('✅ Resolved parent auth UID via users: $parentAuthUid');
+              }
+            }
+
             return {
               'parentId': parentDoc.id,
+              'parentAuthUid': parentAuthUid,
               'parentName':
                   (parentData['parentName'] ?? parentData['name'] ?? 'Parent')
                       .toString(),
-              'parentEmail': (parentData['email'] ?? '').toString(),
+              'parentEmail': parentEmail,
               'parentPhotoUrl': parentData['photoUrl']?.toString(),
               'phoneNumber':
                   (parentData['phoneNumber'] ?? parentData['phone'] ?? '')
@@ -110,12 +152,33 @@ class MessagingService {
               final parentDoc = byEmail.docs.first;
               final parentData = parentDoc.data();
               print('✅ Found parent via email pattern: ${parentDoc.id}');
+              // Resolve parent auth UID
+              final parentEmail = (parentData['email'] ?? '').toString();
+              String? parentAuthUid;
+              if (parentEmail.isNotEmpty) {
+                final usersSnap = await _firestore
+                    .collection('users')
+                    .where('email', isEqualTo: parentEmail)
+                    .limit(1)
+                    .get();
+                if (usersSnap.docs.isNotEmpty) {
+                  final u = usersSnap.docs.first;
+                  final uData = u.data();
+                  parentAuthUid =
+                      (uData['uid']?.toString().trim().isNotEmpty ?? false)
+                      ? uData['uid']?.toString()
+                      : u.id;
+                  print('✅ Resolved parent auth UID via users: $parentAuthUid');
+                }
+              }
+
               return {
                 'parentId': parentDoc.id,
+                'parentAuthUid': parentAuthUid,
                 'parentName':
                     (parentData['parentName'] ?? parentData['name'] ?? 'Parent')
                         .toString(),
-                'parentEmail': (parentData['email'] ?? '').toString(),
+                'parentEmail': parentEmail,
                 'parentPhotoUrl': parentData['photoUrl']?.toString(),
                 'phoneNumber':
                     (parentData['phoneNumber'] ?? parentData['phone'] ?? '')

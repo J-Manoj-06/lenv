@@ -20,6 +20,12 @@ class _StudentListScreenState extends State<StudentListScreen> {
   String? _error;
   List<Map<String, dynamic>> _students = [];
 
+  // Teacher brand + dark palette (UI only; no logic changes)
+  static const Color _teacherPrimary = Color(0xFF8B5CF6);
+  static const Color _bgDark = Color(0xFF120F23);
+  static const Color _tileDark = Color(0xFF1E1E2D);
+  static const Color _mutedPurple = Color(0xFF978DCE);
+
   // Parsed from widget.className (e.g., "Grade 4 - A")
   late final String _classNameForQuery; // e.g., "Grade 4"
   late final String _sectionForQuery; // e.g., "A"
@@ -102,8 +108,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: isDark ? _bgDark : theme.colorScheme.surface,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -149,38 +156,59 @@ class _StudentListScreenState extends State<StudentListScreen> {
   }
 
   Widget _buildHeader(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withOpacity(0.95),
-        border: Border(bottom: BorderSide(color: theme.dividerColor)),
+        color: isDark ? _bgDark : theme.colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600),
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, size: 24),
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 22),
                     onPressed: () => Navigator.pop(context),
-                    color: theme.iconTheme.color,
+                    color: Colors.white,
                   ),
                   Expanded(
-                    child: Text(
-                      widget.className,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.className.replaceAll('-', '–'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 4,
+                          width: 48,
+                          decoration: BoxDecoration(
+                            color: _teacherPrimary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(
-                    width: 40,
-                  ), // Spacer to balance the back button
+                  const SizedBox(width: 40),
                 ],
               ),
             ),
@@ -191,40 +219,51 @@ class _StudentListScreenState extends State<StudentListScreen> {
   }
 
   Widget _buildSearchBar(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (value) {
-          setState(() {});
-        },
-        decoration: InputDecoration(
-          hintText: 'Search for a student',
-          hintStyle: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
-          ),
-          prefixIcon: Icon(
-            Icons.search,
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
-          ),
-          filled: true,
-          fillColor: theme.cardColor,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: theme.dividerColor),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: theme.dividerColor),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: isDark ? _tileDark : theme.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            if (isDark)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Icon(Icons.search, color: isDark ? _mutedPurple : theme.hintColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                style: TextStyle(
+                  color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Search for a student',
+                  hintStyle: TextStyle(
+                    color: isDark
+                        ? _mutedPurple
+                        : theme.colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 18,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -234,37 +273,48 @@ class _StudentListScreenState extends State<StudentListScreen> {
     final students = _filteredStudents;
 
     if (students.isEmpty) {
+      final isDark = theme.brightness == Brightness.dark;
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: theme.iconTheme.color?.withOpacity(0.4),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No students found',
-              style: TextStyle(
-                fontSize: 16,
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.person_search,
+                size: 72,
+                color: _teacherPrimary.withOpacity(0.6),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                'No students found',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Try adjusting your search to find a student.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? _mutedPurple : theme.hintColor,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: students.length,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildStudentCard(theme, students[index]),
-        );
-      },
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) =>
+          _buildStudentCard(theme, students[index]),
     );
   }
 
@@ -289,84 +339,105 @@ class _StudentListScreenState extends State<StudentListScreen> {
   }
 
   Widget _buildStudentCard(ThemeData theme, Map<String, dynamic> student) {
+    final isDark = theme.brightness == Brightness.dark;
+    final name = _displayName(student);
+    final avatarUrl = _avatar(student);
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(12),
+        color: isDark ? _tileDark : theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
+          if (isDark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
         ],
       ),
       child: InkWell(
         onTap: () => _viewStudentDetails(student),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Student avatar
-              ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child:
-                    (_avatar(student) != null && _avatar(student)!.isNotEmpty)
-                    ? Image.network(
-                        _avatar(student)!,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _avatarPlaceholder(),
-                      )
-                    : _avatarPlaceholder(),
-              ),
-              const SizedBox(width: 16),
-              // Student info
+              _buildAvatarOrInitials(avatarUrl, name),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _displayName(student),
-                      style: theme.textTheme.bodyLarge?.copyWith(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.white
+                            : theme.colorScheme.onSurface,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Text(
-                          'Section: $_sectionForQuery',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: theme.colorScheme.onSurface.withOpacity(0.6),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${_score(student)}%',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: theme.colorScheme.onSurface.withOpacity(0.6),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 4),
+                    Text(
+                      'Section $_sectionForQuery • ${_score(student)}%'.trim(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isDark
+                            ? _mutedPurple
+                            : theme.colorScheme.onSurface.withOpacity(0.7),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
                   ],
                 ),
               ),
-              // Details chevron
-              Icon(
-                Icons.chevron_right,
-                color: theme.iconTheme.color?.withOpacity(0.4),
-              ),
+              const SizedBox(width: 8),
+              Icon(Icons.arrow_forward_ios, color: _teacherPrimary, size: 18),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarOrInitials(String? url, String name) {
+    final initials = _initials(name);
+    if (url != null && url.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          url,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _initialsBlock(initials),
+        ),
+      );
+    }
+    return _initialsBlock(initials);
+  }
+
+  Widget _initialsBlock(String initials) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: _teacherPrimary.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: _teacherPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -377,13 +448,11 @@ class _StudentListScreenState extends State<StudentListScreen> {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        shape: BoxShape.circle,
+        color: _teacherPrimary.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(
-        Icons.person,
-        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-      ),
+      alignment: Alignment.center,
+      child: const Icon(Icons.person, color: _teacherPrimary),
     );
   }
 
@@ -400,4 +469,16 @@ class _StudentListScreenState extends State<StudentListScreen> {
       },
     );
   }
+}
+
+String _initials(String name) {
+  final parts = name
+      .trim()
+      .split(RegExp(r"\s+"))
+      .where((p) => p.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return '';
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+      .toUpperCase();
 }

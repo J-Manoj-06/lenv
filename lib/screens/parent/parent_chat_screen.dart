@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/chat_service.dart';
 import '../../providers/parent_provider.dart';
 
@@ -30,6 +31,56 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   final ChatService _chat = ChatService();
   final TextEditingController _controller = TextEditingController();
   String? _conversationId;
+  // Track messages already scheduled for read marking to avoid re-scheduling.
+  final Set<String> _scheduledReadIds = <String>{};
+
+  Future<void> _batchUpdateIncoming(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) async {
+    if (_conversationId == null) return;
+
+    final deliveryBatch = FirebaseFirestore.instance.batch();
+    bool deliveryUpdates = false;
+    final List<DocumentReference<Map<String, dynamic>>> toMarkRead = [];
+
+    for (final d in docs) {
+      final data = d.data();
+      final senderRole = (data['senderRole'] ?? '').toString();
+      if (senderRole != 'parent') {
+        // Incoming from teacher – mark delivered immediately.
+        if (data['deliveredToParent'] != true) {
+          deliveryBatch.update(d.reference, {'deliveredToParent': true});
+          deliveryUpdates = true;
+        }
+        // Schedule read marking (delayed) if not already read/scheduled.
+        final id = d.id;
+        if (data['readByParent'] != true && !_scheduledReadIds.contains(id)) {
+          _scheduledReadIds.add(id);
+          toMarkRead.add(d.reference);
+        }
+      }
+    }
+
+    if (deliveryUpdates) {
+      await deliveryBatch.commit();
+    }
+
+    if (toMarkRead.isNotEmpty) {
+      // Delay read marking so UI shows double tick before blue tick.
+      Future.delayed(const Duration(milliseconds: 1200), () async {
+        if (!mounted || _conversationId == null) return;
+        final readBatch = FirebaseFirestore.instance.batch();
+        for (final ref in toMarkRead) {
+          readBatch.update(ref, {'readByParent': true});
+        }
+        await readBatch.commit();
+        await _chat.markAsRead(
+          conversationId: _conversationId!,
+          viewerRole: 'parent',
+        );
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -40,19 +91,32 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   Future<void> _ensureConversation() async {
     final parentProvider = Provider.of<ParentProvider>(context, listen: false);
     final child = parentProvider.children.first; // assume at least one child
+
+    // CRITICAL: Use auth UIDs, not provider IDs that might be null/email
+    final parentAuthUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final schoolCode = child.schoolCode ?? '';
+    final teacherId = widget.teacherId;
+    final studentId = child.uid;
+
+    print('🔍 Parent Chat - Building conversation ID:');
+    print('  schoolCode: $schoolCode');
+    print('  teacherId: $teacherId');
+    print('  parentId: $parentAuthUid');
+    print('  studentId: $studentId');
+
     final id = await _chat.ensureConversation(
-      schoolCode: child.schoolCode ?? '',
-      teacherId: widget.teacherId,
-      parentId: parentProvider.parentId ?? '',
-      studentId: child.uid,
+      schoolCode: schoolCode,
+      teacherId: teacherId,
+      parentId: parentAuthUid,
+      studentId: studentId,
       studentName: child.name,
       className: widget.className,
       section: widget.section,
     );
+
+    print('✅ Conversation ID: $id');
+
     setState(() => _conversationId = id);
-    // Mark all as delivered + read on open
-    await _chat.markDelivered(conversationId: id, viewerRole: 'parent');
-    await _chat.markMessagesRead(conversationId: id, viewerRole: 'parent');
   }
 
   @override
@@ -113,12 +177,9 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                       final docs = snapshot.data?.docs ?? [];
                       // After receiving messages, mark delivered for incoming ones
                       if (_conversationId != null && docs.isNotEmpty) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          _chat.markDelivered(
-                            conversationId: _conversationId!,
-                            viewerRole: 'parent',
-                          );
-                        });
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _batchUpdateIncoming(docs),
+                        );
                       }
                       return ListView.separated(
                         padding: const EdgeInsets.all(16),
@@ -184,8 +245,9 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                                                   ? Icons.done_all
                                                   : Icons.done,
                                               size: 16,
+                                              // Use lighter accent so blue ticks are visible on blue bubble
                                               color: readByTeacher
-                                                  ? const Color(0xFF1362EB)
+                                                  ? Colors.lightBlueAccent
                                                   : Colors.white70,
                                             ),
                                           ],

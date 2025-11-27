@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/teacher/teacher_dashboard.dart';
 import '../screens/teacher/classes_screen.dart';
@@ -62,61 +63,11 @@ class _TeacherMainNavigationState extends State<TeacherMainNavigation> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final theme = Theme.of(context);
-
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          border: Border(top: BorderSide(color: theme.dividerColor, width: 1)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 64,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _NavItem(
-                  icon: Icons.dashboard_outlined,
-                  selectedIcon: Icons.dashboard,
-                  label: 'Dashboard',
-                  isSelected: _currentIndex == 0,
-                  onTap: () => _onTap(0),
-                ),
-                _NavItem(
-                  icon: Icons.school_outlined,
-                  selectedIcon: Icons.school,
-                  label: 'Classes',
-                  isSelected: _currentIndex == 1,
-                  onTap: () => _onTap(1),
-                ),
-                _NavItem(
-                  icon: Icons.assignment_outlined,
-                  selectedIcon: Icons.assignment,
-                  label: 'Tests',
-                  isSelected: _currentIndex == 2,
-                  onTap: () => _onTap(2),
-                ),
-                _NavItem(
-                  icon: Icons.leaderboard_outlined,
-                  selectedIcon: Icons.leaderboard,
-                  label: 'Leaderboard',
-                  isSelected: _currentIndex == 3,
-                  onTap: () => _onTap(3),
-                ),
-                _NavItem(
-                  icon: Icons.person_outline,
-                  selectedIcon: Icons.person,
-                  label: 'Profile',
-                  isSelected: _currentIndex == 4,
-                  onTap: () => _onTap(4),
-                ),
-              ],
-            ),
-          ),
-        ),
+      bottomNavigationBar: _GlassyBottomBar(
+        currentIndex: _currentIndex,
+        onTap: _onTap,
       ),
     );
   }
@@ -139,30 +90,138 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedColor = const Color(0xFF6366F1);
-    final unselectedColor = Theme.of(context).iconTheme.color?.withOpacity(0.6);
+    const primary = Color(0xFF7961FF);
+    final inactive = Colors.grey[400];
 
     return Expanded(
       child: InkWell(
         onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isSelected ? selectedIcon : icon,
-              color: isSelected ? selectedColor : unselectedColor,
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? selectedColor : unselectedColor,
+        child: SizedBox(
+          height: 66,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isSelected ? selectedIcon : icon,
+                color: isSelected ? primary : inactive,
+                size: 24,
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? Colors.white : inactive,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassyBottomBar extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const _GlassyBottomBar({required this.currentIndex, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(16),
+        topRight: Radius.circular(16),
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E).withOpacity(0.70),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x4D000000),
+                blurRadius: 20,
+                spreadRadius: 0,
+                offset: Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Gradient separator line at the top edge
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 2,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Color(0x007961FF),
+                        Color(0x807961FF),
+                        Color(0x007961FF),
+                      ],
+                      stops: [0.0, 0.5, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+              SafeArea(
+                top: false,
+                child: SizedBox(
+                  height: 66,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _NavItem(
+                        icon: Icons.dashboard_outlined,
+                        selectedIcon: Icons.dashboard,
+                        label: 'Dashboard',
+                        isSelected: currentIndex == 0,
+                        onTap: () => onTap(0),
+                      ),
+                      _NavItem(
+                        icon: Icons.groups_outlined,
+                        selectedIcon: Icons.groups,
+                        label: 'Classes',
+                        isSelected: currentIndex == 1,
+                        onTap: () => onTap(1),
+                      ),
+                      _NavItem(
+                        icon: Icons.assignment_outlined,
+                        selectedIcon: Icons.assignment,
+                        label: 'Tests',
+                        isSelected: currentIndex == 2,
+                        onTap: () => onTap(2),
+                      ),
+                      _NavItem(
+                        icon: Icons.leaderboard_outlined,
+                        selectedIcon: Icons.leaderboard,
+                        label: 'Leaderboard',
+                        isSelected: currentIndex == 3,
+                        onTap: () => onTap(3),
+                      ),
+                      _NavItem(
+                        icon: Icons.person_outline,
+                        selectedIcon: Icons.person,
+                        label: 'Profile',
+                        isSelected: currentIndex == 4,
+                        onTap: () => onTap(4),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

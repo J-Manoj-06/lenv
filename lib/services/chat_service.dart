@@ -125,9 +125,9 @@ class ChatService {
         ? 'deliveredToParent'
         : 'deliveredToTeacher';
 
+    // Simpler query - just get recent messages from other role
     final q = await msgsRef
         .where('senderRole', isEqualTo: otherRole)
-        .where(deliveredField, isEqualTo: false)
         .orderBy('timestamp', descending: true)
         .limit(50)
         .get();
@@ -136,7 +136,11 @@ class ChatService {
 
     final batch = _db.batch();
     for (final d in q.docs) {
-      batch.update(d.reference, {deliveredField: true});
+      final data = d.data() as Map<String, dynamic>;
+      // Only update if not already delivered
+      if (data[deliveredField] != true) {
+        batch.update(d.reference, {deliveredField: true});
+      }
     }
     await batch.commit();
   }
@@ -156,9 +160,9 @@ class ChatService {
         ? 'deliveredToParent'
         : 'deliveredToTeacher';
 
+    // Simpler query - just get recent messages from other role
     final q = await msgsRef
         .where('senderRole', isEqualTo: otherRole)
-        .where(readField, isEqualTo: false)
         .orderBy('timestamp', descending: true)
         .limit(50)
         .get();
@@ -167,7 +171,11 @@ class ChatService {
 
     final batch = _db.batch();
     for (final d in q.docs) {
-      batch.update(d.reference, {readField: true, deliveredField: true});
+      final data = d.data();
+      // Only update if not already read
+      if (data[readField] != true) {
+        batch.update(d.reference, {readField: true, deliveredField: true});
+      }
     }
     await batch.commit();
   }

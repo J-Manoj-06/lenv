@@ -6,6 +6,7 @@ import '../../models/performance_model.dart';
 import '../../services/firestore_service.dart';
 import '../../services/messaging_service.dart';
 import '../../providers/auth_provider.dart';
+import 'teacher_chat_screen.dart';
 
 class StudentPerformanceScreen extends StatefulWidget {
   final String studentId;
@@ -30,6 +31,13 @@ class StudentPerformanceScreen extends StatefulWidget {
 
 class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     with SingleTickerProviderStateMixin {
+  // Brand + dark style (from provided HTML UI)
+  static const Color brandPrimary = Color(0xFF7A63FF);
+  static const Color brandPrimaryLight = Color(0xFFA08CFF);
+  static const Color bgDark = Color(0xFF0D0F18);
+  static const Color cardDark = Color(0xFF1A1B24); // approx zinc-900/50 on dark
+  static const Color borderDark = Color(0xFF2A2D3A); // subtle border dark
+
   final _firestoreService = FirestoreService();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -277,7 +285,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: bgDark,
       body: Column(
         children: [
           _buildHeader(context, theme),
@@ -389,10 +397,14 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   Widget _buildHeader(BuildContext context, ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withOpacity(0.95),
-        border: Border(
-          bottom: BorderSide(color: theme.dividerColor, width: 0.8),
-        ),
+        color: bgDark.withOpacity(0.9),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: SafeArea(
         bottom: false,
@@ -402,22 +414,52 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back),
+                        icon: const Icon(Icons.arrow_back_ios_new, size: 22),
                         onPressed: () => Navigator.pop(context),
-                        color: theme.iconTheme.color,
+                        color: Colors.white,
                       ),
                       Expanded(
-                        child: Text(
-                          'Student Performance',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Text(
+                              'Student Performance',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Positioned(
+                              bottom: -2,
+                              child: Column(
+                                children: [
+                                  Container(
+                                    width: 160,
+                                    height: 2,
+                                    decoration: BoxDecoration(
+                                      color: brandPrimary.withOpacity(0.8),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Container(
+                                    width: 120,
+                                    height: 2,
+                                    decoration: BoxDecoration(
+                                      color: brandPrimary.withOpacity(0.8),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 40),
@@ -428,33 +470,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: Row(
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(32),
-                        child: Image.network(
-                          widget.imageUrl,
-                          width: 64,
-                          height: 64,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                color:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.person,
-                                size: 32,
-                                color: theme.colorScheme.onSurface.withOpacity(
-                                  0.6,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                      // Avatar or initials in circular gradient block
+                      _buildIdentityBlock(theme),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -462,7 +479,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                           children: [
                             Text(
                               widget.studentName,
-                              style: theme.textTheme.headlineSmall?.copyWith(
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -470,11 +488,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                             const SizedBox(height: 4),
                             Text(
                               widget.studentClass,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontSize: 16,
-                                color: theme.colorScheme.onSurface.withOpacity(
-                                  0.6,
-                                ),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -500,15 +516,16 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     final avg = perf?.averageScore ?? widget.averageScore.toDouble();
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardDark,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
+        border: Border.all(color: borderDark),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -516,16 +533,18 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         children: [
           Text(
             'Performance Trend',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 16),
           Text(
             'Average Score',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontSize: 16,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -536,9 +555,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             children: [
               Text(
                 '${avg.round()}%',
-                style: theme.textTheme.displaySmall?.copyWith(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(width: 12),
@@ -550,9 +570,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             lastSix.isEmpty
                 ? 'No trend yet'
                 : 'vs. last ${lastSix.length} tests',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 14,
-              color: theme.colorScheme.onSurface.withOpacity(0.6),
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white.withOpacity(0.6),
             ),
           ),
           const SizedBox(height: 24),
@@ -565,9 +585,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                   .map(
                     (e) => Text(
                       _shortDate(e.submittedAt),
-                      style: theme.textTheme.bodySmall?.copyWith(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: Colors.white.withOpacity(0.6),
                       ),
                     ),
                   )
@@ -577,9 +597,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             Center(
               child: Text(
                 'No chart data yet',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
-                ),
+                style: TextStyle(color: Colors.white.withOpacity(0.6)),
               ),
             ),
         ],
@@ -609,7 +627,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             LineChartBarData(
               spots: spots,
               isCurved: true,
-              color: theme.colorScheme.primary,
+              color: brandPrimary,
               barWidth: 3,
               isStrokeCapRound: true,
               dotData: FlDotData(show: false),
@@ -619,8 +637,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    theme.colorScheme.primary.withOpacity(0.2),
-                    theme.colorScheme.primary.withOpacity(0.0),
+                    brandPrimary.withOpacity(0.2),
+                    brandPrimary.withOpacity(0.0),
                   ],
                 ),
               ),
@@ -642,15 +660,16 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardDark,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
+        border: Border.all(color: borderDark),
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -661,11 +680,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.colorScheme.primary,
-                      theme.colorScheme.primary.withOpacity(0.7),
-                    ],
+                  gradient: const LinearGradient(
+                    colors: [brandPrimary, brandPrimaryLight],
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -674,9 +690,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               const SizedBox(width: 12),
               Text(
                 'Recent Test History',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -698,25 +715,34 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
-        ),
+        color: cardDark,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: borderDark),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             width: 50,
             height: 50,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withOpacity(0.5), width: 2),
+            ),
             child: Center(
               child: Text(
                 '${percentage.round()}%',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: color,
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  fontSize: 13,
                 ),
               ),
             ),
@@ -728,7 +754,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               children: [
                 Text(
                   submission.testTitle,
-                  style: theme.textTheme.bodyLarge?.copyWith(
+                  style: const TextStyle(
+                    color: Colors.white,
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
                   ),
@@ -741,13 +768,13 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     Icon(
                       Icons.calendar_today,
                       size: 12,
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: Colors.white.withOpacity(0.6),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _formatDate(submission.submittedAt),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
                         fontSize: 12,
                       ),
                     ),
@@ -755,13 +782,13 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     Icon(
                       Icons.stars,
                       size: 12,
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: Colors.white.withOpacity(0.6),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       '${submission.totalPoints} pts',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
                         fontSize: 12,
                       ),
                     ),
@@ -772,12 +799,12 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           ),
           Icon(
             percentage >= 75
-                ? Icons.emoji_events
-                : percentage >= 50
                 ? Icons.thumb_up
-                : Icons.trending_up,
+                : percentage >= 60
+                ? Icons.thumbs_up_down
+                : Icons.thumb_down,
             color: color,
-            size: 28,
+            size: 24,
           ),
         ],
       ),
@@ -827,28 +854,18 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
 
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.primary.withOpacity(0.1),
-            theme.colorScheme.primaryContainer.withOpacity(0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.primary.withOpacity(0.2),
-          width: 1,
-        ),
+        color: cardDark,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderDark),
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.primary.withOpacity(0.1),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -857,16 +874,13 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.colorScheme.primary,
-                      theme.colorScheme.primary.withOpacity(0.7),
-                    ],
+                  gradient: const LinearGradient(
+                    colors: [brandPrimary, brandPrimaryLight],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: theme.colorScheme.primary.withOpacity(0.3),
+                      color: brandPrimary.withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -881,9 +895,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               const SizedBox(width: 12),
               Text(
                 'Quick Stats',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -896,7 +911,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 'Avg Score',
                 '${avg.round()}%',
                 Icons.school,
-                _getScoreColor(avg),
+                brandPrimary,
               ),
               const SizedBox(width: 12),
               _statCard(
@@ -904,7 +919,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 'Attendance',
                 attendanceStr,
                 Icons.event_available,
-                const Color(0xFF8B5CF6),
+                brandPrimary,
               ),
             ],
           ),
@@ -916,7 +931,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 'Points',
                 totalPoints.toString(),
                 Icons.stars,
-                const Color(0xFFF59E0B),
+                brandPrimary,
               ),
               const SizedBox(width: 12),
               _statCard(
@@ -924,7 +939,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 'Tests',
                 testsTaken.toString(),
                 Icons.assignment,
-                const Color(0xFF06B6D4),
+                brandPrimary,
               ),
             ],
           ),
@@ -936,7 +951,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 'Badges',
                 _badgesCount.toString(),
                 Icons.emoji_events,
-                const Color(0xFFEC4899),
+                brandPrimary,
               ),
               const SizedBox(width: 12),
               _statCard(
@@ -944,7 +959,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 'Latest',
                 latestScoreDisplay,
                 Icons.trending_up,
-                _getScoreColor(latestScore),
+                brandPrimary,
               ),
             ],
           ),
@@ -964,14 +979,14 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.cardColor,
+          color: cardDark,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+          border: Border.all(color: borderDark),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -984,7 +999,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: color.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(icon, color: color, size: 20),
@@ -994,18 +1009,18 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             const SizedBox(height: 12),
             Text(
               value,
-              style: theme.textTheme.titleLarge?.copyWith(
+              style: TextStyle(
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 22,
-                color: color,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               label,
-              style: theme.textTheme.bodySmall?.copyWith(
+              style: TextStyle(
                 fontSize: 12,
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                color: Colors.white.withOpacity(0.6),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1018,22 +1033,12 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   Widget _buildBadgesSection(ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFFF59E0B).withOpacity(0.1),
-            const Color(0xFFEC4899).withOpacity(0.1),
-          ],
-        ),
+        color: cardDark,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFF59E0B).withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: borderDark),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFF59E0B).withOpacity(0.1),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1049,12 +1054,12 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFF59E0B), Color(0xFFEC4899)],
+                    colors: [brandPrimary, brandPrimaryLight],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFF59E0B).withOpacity(0.3),
+                      color: brandPrimary.withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -1069,9 +1074,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               const SizedBox(width: 12),
               Text(
                 'Badges Earned',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const Spacer(),
@@ -1082,7 +1088,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF59E0B),
+                    color: brandPrimary,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -1107,9 +1113,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     const SizedBox(height: 12),
                     Text(
                       'Loading badges…',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
-                      ),
+                      style: TextStyle(color: Colors.white.withOpacity(0.6)),
                     ),
                   ],
                 ),
@@ -1124,21 +1128,23 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     Icon(
                       Icons.emoji_events_outlined,
                       size: 64,
-                      color: theme.colorScheme.onSurface.withOpacity(0.3),
+                      color: Colors.white.withOpacity(0.35),
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'No badges earned yet',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
-                        fontWeight: FontWeight.w500,
+                      'No Badges Earned Yet',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Keep working hard to earn badges!',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      'Keep up the great work to earn new badges!',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -1157,15 +1163,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   }
 
   Widget _badgeChip(ThemeData theme, String label) {
-    final colors = [
-      [const Color(0xFF10B981), const Color(0xFF059669)],
-      [const Color(0xFF8B5CF6), const Color(0xFF7C3AED)],
-      [const Color(0xFFF59E0B), const Color(0xFFD97706)],
-      [const Color(0xFFEC4899), const Color(0xFFDB2777)],
-      [const Color(0xFF06B6D4), const Color(0xFF0891B2)],
-    ];
-    final colorPair = colors[label.hashCode % colors.length];
-
+    const colorPair = [brandPrimary, brandPrimaryLight];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -1201,15 +1199,12 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     final d = _studentDetails;
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: cardDark,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.primary.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: borderDark, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1224,16 +1219,13 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.colorScheme.primary,
-                      theme.colorScheme.primary.withOpacity(0.7),
-                    ],
+                  gradient: const LinearGradient(
+                    colors: [brandPrimary, brandPrimaryLight],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: theme.colorScheme.primary.withOpacity(0.3),
+                      color: brandPrimary.withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -1248,9 +1240,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               const SizedBox(width: 12),
               Text(
                 'Personal Details',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -1266,9 +1259,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     const SizedBox(height: 12),
                     Text(
                       'Loading details…',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
-                      ),
+                      style: TextStyle(color: Colors.white.withOpacity(0.6)),
                     ),
                   ],
                 ),
@@ -1283,13 +1274,14 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     Icon(
                       Icons.info_outline,
                       size: 48,
-                      color: theme.colorScheme.error.withOpacity(0.6),
+                      color: Colors.redAccent.withOpacity(0.7),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       'Student record not found',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.error,
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -1302,7 +1294,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               Icons.email_outlined,
               'Email',
               (d['email'] ?? '—').toString(),
-              const Color(0xFF10B981),
+              brandPrimary,
             ),
             const Divider(height: 24),
             _detailRow(
@@ -1311,7 +1303,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               'Phone',
               (d['phoneNumber'] ?? d['phone'] ?? d['contactNumber'] ?? '—')
                   .toString(),
-              const Color(0xFF06B6D4),
+              brandPrimary,
             ),
             const Divider(height: 24),
             _detailRow(
@@ -1319,7 +1311,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               Icons.badge_outlined,
               'Student ID',
               (d['studentId'] ?? '—').toString(),
-              const Color(0xFF8B5CF6),
+              brandPrimary,
             ),
             const Divider(height: 24),
             _detailRow(
@@ -1327,7 +1319,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               Icons.phone_android_outlined,
               'Parent Phone',
               (d['parentPhone'] ?? '—').toString(),
-              const Color(0xFFF59E0B),
+              brandPrimary,
             ),
             const Divider(height: 24),
             _detailRow(
@@ -1335,7 +1327,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               Icons.class_outlined,
               'Section',
               (d['section'] ?? '—').toString(),
-              const Color(0xFFEC4899),
+              brandPrimary,
             ),
           ],
         ],
@@ -1355,7 +1347,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.15),
+            color: color.withOpacity(0.2),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, size: 20, color: color),
@@ -1367,16 +1359,17 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             children: [
               Text(
                 label,
-                style: theme.textTheme.bodySmall?.copyWith(
+                style: TextStyle(
                   fontSize: 12,
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  color: Colors.white.withOpacity(0.6),
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 value,
-                style: theme.textTheme.bodyLarge?.copyWith(
+                style: const TextStyle(
+                  color: Colors.white,
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
                 ),
@@ -1391,28 +1384,18 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   Widget _buildMessageParent(ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF8B5CF6).withOpacity(0.1),
-            const Color(0xFF06B6D4).withOpacity(0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF8B5CF6).withOpacity(0.3),
-          width: 1,
-        ),
+        color: cardDark,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderDark),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF8B5CF6).withOpacity(0.1),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1422,12 +1405,12 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)],
+                    colors: [brandPrimary, brandPrimaryLight],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF8B5CF6).withOpacity(0.3),
+                      color: brandPrimary.withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -1442,9 +1425,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               const SizedBox(width: 12),
               Text(
                 'Message Parent',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -1452,10 +1436,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           const SizedBox(height: 16),
           Text(
             'Open a conversation with the parent to share progress, discuss concerns, or celebrate achievements.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
-              height: 1.4,
-            ),
+            style: TextStyle(color: Colors.white.withOpacity(0.7), height: 1.4),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -1463,13 +1444,16 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             child: ElevatedButton(
               onPressed: _parentChatLoading ? null : _startParentChat,
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: theme.colorScheme.primary,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 12,
+                ),
+                backgroundColor: brandPrimary,
                 foregroundColor: Colors.white,
                 elevation: 4,
-                shadowColor: theme.colorScheme.primary.withOpacity(0.4),
+                shadowColor: brandPrimary.withOpacity(0.4),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
               child: _parentChatLoading
@@ -1502,7 +1486,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                         const Icon(Icons.chat_bubble, size: 20),
                         const SizedBox(width: 10),
                         Text(
-                          'Start Conversation',
+                          'Start',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1586,26 +1570,46 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
 
       debugPrint('✅ Parent found: ${parentData['parentName']}');
 
-      final conversationId = await messaging.getOrCreateConversation(
-        teacherId: teacherId,
-        parentId: parentData['parentId'],
-        studentId: studentId,
-        studentName: widget.studentName,
-        parentName: parentData['parentName'],
-        parentPhotoUrl: parentData['parentPhotoUrl'],
-      );
+      // Get schoolCode from student details (already loaded)
+      final schoolCode = _studentDetails?['schoolCode']?.toString() ?? '';
+      final className =
+          _studentDetails?['className']?.toString() ?? widget.studentClass;
+      final section = _studentDetails?['section']?.toString();
 
+      if (schoolCode.isEmpty) {
+        debugPrint('❌ schoolCode is empty, cannot open chat');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('School code not available. Please try again.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Navigate to TeacherChatScreen with required parameters
       if (!mounted) return;
 
-      Navigator.pushNamed(
+      Navigator.push(
         context,
-        '/chat',
-        arguments: {
-          'conversationId': conversationId,
-          'parentName': parentData['parentName'],
-          'parentPhotoUrl': parentData['parentPhotoUrl'],
-          'studentName': widget.studentName,
-        },
+        MaterialPageRoute(
+          builder: (_) => TeacherChatScreen(
+            schoolCode: schoolCode,
+            teacherId: teacherId,
+            // Prefer the parent's Firebase Auth UID; fall back to legacy id
+            parentId:
+                (parentData['parentAuthUid'] as String?)?.isNotEmpty == true
+                ? parentData['parentAuthUid'] as String
+                : parentData['parentId'] as String,
+            studentId: studentId,
+            parentName: parentData['parentName'],
+            className: className,
+            section: section,
+            parentAvatarUrl: parentData['parentPhotoUrl'],
+          ),
+        ),
       );
     } catch (e) {
       debugPrint('❌ Error in _startParentChat: $e');
@@ -1639,6 +1643,66 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       'Dec',
     ];
     return '${months[dt.month - 1]} ${dt.day}';
+  }
+
+  // Build avatar/initials block matching the HTML hero
+  Widget _buildIdentityBlock(ThemeData theme) {
+    final name = widget.studentName.trim();
+    final initials = _initials(name);
+    final img = widget.imageUrl;
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [brandPrimary, brandPrimaryLight],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: (img.isNotEmpty)
+            ? Image.network(
+                img,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _initialsCenter(initials),
+              )
+            : _initialsCenter(initials),
+      ),
+    );
+  }
+
+  Widget _initialsCenter(String initials) {
+    return Container(
+      color: Colors.transparent,
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final parts = name.split(RegExp(r"\s+"));
+    final first = parts.isNotEmpty ? parts.first : '';
+    final last = parts.length > 1 ? parts.last : '';
+    final i1 = first.isNotEmpty ? first[0] : '';
+    final i2 = last.isNotEmpty ? last[0] : '';
+    final text = (i1 + i2).toUpperCase();
+    return text.isEmpty && name.isNotEmpty ? name[0].toUpperCase() : text;
   }
 
   Widget _buildDeltaPill(List<TestSubmission> lastSix) {

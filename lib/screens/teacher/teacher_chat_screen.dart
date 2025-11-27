@@ -32,6 +32,55 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   final ChatService _chat = ChatService();
   final TextEditingController _controller = TextEditingController();
   String? _conversationId;
+  // Track messages already scheduled for read marking to avoid re-scheduling.
+  final Set<String> _scheduledReadIds = <String>{};
+
+  Future<void> _batchUpdateIncoming(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) async {
+    if (_conversationId == null) return;
+
+    final deliveryBatch = FirebaseFirestore.instance.batch();
+    bool deliveryUpdates = false;
+    final List<DocumentReference<Map<String, dynamic>>> toMarkRead = [];
+
+    for (final d in docs) {
+      final data = d.data();
+      final senderRole = (data['senderRole'] ?? '').toString();
+      if (senderRole != 'teacher') {
+        // Incoming from parent – mark delivered immediately.
+        if (data['deliveredToTeacher'] != true) {
+          deliveryBatch.update(d.reference, {'deliveredToTeacher': true});
+          deliveryUpdates = true;
+        }
+        // Schedule read marking (delayed) if not already read/scheduled.
+        final id = d.id;
+        if (data['readByTeacher'] != true && !_scheduledReadIds.contains(id)) {
+          _scheduledReadIds.add(id);
+          toMarkRead.add(d.reference);
+        }
+      }
+    }
+
+    if (deliveryUpdates) {
+      await deliveryBatch.commit();
+    }
+
+    if (toMarkRead.isNotEmpty) {
+      Future.delayed(const Duration(milliseconds: 1200), () async {
+        if (!mounted || _conversationId == null) return;
+        final readBatch = FirebaseFirestore.instance.batch();
+        for (final ref in toMarkRead) {
+          readBatch.update(ref, {'readByTeacher': true});
+        }
+        await readBatch.commit();
+        await _chat.markAsRead(
+          conversationId: _conversationId!,
+          viewerRole: 'teacher',
+        );
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -40,6 +89,12 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   }
 
   Future<void> _ensureConversation() async {
+    print('🔍 Teacher Chat - Building conversation ID:');
+    print('  schoolCode: ${widget.schoolCode}');
+    print('  teacherId: ${widget.teacherId}');
+    print('  parentId: ${widget.parentId}');
+    print('  studentId: ${widget.studentId}');
+
     final id = await _chat.ensureConversation(
       schoolCode: widget.schoolCode,
       teacherId: widget.teacherId,
@@ -49,9 +104,10 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
       className: widget.className,
       section: widget.section,
     );
+
+    print('✅ Conversation ID: $id');
+
     setState(() => _conversationId = id);
-    await _chat.markDelivered(conversationId: id, viewerRole: 'teacher');
-    await _chat.markMessagesRead(conversationId: id, viewerRole: 'teacher');
   }
 
   @override
@@ -111,12 +167,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                     builder: (context, snapshot) {
                       final docs = snapshot.data?.docs ?? [];
                       if (_conversationId != null && docs.isNotEmpty) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          _chat.markDelivered(
-                            conversationId: _conversationId!,
-                            viewerRole: 'teacher',
-                          );
-                        });
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _batchUpdateIncoming(docs),
+                        );
                       }
                       return ListView.separated(
                         padding: const EdgeInsets.all(16),
@@ -182,7 +235,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                                                   : Icons.done,
                                               size: 16,
                                               color: readByParent
-                                                  ? const Color(0xFF1362EB)
+                                                  ? Colors.lightBlueAccent
                                                   : Colors.white70,
                                             ),
                                           ],
