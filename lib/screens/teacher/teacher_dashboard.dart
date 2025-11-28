@@ -1157,16 +1157,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             final maxHeight =
                 mq.size.height * 0.88; // cap to 88% of height for compactness
 
-            Color pillBg(bool active) => active
-                ? const Color(0xFF6C63FF)
-                : (theme.brightness == Brightness.dark
-                      ? Colors.white10
-                      : Colors.white);
-            Color pillFg(bool active) => active
-                ? Colors.white
-                : (theme.brightness == Brightness.dark
-                      ? Colors.white70
-                      : const Color(0xFF6C63FF));
+            // Dark theme constants
+            const bgDark = Color(0xFF120F23);
+            const primary = Color(0xFF7961FF);
+            const cardBg = Color(0xFF1A1730);
+            const borderColor = Color(0xFF2D2640);
+            const textMuted = Color(0xFF8E8BA3);
 
             return Padding(
               padding: EdgeInsets.only(bottom: kbInsets),
@@ -1174,20 +1170,16 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 constraints: BoxConstraints(maxHeight: maxHeight),
                 child: Container(
                   decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF6A5AE0), Color(0xFF8E7CFF)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: bgDark,
                     borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20),
+                      top: Radius.circular(24),
                     ),
                   ),
                   child: SafeArea(
                     top: false,
                     child: SingleChildScrollView(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1196,93 +1188,116 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                             Center(
                               child: Container(
                                 width: 40,
-                                height: 5,
+                                height: 4,
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.6),
-                                  borderRadius: BorderRadius.circular(3),
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(2),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 16),
 
-                            // Title
+                            // Header with title and close button
                             Row(
                               children: [
-                                const Icon(Icons.campaign, color: Colors.white),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'New Announcement',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [primary, Color(0xFF9D8DFF)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
+                                  child: const Icon(
+                                    Icons.campaign_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'New Announcement',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Visible for 24 hours',
+                                      style: TextStyle(
+                                        color: textMuted,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const Spacer(),
                                 if (posting)
-                                  const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        Colors.white,
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    child: const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation(
+                                          primary,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  GestureDetector(
+                                    onTap: () => Navigator.of(ctx).pop(),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: borderColor),
+                                      ),
+                                      child: const Icon(
+                                        Icons.close_rounded,
+                                        color: textMuted,
+                                        size: 20,
                                       ),
                                     ),
                                   ),
                               ],
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 20),
 
-                            // Text input on translucent card
+                            // Audience tabs with underline indicator
                             Container(
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.white24),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              child: TextField(
-                                controller: textController,
-                                minLines: 1,
-                                maxLines: 5,
-                                style: const TextStyle(color: Colors.white),
-                                decoration: const InputDecoration(
-                                  hintText: 'Share something for 24 hours…',
-                                  hintStyle: TextStyle(color: Colors.white70),
-                                  border: InputBorder.none,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            // Segmented audience control
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.08),
+                                color: cardBg,
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.white24),
+                                border: Border.all(color: borderColor),
                               ),
-                              padding: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(4),
                               child: Row(
                                 children: [
                                   for (final item in const [
                                     {
                                       'key': 'school',
-                                      'icon': Icons.public,
+                                      'icon': Icons.school_rounded,
                                       'label': 'School',
                                     },
                                     {
                                       'key': 'standard',
-                                      'icon': Icons.grade,
+                                      'icon': Icons.class_rounded,
                                       'label': 'Standards',
                                     },
                                     {
                                       'key': 'section',
-                                      'icon': Icons.group_work,
+                                      'icon': Icons.groups_rounded,
                                       'label': 'Sections',
                                     },
                                   ])
@@ -1316,55 +1331,82 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                           ),
                                           curve: Curves.easeInOut,
                                           padding: const EdgeInsets.symmetric(
-                                            vertical: 9,
-                                            horizontal: 6,
+                                            vertical: 12,
+                                            horizontal: 8,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: pillBg(
-                                              selectedAudience ==
-                                                  (item['key'] as String),
-                                            ),
+                                            color:
+                                                selectedAudience ==
+                                                    (item['key'] as String)
+                                                ? primary.withOpacity(0.15)
+                                                : Colors.transparent,
                                             borderRadius: BorderRadius.circular(
                                               12,
                                             ),
-                                            boxShadow:
-                                                selectedAudience ==
-                                                    (item['key'] as String)
-                                                ? [
-                                                    BoxShadow(
-                                                      color: Colors.black
-                                                          .withOpacity(0.15),
-                                                      blurRadius: 10,
-                                                      offset: const Offset(
-                                                        0,
-                                                        4,
-                                                      ),
-                                                    ),
-                                                  ]
-                                                : null,
                                           ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
+                                          child: Column(
                                             children: [
-                                              Icon(
-                                                item['icon'] as IconData,
-                                                size: 16,
-                                                color: pillFg(
-                                                  selectedAudience ==
-                                                      (item['key'] as String),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 5),
-                                              Text(
-                                                item['label'] as String,
-                                                style: TextStyle(
-                                                  color: pillFg(
-                                                    selectedAudience ==
-                                                        (item['key'] as String),
+                                              Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    item['icon'] as IconData,
+                                                    size: 16,
+                                                    color:
+                                                        selectedAudience ==
+                                                            (item['key']
+                                                                as String)
+                                                        ? primary
+                                                        : textMuted,
                                                   ),
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 12,
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    item['label'] as String,
+                                                    style: TextStyle(
+                                                      color:
+                                                          selectedAudience ==
+                                                              (item['key']
+                                                                  as String)
+                                                          ? Colors.white
+                                                          : textMuted,
+                                                      fontWeight:
+                                                          selectedAudience ==
+                                                              (item['key']
+                                                                  as String)
+                                                          ? FontWeight.w600
+                                                          : FontWeight.w500,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              // Underline indicator
+                                              AnimatedContainer(
+                                                duration: const Duration(
+                                                  milliseconds: 200,
+                                                ),
+                                                height: 3,
+                                                width:
+                                                    selectedAudience ==
+                                                        (item['key'] as String)
+                                                    ? 40
+                                                    : 0,
+                                                decoration: BoxDecoration(
+                                                  gradient:
+                                                      selectedAudience ==
+                                                          (item['key']
+                                                              as String)
+                                                      ? const LinearGradient(
+                                                          colors: [
+                                                            primary,
+                                                            Color(0xFF9D8DFF),
+                                                          ],
+                                                        )
+                                                      : null,
+                                                  borderRadius:
+                                                      BorderRadius.circular(2),
                                                 ),
                                               ),
                                             ],
@@ -1376,6 +1418,39 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                               ),
                             ),
 
+                            const SizedBox(height: 16),
+
+                            // Message input area
+                            Container(
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: borderColor),
+                              ),
+                              padding: const EdgeInsets.all(16),
+                              child: TextField(
+                                controller: textController,
+                                minLines: 3,
+                                maxLines: 5,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  height: 1.5,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText:
+                                      'Write your announcement here...\nThis will be visible for 24 hours.',
+                                  hintStyle: TextStyle(
+                                    color: textMuted.withOpacity(0.6),
+                                    fontSize: 14,
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ),
+
                             // Animated standards/sections panels
                             AnimatedSize(
                               duration: const Duration(milliseconds: 200),
@@ -1383,112 +1458,123 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                               child: Column(
                                 children: [
                                   if (selectedAudience == 'standard') ...[
-                                    const SizedBox(height: 10),
+                                    const SizedBox(height: 16),
                                     Container(
                                       width: double.infinity,
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.08),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.white24,
-                                        ),
+                                        color: cardBg,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: borderColor),
                                       ),
-                                      padding: const EdgeInsets.all(10),
+                                      padding: const EdgeInsets.all(16),
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
-                                              const Icon(
-                                                Icons.grade,
-                                                size: 16,
-                                                color: Colors.white70,
+                                              Container(
+                                                padding: const EdgeInsets.all(
+                                                  8,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: primary.withOpacity(
+                                                    0.1,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.class_rounded,
+                                                  size: 16,
+                                                  color: primary,
+                                                ),
                                               ),
-                                              const SizedBox(width: 6),
+                                              const SizedBox(width: 10),
                                               const Text(
                                                 'Select Standards',
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: 13,
+                                                  fontSize: 14,
                                                 ),
                                               ),
                                               const Spacer(),
-                                              FilterChip(
-                                                label: Text(
-                                                  allStandards
-                                                      ? 'Unselect All'
-                                                      : 'Select All',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
+                                              GestureDetector(
+                                                onTap: () => selectAllStandards(
+                                                  !allStandards,
+                                                ),
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 6,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: allStandards
+                                                        ? primary.withOpacity(
+                                                            0.15,
+                                                          )
+                                                        : Colors.transparent,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: allStandards
+                                                          ? primary
+                                                          : borderColor,
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    allStandards
+                                                        ? 'Deselect All'
+                                                        : 'Select All',
+                                                    style: TextStyle(
+                                                      color: allStandards
+                                                          ? primary
+                                                          : textMuted,
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
                                                   ),
                                                 ),
-                                                selected: allStandards,
-                                                backgroundColor: Colors.white
-                                                    .withOpacity(0.1),
-                                                selectedColor: const Color(
-                                                  0xFF6C63FF,
-                                                ),
-                                                onSelected: (v) =>
-                                                    selectAllStandards(
-                                                      !allStandards,
-                                                    ),
-                                                checkmarkColor: Colors.white,
                                               ),
                                             ],
                                           ),
-                                          const SizedBox(height: 8),
+                                          const SizedBox(height: 12),
                                           availableStandards.isEmpty
                                               ? const Center(
                                                   child: Padding(
                                                     padding: EdgeInsets.all(
-                                                      8.0,
+                                                      16.0,
                                                     ),
                                                     child:
                                                         CircularProgressIndicator(
-                                                          color: Colors.white70,
+                                                          color: primary,
                                                           strokeWidth: 2,
                                                         ),
                                                   ),
                                                 )
                                               : Wrap(
-                                                  spacing: 6,
-                                                  runSpacing: 6,
+                                                  spacing: 8,
+                                                  runSpacing: 8,
                                                   children: [
                                                     for (final std
                                                         in availableStandards)
-                                                      FilterChip(
-                                                        label: Text(
-                                                          'Grade $std',
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Colors
-                                                                    .white,
-                                                                fontSize: 12,
-                                                              ),
-                                                        ),
-                                                        selected:
-                                                            selectedStandards
-                                                                .contains(std),
-                                                        backgroundColor: Colors
-                                                            .white
-                                                            .withOpacity(0.08),
-                                                        selectedColor:
-                                                            const Color(
-                                                              0xFF6C63FF,
-                                                            ),
-                                                        checkmarkColor:
-                                                            Colors.white,
-                                                        onSelected: (sel) {
+                                                      GestureDetector(
+                                                        onTap: () {
                                                           setSheetState(() {
-                                                            if (sel) {
-                                                              selectedStandards
-                                                                  .add(std);
-                                                            } else {
+                                                            if (selectedStandards
+                                                                .contains(
+                                                                  std,
+                                                                )) {
                                                               selectedStandards
                                                                   .remove(std);
+                                                            } else {
+                                                              selectedStandards
+                                                                  .add(std);
                                                             }
                                                             allStandards =
                                                                 selectedStandards
@@ -1497,6 +1583,58 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                                                     .length;
                                                           });
                                                         },
+                                                        child: AnimatedContainer(
+                                                          duration:
+                                                              const Duration(
+                                                                milliseconds:
+                                                                    150,
+                                                              ),
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 16,
+                                                                vertical: 10,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color:
+                                                                selectedStandards
+                                                                    .contains(
+                                                                      std,
+                                                                    )
+                                                                ? primary
+                                                                : Colors
+                                                                      .transparent,
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  10,
+                                                                ),
+                                                            border: Border.all(
+                                                              color:
+                                                                  selectedStandards
+                                                                      .contains(
+                                                                        std,
+                                                                      )
+                                                                  ? primary
+                                                                  : borderColor,
+                                                              width: 1.5,
+                                                            ),
+                                                          ),
+                                                          child: Text(
+                                                            'Grade $std',
+                                                            style: TextStyle(
+                                                              color:
+                                                                  selectedStandards
+                                                                      .contains(
+                                                                        std,
+                                                                      )
+                                                                  ? Colors.white
+                                                                  : textMuted,
+                                                              fontSize: 13,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                            ),
+                                                          ),
+                                                        ),
                                                       ),
                                                   ],
                                                 ),
@@ -1505,91 +1643,139 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                     ),
                                   ],
                                   if (selectedAudience == 'section') ...[
-                                    const SizedBox(height: 10),
+                                    const SizedBox(height: 16),
                                     Container(
                                       width: double.infinity,
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.08),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.white24,
-                                        ),
+                                        color: cardBg,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: borderColor),
                                       ),
-                                      padding: const EdgeInsets.all(10),
+                                      padding: const EdgeInsets.all(16),
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
-                                              const Icon(
-                                                Icons.group_work,
-                                                size: 16,
-                                                color: Colors.white70,
+                                              Container(
+                                                padding: const EdgeInsets.all(
+                                                  8,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: primary.withOpacity(
+                                                    0.1,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.groups_rounded,
+                                                  size: 16,
+                                                  color: primary,
+                                                ),
                                               ),
-                                              const SizedBox(width: 6),
+                                              const SizedBox(width: 10),
                                               const Text(
                                                 'Your Sections',
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: 13,
+                                                  fontSize: 14,
                                                 ),
                                               ),
                                               const Spacer(),
                                               if (teacherSections.isNotEmpty)
-                                                FilterChip(
-                                                  label: Text(
-                                                    allSections
-                                                        ? 'Unselect All'
-                                                        : 'Select All',
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                  selected: allSections,
-                                                  backgroundColor: Colors.white
-                                                      .withOpacity(0.1),
-                                                  selectedColor: const Color(
-                                                    0xFF6C63FF,
-                                                  ),
-                                                  onSelected: (v) =>
+                                                GestureDetector(
+                                                  onTap: () =>
                                                       selectAllSections(
                                                         !allSections,
                                                       ),
-                                                  checkmarkColor: Colors.white,
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 12,
+                                                          vertical: 6,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: allSections
+                                                          ? primary.withOpacity(
+                                                              0.15,
+                                                            )
+                                                          : Colors.transparent,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: allSections
+                                                            ? primary
+                                                            : borderColor,
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      allSections
+                                                          ? 'Deselect All'
+                                                          : 'Select All',
+                                                      style: TextStyle(
+                                                        color: allSections
+                                                            ? primary
+                                                            : textMuted,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ),
                                                 ),
                                             ],
                                           ),
-                                          const SizedBox(height: 8),
+                                          const SizedBox(height: 12),
                                           if (teacherSections.isEmpty)
                                             Container(
-                                              padding: const EdgeInsets.all(12),
+                                              padding: const EdgeInsets.all(16),
                                               decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(
-                                                  0.06,
-                                                ),
+                                                color: const Color(
+                                                  0xFFFF9500,
+                                                ).withOpacity(0.1),
                                                 borderRadius:
-                                                    BorderRadius.circular(8),
+                                                    BorderRadius.circular(12),
                                                 border: Border.all(
-                                                  color: Colors.white24,
+                                                  color: const Color(
+                                                    0xFFFF9500,
+                                                  ).withOpacity(0.3),
                                                 ),
                                               ),
-                                              child: const Row(
+                                              child: Row(
                                                 children: [
-                                                  Icon(
-                                                    Icons.info_outline,
-                                                    color: Colors.amberAccent,
-                                                    size: 16,
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.all(8),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(
+                                                        0xFFFF9500,
+                                                      ).withOpacity(0.15),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons
+                                                          .info_outline_rounded,
+                                                      color: Color(0xFFFF9500),
+                                                      size: 18,
+                                                    ),
                                                   ),
-                                                  SizedBox(width: 8),
-                                                  Expanded(
+                                                  const SizedBox(width: 12),
+                                                  const Expanded(
                                                     child: Text(
                                                       'No assigned sections found. Please contact admin to assign classes.',
                                                       style: TextStyle(
-                                                        color: Colors.white70,
-                                                        fontSize: 12,
+                                                        color: Color(
+                                                          0xFFFF9500,
+                                                        ),
+                                                        fontSize: 13,
                                                       ),
                                                     ),
                                                   ),
@@ -1598,38 +1784,22 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                             )
                                           else
                                             Wrap(
-                                              spacing: 6,
-                                              runSpacing: 6,
+                                              spacing: 8,
+                                              runSpacing: 8,
                                               children: [
                                                 for (final sec
                                                     in teacherSections)
-                                                  FilterChip(
-                                                    label: Text(
-                                                      sec,
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                    selected: selectedSections
-                                                        .contains(sec),
-                                                    backgroundColor: Colors
-                                                        .white
-                                                        .withOpacity(0.08),
-                                                    selectedColor: const Color(
-                                                      0xFF6C63FF,
-                                                    ),
-                                                    checkmarkColor:
-                                                        Colors.white,
-                                                    onSelected: (sel) {
+                                                  GestureDetector(
+                                                    onTap: () {
                                                       setSheetState(() {
-                                                        if (sel) {
+                                                        if (selectedSections
+                                                            .contains(sec)) {
+                                                          selectedSections
+                                                              .remove(sec);
+                                                        } else {
                                                           selectedSections.add(
                                                             sec,
                                                           );
-                                                        } else {
-                                                          selectedSections
-                                                              .remove(sec);
                                                         }
                                                         allSections =
                                                             selectedSections
@@ -1638,6 +1808,49 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                                                 .length;
                                                       });
                                                     },
+                                                    child: AnimatedContainer(
+                                                      duration: const Duration(
+                                                        milliseconds: 150,
+                                                      ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 10,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color:
+                                                            selectedSections
+                                                                .contains(sec)
+                                                            ? primary
+                                                            : Colors
+                                                                  .transparent,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              10,
+                                                            ),
+                                                        border: Border.all(
+                                                          color:
+                                                              selectedSections
+                                                                  .contains(sec)
+                                                              ? primary
+                                                              : borderColor,
+                                                          width: 1.5,
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        sec,
+                                                        style: TextStyle(
+                                                          color:
+                                                              selectedSections
+                                                                  .contains(sec)
+                                                              ? Colors.white
+                                                              : textMuted,
+                                                          fontSize: 13,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                    ),
                                                   ),
                                               ],
                                             ),
@@ -1649,137 +1862,164 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                               ),
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 16),
 
-                            // Media row
-                            Row(
-                              children: [
-                                OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    side: const BorderSide(
-                                      color: Colors.white54,
-                                    ),
-                                  ),
-                                  onPressed: pickImage,
-                                  icon: const Icon(Icons.image_outlined),
-                                  label: const Text('Add Image'),
+                            // Image preview area
+                            if (previewBytes != null)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: borderColor),
                                 ),
-                                const SizedBox(width: 12),
-                                if (previewBytes != null)
-                                  Expanded(
-                                    child: Stack(
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          child: Image.memory(
-                                            previewBytes!,
-                                            height: 72,
-                                            width: double.infinity,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                        Positioned(
-                                          right: 6,
-                                          top: 6,
-                                          child: GestureDetector(
-                                            onTap: removeImage,
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                color: Colors.black54,
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                              ),
-                                              padding: const EdgeInsets.all(4),
-                                              child: const Icon(
-                                                Icons.close,
-                                                size: 14,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            // Post button with gradient
-                            SizedBox(
-                              width: double.infinity,
-                              child: GestureDetector(
-                                onTapDown: (_) => setSheetState(() {}),
-                                onTapUp: (_) => setSheetState(() {}),
-                                onTapCancel: () => setSheetState(() {}),
-                                onTap: posting ? null : post,
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 120),
-                                  curve: Curves.easeOut,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFFFF8A3D),
-                                        Color(0xFFFFB86C),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFFFF8A3D,
-                                        ).withOpacity(0.35),
-                                        blurRadius: 14,
-                                        offset: const Offset(0, 6),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Stack(
                                     children: [
-                                      if (posting) ...[
-                                        const SizedBox(
-                                          height: 16,
-                                          width: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation(
-                                              Colors.white,
+                                      Image.memory(
+                                        previewBytes!,
+                                        height: 120,
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                      ),
+                                      Positioned(
+                                        right: 8,
+                                        top: 8,
+                                        child: GestureDetector(
+                                          onTap: removeImage,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(
+                                                0.6,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: const Icon(
+                                              Icons.close_rounded,
+                                              size: 18,
+                                              color: Colors.white,
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        const Text(
-                                          'Posting…',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ] else ...[
-                                        const Text(
-                                          '🚀 Post (24h)',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ],
                                   ),
                                 ),
                               ),
+
+                            // Action buttons
+                            Row(
+                              children: [
+                                // Add Image button
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: pickImage,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.transparent,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(color: borderColor),
+                                      ),
+                                      child: const Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.image_outlined,
+                                            color: textMuted,
+                                            size: 20,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Add Image',
+                                            style: TextStyle(
+                                              color: textMuted,
+                                              fontWeight: FontWeight.w500,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Post button
+                                Expanded(
+                                  flex: 2,
+                                  child: GestureDetector(
+                                    onTap: posting ? null : post,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [primary, Color(0xFF9D8DFF)],
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(14),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: primary.withOpacity(0.3),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          if (posting) ...[
+                                            const SizedBox(
+                                              height: 18,
+                                              width: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation(
+                                                      Colors.white,
+                                                    ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            const Text(
+                                              'Posting...',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ] else ...[
+                                            const Icon(
+                                              Icons.send_rounded,
+                                              color: Colors.white,
+                                              size: 18,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'Post Announcement',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
