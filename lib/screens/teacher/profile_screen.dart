@@ -1,9 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../utils/feedback_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/session_manager.dart';
-import '../../widgets/teacher_bottom_nav.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
 
@@ -15,14 +15,18 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isDarkMode = false;
+  // Theme colors matching the HTML design
+  static const Color _primaryColor = Color(0xFF7A63FF);
+  static const Color _backgroundDark = Color(0xFF120f23);
+
+  bool _isDarkMode = true; // Default to dark mode as per design
   bool _isLoading = true;
   String? _error;
 
   // Dynamic profile data
   Map<String, dynamic>? _teacherData;
   int _classesManaged = 0;
-  int _testsConducted = 0;
+  String? _currentUserId; // Store user ID for stream query
 
   @override
   void initState() {
@@ -74,17 +78,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       final classesManaged = classesFormatted.length;
 
-      // Count tests created by this teacher from scheduledTests collection
-      final testsSnap = await FirebaseFirestore.instance
-          .collection('scheduledTests')
-          .where('teacherId', isEqualTo: user.uid)
-          .get();
-      final testsConducted = testsSnap.size;
-
       setState(() {
         _teacherData = teacherData;
         _classesManaged = classesManaged;
-        _testsConducted = testsConducted;
+        _currentUserId = user.uid;
         _isLoading = false;
       });
     } catch (e) {
@@ -100,9 +97,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: _backgroundDark,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: _primaryColor))
           : _error != null
           ? Center(
               child: Column(
@@ -110,10 +107,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   const Icon(Icons.error_outline, size: 48, color: Colors.red),
                   const SizedBox(height: 12),
-                  Text(_error!),
+                  Text(_error!, style: const TextStyle(color: Colors.white70)),
                   const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: _loadProfileData,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                    ),
                     child: const Text('Retry'),
                   ),
                 ],
@@ -125,23 +125,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.only(bottom: 100),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 600),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _buildProfileHeader(),
-                              _buildTeachingOverview(),
-                              _buildPersonalInformation(),
-                              _buildAccountSettings(),
-                              _buildAppPreferences(),
-                              _buildLogoutButton(),
-                            ],
-                          ),
-                        ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildProfileHeader(),
+                          const SizedBox(height: 24),
+                          _buildTeachingOverview(),
+                          const SizedBox(height: 24),
+                          _buildPersonalInformation(),
+                          const SizedBox(height: 24),
+                          _buildAccountSettings(),
+                          const SizedBox(height: 24),
+                          _buildAppPreferences(),
+                          const SizedBox(height: 16),
+                          _buildLogoutButton(),
+                        ],
                       ),
                     ),
                   ),
@@ -153,40 +153,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildHeader() {
     return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              const SizedBox(width: 48),
-              Expanded(
-                child: Text(
-                  'My Profile',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).textTheme.bodyLarge?.color,
+      color: _backgroundDark.withOpacity(0.8),
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const SizedBox(width: 48),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        const Text(
+                          'My Profile',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 64,
+                          height: 2,
+                          decoration: BoxDecoration(
+                            color: _primaryColor.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(1),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _primaryColor.withOpacity(0.5),
+                                blurRadius: 8,
+                                spreadRadius: 0,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.transparent,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.settings_outlined, size: 24),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Settings')),
+                        );
+                      },
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('Settings')));
-                },
-                color: Theme.of(context).iconTheme.color,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -194,7 +223,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
     final teacherName = _teacherData?['teacherName']?.toString().trim();
@@ -206,186 +234,206 @@ class _ProfileScreenState extends State<ProfileScreen> {
         (_teacherData?['subjectsHandled'] is List
             ? (_teacherData!['subjectsHandled'] as List).join(', ')
             : _teacherData?['subjectsHandled']?.toString() ?? '');
-    final school =
-        user?.instituteId ??
-        _teacherData?['schoolCode']?.toString() ??
-        'School';
+    final schoolCode =
+        _teacherData?['schoolCode']?.toString() ?? user?.instituteId ?? '';
     final profileImage = user?.profileImage;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
+
+    // Get initials for avatar fallback
+    final nameParts = displayName.split(' ');
+    final initials = nameParts.length >= 2
+        ? '${nameParts[0][0]}${nameParts[1][0]}'.toUpperCase()
+        : displayName
+              .substring(0, displayName.length >= 2 ? 2 : 1)
+              .toUpperCase();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _primaryColor.withOpacity(0.2), width: 1),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _primaryColor.withOpacity(0.15),
+            Colors.white.withOpacity(0.02),
+            Colors.white.withOpacity(0.02),
+          ],
+        ),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(64),
-            child: (profileImage != null && profileImage.isNotEmpty)
-                ? Image.network(
-                    profileImage,
-                    width: 128,
-                    height: 128,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        _avatarFallback(isDark),
-                  )
-                : _avatarFallback(isDark),
+          // Avatar
+          Container(
+            width: 128,
+            height: 128,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _primaryColor.withOpacity(0.2),
+              border: Border.all(
+                color: _primaryColor.withOpacity(0.5),
+                width: 2,
+              ),
+            ),
+            child: ClipOval(
+              child: (profileImage != null && profileImage.isNotEmpty)
+                  ? Image.network(
+                      profileImage,
+                      width: 128,
+                      height: 128,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildInitialsAvatar(initials),
+                    )
+                  : _buildInitialsAvatar(initials),
+            ),
           ),
           const SizedBox(height: 16),
+          // Name
           Text(
             displayName,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 22,
+            style: const TextStyle(
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.bodyLarge?.color,
+              color: Colors.white,
+              letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 4),
+          // Department/Subject
           Text(
             department.isNotEmpty ? department : 'Teacher',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Theme.of(context).textTheme.bodyMedium?.color,
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey[400]),
           ),
-          const SizedBox(height: 2),
-          Text(
-            school,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Theme.of(context).textTheme.bodyMedium?.color,
+          if (schoolCode.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'School Code: $schoolCode',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _avatarFallback(bool isDark) {
-    return Container(
-      width: 128,
-      height: 128,
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[300],
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        Icons.person,
-        size: 64,
-        color: Theme.of(context).iconTheme.color?.withOpacity(0.7),
+  Widget _buildInitialsAvatar(String initials) {
+    return Center(
+      child: Text(
+        initials,
+        style: const TextStyle(
+          fontSize: 48,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          letterSpacing: 2,
+        ),
       ),
     );
   }
 
   Widget _buildTeachingOverview() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 8),
-            child: Text(
-              'Teaching Overview',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Teaching Overview',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                icon: Icons.school_outlined,
+                value: '$_classesManaged',
+                label: 'Classes Managed',
               ),
             ),
-          ),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final cardWidth = (constraints.maxWidth - 16) / 2;
-              return Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  _buildStatCard(
-                    label: 'Classes Managed',
-                    value: '$_classesManaged',
-                    fixedWidth: cardWidth,
-                  ),
-                  _buildStatCard(
-                    label: 'Tests Conducted',
-                    value: '$_testsConducted',
-                    fixedWidth: cardWidth,
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _currentUserId != null
+                  ? StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('scheduledTests')
+                          .where('teacherId', isEqualTo: _currentUserId)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        final testCount = snapshot.hasData
+                            ? snapshot.data!.docs.length
+                            : 0;
+                        return _buildStatCard(
+                          icon: Icons.assignment_outlined,
+                          value: '$testCount',
+                          label: 'Tests Conducted',
+                        );
+                      },
+                    )
+                  : _buildStatCard(
+                      icon: Icons.assignment_outlined,
+                      value: '0',
+                      label: 'Tests Conducted',
+                    ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
   Widget _buildStatCard({
-    required String label,
+    required IconData icon,
     required String value,
-    String? change,
-    bool isPositive = true,
-    bool showProgress = false,
-    double progressValue = 0,
-    double? fixedWidth,
+    required String label,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      width: fixedWidth ?? (MediaQuery.of(context).size.width - 48) / 2,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor),
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _primaryColor.withOpacity(0.3), width: 1),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _primaryColor.withOpacity(0.15),
+            _primaryColor.withOpacity(0.05),
+          ],
+        ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).textTheme.bodyMedium?.color,
-            ),
-          ),
+          Icon(icon, color: _primaryColor, size: 32),
           const SizedBox(height: 8),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 24,
+            style: const TextStyle(
+              fontSize: 32,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.bodyLarge?.color,
+              color: Colors.white,
+              letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 8),
-          if (change != null)
-            Text(
-              change,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: isPositive
-                    ? const Color(0xFF10B981)
-                    : const Color(0xFFEF4444),
-              ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[400],
             ),
-          if (showProgress) ...[
-            const SizedBox(height: 4),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progressValue,
-                minHeight: 6,
-                backgroundColor: isDark
-                    ? Colors.grey[800]
-                    : const Color(0xFFE2E8F0),
-                valueColor: const AlwaysStoppedAnimation<Color>(
-                  Color(0xFF6366F1),
-                ),
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
@@ -399,45 +447,66 @@ class _ProfileScreenState extends State<ProfileScreen> {
         (_teacherData?['subjectsHandled'] is List
             ? (_teacherData!['subjectsHandled'] as List).join(', ')
             : _teacherData?['subjectsHandled']?.toString());
-    final infoItems = [
-      if (user?.email != null) {'label': 'Email', 'value': user!.email},
+
+    final infoItems = <Map<String, dynamic>>[
+      if (user?.email != null)
+        {'icon': Icons.mail_outline, 'label': 'Email', 'value': user!.email},
       if (user?.phone != null && user!.phone!.isNotEmpty)
-        {'label': 'Phone Number', 'value': user.phone!},
+        {
+          'icon': Icons.phone_outlined,
+          'label': 'Phone Number',
+          'value': user.phone!,
+        },
       if (department != null && department.isNotEmpty)
-        {'label': 'Department', 'value': department},
+        {
+          'icon': Icons.work_outline,
+          'label': 'Department',
+          'value': department,
+        },
       if (_teacherData?['experience'] != null)
         {
+          'icon': Icons.timeline_outlined,
           'label': 'Experience',
           'value': _teacherData!['experience'].toString(),
         },
       if (_teacherData?['qualification'] != null)
         {
+          'icon': Icons.school_outlined,
           'label': 'Qualification',
           'value': _teacherData!['qualification'].toString(),
         },
     ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 32, bottom: 8),
-            child: Text(
-              'Personal Information',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Personal Information',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: -0.3,
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Theme.of(context).dividerColor),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border(left: BorderSide(color: _primaryColor, width: 4)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topRight: Radius.circular(16),
+              bottomRight: Radius.circular(16),
             ),
             child: Column(
               children: infoItems.asMap().entries.map((entry) {
@@ -452,26 +521,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? null
                         : Border(
                             bottom: BorderSide(
-                              color: Theme.of(context).dividerColor,
+                              color: Colors.white.withOpacity(0.1),
                             ),
                           ),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        item['label']!,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context).textTheme.bodyMedium?.color,
-                        ),
+                      Icon(
+                        item['icon'] as IconData,
+                        color: Colors.grey[400],
+                        size: 24,
                       ),
-                      Text(
-                        item['value']!,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['label'] as String,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item['value'] as String,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -480,15 +562,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               }).toList(),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildAccountSettings() {
     final settingsItems = [
       {
-        'icon': Icons.highlight,
+        'icon': Icons.star_outline,
         'label': 'My Highlights',
         'route': '/my-highlights',
       },
@@ -500,35 +582,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 32, bottom: 8),
-            child: Text(
-              'Account Settings',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Account Settings',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: -0.3,
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Column(
-              children: settingsItems.asMap().entries.map((entry) {
-                final index = entry.key;
-                final item = entry.value;
-                final isLast = index == settingsItems.length - 1;
-
-                return InkWell(
+        ),
+        const SizedBox(height: 16),
+        Column(
+          children: settingsItems.map((item) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
                   onTap: () {
                     final route = item['route'] as String?;
                     if (route != null) {
@@ -539,153 +612,207 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     }
                   },
+                  borderRadius: BorderRadius.circular(16),
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      border: isLast
-                          ? null
-                          : Border(
-                              bottom: BorderSide(
-                                color: Theme.of(context).dividerColor,
-                              ),
-                            ),
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          item['icon'] as IconData,
-                          color: const Color(0xFF6366F1),
-                          size: 24,
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                _primaryColor.withOpacity(0.3),
+                                _primaryColor.withOpacity(0.1),
+                              ],
+                            ),
+                          ),
+                          child: Icon(
+                            item['icon'] as IconData,
+                            color: _primaryColor,
+                            size: 22,
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Text(
                             item['label'] as String,
-                            style: TextStyle(
-                              fontSize: 14,
+                            style: const TextStyle(
+                              fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Theme.of(
-                                context,
-                              ).textTheme.bodyLarge?.color,
+                              color: Colors.white,
                             ),
                           ),
                         ),
                         Icon(
                           Icons.chevron_right,
-                          color: Theme.of(
-                            context,
-                          ).iconTheme.color?.withOpacity(0.5),
+                          color: Colors.grey[500],
+                          size: 24,
                         ),
                       ],
                     ),
                   ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
   Widget _buildAppPreferences() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 32, bottom: 8),
-            child: Text(
-              'App Preferences',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'App Preferences',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: -0.3,
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.dark_mode_outlined,
-                  color: Color(0xFF6366F1),
-                  size: 24,
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      _primaryColor.withOpacity(0.3),
+                      _primaryColor.withOpacity(0.1),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    'Dark Mode',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                child: Icon(
+                  Icons.dark_mode_outlined,
+                  color: _primaryColor,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Text(
+                  'Dark Mode',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isDarkMode = !_isDarkMode;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        _isDarkMode
+                            ? 'Dark mode enabled'
+                            : 'Dark mode disabled',
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: 48,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: _isDarkMode ? _primaryColor : Colors.grey[700],
+                    boxShadow: _isDarkMode
+                        ? [
+                            BoxShadow(
+                              color: _primaryColor.withOpacity(0.5),
+                              blurRadius: 10,
+                              spreadRadius: 0,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: AnimatedAlign(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: _isDarkMode
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
-                Switch(
-                  value: _isDarkMode,
-                  onChanged: (value) {
-                    setState(() {
-                      _isDarkMode = value;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          value ? 'Dark mode enabled' : 'Dark mode disabled',
-                        ),
-                      ),
-                    );
-                  },
-                  activeThumbColor: const Color(0xFF6366F1),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildLogoutButton() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 32, 16, 48),
-      child: SizedBox(
-        width: double.infinity,
-        height: 48,
-        child: ElevatedButton(
-          onPressed: () {
-            _showLogoutDialog();
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isDark
-                ? Colors.grey[800]
-                : const Color(0xFFE2E8F0),
-            foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _showLogoutDialog,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F2937), // gray-800
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ),
-          child: const Text(
-            'Logout',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            child: const Center(
+              child: Text(
+                'Logout',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
-  }
-
-  Widget _buildBottomNav() {
-    return const TeacherBottomNav(selectedIndex: 4);
   }
 
   void _showLogoutDialog() {
