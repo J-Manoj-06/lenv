@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/leaderboard_service.dart';
+import 'per_test_leaderboard_list.dart';
 
 class StudentLeaderboardScreen extends StatefulWidget {
   const StudentLeaderboardScreen({super.key});
@@ -107,12 +108,14 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                     ),
                   ),
                   Expanded(
-                    child: _buildTabButton(
-                      theme,
-                      'Per-Test',
-                      _isPerTest,
-                      () => setState(() => _isPerTest = true),
-                    ),
+                    child: _buildTabButton(theme, 'Per-Test', _isPerTest, () {
+                      // Navigate to the per-test leaderboard screen
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const PerTestLeaderboardList(),
+                        ),
+                      );
+                    }),
                   ),
                 ],
               ),
@@ -465,23 +468,25 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
       tween: Tween(begin: 0.0, end: isCurrentUser ? 1.0 : 0.0),
       builder: (context, glow, child) {
         return Container(
-          margin: const EdgeInsets.only(bottom: 6),
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: theme.cardColor,
+            color: isCurrentUser
+                ? const Color(0xFFFF7B00).withOpacity(0.12)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            border: isCurrentUser
-                ? Border.all(color: const Color(0xFFF97316), width: 2)
-                : Border.all(color: theme.dividerColor, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: isCurrentUser
-                    ? const Color(0xFFF59E0B).withOpacity(0.08 + 0.12 * glow)
-                    : Colors.black.withOpacity(0.05),
-                blurRadius: isCurrentUser ? 12 + 6 * glow : 4,
-                spreadRadius: isCurrentUser ? 1 : 0,
-                offset: Offset(0, isCurrentUser ? 3 : 2),
-              ),
-            ],
+            border: null,
+            boxShadow: isCurrentUser
+                ? [
+                    BoxShadow(
+                      color: const Color(
+                        0xFFFF7A00,
+                      ).withOpacity(0.15 + 0.15 * glow),
+                      blurRadius: 12 + 6 * glow,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
@@ -494,60 +499,63 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      gradient: isTopThree
-                          ? LinearGradient(
-                              colors: rank == 1
-                                  ? const [
-                                      Color(0xFFFFD700),
-                                      Color(0xFFFFB300),
-                                    ] // gold
-                                  : rank == 2
-                                  ? const [
-                                      Color(0xFFC0C0C0),
-                                      Color(0xFF9E9E9E),
-                                    ] // silver
-                                  : const [
-                                      Color(0xFFCD7F32),
-                                      Color(0xFF8D5524),
-                                    ], // bronze
+                      gradient: rank == 1
+                          ? const LinearGradient(
+                              colors: [
+                                Color(0xFFFCD34D),
+                                Color(0xFFFBBF24),
+                                Color(0xFFF59E0B),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : rank == 2
+                          ? const LinearGradient(
+                              colors: [
+                                Color(0xFFE2E8F0),
+                                Color(0xFFCBD5E1),
+                                Color(0xFF94A3B8),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : rank == 3
+                          ? const LinearGradient(
+                              colors: [
+                                Color(0xFFF59E0B),
+                                Color(0xFFD97706),
+                                Color(0xFFB45309),
+                              ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             )
                           : null,
-                      color: isTopThree
-                          ? null
-                          : theme.brightness == Brightness.dark
-                          ? Colors.white.withOpacity(0.1)
-                          : const Color(0xFFE7E5E4),
+                      color: !isTopThree ? const Color(0xFF333333) : null,
+                      border: !isTopThree
+                          ? Border.all(color: const Color(0xFF555555), width: 1)
+                          : null,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Center(
-                      child: Text(
-                        '$rank',
-                        style: TextStyle(
-                          color: isTopThree
-                              ? Colors.white
-                              : theme.textTheme.bodyMedium?.color,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+                      child: isTopThree
+                          ? Text(
+                              rank == 1
+                                  ? '🥇'
+                                  : rank == 2
+                                  ? '🥈'
+                                  : '🥉',
+                              style: const TextStyle(fontSize: 28),
+                            )
+                          : Text(
+                              '$rank',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 18,
+                              ),
+                            ),
                     ),
                   ),
-                  if (isTopThree)
-                    Positioned(
-                      top: -10,
-                      right: -6,
-                      child: Icon(
-                        Icons.emoji_events_rounded,
-                        size: 20,
-                        color: rank == 1
-                            ? const Color(0xFFFFD700)
-                            : rank == 2
-                            ? const Color(0xFFC0C0C0)
-                            : const Color(0xFFCD7F32),
-                      ),
-                    ),
                 ],
               ),
               const SizedBox(width: 12),
@@ -609,16 +617,48 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                 ),
               ),
               // Score
-              Text(
-                score == 0
-                    ? '0'
-                    : (score is int
-                          ? '$score'
-                          : (score % 1 == 0
-                                ? '${score.toInt()}'
-                                : score.toStringAsFixed(1))),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+              // Score with star icon
+              Container(
+                height: 36,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF7A00), Color(0xFFFF9500)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF7A00).withOpacity(0.5),
+                      blurRadius: 10,
+                      offset: const Offset(0, 0),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.star, color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      score == 0
+                          ? '0'
+                          : (score is int
+                                ? '$score'
+                                : (score % 1 == 0
+                                      ? '${score.toInt()}'
+                                      : score.toStringAsFixed(1))),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

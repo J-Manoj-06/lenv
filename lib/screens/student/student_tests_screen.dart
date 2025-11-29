@@ -807,31 +807,23 @@ class _TestCard extends StatelessWidget {
       title = r.testTitle;
       subject = r.subject;
       assignedBy = '';
-      final canShowResults =
-          item.showResult ||
-          (item.endDate != null && DateTime.now().isAfter(item.endDate!));
-      dateLabel = canShowResults ? 'Completed:' : 'Due Date:';
-      dateValue = canShowResults
-          ? fmt.format(r.completedAt)
-          : (item.endDate != null ? fmt.format(item.endDate!) : '');
-      buttonText = canShowResults ? 'View Results' : 'Results after due';
-      onPressed = canShowResults
-          ? () {
-              Navigator.pushNamed(
-                context,
-                '/student-test-result',
-                arguments: {'resultId': r.id},
-              );
-            }
-          : () {};
+      // Show results immediately after completion
+      dateLabel = 'Completed:';
+      dateValue = fmt.format(r.completedAt);
+      buttonText = 'View Results';
+      onPressed = () {
+        Navigator.pushNamed(
+          context,
+          '/student-test-result',
+          arguments: {'resultId': r.id},
+        );
+      };
       leadingIcon = Icons.history_edu;
       leadingBg = const Color(0xFFE8E9EB);
       leadingFg = const Color(0xFF1C140D);
       statusBg = const Color(0xFFE8E9EB);
       statusText = const Color(0xFF656669);
-      statusLabel = canShowResults
-          ? 'Completed'
-          : 'Completed (awaiting results)';
+      statusLabel = 'Completed';
     }
 
     return Container(

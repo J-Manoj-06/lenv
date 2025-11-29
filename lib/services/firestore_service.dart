@@ -9,6 +9,8 @@ import '../models/test_result_model.dart';
 import '../models/product_model.dart';
 import '../models/reward_points_model.dart';
 import '../models/reward_request_model.dart';
+import 'badge_rules.dart';
+import 'badge_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -163,39 +165,87 @@ class FirestoreService {
 
       // Get student emails and UIDs
       final studentAssignments = <Map<String, String>>[];
+      final skippedStudents = <String>[];
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
+        final studentDocId = doc.id;
         final email =
             data['email'] as String? ?? data['studentEmail'] as String?;
+        final studentName =
+            data['studentName'] as String? ?? (data['name'] as String? ?? '');
 
-        if (email != null && email.isNotEmpty) {
-          // Look up Auth UID from users collection
-          final userQuery = await _db
-              .collection('users')
-              .where('email', isEqualTo: email)
-              .limit(1)
-              .get();
+        if (email == null || email.isEmpty) {
+          print('⚠️  Student document $studentDocId has no email, skipping');
+          skippedStudents.add('$studentName (no email)');
+          continue;
+        }
 
-          if (userQuery.docs.isNotEmpty) {
-            final userDoc = userQuery.docs.first;
-            final userData = userDoc.data();
-            final uid = (userData['uid'] as String?)?.trim();
+        // Look up Auth UID from users collection
+        final userQuery = await _db
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
 
-            if (uid != null && uid.isNotEmpty) {
-              studentAssignments.add({
-                'studentId': uid,
-                'studentEmail': email,
-                'studentName':
-                    data['studentName'] as String? ??
-                    (data['name'] as String? ?? ''),
-              });
-            }
+        String? uid;
+
+        if (userQuery.docs.isNotEmpty) {
+          final userDoc = userQuery.docs.first;
+          final userData = userDoc.data();
+          uid = (userData['uid'] as String?)?.trim();
+        } else {
+          // User document doesn't exist - create it using student doc data
+          print('⚠️  No user document found for $email, creating one...');
+
+          try {
+            // Use student document ID as UID (since they don't have Auth account)
+            uid = studentDocId;
+
+            await _db.collection('users').doc(uid).set({
+              'uid': uid,
+              'email': email,
+              'name': studentName,
+              'role': 'student',
+              'schoolCode': schoolCode,
+              'className': data['className'] ?? targetClassName,
+              'section': data['section'] ?? targetSection,
+              'pendingTests': 0,
+              'completedTests': 0,
+              'newNotifications': 0,
+              'totalPoints': data['totalPoints'] ?? 0,
+              'rewardPoints': data['rewardPoints'] ?? 0,
+              'createdAt': FieldValue.serverTimestamp(),
+              'autoCreated': true, // Flag to identify auto-created accounts
+            }, SetOptions(merge: true));
+
+            print('✅ Created user document for $email with UID: $uid');
+          } catch (e) {
+            print('❌ Failed to create user document for $email: $e');
+            skippedStudents.add('$studentName ($email)');
+            continue;
           }
+        }
+
+        if (uid != null && uid.isNotEmpty) {
+          studentAssignments.add({
+            'studentId': uid,
+            'studentEmail': email,
+            'studentName': studentName,
+          });
+        } else {
+          print('⚠️  Student $email has no valid UID, skipping');
+          skippedStudents.add('$studentName ($email)');
         }
       }
 
       print('✅ Found ${studentAssignments.length} students with valid UIDs');
+      if (skippedStudents.isNotEmpty) {
+        print('⚠️  Skipped ${skippedStudents.length} students:');
+        for (final skipped in skippedStudents) {
+          print('   - $skipped');
+        }
+      }
 
       // Create individual assignment documents for each student
       // Store in testResults collection with status="assigned"
@@ -270,6 +320,10 @@ class FirestoreService {
             'answers': [],
             'createdAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
+            // Per-student shuffled question order (store indices)
+            'questionOrder': totalQuestions > 0
+                ? (List<int>.generate(totalQuestions, (i) => i)..shuffle())
+                : [],
           };
 
           // Create document in testResults collection
@@ -280,7 +334,7 @@ class FirestoreService {
             '✅ Created assignment ${assignmentRef.id} for ${student['studentEmail']} (UID: ${student['studentId']})',
           );
 
-          // Update user's pendingTests counter (only if user document exists)
+          // Update user's pendingTests counter (create document if missing)
           try {
             final userDocRef = _db
                 .collection('users')
@@ -293,9 +347,20 @@ class FirestoreService {
                 'newNotifications': FieldValue.increment(1),
               });
             } else {
-              print(
-                '⚠️  User document not found for ${student['studentEmail']}, skipping counter update',
-              );
+              // Create user document if it doesn't exist
+              await userDocRef.set({
+                'uid': student['studentId'],
+                'email': student['studentEmail'],
+                'name': student['studentName'],
+                'role': 'student',
+                'pendingTests': 1,
+                'completedTests': 0,
+                'newNotifications': 1,
+                'totalPoints': 0,
+                'rewardPoints': 0,
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+              print('✅ Created user document for ${student['studentEmail']}');
             }
           } catch (e) {
             print(
@@ -725,10 +790,7 @@ class FirestoreService {
 
           // Sort by createdAt in memory (newest first)
           tests.sort((a, b) {
-            final aTime = a.createdAt;
-            final bTime = b.createdAt;
-            if (aTime == null && bTime == null) return 0;
-            return bTime.compareTo(aTime); // Descending order
+            return b.createdAt.compareTo(a.createdAt); // Descending order
           });
 
           return tests;
@@ -882,7 +944,7 @@ class FirestoreService {
           final List<TestSubmission> submissions = [];
           int totalScore = 0;
           int totalTests = 0;
-          int totalPoints = 0;
+          // int totalPoints = 0; // not used here
 
           for (final doc in snapshot.docs) {
             final data = doc.data();
@@ -919,7 +981,7 @@ class FirestoreService {
 
             totalScore += percentage.toInt();
             totalTests++;
-            totalPoints += points;
+            // totalPoints += points; // not used
           }
 
           final averageScore = totalTests > 0 ? totalScore / totalTests : 0.0;
@@ -1115,12 +1177,13 @@ class FirestoreService {
         );
       }
 
-      // Calculate potential earned points (used if awarding now)
-      final earnedPointsCandidate = calculatePoints(
-        total: result.totalQuestions.toDouble(),
-        obtained: result.correctAnswers.toDouble(),
-        basePoints: 100,
-      );
+      // NEW LOGIC: Raw marks gained from test result's totalPoints field
+      // This represents the actual sum of points for correct answers
+      // Reward points should equal marks gained (no multipliers / percentage weighting)
+      final earnedPointsCandidate =
+          result.totalPoints ??
+          result
+              .correctAnswers; // use totalPoints if available, fallback to correctAnswers
 
       // Update the assignment document directly (no separate result document)
       String? assignmentId;
@@ -1152,8 +1215,12 @@ class FirestoreService {
             'violationDetected': result.violationDetected,
             'pointsAwarded': testHasEnded,
             // Persist per-test points for UI
-            'earnedPoints': testHasEnded ? earnedPointsCandidate : 0,
-            'totalPoints': testHasEnded ? earnedPointsCandidate : 0,
+            'earnedPoints': testHasEnded
+                ? earnedPointsCandidate
+                : 0, // raw marks gained
+            'totalPoints': testHasEnded
+                ? earnedPointsCandidate
+                : 0, // mirror for backward compatibility
             if (result.violationReason != null)
               'violationReason': result.violationReason,
             if (schoolCode != null) 'schoolCode': schoolCode,
@@ -1173,7 +1240,7 @@ class FirestoreService {
       // Update student counters and points ONLY if test has ended
       if (testHasEnded) {
         // Use previously computed points
-        final earnedPoints = earnedPointsCandidate;
+        final earnedPoints = earnedPointsCandidate; // raw marks
 
         print('🎯 Test has ended - awarding $earnedPoints points');
 
@@ -1188,8 +1255,8 @@ class FirestoreService {
               'pendingTests': FieldValue.increment(-1),
               'totalScore': FieldValue.increment(result.score.toInt()),
               // Use calculated points, not raw score
-              'totalPoints': FieldValue.increment(earnedPoints),
-              'rewardPoints': FieldValue.increment(earnedPoints),
+              'totalPoints': FieldValue.increment(earnedPoints), // raw marks
+              'rewardPoints': FieldValue.increment(earnedPoints), // raw marks
             });
             countersUpdated = true;
             print('✅ Updated users collection with $earnedPoints points');
@@ -1254,9 +1321,10 @@ class FirestoreService {
               id: doc.id,
               studentId: result.studentId,
               testId: result.testId,
-              marks: result.correctAnswers.toDouble(),
+              marks: (result.totalPoints ?? result.correctAnswers)
+                  .toDouble(), // actual marks earned
               totalMarks: result.totalQuestions.toDouble(),
-              pointsEarned: earnedPoints,
+              pointsEarned: earnedPoints, // equals raw marks
               timestamp: DateTime.now(),
             ).toJson(),
           );
@@ -1676,6 +1744,7 @@ class FirestoreService {
   }
 
   /// Process pending test results and award points for tests that have ended
+  /// Also awards achievement badges post end-time to cover early submissions
   /// This should be called when the app starts or when viewing dashboard
   Future<void> processEndedTests() async {
     try {
@@ -1789,65 +1858,150 @@ class FirestoreService {
       int processed = 0;
       final processedTestIds = <String>{};
 
-      for (final resultDoc in resultsToProcess) {
-        final data = resultDoc.data();
-        final studentId = data['studentId'] as String?;
-        final testId = data['testId'] as String?;
-        final correctAnswers = (data['correctAnswers'] ?? 0) as int;
-        final totalQuestions = (data['totalQuestions'] ?? 0) as int;
-        final pointsAwarded = data['pointsAwarded'] as bool? ?? false;
+      // Group pending results by student to ensure correct milestone ordering
+      final Map<String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+      byStudent = {};
+      for (final doc in resultsToProcess) {
+        final sid = (doc.data()['studentId'] as String?) ?? '';
+        if (sid.isEmpty) continue;
+        byStudent.putIfAbsent(sid, () => []).add(doc);
+      }
 
-        if (studentId == null || testId == null || pointsAwarded) {
-          continue; // Skip if already processed or missing data
-        }
+      for (final entry in byStudent.entries) {
+        final studentId = entry.key;
+        final docs = entry.value;
 
+        // Sort this student's pending results by completion time ascending
+        docs.sort((a, b) {
+          DateTime aTime =
+              (a.data()['completedAt'] as Timestamp?)?.toDate() ??
+              (a.data()['submittedAt'] as Timestamp?)?.toDate() ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          DateTime bTime =
+              (b.data()['completedAt'] as Timestamp?)?.toDate() ??
+              (b.data()['submittedAt'] as Timestamp?)?.toDate() ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          return aTime.compareTo(bTime);
+        });
+
+        // Baseline: number of already-completed results for this student
+        // minus number of pending being processed now, so milestones are exact
+        int baselineCompleted = 0;
         try {
-          // Calculate and award points
-          final earnedPoints = calculatePoints(
-            total: totalQuestions.toDouble(),
-            obtained: correctAnswers.toDouble(),
-            basePoints: 100,
-          );
+          final completedQ = await _db
+              .collection('testResults')
+              .where('studentId', isEqualTo: studentId)
+              .where('status', isEqualTo: 'completed')
+              .get();
+          baselineCompleted = completedQ.docs.length - docs.length;
+          if (baselineCompleted < 0) baselineCompleted = 0;
+        } catch (_) {}
 
-          // Save to student_rewards for record keeping
-          final doc = _db.collection('student_rewards').doc();
-          await doc.set(
-            RewardPointsModel(
-              id: doc.id,
-              studentId: studentId,
-              testId: testId,
-              marks: correctAnswers.toDouble(),
-              totalMarks: totalQuestions.toDouble(),
-              pointsEarned: earnedPoints,
-              timestamp: DateTime.now(),
-            ).toJson(),
-          );
+        // Seed previous score from the latest already-processed test
+        int? prevPercent;
+        try {
+          final prevSnap = await _db
+              .collection('testResults')
+              .where('studentId', isEqualTo: studentId)
+              .where('status', isEqualTo: 'completed')
+              .where('pointsAwarded', isEqualTo: true)
+              .orderBy('completedAt', descending: true)
+              .limit(1)
+              .get();
+          if (prevSnap.docs.isNotEmpty) {
+            final d = prevSnap.docs.first.data();
+            final ca = (d['correctAnswers'] ?? 0) as int;
+            final tq = (d['totalQuestions'] ?? 0) as int;
+            if (tq > 0) {
+              prevPercent = ((ca / tq) * 100).round();
+            }
+          }
+        } catch (_) {}
 
-          // Add points to user
-          final userRef = _db.collection('users').doc(studentId);
-          final userSnap = await userRef.get();
-          if (userSnap.exists) {
-            await userRef.update({
-              'totalPoints': FieldValue.increment(earnedPoints),
-              'rewardPoints': FieldValue.increment(earnedPoints),
-            });
+        final rules = BadgeRules(BadgeService());
+
+        for (var i = 0; i < docs.length; i++) {
+          final resultDoc = docs[i];
+          final data = resultDoc.data();
+          final testId = data['testId'] as String?;
+          final correctAnswers = (data['correctAnswers'] ?? 0) as int;
+          final totalQuestions = (data['totalQuestions'] ?? 0) as int;
+          final pointsAwarded = data['pointsAwarded'] as bool? ?? false;
+
+          if (testId == null || pointsAwarded) {
+            continue;
           }
 
-          // Mark this result as processed with points persisted
-          await resultDoc.reference.update({
-            'pointsAwarded': true,
-            'earnedPoints': earnedPoints,
-            'totalPoints': earnedPoints,
-            'pointsAwardedAt': FieldValue.serverTimestamp(),
-          });
+          try {
+            // Calculate and award points
+            final earnedPoints = calculatePoints(
+              total: totalQuestions.toDouble(),
+              obtained: correctAnswers.toDouble(),
+              basePoints: 100,
+            );
 
-          processedTestIds.add(testId);
-          processed++;
-          print(
-            '✅ Awarded $earnedPoints points to $studentId for test $testId',
-          );
-        } catch (e) {
-          print('❌ Error processing result ${resultDoc.id}: $e');
+            // Save to student_rewards for record keeping
+            final doc = _db.collection('student_rewards').doc();
+            await doc.set(
+              RewardPointsModel(
+                id: doc.id,
+                studentId: studentId,
+                testId: testId,
+                marks: correctAnswers.toDouble(),
+                totalMarks: totalQuestions.toDouble(),
+                pointsEarned: earnedPoints,
+                timestamp: DateTime.now(),
+              ).toJson(),
+            );
+
+            // Add points to user
+            final userRef = _db.collection('users').doc(studentId);
+            final userSnap = await userRef.get();
+            if (userSnap.exists) {
+              await userRef.update({
+                'totalPoints': FieldValue.increment(earnedPoints),
+                'rewardPoints': FieldValue.increment(earnedPoints),
+              });
+            }
+
+            // Mark this result as processed with points persisted
+            await resultDoc.reference.update({
+              'pointsAwarded': true,
+              'earnedPoints': earnedPoints,
+              'totalPoints': earnedPoints,
+              'pointsAwardedAt': FieldValue.serverTimestamp(),
+            });
+
+            // Compute badge inputs
+            final scorePercent = totalQuestions > 0
+                ? ((correctAnswers / totalQuestions) * 100).round()
+                : 0;
+            final testsCompleted = baselineCompleted + i + 1; // include current
+
+            // Award badges safely (service prevents duplicates)
+            try {
+              await rules.onTestCompleted(
+                studentId: studentId,
+                testId: testId,
+                scorePercent: scorePercent,
+                testsCompleted: testsCompleted,
+                previousScorePercent: prevPercent,
+              );
+            } catch (e) {
+              print('⚠️ Error awarding badges for $studentId on $testId: $e');
+            }
+
+            // Update prev for next iteration
+            prevPercent = scorePercent;
+
+            processedTestIds.add(testId);
+            processed++;
+            print(
+              '✅ Awarded $earnedPoints points and evaluated badges for $studentId (test $testId)',
+            );
+          } catch (e) {
+            print('❌ Error processing result ${resultDoc.id}: $e');
+          }
         }
       }
 

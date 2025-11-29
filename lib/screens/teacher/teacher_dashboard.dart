@@ -29,7 +29,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   List<Map<String, dynamic>> _students = [];
   List<String> _classes = [];
   Map<String, int> _classStudentCounts = {};
-  Map<String, String> _classSubjectMap = {};
+  // Maps "<Grade> - <Section>" to list of subjects handled
+  Map<String, List<String>> _classSubjectMap = <String, List<String>>{};
   bool _isLoading = true;
   String? _error;
 
@@ -142,7 +143,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         _teacherData = teacherData;
         _classes = classes;
         _students = students;
-        selectedClass = classes.isNotEmpty ? classes[0] : null;
 
         // Calculate student count per class
         _classStudentCounts = {};
@@ -169,7 +169,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         }
 
         // Build subject mapping from classAssignments if available (e.g. "Grade 10: A, Science")
-        _classSubjectMap = {};
+        _classSubjectMap = <String, List<String>>{};
         final assignments = teacherData['classAssignments'];
         if (assignments is List) {
           for (final assignment in assignments) {
@@ -192,7 +192,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 .trim();
             final key = '$grade - $sectionPart';
             if (subjectPart != null && subjectPart.isNotEmpty) {
-              _classSubjectMap[key] = subjectPart;
+              _classSubjectMap.putIfAbsent(key, () => <String>[]);
+              if (!_classSubjectMap[key]!.contains(subjectPart)) {
+                _classSubjectMap[key]!.add(subjectPart);
+              }
             }
           }
         }
@@ -202,9 +205,20 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           if (subjectsHandled is List && subjectsHandled.isNotEmpty) {
             final fallbackSubject = subjectsHandled.first.toString();
             for (final c in classes) {
-              _classSubjectMap[c] = fallbackSubject;
+              _classSubjectMap[c] = [fallbackSubject];
             }
           }
+        }
+
+        // Ensure selectedClass matches exactly one dropdown item
+        if (classes.isNotEmpty) {
+          final firstClass = classes.first;
+          final subjects = _classSubjectMap[firstClass] ?? const <String>[];
+          selectedClass = subjects.isNotEmpty
+              ? '$firstClass::${subjects.first}'
+              : firstClass;
+        } else {
+          selectedClass = null;
         }
 
         _isLoading = false;
@@ -355,16 +369,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       vertical: 12,
                     ),
                   ),
-                  items: _classes.map((String className) {
-                    final subject = _classSubjectMap[className];
-                    final display = subject != null && subject.isNotEmpty
-                        ? '$className - $subject'
-                        : className;
-                    return DropdownMenuItem<String>(
-                      value: className,
-                      child: Text(display),
-                    );
-                  }).toList(),
+                  items: _buildClassSubjectItems(),
                   onChanged: (String? newValue) {
                     if (newValue != null) {
                       setState(() {
@@ -420,6 +425,27 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         ),
       ),
     );
+  }
+
+  // Build dropdown items: for each class, emit one item per subject as
+  // value = '<class>::<subject>' and label '<class> - <subject>'.
+  List<DropdownMenuItem<String>> _buildClassSubjectItems() {
+    final items = <DropdownMenuItem<String>>[];
+    for (final className in _classes) {
+      final subjects = _classSubjectMap[className] ?? const <String>[];
+      if (subjects.isEmpty) {
+        items.add(
+          DropdownMenuItem<String>(value: className, child: Text(className)),
+        );
+      } else {
+        for (final subj in subjects) {
+          final value = '$className::$subj';
+          final label = '$className - $subj';
+          items.add(DropdownMenuItem<String>(value: value, child: Text(label)));
+        }
+      }
+    }
+    return items;
   }
 
   // (Announcements removed) — merged into Classroom Highlights as 24h status
@@ -934,7 +960,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   Future<void> _showCreateHighlightSheet() async {
-    final theme = Theme.of(context);
     final textController = TextEditingController();
     Uint8List? previewBytes;
     String? imageMime;
@@ -949,7 +974,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
     // Available standards (fetch from school's students)
     final availableStandards = <String>[];
-    bool standardsLoaded = false;
+    // bool standardsLoaded = false; // not used
 
     // Teacher's assigned sections (extract from _classes or _teacherData)
     final teacherSections = <String>[];
@@ -2389,6 +2414,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildBottomNavigationBar() {
     return const TeacherBottomNav(selectedIndex: 0);
   }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:lottie/lottie.dart';
+// import 'package:lottie/lottie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/student_provider.dart';
 import '../../models/test_model.dart';
@@ -11,6 +11,7 @@ import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/daily_challenge_card.dart';
 import '../teacher/status_view_screen.dart';
+import '../../widgets/achievement_section.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({super.key});
@@ -23,10 +24,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Load Firebase data
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadDashboardData();
+    // Ensure auth restored (FirebaseAuth currentUser) before loading data.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.ensureInitialized();
+      // If still unauthenticated after restore attempt, stay; router can handle redirect.
+      await _loadDashboardData();
     });
   }
 
@@ -36,17 +39,23 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       context,
       listen: false,
     );
-
-    if (authProvider.currentUser != null) {
-      // Process any ended tests to award pending points
-      try {
-        await FirestoreService().processEndedTests();
-      } catch (e) {
-        print('⚠️ Error processing ended tests: $e');
-      }
-
-      await studentProvider.loadDashboardData(authProvider.currentUser!.uid);
+    // Attempt one more lazy re-init if user is null (cold start race condition)
+    if (authProvider.currentUser == null && !authProvider.isLoading) {
+      await authProvider.initializeAuth();
     }
+    if (authProvider.currentUser == null) {
+      // User truly not logged in; skip loading (UI will reflect auth state elsewhere)
+      return;
+    }
+
+    // Process any ended tests to award pending points
+    try {
+      await FirestoreService().processEndedTests();
+    } catch (e) {
+      print('⚠️ Error processing ended tests: $e');
+    }
+
+    await studentProvider.loadDashboardData(authProvider.currentUser!.uid);
   }
 
   // Navigation handled by shared StudentBottomNav widget.
@@ -790,212 +799,32 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 
   Widget _buildAchievementsSection(ThemeData theme) {
-    final isDark = theme.brightness == Brightness.dark;
-
-    // Lottie (first 5) + Icon badges (next 5)
-    final lottieBadges = [
-      (
-        title: 'Top Performer',
-        subtitle: 'Scored 90%+ in tests',
-        url: 'https://assets9.lottiefiles.com/packages/lf20_awc77jfz.json',
-      ),
-      (
-        title: 'Streak Master',
-        subtitle: '7-day learning streak',
-        url: 'https://assets10.lottiefiles.com/packages/lf20_jbrw3hcz.json',
-      ),
-      (
-        title: 'Quiz Champ',
-        subtitle: 'Perfect quiz score',
-        url: 'https://assets2.lottiefiles.com/packages/lf20_myejiggj.json',
-      ),
-      (
-        title: 'Daily Solver',
-        subtitle: 'Daily challenge completed',
-        url: 'https://assets1.lottiefiles.com/packages/lf20_tz1zby.json',
-      ),
-      (
-        title: 'Consistent Learner',
-        subtitle: 'Learning 5 days/week',
-        url: 'https://assets8.lottiefiles.com/packages/lf20_q5pk6p1k.json',
-      ),
-    ];
-
-    final iconBadges = [
-      (
-        title: 'Creative Thinker',
-        subtitle: 'Out-of-the-box ideas',
-        icon: Icons.lightbulb_outline,
-      ),
-      (
-        title: 'Fast Finisher',
-        subtitle: 'Finished ahead of time',
-        icon: Icons.timer,
-      ),
-      (
-        title: 'Goal Reacher',
-        subtitle: 'Hit your monthly target',
-        icon: Icons.flag_circle,
-      ),
-      (
-        title: 'Dedicated Learner',
-        subtitle: 'Practice makes perfect',
-        icon: Icons.auto_graph,
-      ),
-      (
-        title: 'Helpful Mate',
-        subtitle: 'Helped a classmate',
-        icon: Icons.volunteer_activism,
-      ),
-    ];
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 500),
-      builder: (context, opacity, child) {
-        return Opacity(
-          opacity: opacity,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: Text(
-                  'Your Achievements 🏅',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 180,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  separatorBuilder: (_, __) => const SizedBox(width: 16),
-                  itemCount: lottieBadges.length + iconBadges.length,
-                  itemBuilder: (context, index) {
-                    final bool isLottie = index < lottieBadges.length;
-                    final bgColor = isDark
-                        ? const Color(0xFF221910)
-                        : Colors.white;
-                    final borderColor = const Color(
-                      0xFFF27F0D,
-                    ).withOpacity(0.35);
-
-                    Widget media;
-                    String title;
-                    String subtitle;
-
-                    if (isLottie) {
-                      final item = lottieBadges[index];
-                      title = item.title;
-                      subtitle = item.subtitle;
-                      media = Lottie.network(
-                        item.url,
-                        width: 100,
-                        height: 100,
-                        repeat: true,
-                        frameRate: FrameRate.max,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          // Fallback to icon on network error
-                          return Container(
-                            width: 100,
-                            height: 100,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF27F0D).withOpacity(0.12),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.emoji_events,
-                              size: 48,
-                              color: Color(0xFFF27F0D),
-                            ),
-                          );
-                        },
-                      );
-                    } else {
-                      final item = iconBadges[index - lottieBadges.length];
-                      title = item.title;
-                      subtitle = item.subtitle;
-                      media = Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF27F0D).withOpacity(0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          item.icon,
-                          size: 48,
-                          color: const Color(0xFFF27F0D),
-                        ),
-                      );
-                    }
-
-                    return _PressScale(
-                      scale: 1.05,
-                      child: Container(
-                        width: 150,
-                        // Increased height to prevent RenderFlex overflow (was 180 causing ~16px spill)
-                        height: 200,
-                        decoration: BoxDecoration(
-                          color: bgColor,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: borderColor, width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFF27F0D).withOpacity(0.25),
-                              blurRadius: 16,
-                              spreadRadius: 0,
-                              offset: const Offset(0, 6),
-                            ),
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            media,
-                            const SizedBox(height: 10),
-                            Text(
-                              title,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              subtitle,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.textTheme.bodySmall?.color,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+    // Replace previous static achievements with real earned badges
+    final student = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    ).currentStudent;
+    if (student == null) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Text(
+            'Your Achievements 🏅',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
           ),
-        );
-      },
+        ),
+        // Real achievements fetched from Firestore badges array
+        // Achievements list
+        // ignore: prefer_const_constructors
+        AchievementSection(studentId: student.uid),
+      ],
     );
   }
 

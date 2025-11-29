@@ -706,6 +706,9 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
   /// Preview view showing generated questions
   Widget _buildPreviewView() {
     final questions = _generatedQuestions!;
+    final title = _titleController.text.trim().isEmpty
+        ? 'Generated Test'
+        : _titleController.text.trim();
 
     return Column(
       children: [
@@ -729,27 +732,16 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.check_circle,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.green.shade400
-                        : Colors.green.shade700,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Test Generated Successfully!',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.green.shade300
-                          : Colors.green.shade900,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              Text(
+                '$title • with AI',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.green.shade300
+                      : Colors.green.shade900,
+                ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Text(
                 '${questions.length} questions • Total marks: ${questions.fold<int>(0, (sum, q) => sum + q.marks)}',
                 style: TextStyle(
@@ -757,6 +749,31 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                       ? Colors.grey.shade400
                       : Colors.grey.shade700,
                 ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildInfoChip(
+                    icon: Icons.school,
+                    label: _selectedClass != null
+                        ? 'Grade ${_selectedClass!}'
+                        : 'Class',
+                  ),
+                  if (_selectedSection != null && _selectedSection!.isNotEmpty)
+                    _buildInfoChip(
+                      icon: Icons.group,
+                      label: 'Section ${_selectedSection!}',
+                    ),
+                  if (_selectedSubject != null)
+                    _buildInfoChip(icon: Icons.book, label: _selectedSubject!),
+                  _buildInfoChip(
+                    icon: Icons.timer,
+                    label:
+                        '${int.tryParse(_timeLimitController.text) ?? 60} mins',
+                  ),
+                ],
               ),
             ],
           ),
@@ -806,6 +823,9 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                   label: const Text('Regenerate'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
@@ -817,8 +837,12 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                   label: const Text('Save Test'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Colors.green,
+                    backgroundColor: const Color(0xFF16A34A),
                     foregroundColor: Colors.white,
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
@@ -833,7 +857,18 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
   Widget _buildQuestionCard(TestQuestion question, int index) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey.shade700
+                : Colors.grey.shade300,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1060,6 +1095,39 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInfoChip({required IconData icon, required String label}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.green.withOpacity(0.12) : Colors.green.shade100,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isDark ? Colors.green.shade700 : Colors.green.shade300,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: isDark ? Colors.green.shade300 : Colors.green.shade900,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.green.shade300 : Colors.green.shade900,
+            ),
+          ),
+        ],
       ),
     );
   }

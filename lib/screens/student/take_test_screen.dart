@@ -10,6 +10,9 @@ import 'dart:async';
 import '../../utils/visibility_stub.dart'
     if (dart.library.html) '../../utils/visibility_web.dart'
     as vis;
+import '../../services/badge_service.dart';
+import '../../services/badge_rules.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TakeTestScreen extends StatefulWidget {
   final TestModel test;
@@ -29,13 +32,31 @@ class _TakeTestScreenState extends State<TakeTestScreen>
   bool _isSubmitting = false;
   bool _hasLeftApp = false;
   int _tabSwitchCount = 0;
+  // Shuffled question list specific to this student
+  List<Question> _questions = [];
+  // Per-question shuffled options cached by index in _questions
+  final Map<int, List<String>> _shuffledOptions = {};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _timeRemaining = Duration(minutes: widget.test.duration);
+    // Calculate remaining time from test end time minus current time
+    final now = DateTime.now();
+    final testEnd = widget.test.endDate;
+    final remainingDuration = testEnd.difference(now);
+
+    // Use remaining time or full duration, whichever is smaller
+    if (remainingDuration.isNegative) {
+      _timeRemaining = Duration.zero;
+    } else {
+      final fullDuration = Duration(minutes: widget.test.duration);
+      _timeRemaining = remainingDuration < fullDuration
+          ? remainingDuration
+          : fullDuration;
+    }
     _startTimer();
+    _initQuestions();
     // Web-specific: detect browser tab visibility change (tab switch)
     if (kIsWeb) {
       vis.attachWebVisibilityListener(() {
@@ -88,6 +109,69 @@ class _TakeTestScreenState extends State<TakeTestScreen>
     });
   }
 
+  Future<void> _initQuestions() async {
+    // Start with original order until loaded
+    _questions = List<Question>.from(widget.test.questions);
+    setState(() {});
+
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final studentId = auth.currentUser?.uid;
+      if (studentId == null) return;
+      final testId = widget.test.id;
+      final qs = await FirebaseFirestore.instance
+          .collection('testResults')
+          .where('testId', isEqualTo: testId)
+          .where('studentId', isEqualTo: studentId)
+          .limit(1)
+          .get();
+      if (qs.docs.isEmpty) {
+        // No assignment doc yet (unlikely) – generate and abort
+        final order = List<int>.generate(_questions.length, (i) => i)
+          ..shuffle();
+        _questions = order.map((i) => widget.test.questions[i]).toList();
+        _prepareShuffledOptions();
+        setState(() {});
+        return;
+      }
+      final doc = qs.docs.first;
+      final data = doc.data();
+      List<dynamic>? orderRaw = data['questionOrder'] as List<dynamic>?;
+      if (orderRaw == null || orderRaw.length != widget.test.questions.length) {
+        // Create and persist a new order if missing or size mismatch
+        final newOrder = List<int>.generate(
+          widget.test.questions.length,
+          (i) => i,
+        )..shuffle();
+        await doc.reference.update({'questionOrder': newOrder});
+        _questions = newOrder.map((i) => widget.test.questions[i]).toList();
+        _prepareShuffledOptions();
+      } else {
+        final indices = orderRaw.map((e) => (e as num).toInt()).toList();
+        _questions = indices.map((i) => widget.test.questions[i]).toList();
+        _prepareShuffledOptions();
+      }
+      setState(() {});
+    } catch (e) {
+      // Fallback: keep original order
+      _prepareShuffledOptions();
+      setState(() {});
+      debugPrint('⚠️ Failed to load shuffled question order: $e');
+    }
+  }
+
+  void _prepareShuffledOptions() {
+    _shuffledOptions.clear();
+    for (int i = 0; i < _questions.length; i++) {
+      final q = _questions[i];
+      if (q.options != null && q.options!.isNotEmpty) {
+        final copy = List<String>.from(q.options!);
+        copy.shuffle();
+        _shuffledOptions[i] = copy;
+      }
+    }
+  }
+
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final minutes = twoDigits(duration.inMinutes.remainder(60));
@@ -110,7 +194,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
   }
 
   void _nextQuestion() {
-    if (currentQuestionIndex < widget.test.questions.length - 1) {
+    if (currentQuestionIndex < _questions.length - 1) {
       setState(() {
         currentQuestionIndex++;
       });
@@ -120,11 +204,12 @@ class _TakeTestScreenState extends State<TakeTestScreen>
   Future<void> _submitTest({
     bool isViolation = false,
     String? violationReason,
+    bool force = false, // when true, skip confirmation dialog
   }) async {
     if (_isSubmitting) return;
 
-    // Confirm submission only if not a violation
-    if (!isViolation) {
+    // Confirm submission only if not a violation and not forced
+    if (!isViolation && !force) {
       final shouldSubmit = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -145,12 +230,13 @@ class _TakeTestScreenState extends State<TakeTestScreen>
         throw Exception('Student not logged in');
       }
 
-      // Calculate score
+      // Calculate score using shuffled per-student questions
       int correctAnswers = 0;
+      int totalMarksEarned = 0; // Actual marks based on question points
       List<Map<String, dynamic>> detailedAnswers = [];
 
-      for (int i = 0; i < widget.test.questions.length; i++) {
-        final question = widget.test.questions[i];
+      for (int i = 0; i < _questions.length; i++) {
+        final question = _questions[i];
         final userAnswerRaw = answers[i] ?? '';
         final userAnswer = userAnswerRaw.trim();
         final correctRaw = (question.correctAnswer ?? '').trim();
@@ -210,7 +296,11 @@ class _TakeTestScreenState extends State<TakeTestScreen>
           }
         }
 
-        if (isCorrect) correctAnswers++;
+        if (isCorrect) {
+          correctAnswers++;
+          totalMarksEarned +=
+              question.points; // Add actual points for this question
+        }
 
         // Store a normalized correct answer text for MCQ letter codes so teacher view is clearer
         String storedCorrectAnswer = correctRaw;
@@ -236,8 +326,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
         });
       }
 
-      final score = widget.test.questions.isNotEmpty
-          ? (correctAnswers / widget.test.questions.length * 100).round()
+      final score = _questions.isNotEmpty
+          ? (correctAnswers / _questions.length * 100).round()
           : 0;
 
       // Create test result model
@@ -250,7 +340,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
         studentName: auth.currentUser?.name ?? 'Unknown',
         studentEmail: studentEmail ?? '',
         score: score.toDouble(),
-        totalQuestions: widget.test.questions.length,
+        totalQuestions: _questions.length,
         correctAnswers: correctAnswers,
         completedAt: DateTime.now(),
         timeTaken: widget.test.duration - _timeRemaining.inMinutes,
@@ -259,6 +349,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
         tabSwitchCount: _tabSwitchCount,
         violationDetected: isViolation,
         violationReason: violationReason,
+        totalPoints: totalMarksEarned, // Pass actual marks earned
       );
 
       // Save to Firestore
@@ -266,6 +357,44 @@ class _TakeTestScreenState extends State<TakeTestScreen>
         testResult,
         testEndDate: widget.test.endDate,
       );
+
+      // Award badges ONLY if test has ended (not during active period)
+      final now = DateTime.now();
+      final testHasEnded = now.isAfter(widget.test.endDate);
+
+      if (testHasEnded) {
+        try {
+          // Get total tests completed by this student
+          final allResults = await FirestoreService()
+              .getTestResultsByStudent(studentId)
+              .first;
+          final testsCompleted = allResults.length;
+
+          // Get previous test score for improvement calculation
+          int? previousScorePercent;
+          if (allResults.length > 1) {
+            // Sort by completion date and get second-to-last
+            final sorted = allResults.toList()
+              ..sort((a, b) => a.completedAt.compareTo(b.completedAt));
+            if (sorted.length >= 2) {
+              previousScorePercent = sorted[sorted.length - 2].score.round();
+            }
+          }
+
+          final rules = BadgeRules(BadgeService());
+          await rules.onTestCompleted(
+            studentId: studentId,
+            testId: widget.test.id,
+            scorePercent: score,
+            testsCompleted: testsCompleted,
+            previousScorePercent: previousScorePercent,
+          );
+        } catch (e) {
+          print('⚠️ Error awarding badges: $e');
+        }
+      } else {
+        print('⏳ Test still active - badges will be awarded after test ends');
+      }
 
       if (!mounted) return;
 
@@ -360,10 +489,28 @@ class _TakeTestScreenState extends State<TakeTestScreen>
 
   void _autoSubmitTest() {
     if (_isSubmitting) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Time is up! Auto-submitting test...')),
-    );
-    _submitTest();
+    _timer?.cancel();
+    // Show a popup informing time is up, then auto-submit without confirmation
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Time Ended'),
+          content: const Text(
+            'The test time limit has ended. Your answers will be auto-submitted now.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      await _submitTest(force: true);
+    });
   }
 
   Future<void> _autoSubmitTestForViolation(String reason) async {
@@ -386,8 +533,13 @@ class _TakeTestScreenState extends State<TakeTestScreen>
 
   @override
   Widget build(BuildContext context) {
-    final question = widget.test.questions[currentQuestionIndex];
-    final progress = (currentQuestionIndex + 1) / widget.test.questions.length;
+    final totalQuestions = _questions.length;
+    final question = totalQuestions > 0 && currentQuestionIndex < totalQuestions
+        ? _questions[currentQuestionIndex]
+        : null;
+    final progress = totalQuestions == 0
+        ? 0.0
+        : (currentQuestionIndex + 1) / totalQuestions;
 
     return WillPopScope(
       onWillPop: () async {
@@ -512,34 +664,43 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Question ${currentQuestionIndex + 1} of ${widget.test.questions.length}',
+                              'Question ${currentQuestionIndex + 1} of $totalQuestions',
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey,
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Text(
-                              question.question,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF1C140D),
+                            if (question != null)
+                              Text(
+                                question.question,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF1C140D),
+                                ),
                               ),
-                            ),
                             const SizedBox(height: 24),
 
                             // Options for MCQ
-                            if (question.type == QuestionType.multipleChoice &&
+                            if (question != null &&
+                                question.type == QuestionType.multipleChoice &&
                                 question.options != null) ...[
-                              ...question.options!.map((option) {
-                                final isSelected =
-                                    answers[currentQuestionIndex] == option;
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: _buildOptionButton(option, isSelected),
-                                );
-                              }),
+                              ...(_shuffledOptions[currentQuestionIndex] ??
+                                      question.options!)
+                                  .map((option) {
+                                    final isSelected =
+                                        answers[currentQuestionIndex] == option;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 16,
+                                      ),
+                                      child: _buildOptionButton(
+                                        option,
+                                        isSelected,
+                                      ),
+                                    );
+                                  }),
                               // Clear Response Button for MCQ
                               if (answers.containsKey(currentQuestionIndex))
                                 Padding(
@@ -571,8 +732,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                                     ),
                                   ),
                                 ),
-                            ] else if (question.type ==
-                                QuestionType.trueFalse) ...[
+                            ] else if (question != null &&
+                                question.type == QuestionType.trueFalse) ...[
                               // True/False options
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 16),
@@ -680,7 +841,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(
-                          widget.test.questions.length,
+                          totalQuestions,
                           (index) => Container(
                             margin: const EdgeInsets.symmetric(horizontal: 4),
                             width: 10,
@@ -778,16 +939,13 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                         const SizedBox(width: 16),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed:
-                                currentQuestionIndex <
-                                    widget.test.questions.length - 1
+                            onPressed: currentQuestionIndex < totalQuestions - 1
                                 ? _nextQuestion
                                 : null,
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               backgroundColor:
-                                  currentQuestionIndex <
-                                      widget.test.questions.length - 1
+                                  currentQuestionIndex < totalQuestions - 1
                                   ? const Color(0xFFF2800D)
                                   : Colors.grey.shade300,
                               shape: RoundedRectangleBorder(
@@ -800,9 +958,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
-                                color:
-                                    currentQuestionIndex <
-                                        widget.test.questions.length - 1
+                                color: currentQuestionIndex < totalQuestions - 1
                                     ? Colors.white
                                     : Colors.grey.shade500,
                               ),
@@ -890,7 +1046,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
 
   Widget _buildSubmitConfirmationDialog() {
     final attemptedCount = answers.length;
-    final totalCount = widget.test.questions.length;
+    final totalCount = _questions.length;
 
     return Dialog(
       backgroundColor: Colors.transparent,
