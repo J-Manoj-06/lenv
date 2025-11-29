@@ -1,10 +1,11 @@
+// ignore_for_file: unused_element, unused_field
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/leaderboard_service.dart';
-import 'per_test_leaderboard_list.dart';
+import 'per_test_leaderboard_detail.dart';
 
 class StudentLeaderboardScreen extends StatefulWidget {
   const StudentLeaderboardScreen({super.key});
@@ -19,6 +20,10 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   bool _isPerTest = false;
   String? _selectedTestId;
   String _selectedTestLabel = 'Test Name';
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  final _searchFocusNode = FocusNode();
+  String _pendingSearchText = '';
 
   final _leaderboardService = LeaderboardService();
 
@@ -29,6 +34,13 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   String? _className;
   String? _section;
   String? _currentUid;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -47,13 +59,38 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
             _buildHeader(theme),
             Expanded(
               child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                child: SingleChildScrollView(
-                  key: ValueKey(_isPerTest),
-                  child: Column(children: [_buildLeaderboardList(theme)]),
-                ),
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  final beginOffset = _isPerTest
+                      ? const Offset(
+                          1.0,
+                          0.0,
+                        ) // slide in from right when going to per-test
+                      : const Offset(
+                          -1.0,
+                          0.0,
+                        ); // slide in from left when returning to overall
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: beginOffset,
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: FadeTransition(opacity: animation, child: child),
+                  );
+                },
+                // Overall: scrollable (list height can exceed viewport)
+                // Per-Test: internal Column manages its own Expanded ListView
+                child: _isPerTest
+                    ? KeyedSubtree(
+                        key: const ValueKey('perTestView'),
+                        child: _buildLeaderboardList(theme),
+                      )
+                    : SingleChildScrollView(
+                        key: const ValueKey('overallView'),
+                        child: Column(children: [_buildLeaderboardList(theme)]),
+                      ),
               ),
             ),
           ],
@@ -108,21 +145,18 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                     ),
                   ),
                   Expanded(
-                    child: _buildTabButton(theme, 'Per-Test', _isPerTest, () {
-                      // Navigate to the per-test leaderboard screen
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const PerTestLeaderboardList(),
-                        ),
-                      );
-                    }),
+                    child: _buildTabButton(
+                      theme,
+                      'Per-Test',
+                      _isPerTest,
+                      () => setState(() => _isPerTest = true),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          // When Per-Test is active, place the filter just below tabs to avoid extra gaps
-          if (_isPerTest) _buildFilters(theme),
+          // Per-Test shows test cards inline; no filter row
         ],
       ),
     );
@@ -296,44 +330,283 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           }
           final items = snap.data ?? [];
           // Once we have the data (even if empty), show the section title
-          return _buildSection(
-            theme: theme,
-            title: 'Overall Leaderboard',
-            icon: Icons.emoji_events_rounded,
-            child: items.isEmpty
-                ? _emptyState(theme, 'No leaderboard data yet')
-                : _listBody(theme, items),
+          // Remove header (trophy + text). Keep subtle spacing above list.
+          if (items.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _emptyState(theme, 'No leaderboard data yet'),
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 10),
+              _listBody(theme, items),
+              const SizedBox(height: 6),
+            ],
           );
         },
       );
     } else {
-      // Per-Test leaderboard
-      if (_selectedTestId == null) {
-        return Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: _emptyState(
-            theme,
-            'Select a test to view the leaderboard.',
-            icon: Icons.menu_book_outlined,
-          ),
-        );
+      // Per-Test: show test cards inline for this student
+      final uid = _currentUid;
+      if (uid == null) {
+        return _loadingState(theme);
       }
-      _perTestStream ??= _buildPerTestStream(_selectedTestId!);
-      return StreamBuilder<List<LeaderboardEntry>>(
-        stream: _perTestStream,
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            // Only loader during loading
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('testResults')
+            .where('studentId', isEqualTo: uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return _loadingState(theme);
           }
-          final items = snap.data ?? [];
-          return _buildSection(
-            theme: theme,
-            title: 'Per-Test Leaderboard',
-            icon: Icons.menu_book_rounded,
-            child: items.isEmpty
-                ? _emptyState(theme, 'No results for this test yet')
-                : _listBody(theme, items),
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _emptyState(
+                theme,
+                'No tests assigned yet',
+                icon: Icons.menu_book_outlined,
+              ),
+            );
+          }
+
+          // Unique tests by testId
+          final testMap = <String, Map<String, dynamic>>{};
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final testId = data['testId'] as String?;
+            if (testId != null && !testMap.containsKey(testId)) {
+              testMap[testId] = data;
+            }
+          }
+          var tests = testMap.values.toList();
+          tests.sort((a, b) {
+            final aDate = (a['assignedAt'] as Timestamp?)?.toDate();
+            final bDate = (b['assignedAt'] as Timestamp?)?.toDate();
+            if (aDate == null || bDate == null) return 0;
+            return bDate.compareTo(aDate);
+          });
+
+          // Filter by search query
+          if (_searchQuery.isNotEmpty) {
+            tests = tests.where((t) {
+              final title = (t['testTitle'] as String? ?? '').toLowerCase();
+              final subject = (t['subject'] as String? ?? '').toLowerCase();
+              final query = _searchQuery.toLowerCase();
+              return title.contains(query) || subject.contains(query);
+            }).toList();
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Search bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: TextField(
+                  focusNode: _searchFocusNode,
+                  controller: _searchController,
+                  onChanged: (value) {
+                    // Only update pending text; do not filter yet
+                    _pendingSearchText = value;
+                    // Keep keyboard open reliably
+                    if (!_searchFocusNode.hasFocus) {
+                      _searchFocusNode.requestFocus();
+                    }
+                  },
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (value) {
+                    _applySearch();
+                  },
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Search tests...',
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_pendingSearchText.isNotEmpty &&
+                            _pendingSearchText != _searchQuery)
+                          IconButton(
+                            tooltip: 'Apply search',
+                            icon: const Icon(
+                              Icons.search,
+                              color: Colors.white70,
+                            ),
+                            onPressed: _applySearch,
+                          ),
+                        if (_searchQuery.isNotEmpty)
+                          IconButton(
+                            tooltip: 'Clear search',
+                            icon: const Icon(
+                              Icons.clear,
+                              color: Colors.white54,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                                _pendingSearchText = '';
+                              });
+                              _searchFocusNode.requestFocus();
+                            },
+                          ),
+                      ],
+                    ),
+                    filled: true,
+                    fillColor: theme.brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.1)
+                        : const Color(0xFF1A1A1A),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ),
+              // Test cards list
+              Expanded(
+                child: tests.isEmpty
+                    ? Center(
+                        child: Text(
+                          _searchQuery.isNotEmpty
+                              ? 'No tests found'
+                              : 'No tests assigned yet',
+                          style: TextStyle(color: Colors.white54, fontSize: 16),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        itemCount: tests.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final t = tests[index];
+                          final title =
+                              t['testTitle'] as String? ?? 'Unnamed Test';
+                          final subject = t['subject'] as String? ?? '';
+                          final assignedAt = (t['assignedAt'] as Timestamp?)
+                              ?.toDate();
+                          final months = const [
+                            'Jan',
+                            'Feb',
+                            'Mar',
+                            'Apr',
+                            'May',
+                            'Jun',
+                            'Jul',
+                            'Aug',
+                            'Sep',
+                            'Oct',
+                            'Nov',
+                            'Dec',
+                          ];
+                          final dateStr = assignedAt != null
+                              ? '${months[assignedAt.month - 1]} ${assignedAt.day}, ${assignedAt.year}'
+                              : '';
+
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        PerTestLeaderboardDetail(
+                                          testId: t['testId'] as String,
+                                          testTitle: title,
+                                          subject: subject,
+                                        ),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1A1A1A),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFFFF7B00,
+                                    ).withOpacity(0.2),
+                                  ),
+                                ),
+                                padding: const EdgeInsets.all(16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF27272A),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.menu_book,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            title,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          if (subject.isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              subject,
+                                              style: const TextStyle(
+                                                color: Color(0xFFA1A1AA),
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                          if (dateStr.isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              dateStr,
+                                              style: const TextStyle(
+                                                color: Color(0xFF71717A),
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.arrow_forward_ios,
+                                      color: Colors.white30,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           );
         },
       );
@@ -865,6 +1138,14 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
       );
     }
     return list;
+  }
+
+  void _applySearch() {
+    setState(() {
+      _searchQuery = _pendingSearchText.trim();
+    });
+    // Keep focus for continued editing
+    _searchFocusNode.requestFocus();
   }
 }
 

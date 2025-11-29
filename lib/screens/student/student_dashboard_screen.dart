@@ -9,6 +9,7 @@ import '../../models/status_model.dart';
 import '../../models/student_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/parent_service.dart';
 import '../../widgets/daily_challenge_card.dart';
 import '../teacher/status_view_screen.dart';
 import '../../widgets/achievement_section.dart';
@@ -102,7 +103,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                           // Announcements Section
                           if (student != null)
                             _buildAnnouncementsSection(theme, student),
-                          _buildProgressText(theme),
+                          // Removed duplicate progress subtitle (already shown in top app bar)
+                          // _buildProgressText(theme),
                           _buildPointsCard(theme, student),
                           // Daily Challenge Card
                           if (student != null)
@@ -130,22 +132,39 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   Widget _buildTopAppBar(ThemeData theme, student, authUser) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Text(
-              'Hi, ${student?.name?.split(' ').first ?? authUser?.email?.split('@').first ?? 'Brooklyn'} 👋',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hi, ${student?.name?.split(' ').first ?? authUser?.email?.split('@').first ?? 'Student'} 👋',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Here’s your progress for today",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFFB0B0B0),
+                  ),
+                ),
+              ],
             ),
           ),
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/student-profile'),
             child: Container(
-              width: 48,
-              height: 48,
+              width: 54,
+              height: 54,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 image: student?.photoUrl != null
@@ -155,27 +174,22 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       )
                     : null,
                 color: student?.photoUrl == null
-                    ? const Color(0xFFF27F0D)
+                    ? const Color(0xFFFF8A00)
                     : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: student?.photoUrl == null
-                  ? const Icon(Icons.person, color: Colors.white)
+                  ? const Icon(Icons.person, color: Colors.white, size: 28)
                   : null,
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildProgressText(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Text(
-        "Here's your progress for today",
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.textTheme.bodySmall?.color,
-        ),
       ),
     );
   }
@@ -187,20 +201,20 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         child: Container(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFCC6600), Color(0xFFF27F0D)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xFFFF8A00), Color(0xFFFF9E2E)],
             ),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFF27F0D).withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -209,32 +223,34 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 children: [
                   Text(
                     'Current Points',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withOpacity(0.8),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     '--',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
+                    style: const TextStyle(
+                      fontSize: 40,
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      height: 1.0,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 6),
                   Text(
                     'Rank: --',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withOpacity(0.8),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
                     ),
                   ),
                 ],
               ),
-              Icon(
-                Icons.military_tech,
-                size: 56,
-                color: Colors.white.withOpacity(0.4),
-              ),
+              const Icon(Icons.military_tech, size: 70, color: Colors.white54),
             ],
           ),
         ),
@@ -280,22 +296,22 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               child: Container(
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFCC6600), Color(0xFFF27F0D)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [Color(0xFFFF8A00), Color(0xFFFF9E2E)],
                   ),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFF27F0D).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
                   ],
                 ),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
+                  horizontal: 20,
+                  vertical: 20,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -303,33 +319,39 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'Current Points',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.white.withOpacity(0.8),
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           '$rewardPoints',
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            color: Colors.white,
+                          style: const TextStyle(
+                            fontSize: 40,
                             fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.0,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 6),
                         Text(
                           rank > 0 ? 'Rank: #$rank' : 'Rank: --',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.white.withOpacity(0.8),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
                       ],
                     ),
-                    Icon(
+                    const Icon(
                       Icons.military_tech,
-                      size: 56,
-                      color: Colors.white.withOpacity(0.4),
+                      size: 70,
+                      color: Colors.white54,
                     ),
                   ],
                 ),
@@ -427,6 +449,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
                 child: Text(
                   'No live tests available. Assigned tests will appear here when active and not attempted.',
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.hintColor,
                   ),
@@ -537,7 +560,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         // Calculate real performance metrics
         int testsTaken = 0;
         double avgScore = 0.0;
-        double accuracy = 0.0;
 
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
           final results = snapshot.data!;
@@ -545,99 +567,111 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
           // Calculate average score (score field is already a percentage)
           double totalScore = 0.0;
-          int totalCorrect = 0;
-          int totalQuestions = 0;
-
           for (var result in results) {
-            // score is already stored as a percentage value (0-100)
-            totalScore += result.score;
-            totalCorrect += result.correctAnswers;
-            totalQuestions += result.totalQuestions;
+            totalScore += result.score; // 0-100
           }
-
           avgScore = testsTaken > 0 ? totalScore / testsTaken : 0.0;
-          accuracy = totalQuestions > 0
-              ? (totalCorrect / totalQuestions) * 100
-              : 0.0;
         }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 32, 16, 12),
-              child: Text(
-                'Your Performance 📊',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.dividerColor),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+        // Fetch attendance percentage for the student
+        return FutureBuilder<double>(
+          future: ParentService().getStudentAttendance(student.uid),
+          builder: (context, attSnap) {
+            final attendancePct = (attSnap.data ?? 0.0).clamp(0.0, 100.0);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 32, 16, 12),
+                  child: const Text(
+                    'Your Performance 📊',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildPerformanceStat(
-                        theme,
-                        testsTaken > 0
-                            ? '${avgScore.toStringAsFixed(0)}%'
-                            : '-',
-                        'Avg. Score',
-                      ),
-                      _buildPerformanceStat(
-                        theme,
-                        '$testsTaken',
-                        'Tests Taken',
-                      ),
-                      _buildPerformanceStat(
-                        theme,
-                        testsTaken > 0
-                            ? '${accuracy.toStringAsFixed(0)}%'
-                            : '-',
-                        'Accuracy',
-                      ),
-                    ],
                   ),
                 ),
-              ),
-            ),
-          ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 20,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _performanceCell(
+                            testsTaken > 0
+                                ? '${avgScore.toStringAsFixed(0)}%'
+                                : '-',
+                            'Avg. Score',
+                            highlight: true,
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 46,
+                          color: Colors.white.withOpacity(0.1),
+                        ),
+                        Expanded(
+                          child: _performanceCell('$testsTaken', 'Tests Taken'),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 46,
+                          color: Colors.white.withOpacity(0.1),
+                        ),
+                        Expanded(
+                          child: _performanceCell(
+                            attSnap.connectionState == ConnectionState.waiting
+                                ? '--%'
+                                : '${attendancePct.toStringAsFixed(0)}%',
+                            'Attendance',
+                            highlight: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildPerformanceStat(ThemeData theme, String value, String label) {
+  Widget _performanceCell(
+    String value,
+    String label, {
+    bool highlight = false,
+  }) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
-          style: theme.textTheme.headlineMedium?.copyWith(
+          style: TextStyle(
+            fontSize: 26,
             fontWeight: FontWeight.bold,
-            color: value.contains('%') ? const Color(0xFFF27F0D) : null,
+            color: highlight ? const Color(0xFFFF8A00) : Colors.white,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.textTheme.bodySmall?.color,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFFB0B0B0),
           ),
         ),
       ],
@@ -987,22 +1021,30 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     return announcement;
                   })
                   .where((announcement) {
+                    // Show only teacher-posted announcements
+                    final fromTeacher = announcement.teacherId.isNotEmpty;
+                    if (!fromTeacher) return false;
+
                     // If we're querying all, also check instituteId matches
-                    if (!hasValidSchoolId ||
-                        announcement.instituteId == schoolIdentifier) {
-                      final isVisible = announcement.isVisibleTo(
-                        userStandard: userStandard,
-                        userSection:
-                            userSection, // Pass just the section letter (e.g., 'A')
-                      );
-                      return isVisible;
-                    }
-                    return false;
+                    final sameInstitute =
+                        !hasValidSchoolId ||
+                        announcement.instituteId == schoolIdentifier;
+                    if (!sameInstitute) return false;
+
+                    final isVisible = announcement.isVisibleTo(
+                      userStandard: userStandard,
+                      userSection:
+                          userSection, // Pass just the section letter (e.g., 'A')
+                    );
+                    return isVisible;
                   })
                   .toList()
             : <StatusModel>[];
 
-        // Show horizontal list (always visible, even if empty)
+        // Only show announcements section if there are teacher announcements
+        if (allAnnouncements.isEmpty) {
+          return const SizedBox.shrink();
+        }
         return _buildAnnouncementsHorizontalRow(
           theme,
           allAnnouncements,
@@ -1409,32 +1451,4 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 }
 
 // Press-to-scale wrapper used by badges
-class _PressScale extends StatefulWidget {
-  final Widget child;
-  final double scale;
-  const _PressScale({required this.child, this.scale = 1.05});
-
-  @override
-  State<_PressScale> createState() => _PressScaleState();
-}
-
-class _PressScaleState extends State<_PressScale> {
-  bool _pressed = false;
-
-  void _set(bool v) => setState(() => _pressed = v);
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => _set(true),
-      onTapUp: (_) => _set(false),
-      onTapCancel: () => _set(false),
-      child: AnimatedScale(
-        scale: _pressed ? widget.scale : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: widget.child,
-      ),
-    );
-  }
-}
+// Removed unused helper widgets and legacy stat/progress builders.

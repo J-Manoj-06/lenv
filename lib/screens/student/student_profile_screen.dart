@@ -147,34 +147,49 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   Widget _buildHeader() {
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor.withOpacity(0.85),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Logo
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF97316),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Center(
-              child: Icon(Icons.school, color: Colors.white, size: 28),
-            ),
-          ),
-          // Title
+          // Left spacer (to balance settings button on right)
+          const SizedBox(width: 40),
           Expanded(
             child: Text(
               'My Profile',
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 0.2,
+              ),
             ),
           ),
-          const SizedBox(width: 48),
+          InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Settings coming soon')),
+              );
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: theme.cardColor.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                Icons.settings,
+                size: 22,
+                color: Colors.white.withOpacity(0.8),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -188,79 +203,54 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         user?.email?.split('@').first ??
         'Student';
     final String? imageUrl = _studentData?.photoUrl ?? user?.profileImage;
-
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: _isLoadingStudent
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Profile image with camera button
-                Stack(
-                  children: [
-                    Container(
-                      width: 128,
-                      height: 128,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(64),
-                        image: imageUrl != null
-                            ? DecorationImage(
-                                image: NetworkImage(imageUrl),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
-                        color: imageUrl == null
-                            ? theme.colorScheme.surfaceContainerHighest
-                            : null,
+                // Avatar
+                Container(
+                  width: 128,
+                  height: 128,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: theme.cardColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
                       ),
-                      child: imageUrl == null
-                          ? Icon(
-                              Icons.person,
-                              size: 64,
-                              color: theme.iconTheme.color?.withOpacity(0.6),
-                            )
-                          : null,
-                    ),
-                    Positioned(
-                      bottom: 4,
-                      right: 4,
-                      child: GestureDetector(
-                        onTap: _onChangePhoto,
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF97316),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
+                    ],
+                    border: Border.all(color: theme.cardColor, width: 4),
+                  ),
+                  child: ClipOval(
+                    child: imageUrl != null
+                        ? Image.network(imageUrl, fit: BoxFit.cover)
+                        : Center(
+                            child: Text(
+                              _initialsFromName(name),
+                              style: const TextStyle(
+                                fontSize: 42,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFFF8A00),
                               ),
-                            ],
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.photo_camera,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Name and class info with section
-                Text(
-                  name,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
-                _buildClassAndSectionInfo(theme),
+                const SizedBox(height: 16),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _buildClassAndSectionBadges(theme),
               ],
             ),
     );
@@ -327,6 +317,52 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
+  Widget _buildClassAndSectionBadges(ThemeData theme) {
+    if (_studentData?.className == null) return const SizedBox.shrink();
+    String standard = '';
+    String section = _studentData?.section ?? '';
+    if (_studentData!.className!.isNotEmpty) {
+      final parts = _studentData!.className!.split(' - ');
+      if (parts.isNotEmpty) {
+        standard = 'Grade ${parts[0].trim()}';
+        if (parts.length > 1 && section.isEmpty) section = parts[1].trim();
+      }
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (standard.isNotEmpty) _badge(standard),
+        if (section.isNotEmpty) ...[
+          const SizedBox(width: 8),
+          _badge('Section $section'),
+        ],
+      ],
+    );
+  }
+
+  Widget _badge(String text) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(24),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: Color(0xFFA3A3A3),
+      ),
+    ),
+  );
+
+  String _initialsFromName(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty) return 'ST';
+    if (parts.length == 1) return parts.first.substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
   Widget _buildStatsCards() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final uid = authProvider.currentUser?.uid;
@@ -355,12 +391,22 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           {'label': 'Attendance', 'value': attendanceDisplay},
           {'label': 'Latest', 'value': '${latest.toStringAsFixed(1)}%'},
         ];
+        // Limit to first four stats per new design (exclude Latest)
+        final displayStats = stats.take(4).toList();
         return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: stats.map((stat) => _buildStatCard(stat)).toList(),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth =
+                  (constraints.maxWidth - 12) / 2; // 2 columns gap 12
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: displayStats
+                    .map((s) => _statCell(s['label']!, s['value']!, itemWidth))
+                    .toList(),
+              );
+            },
           ),
         );
       },
@@ -403,6 +449,47 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
+  Widget _statCell(String label, String value, double width) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF242424),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFA3A3A3),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              height: 1.0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPersonalInfoSection(dynamic user) {
     final theme = Theme.of(context);
     final String email = _studentData?.email ?? user?.email ?? 'N/A';
@@ -432,23 +519,16 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Container(
             decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: theme.dividerColor, width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              color: const Color(0xFF242424),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF3A3A3A)),
             ),
             child: Column(
               children: [
-                _buildInfoRow('Email', email, isFirst: true),
-                _buildInfoRow('Phone', phone),
-                _buildInfoRow('School Name', schoolName),
-                _buildInfoRow('Parent Number', parentPhone, isLast: true),
+                _infoRow('Email', email, top: true),
+                _infoRow('Phone', phone),
+                _infoRow('School Name', schoolName),
+                _infoRow('Guardian Contact', parentPhone, bottom: true),
               ],
             ),
           ),
@@ -464,75 +544,68 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   Widget _buildLogoutButton() {
-    final theme = Theme.of(context);
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.error.withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: _onLogout,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.logout, color: theme.colorScheme.error, size: 20),
-                const SizedBox(width: 12),
-                Text(
-                  'Logout',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.error,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+      child: OutlinedButton.icon(
+        onPressed: _onLogout,
+        icon: const Icon(Icons.logout, color: Color(0xFFE5484D)),
+        label: const Text(
+          'Logout',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFE5484D),
           ),
+        ),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Color(0xFFE5484D), width: 2),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: Colors.transparent,
+          foregroundColor: const Color(0xFFE5484D),
         ),
       ),
     );
   }
 
-  Widget _buildInfoRow(
+  Widget _infoRow(
     String label,
     String value, {
-    bool isFirst = false,
-    bool isLast = false,
+    bool top = false,
+    bool bottom = false,
   }) {
     return Container(
       decoration: BoxDecoration(
-        border: isLast
+        border: bottom
             ? null
-            : Border(
-                bottom: BorderSide(
-                  color: Theme.of(context).dividerColor,
-                  width: 1,
-                ),
+            : const Border(
+                bottom: BorderSide(color: Color(0xFF3A3A3A), width: 1),
               ),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          SizedBox(
-            width: 120,
-            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          ),
           Expanded(
             child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFFA3A3A3),
+              ),
+            ),
+          ),
+          Flexible(
+            child: Text(
               value,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+              textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
             ),
           ),
         ],
@@ -540,11 +613,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
-  void _onChangePhoto() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Change photo coming soon!')));
-  }
+  // Removed photo change overlay per new design; keep helper stub if needed in future.
 
   // _onEditProfile removed (unused)
 

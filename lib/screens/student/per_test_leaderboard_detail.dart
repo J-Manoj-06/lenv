@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 
-class PerTestLeaderboardDetail extends StatelessWidget {
+class PerTestLeaderboardDetail extends StatefulWidget {
   final String testId;
   final String testTitle;
   final String subject;
@@ -15,6 +15,12 @@ class PerTestLeaderboardDetail extends StatelessWidget {
     required this.subject,
   });
 
+  @override
+  State<PerTestLeaderboardDetail> createState() =>
+      _PerTestLeaderboardDetailState();
+}
+
+class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -57,7 +63,7 @@ class PerTestLeaderboardDetail extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$testTitle${subject.isNotEmpty ? ' - $subject' : ''}',
+                    '${widget.testTitle}${widget.subject.isNotEmpty ? ' - ${widget.subject}' : ''}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Color(0xFFA1A1AA),
@@ -73,7 +79,7 @@ class PerTestLeaderboardDetail extends StatelessWidget {
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('testResults')
-                    .where('testId', isEqualTo: testId)
+                    .where('testId', isEqualTo: widget.testId)
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -157,66 +163,20 @@ class PerTestLeaderboardDetail extends StatelessWidget {
                     }
                   }
 
-                  // Find current user's rank
-                  int? currentUserRank;
-                  Map<String, dynamic>? currentUserData;
-                  for (int i = 0; i < results.length; i++) {
-                    if (results[i]['studentId'] == currentStudentId) {
-                      currentUserRank = i + 1;
-                      currentUserData = results[i];
-                      break;
-                    }
-                  }
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: results.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final result = results[index];
+                        final isCurrentUser =
+                            result['studentId'] == currentStudentId;
 
-                  return Container(
-                    margin: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1A),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Column(
-                      children: [
-                        // User's Highlighted Row
-                        if (currentUserRank != null && currentUserData != null)
-                          _buildUserRow(currentUserRank, currentUserData, true),
-
-                        // Divider
-                        if (currentUserRank != null && results.isNotEmpty)
-                          Container(
-                            height: 1,
-                            color: const Color(0xFF333333),
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-
-                        // Leaderboard List
-                        Expanded(
-                          child: ListView.separated(
-                            padding: EdgeInsets.zero,
-                            itemCount: results.length,
-                            separatorBuilder: (context, index) => Container(
-                              height: 1,
-                              color: const Color(0xFF333333),
-                              margin: const EdgeInsets.only(left: 64),
-                            ),
-                            itemBuilder: (context, index) {
-                              final result = results[index];
-                              final isCurrentUser =
-                                  result['studentId'] == currentStudentId;
-
-                              // Skip current user if already shown at top
-                              if (isCurrentUser && currentUserRank != null) {
-                                return const SizedBox.shrink();
-                              }
-
-                              return _buildUserRow(index + 1, result, false);
-                            },
-                          ),
-                        ),
-                      ],
+                        return _buildUserRow(index + 1, result, isCurrentUser);
+                      },
                     ),
                   );
                 },
