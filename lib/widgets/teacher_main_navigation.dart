@@ -4,8 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/teacher/teacher_dashboard.dart';
 import '../screens/teacher/classes_screen.dart';
 import '../screens/teacher/tests_screen.dart';
+import '../screens/teacher/messages/messages_screen.dart';
+import '../screens/teacher/messages/teacher_subject_messages_screen.dart';
 import '../screens/teacher/leaderboard_screen.dart';
-import '../screens/teacher/profile_screen.dart';
 
 /// Teacher Main Navigation Wrapper
 /// Uses IndexedStack to preserve state when switching tabs
@@ -40,10 +41,11 @@ class _TeacherMainNavigationState extends State<TeacherMainNavigation> {
       if (user != null) {
         _screens.addAll([
           const TeacherDashboardScreen(),
-          const ClassesScreen(),
           const TestsScreen(),
+          // Replace legacy one-to-one MessagesScreen with aggregated subject messages
+          const TeacherSubjectMessagesScreen(),
+          const ClassesScreen(),
           const LeaderboardScreen(),
-          const ProfileScreen(),
         ]);
       }
     }
@@ -189,30 +191,30 @@ class _GlassyBottomBar extends StatelessWidget {
                         onTap: () => onTap(0),
                       ),
                       _NavItem(
-                        icon: Icons.groups_outlined,
-                        selectedIcon: Icons.groups,
-                        label: 'Classes',
+                        icon: Icons.assignment_outlined,
+                        selectedIcon: Icons.assignment,
+                        label: 'Tests',
                         isSelected: currentIndex == 1,
                         onTap: () => onTap(1),
                       ),
                       _NavItem(
-                        icon: Icons.assignment_outlined,
-                        selectedIcon: Icons.assignment,
-                        label: 'Tests',
+                        icon: Icons.message_outlined,
+                        selectedIcon: Icons.message,
+                        label: 'Messages',
                         isSelected: currentIndex == 2,
                         onTap: () => onTap(2),
+                      ),
+                      _NavItem(
+                        icon: Icons.groups_outlined,
+                        selectedIcon: Icons.groups,
+                        label: 'Classes',
+                        isSelected: currentIndex == 3,
+                        onTap: () => onTap(3),
                       ),
                       _NavItem(
                         icon: Icons.leaderboard_outlined,
                         selectedIcon: Icons.leaderboard,
                         label: 'Leaderboard',
-                        isSelected: currentIndex == 3,
-                        onTap: () => onTap(3),
-                      ),
-                      _NavItem(
-                        icon: Icons.person_outline,
-                        selectedIcon: Icons.person,
-                        label: 'Profile',
                         isSelected: currentIndex == 4,
                         onTap: () => onTap(4),
                       ),

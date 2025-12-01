@@ -52,6 +52,12 @@ class _TeacherStudentResultDetailScreenState
       }
 
       _result = TestResultModel.fromFirestore(resultDoc);
+      print('\n📊 === RESULT LOADED ===');
+      print('Student: ${_result!.studentName}');
+      print('Answers count: ${_result!.answers.length}');
+      print(
+        'First answer sample: ${_result!.answers.isNotEmpty ? _result!.answers[0] : "none"}',
+      );
 
       // Load test questions
       final testDoc = await firestore
@@ -65,6 +71,10 @@ class _TeacherStudentResultDetailScreenState
           _questions = List<Map<String, dynamic>>.from(
             testData['questions'].map((q) => Map<String, dynamic>.from(q)),
           );
+          print('Questions loaded: ${_questions.length}');
+          if (_questions.isNotEmpty) {
+            print('First question sample: ${_questions[0]}');
+          }
         }
       }
 
@@ -83,7 +93,7 @@ class _TeacherStudentResultDetailScreenState
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Student Result Details'),
+        title: const Text('Test Results'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -121,8 +131,13 @@ class _TeacherStudentResultDetailScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildStudentInfoCard(),
+                    // Score Ring at top (like student UI)
+                    _buildScoreRing(),
                     const SizedBox(height: 16),
+                    // Student summary (name, email, completed at, time taken)
+                    _buildStudentSummary(),
+                    const SizedBox(height: 16),
+                    // Compact score card (Score / Correct / Wrong)
                     _buildScoreCard(),
                     const SizedBox(height: 16),
                     _buildAnswersCard(),
@@ -133,116 +148,144 @@ class _TeacherStudentResultDetailScreenState
     );
   }
 
-  Widget _buildStudentInfoCard() {
+  Widget _buildScoreRing() {
     if (_result == null) return const SizedBox.shrink();
+    final percentage = _result!.totalQuestions > 0
+        ? (_result!.correctAnswers / _result!.totalQuestions) * 100
+        : 0.0;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.person, color: Colors.blue, size: 28),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Center(
+      child: SizedBox(
+        width: 192,
+        height: 192,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CustomPaint(
+              painter: _RingPainter(
+                progress: 1.0,
+                color: isDark ? Colors.white12 : Colors.grey.shade300,
+                strokeWidth: 10,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _result!.studentName,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _result!.studentEmail,
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                    ),
-                  ],
+            ),
+            CustomPaint(
+              painter: _RingPainter(
+                progress: (percentage / 100).clamp(0.0, 1.0),
+                color: const Color(0xFFF97316),
+                strokeWidth: 10,
+              ),
+            ),
+            Center(
+              child: Text(
+                '${percentage.toStringAsFixed(0)}%',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : Colors.black87,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
-          _buildInfoRow(
-            Icons.access_time,
-            'Completed At',
-            _formatDateTime(_result!.completedAt),
-          ),
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            Icons.timer,
-            'Time Taken',
-            _formatDuration(_result!.timeTaken),
-          ),
-          if (_result!.violationDetected) ...[
-            const SizedBox(height: 12),
-            _buildInfoRow(
-              Icons.warning,
-              'Violations',
-              '${_result!.tabSwitchCount} tab switches',
-              color: Colors.orange,
             ),
           ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildInfoRow(
-    IconData icon,
-    String label,
-    String value, {
-    Color? color,
-  }) {
-    return Row(
+  Widget _buildStudentSummary() {
+    if (_result == null) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 20, color: color ?? Colors.grey[600]),
-        const SizedBox(width: 12),
-        Text(
-          '$label: ',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+        Center(
+          child: Text(
+            _result!.studentName,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
           ),
         ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              color: color ?? Theme.of(context).textTheme.bodyLarge?.color,
-              fontWeight: FontWeight.w600,
+        const SizedBox(height: 4),
+        if (_result!.studentEmail.isNotEmpty)
+          Center(
+            child: Text(
+              _result!.studentEmail,
+              style: TextStyle(
+                color: isDark ? Colors.white70 : Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _infoChip(
+              icon: Icons.access_time,
+              label: 'Completed',
+              value: _formatDateTime(_result!.completedAt),
+            ),
+            const SizedBox(width: 8),
+            _infoChip(
+              icon: Icons.timer,
+              label: 'Time',
+              value: _formatDuration(_result!.timeTaken),
+            ),
+          ],
         ),
       ],
     );
   }
+
+  Widget _infoChip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Flexible(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1F2937) : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isDark ? const Color(0xFF374151) : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                '$label: $value',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Old _buildStudentInfoCard removed (replaced by ring + summary like student UI)
+
+  // Old _buildInfoRow removed (summary uses chips now)
 
   Widget _buildScoreCard() {
     if (_result == null) return const SizedBox.shrink();
@@ -251,84 +294,80 @@ class _TeacherStudentResultDetailScreenState
         ? (_result!.correctAnswers / _result!.totalQuestions) * 100
         : 0.0;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            _getScoreColor(percentage),
-            _getScoreColor(percentage).withOpacity(0.8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: _getScoreColor(percentage).withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        border: Border.all(
+          color: isDark ? const Color(0xFF374151) : Colors.grey.shade300,
+        ),
       ),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildScoreStat(
-                'Score',
-                '${percentage.toStringAsFixed(1)}%',
-                Icons.stars,
-              ),
-              Container(
-                width: 1,
-                height: 60,
-                color: Colors.white.withOpacity(0.3),
-              ),
-              _buildScoreStat(
-                'Correct',
-                '${_result!.correctAnswers}/${_result!.totalQuestions}',
-                Icons.check_circle,
-              ),
-              Container(
-                width: 1,
-                height: 60,
-                color: Colors.white.withOpacity(0.3),
-              ),
-              _buildScoreStat(
-                'Wrong',
-                '${_result!.totalQuestions - _result!.correctAnswers}',
-                Icons.cancel,
-              ),
-            ],
+          _buildScoreStat(
+            'Score',
+            '${percentage.toStringAsFixed(1)}%',
+            Icons.stars,
+            color: const Color(0xFFF97316),
+          ),
+          _verticalDivider(isDark),
+          _buildScoreStat(
+            'Correct',
+            '${_result!.correctAnswers}/${_result!.totalQuestions}',
+            Icons.check_circle,
+            color: Colors.green,
+          ),
+          _verticalDivider(isDark),
+          _buildScoreStat(
+            'Wrong',
+            '${_result!.totalQuestions - _result!.correctAnswers}',
+            Icons.cancel,
+            color: Colors.red,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildScoreStat(String label, String value, IconData icon) {
+  Widget _buildScoreStat(
+    String label,
+    String value,
+    IconData icon, {
+    Color? color,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final c = color ?? (isDark ? Colors.white : Colors.black87);
+    final sub = isDark ? Colors.white70 : Colors.black54;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: Colors.white, size: 32),
-        const SizedBox(height: 8),
+        Icon(icon, color: c, size: 24),
+        const SizedBox(height: 6),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.9)),
+          style: TextStyle(
+            fontSize: 12,
+            color: sub,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
   }
+
+  Widget _verticalDivider(bool isDark) => Container(
+    width: 1,
+    height: 40,
+    color: isDark ? const Color(0xFF374151) : Colors.grey.shade300,
+  );
 
   Widget _buildAnswersCard() {
     if (_result == null || _result!.answers.isEmpty) {
@@ -363,9 +402,25 @@ class _TeacherStudentResultDetailScreenState
             separatorBuilder: (context, index) => const Divider(height: 32),
             itemBuilder: (context, index) {
               final answer = _result!.answers[index];
-              final questionData = index < _questions.length
-                  ? _questions[index]
-                  : <String, dynamic>{};
+
+              // CRITICAL: Match question by questionText, not by index (answers may be shuffled!)
+              final questionText = answer['questionText'] ?? '';
+              Map<String, dynamic> questionData = {};
+
+              // Find matching question by questionText
+              for (var q in _questions) {
+                if ((q['questionText'] ?? q['question'] ?? '') ==
+                    questionText) {
+                  questionData = q;
+                  break;
+                }
+              }
+
+              // Fallback: try to match by index if text match fails
+              if (questionData.isEmpty && index < _questions.length) {
+                questionData = _questions[index];
+              }
+
               return _buildAnswerItem(index + 1, answer, questionData);
             },
           ),
@@ -384,17 +439,38 @@ class _TeacherStudentResultDetailScreenState
         questionData['questionText'] ??
         questionData['question'] ??
         'Question $questionNumber';
-    final userAnswer = answer['userAnswer'] ?? 'Not answered';
-    final correctAnswer = answer['correctAnswer'] ?? '';
-    final isCorrect = answer['isCorrect'] ?? false;
 
-    List<dynamic> options = questionData['options'] as List? ?? [];
-    final questionType = questionData['type'] ?? 'mcq';
+    final dynamic userAnswer = _deriveUserAnswer(answer);
+    final dynamic correctAnswer = _deriveCorrectAnswer(answer, questionData);
+    final bool isCorrect =
+        (answer['isCorrect'] ?? false) == true ||
+        _inferCorrectness(userAnswer, correctAnswer);
 
-    // For True/False questions, create synthetic options if none exist
-    if (questionType == 'tf' && options.isEmpty) {
-      options = ['True', 'False'];
+    print('\n🔍 Q$questionNumber:');
+    print('   Raw answer data: $answer');
+    print('   User: $userAnswer (${userAnswer.runtimeType})');
+    print('   Correct: $correctAnswer (${correctAnswer.runtimeType})');
+    print('   isCorrect: $isCorrect');
+
+    List<dynamic> rawOptions = questionData['options'] as List? ?? [];
+    final questionType = (questionData['type'] ?? 'mcq')
+        .toString()
+        .toLowerCase();
+    print('   Options count: ${rawOptions.length}');
+    if (rawOptions.isNotEmpty) {
+      print('   First option: ${rawOptions[0]}');
     }
+
+    // For True/False style questions, create synthetic options if none exist
+    if ((questionType == 'tf' ||
+            questionType == 'true_false' ||
+            questionType == 'boolean') &&
+        rawOptions.isEmpty) {
+      rawOptions = ['True', 'False'];
+    }
+
+    // Normalize options into a consistent list of {label, text}
+    final options = _normalizeOptions(rawOptions);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,25 +526,41 @@ class _TeacherStudentResultDetailScreenState
         if (options.isNotEmpty) ...[
           ...options.asMap().entries.map((entry) {
             final optionIndex = entry.key;
-            final option = entry.value.toString();
-            final optionLabel = String.fromCharCode(65 + optionIndex);
+            final optionLabel = entry.value['label']!;
+            final optionText = entry.value['text']!;
 
-            // Determine if this is the user's answer or correct answer
-            final isUserAnswer =
-                userAnswer == option || userAnswer.toUpperCase() == optionLabel;
-            final isCorrectOption =
-                correctAnswer == optionLabel ||
-                correctAnswer.toLowerCase() == option.toLowerCase();
+            // Determine if this is the user's answer or correct answer across formats
+            final bool isUserAnswer = _matchesAnswer(
+              userAnswer,
+              optionLabel,
+              optionText,
+              optionIndex,
+            );
+            final bool isCorrectOption = _matchesAnswer(
+              correctAnswer,
+              optionLabel,
+              optionText,
+              optionIndex,
+            );
+
+            if (questionNumber <= 3) {
+              print(
+                '   → $optionLabel ($optionText): user=$isUserAnswer, correct=$isCorrectOption',
+              );
+            }
 
             Color? bgColor;
             Color? borderColor;
             IconData? icon;
 
+            // Correct answer always in green
             if (isCorrectOption) {
               bgColor = Colors.green.withOpacity(0.2);
               borderColor = Colors.green;
               icon = Icons.check_circle;
-            } else if (isUserAnswer) {
+            }
+            // User's wrong answer in red (only if it's not the correct option)
+            else if (isUserAnswer && !isCorrect) {
               bgColor = Colors.red.withOpacity(0.2);
               borderColor = Colors.red;
               icon = Icons.cancel;
@@ -509,7 +601,7 @@ class _TeacherStudentResultDetailScreenState
                     const SizedBox(width: 14),
                     Expanded(
                       child: Text(
-                        option,
+                        optionText,
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: borderColor != null
@@ -579,14 +671,6 @@ class _TeacherStudentResultDetailScreenState
     );
   }
 
-  Color _getScoreColor(double percentage) {
-    if (percentage >= 90) return Colors.green;
-    if (percentage >= 75) return Colors.lightGreen;
-    if (percentage >= 60) return Colors.orange;
-    if (percentage >= 35) return Colors.deepOrange;
-    return Colors.red;
-  }
-
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} at ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
@@ -599,4 +683,273 @@ class _TeacherStudentResultDetailScreenState
     final mins = minutes % 60;
     return '${hours}h ${mins}m';
   }
+
+  // Extract user answer from multiple possible keys
+  dynamic _deriveUserAnswer(Map<String, dynamic> answer) {
+    final keys = [
+      'userAnswer',
+      'selectedAnswer',
+      'selectedOption',
+      'selectedLabel',
+      'selected',
+      'userOption',
+      'userLabel',
+      'userIndex',
+      'selectedIndex',
+      'answer', // Sometimes stored as just 'answer'
+      'studentAnswer',
+      'choice',
+    ];
+    dynamic val;
+    for (final k in keys) {
+      if (answer.containsKey(k) && answer[k] != null) {
+        val = answer[k];
+        print('   📝 Found userAnswer in field "$k": $val');
+        break;
+      }
+    }
+    return _coerceAnswerValue(val);
+  }
+
+  // Extract correct answer - MUST use question data since result has shuffled answers
+  dynamic _deriveCorrectAnswer(
+    Map<String, dynamic> answer,
+    Map<String, dynamic> question,
+  ) {
+    // CRITICAL: ONLY use question's correctAnswer, NEVER from result (shuffled!)
+    final qKeys = [
+      'correctAnswer',
+      'answer',
+      'correctOption',
+      'correctLabel',
+      'correctIndex',
+      'correct_index',
+    ];
+    dynamic val;
+    for (final k in qKeys) {
+      if (question.containsKey(k) && question[k] != null) {
+        val = question[k];
+        break;
+      }
+    }
+
+    if (val == null) {
+      print('   ⚠️ No correctAnswer found in question data!');
+      return null;
+    }
+
+    // If val is a letter (A/B/C/D) and we have options, resolve to option text
+    if (val is String && val.trim().length == 1) {
+      final letter = val.trim().toUpperCase();
+      final index = letter.codeUnitAt(0) - 65; // A=0, B=1, etc
+      final opts = question['options'] as List?;
+      if (opts != null && index >= 0 && index < opts.length) {
+        final resolved = opts[index];
+        print('   🔄 Resolved letter "$letter" -> "$resolved"');
+        return _coerceAnswerValue(resolved);
+      }
+    }
+
+    return _coerceAnswerValue(val);
+  }
+
+  dynamic _coerceAnswerValue(dynamic v) {
+    if (v == null) return null;
+    // If it's numeric string, parse
+    if (v is String) {
+      final s = v.trim();
+      if (RegExp(r'^\d+$').hasMatch(s)) {
+        return int.tryParse(s);
+      }
+      return _normalizeText(s);
+    }
+    return v; // keep num/bool/list as-is
+  }
+
+  bool _inferCorrectness(dynamic user, dynamic correct) {
+    if (user == null || correct == null) return false;
+    if (user is String && correct is String) {
+      return user.trim().toLowerCase() == correct.trim().toLowerCase();
+    }
+    if (user is num && correct is num) return user == correct;
+    return false;
+  }
+
+  // Normalize various option shapes into a consistent {label, text} list
+  List<Map<String, String>> _normalizeOptions(dynamic rawOptions) {
+    final List<Map<String, String>> out = [];
+
+    // If options came as a map like {A: '...', B: '...'}
+    if (rawOptions is Map) {
+      int i = 0;
+      rawOptions.forEach((k, v) {
+        final label = k.toString().trim().toUpperCase();
+        final text = _normalizeText(v?.toString() ?? '');
+        out.add({
+          'label': label.isNotEmpty ? label : String.fromCharCode(65 + i),
+          'text': text,
+        });
+        i++;
+      });
+      return out;
+    }
+
+    if (rawOptions is! List) return out;
+
+    for (int i = 0; i < rawOptions.length; i++) {
+      final opt = rawOptions[i];
+      String text = '';
+      String? label;
+
+      if (opt is Map) {
+        final dynamic picked =
+            opt['text'] ??
+            opt['option'] ??
+            opt['value'] ??
+            opt['answer'] ??
+            opt['title'] ??
+            opt.values.firstWhere(
+              (v) => v is String && v.trim().isNotEmpty,
+              orElse: () => '',
+            );
+        text = _normalizeText(picked?.toString() ?? '');
+        final rawLabel = opt['label'];
+        if (rawLabel is String && rawLabel.trim().isNotEmpty) {
+          label = rawLabel.trim();
+        }
+      } else {
+        text = _normalizeText(opt?.toString() ?? '');
+      }
+
+      final computedLabel = (label ?? String.fromCharCode(65 + i))
+          .toUpperCase();
+      out.add({'label': computedLabel, 'text': text});
+    }
+    return out;
+  }
+
+  String _normalizeText(String s) {
+    // Replace smart quotes and trim
+    return s
+        .replaceAll('“', '"')
+        .replaceAll('”', '"')
+        .replaceAll('’', "'")
+        .trim();
+  }
+
+  // Flexible comparison: supports label (A/B/..), text, index (0/1/.. or 1/2/..), bool and list
+  bool _matchesAnswer(dynamic ans, String label, String text, int index) {
+    if (ans == null) return false;
+
+    // If it's a list (multi-select), match any
+    if (ans is Iterable) {
+      for (final a in ans) {
+        if (_matchesAnswer(a, label, text, index)) return true;
+      }
+      return false;
+    }
+
+    // If it's a number, support 0-based and 1-based indices
+    if (ans is num) {
+      final i = ans.toInt();
+      return i == index || i == index + 1;
+    }
+
+    // Booleans for True/False
+    if (ans is bool) {
+      final s = ans ? 'true' : 'false';
+      final normText = text.toLowerCase().trim();
+      return normText == s || normText.startsWith(s.substring(0, 1));
+    }
+
+    // Strings: compare to label or text, normalize format
+    final s = ans.toString().trim();
+    if (s.isEmpty || s.toLowerCase() == 'not answered') return false;
+
+    final normS = s
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final normText = text
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    // Direct label match (A/B/C/D)
+    if (s.length == 1 && s.toUpperCase() == label) return true;
+
+    // Exact text match (case-insensitive, punctuation-normalized)
+    if (normS == normText) return true;
+
+    // Check similarity for longer texts
+    if (normS.length > 5 &&
+        normText.length > 5 &&
+        (normS.contains(normText) || normText.contains(normS))) {
+      final shorter = normS.length < normText.length ? normS : normText;
+      final longer = normS.length < normText.length ? normText : normS;
+      if (shorter.length / longer.length > 0.8) return true;
+    }
+
+    // Extract leading label like "A.", "A)", "(A)" or "A :"
+    final m = RegExp(r'^[\(\s]*([A-Da-d])[\)\.:\s]').firstMatch(s);
+    if (m != null) {
+      final extracted = m.group(1)!.toUpperCase();
+      if (extracted == label) return true;
+    }
+
+    // Handle true/false words
+    final lowerS = s.toLowerCase();
+    final lowerText = text.toLowerCase();
+    if ((lowerS == 'true' ||
+            lowerS == 'false' ||
+            lowerS == 't' ||
+            lowerS == 'f') &&
+        (lowerText == 'true' || lowerText == 'false')) {
+      return lowerS.startsWith(lowerText.substring(0, 1));
+    }
+
+    return false;
+  }
+}
+
+// Painter for the circular score ring (mirrors student UI)
+class _RingPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  final double strokeWidth;
+
+  _RingPainter({
+    required this.progress,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    const startAngle = -math.pi / 2;
+    final sweepAngle = 2 * math.pi * progress;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      sweepAngle,
+      false,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color;
 }

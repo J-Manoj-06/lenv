@@ -1,0 +1,480 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../messages/group_chat_page.dart';
+
+class StudentGroupsScreen extends StatefulWidget {
+  const StudentGroupsScreen({super.key});
+
+  @override
+  State<StudentGroupsScreen> createState() => _StudentGroupsScreenState();
+}
+
+class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  Map<String, dynamic>? _classData;
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClassData();
+  }
+
+  Future<void> _loadClassData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      if (currentUser == null) {
+        setState(() {
+          _errorMessage = 'User not authenticated';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Get student data to find their class and section
+      final studentDoc = await _firestore
+          .collection('students')
+          .doc(currentUser.uid)
+          .get();
+
+      if (!studentDoc.exists) {
+        setState(() {
+          _errorMessage = 'Student data not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final studentData = studentDoc.data()!;
+      final className = studentData['className'] as String?;
+      final section = studentData['section'] as String?;
+      final schoolCode = studentData['schoolCode'] as String?;
+
+      if (className == null || section == null || schoolCode == null) {
+        setState(() {
+          _errorMessage = 'Class information not available';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      print(
+        '🔍 Looking for class: $className, section: $section, school: $schoolCode',
+      );
+
+      // Query the classes collection to find the matching class
+      final classQuery = await _firestore
+          .collection('classes')
+          .where('className', isEqualTo: className)
+          .where('section', isEqualTo: section)
+          .where('schoolCode', isEqualTo: schoolCode)
+          .limit(1)
+          .get();
+
+      if (classQuery.docs.isEmpty) {
+        setState(() {
+          _errorMessage = 'Class not found in database';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final classDoc = classQuery.docs.first;
+      final classData = classDoc.data();
+      classData['id'] = classDoc.id; // Add document ID
+
+      print('✅ Found class: ${classDoc.id}');
+      print('📚 Subjects: ${classData['subjects']}');
+      print('👨‍🏫 Teachers: ${classData['subjectTeachers']}');
+
+      setState(() {
+        _classData = classData;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Error loading class data: $e');
+      setState(() {
+        _errorMessage = 'Error loading class data: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.grey[50],
+      appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF141414) : Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? Colors.white70 : Colors.black87,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Subject Groups',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.refresh,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+            onPressed: _loadClassData,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF8800)),
+              ),
+            )
+          : _errorMessage != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.orange[700],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _loadClassData,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF8800),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _buildGroupsList(isDark),
+    );
+  }
+
+  Widget _buildGroupsList(bool isDark) {
+    if (_classData == null) {
+      return const Center(child: Text('No class data available'));
+    }
+
+    final subjects = _classData!['subjects'] as List<dynamic>?;
+    final subjectTeachers =
+        _classData!['subjectTeachers'] as Map<String, dynamic>?;
+    final classId = _classData!['id'] as String;
+    final className = _classData!['className'] as String;
+    final section = _classData!['section'] as String;
+
+    if (subjects == null || subjects.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.school_outlined,
+              size: 64,
+              color: isDark ? Colors.white24 : Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No subjects available',
+              style: TextStyle(
+                fontSize: 16,
+                color: isDark ? Colors.white60 : Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadClassData,
+      child: Column(
+        children: [
+          // Class Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF8800), Color(0xFFFF9E2A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF8800).withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.groups,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$className - Section $section',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${subjects.length} Subject${subjects.length != 1 ? 's' : ''}',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Subjects List
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: subjects.length,
+              itemBuilder: (context, index) {
+                final subject = subjects[index] as String;
+                final teacherData =
+                    subjectTeachers?[subject.toLowerCase()]
+                        as Map<String, dynamic>?;
+                final teacherName =
+                    teacherData?['teacherName'] as String? ?? 'Teacher';
+                final teacherId = teacherData?['teacherId'] as String? ?? '';
+
+                return _buildSubjectCard(
+                  context,
+                  subject,
+                  teacherName,
+                  teacherId,
+                  classId,
+                  isDark,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubjectCard(
+    BuildContext context,
+    String subject,
+    String teacherName,
+    String teacherId,
+    String classId,
+    bool isDark,
+  ) {
+    final icon = _getSubjectIcon(subject);
+    final color = _getSubjectColor(subject);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF222222) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => GroupChatPage(
+                  classId: classId,
+                  subjectId: subject.toLowerCase().replaceAll(' ', '_'),
+                  subjectName: subject,
+                  teacherName: teacherName,
+                  icon: icon,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Subject Icon
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [color, color.withOpacity(0.7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: Text(icon, style: const TextStyle(fontSize: 28)),
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                // Subject Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        subject,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.person,
+                            size: 14,
+                            color: isDark ? Colors.white54 : Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              teacherName,
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.white60
+                                    : Colors.grey[700],
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Arrow Icon
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 18,
+                  color: isDark ? Colors.white38 : Colors.grey[400],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getSubjectIcon(String subject) {
+    final s = subject.toLowerCase();
+    if (s.contains('math')) return '🔢';
+    if (s.contains('science')) return '🔬';
+    if (s.contains('social')) return '🌍';
+    if (s.contains('english')) return '📖';
+    if (s.contains('hindi')) return '📚';
+    if (s.contains('chem')) return '🧪';
+    if (s.contains('phy')) return '⚡';
+    if (s.contains('bio')) return '🧬';
+    if (s.contains('computer')) return '💻';
+    if (s.contains('history')) return '📜';
+    if (s.contains('physical') || s.contains('education')) return '⚽';
+    return '📕';
+  }
+
+  Color _getSubjectColor(String subject) {
+    final s = subject.toLowerCase();
+    if (s.contains('math')) return const Color(0xFF4A90E2);
+    if (s.contains('science')) return const Color(0xFF50C878);
+    if (s.contains('social')) return const Color(0xFFE67E22);
+    if (s.contains('english')) return const Color(0xFF9B59B6);
+    if (s.contains('hindi')) return const Color(0xFFE74C3C);
+    if (s.contains('computer')) return const Color(0xFF3498DB);
+    if (s.contains('physical') || s.contains('education'))
+      return const Color(0xFF2ECC71);
+    return const Color(0xFFFF8800);
+  }
+}

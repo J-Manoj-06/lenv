@@ -7,6 +7,7 @@ class TestResult {
   final int correctAnswers;
   final int wrongAnswers;
   final int timestamp;
+  final String status; // 'completed', 'assigned', 'started'
 
   TestResult({
     required this.testId,
@@ -17,7 +18,11 @@ class TestResult {
     required this.correctAnswers,
     required this.wrongAnswers,
     required this.timestamp,
+    this.status = 'completed',
   });
+
+  // Helper to check if test was actually attempted
+  bool get isAttempted => status == 'completed' || status == 'started';
 
   // Convert from Firestore document
   factory TestResult.fromFirestore(Map<String, dynamic> data, String testId) {
@@ -30,6 +35,7 @@ class TestResult {
       correctAnswers: data['correctAnswers'] ?? 0,
       wrongAnswers: data['wrongAnswers'] ?? 0,
       timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+      status: data['status'] ?? 'completed',
     );
   }
 
@@ -43,13 +49,14 @@ class TestResult {
       'correctAnswers': correctAnswers,
       'wrongAnswers': wrongAnswers,
       'timestamp': timestamp,
+      'status': status,
     };
   }
 
-  // Calculate percentage
+  // Calculate percentage based on correct answers
   double get percentage {
     if (totalQuestions == 0) return 0.0;
-    return (score / totalQuestions) * 100;
+    return (correctAnswers / totalQuestions) * 100;
   }
 
   // Get performance grade

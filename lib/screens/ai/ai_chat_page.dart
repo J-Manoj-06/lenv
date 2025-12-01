@@ -24,11 +24,14 @@ class _AiChatPageState extends State<AiChatPage> {
   final StudentProfileService _profileService = StudentProfileService();
   final List<ChatMessage> _messages = [];
   bool _isProcessing = false;
+  bool _insightsUsedToday = false;
+  bool _studyPlanUsedToday = false;
 
   @override
   void initState() {
     super.initState();
     _restoreChat();
+    _checkDailyUsage();
   }
 
   @override
@@ -98,6 +101,23 @@ class _AiChatPageState extends State<AiChatPage> {
   }
 
   Future<void> _handleInsightRequest() async {
+    // Check if already used today
+    if (_insightsUsedToday) {
+      setState(() {
+        _messages.add(
+          ChatMessage(
+            sender: 'ai',
+            text:
+                '⏰ You\'ve already used My Insights today. Come back tomorrow for fresh insights!',
+          ),
+        );
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+      return;
+    }
+
     try {
       // Get student ID from auth
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -121,19 +141,26 @@ class _AiChatPageState extends State<AiChatPage> {
       // Fetch recent test results
       final results = await _testService.getRecentTestResults(studentId);
 
-      // Generate insights
-      final insightText = await _insightsService.generateSmartInsights(results);
+      // Generate insights with performance data
+      final insightResult = await _insightsService.generateSmartInsights(
+        results,
+      );
 
       setState(() {
         _messages.add(
           ChatMessage(
             sender: 'ai',
-            text: insightText,
+            text: insightResult.text,
             messageType: MessageType.insight,
+            performanceData: insightResult.subjectAverages,
           ),
         );
         _isProcessing = false;
       });
+
+      // Mark as used today
+      await _markInsightUsed();
+
       _scrollToEnd();
       await _persistChat();
     } catch (e) {
@@ -149,6 +176,23 @@ class _AiChatPageState extends State<AiChatPage> {
   }
 
   Future<void> _handleStudyPlanRequest() async {
+    // Check if already used today
+    if (_studyPlanUsedToday) {
+      setState(() {
+        _messages.add(
+          ChatMessage(
+            sender: 'ai',
+            text:
+                '⏰ You\'ve already received a Study Plan today. Come back tomorrow for a new plan!',
+          ),
+        );
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+      return;
+    }
+
     try {
       // Get student ID from auth
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -189,6 +233,10 @@ class _AiChatPageState extends State<AiChatPage> {
         );
         _isProcessing = false;
       });
+
+      // Mark as used today
+      await _markStudyPlanUsed();
+
       _scrollToEnd();
       await _persistChat();
     } catch (e) {
@@ -201,6 +249,37 @@ class _AiChatPageState extends State<AiChatPage> {
       _scrollToEnd();
       await _persistChat();
     }
+  }
+
+  Future<void> _checkDailyUsage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().split('T')[0];
+
+    final lastInsightDate = prefs.getString('last_insight_date') ?? '';
+    final lastStudyPlanDate = prefs.getString('last_study_plan_date') ?? '';
+
+    setState(() {
+      _insightsUsedToday = lastInsightDate == today;
+      _studyPlanUsedToday = lastStudyPlanDate == today;
+    });
+  }
+
+  Future<void> _markInsightUsed() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    await prefs.setString('last_insight_date', today);
+    setState(() {
+      _insightsUsedToday = true;
+    });
+  }
+
+  Future<void> _markStudyPlanUsed() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    await prefs.setString('last_study_plan_date', today);
+    setState(() {
+      _studyPlanUsedToday = true;
+    });
   }
 
   Future<void> _handleRegularChat(String text) async {
@@ -479,13 +558,6 @@ class _AiChatPageState extends State<AiChatPage> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.quiz, color: Color(0xFFFF8A00)),
-            tooltip: 'Generate Quiz',
-            onPressed: _showGenerateQuizDialog,
-          ),
-        ],
       ),
       body: Stack(
         children: [
@@ -506,15 +578,22 @@ class _AiChatPageState extends State<AiChatPage> {
                     _ActionBubble(
                       label: 'My Insights',
                       icon: Icons.insights,
-                      onTap: () => _handleQuickAction(
-                        'Give me insights on my performance',
-                      ),
+                      isDisabled: _insightsUsedToday,
+                      onTap: _insightsUsedToday
+                          ? null
+                          : () => _handleQuickAction(
+                              'Give me insights on my performance',
+                            ),
                     ),
                     _ActionBubble(
                       label: 'Study Plan',
                       icon: Icons.calendar_today,
-                      onTap: () =>
-                          _handleQuickAction('Create a study plan for me'),
+                      isDisabled: _studyPlanUsedToday,
+                      onTap: _studyPlanUsedToday
+                          ? null
+                          : () => _handleQuickAction(
+                              'Create a study plan for me',
+                            ),
                     ),
                     _ActionBubble(
                       label: 'Explain Topic',
@@ -681,6 +760,7 @@ class ChatMessage {
   final String sender; // 'ai' or 'student'
   final String text;
   final Map<String, dynamic>? quiz;
+  final Map<String, dynamic>? performanceData;
   final DateTime timestamp;
   final MessageType messageType;
 
@@ -688,6 +768,7 @@ class ChatMessage {
     required this.sender,
     required this.text,
     this.quiz,
+    this.performanceData,
     DateTime? timestamp,
     this.messageType = MessageType.normal,
   }) : timestamp = timestamp ?? DateTime.now();
@@ -721,6 +802,7 @@ class ChatMessage {
       sender: sender,
       text: text,
       quiz: null,
+      performanceData: null,
       timestamp: DateTime.fromMillisecondsSinceEpoch(ts),
       messageType: type,
     );
@@ -737,7 +819,10 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     // Special rendering for insights and study plans
     if (message.messageType == MessageType.insight) {
-      return PerformanceInsightBubble(insightText: message.text);
+      return PerformanceInsightBubble(
+        insightText: message.text,
+        performanceData: message.performanceData,
+      );
     }
     if (message.messageType == MessageType.studyPlan) {
       return StudyPlanBubble(planText: message.text);
@@ -970,12 +1055,14 @@ class _QuizWidgetState extends State<_QuizWidget> {
 class _ActionBubble extends StatelessWidget {
   final String label;
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool isDisabled;
 
   const _ActionBubble({
     required this.label,
     required this.icon,
     required this.onTap,
+    this.isDisabled = false,
   });
 
   @override
@@ -983,25 +1070,42 @@ class _ActionBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: InkWell(
-        onTap: onTap,
+        onTap: isDisabled ? null : onTap,
         borderRadius: BorderRadius.circular(24),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFFF8A00).withOpacity(0.3)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: const Color(0xFFFF8A00), size: 18),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+        child: Opacity(
+          opacity: isDisabled ? 0.4 : 1.0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A2A),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: (isDisabled ? Colors.grey : const Color(0xFFFF8A00))
+                    .withOpacity(0.3),
               ),
-            ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  color: isDisabled ? Colors.grey : const Color(0xFFFF8A00),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: isDisabled ? Colors.grey : Colors.white,
+                    fontSize: 13,
+                  ),
+                ),
+                if (isDisabled) ...[
+                  const SizedBox(width: 4),
+                  const Icon(Icons.lock, color: Colors.grey, size: 14),
+                ],
+              ],
+            ),
           ),
         ),
       ),

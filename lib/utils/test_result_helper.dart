@@ -27,7 +27,7 @@ class TestCompletionHelper {
         totalQuestions: totalQuestions,
         correctAnswers: correctAnswers,
         wrongAnswers: wrongAnswers,
-        timestamp: DateTime.now(),
+        timestamp: DateTime.now().millisecondsSinceEpoch,
       );
 
       // Save to Firestore

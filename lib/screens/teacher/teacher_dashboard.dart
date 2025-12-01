@@ -338,26 +338,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       ],
                     ),
                   ),
-                  Stack(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.notifications_outlined),
-                        color: Theme.of(context).iconTheme.color,
-                        onPressed: () {},
-                      ),
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF6366F1),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    icon: const Icon(Icons.person_outline),
+                    color: Theme.of(context).iconTheme.color,
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/profile');
+                    },
                   ),
                 ],
               ),

@@ -260,24 +260,36 @@ class TeacherDashboardScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Stack(
+                  Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.notifications_outlined),
-                        color: Colors.grey[600],
-                        onPressed: () {},
+                        icon: const Icon(Icons.groups),
+                        color: const Color(0xFF6366F1),
+                        tooltip: 'Group Chats',
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/teacher-groups');
+                        },
                       ),
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF6366F1),
-                            shape: BoxShape.circle,
+                      Stack(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.notifications_outlined),
+                            color: Colors.grey[600],
+                            onPressed: () {},
                           ),
-                        ),
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF6366F1),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

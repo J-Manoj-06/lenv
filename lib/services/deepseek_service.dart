@@ -92,7 +92,7 @@ To answer this properly, I need an active API connection. Here's a general appro
           {'role': 'user', 'content': userMessage},
         ],
         'temperature': 0.7,
-        'max_tokens': 1000,
+        'max_tokens': 200,
         'stream': true,
       });
 

@@ -83,7 +83,7 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
                 indicatorWeight: 2,
                 tabs: const [
                   Tab(text: 'All'),
-                  Tab(text: 'Pending'),
+                  Tab(text: 'Upcoming'),
                   Tab(text: 'Completed'),
                 ],
               ),
@@ -95,7 +95,7 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
                       controller: _tabController,
                       children: [
                         _AllTestsTab(studentId: studentId),
-                        _PendingTab(studentId: studentId),
+                        _UpcomingTab(studentId: studentId),
                         _CompletedTab(studentId: studentId),
                       ],
                     ),
@@ -276,9 +276,9 @@ class _AllTestsTab extends StatelessWidget {
   }
 }
 
-class _PendingTab extends StatelessWidget {
+class _UpcomingTab extends StatelessWidget {
   final String studentId;
-  const _PendingTab({required this.studentId});
+  const _UpcomingTab({required this.studentId});
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +313,7 @@ class _PendingTab extends StatelessWidget {
           return !isCompleted; // keep only pending
         }).toList();
         if (assignedDocs.isEmpty) {
-          return const _EmptyState(message: 'No pending tests');
+          return const _EmptyState(message: 'No upcoming tests');
         }
 
         // Fetch test details
@@ -345,21 +345,25 @@ class _PendingTab extends StatelessWidget {
 
             final now = DateTime.now();
 
-            // Pending tests are those not expired (status is already 'assigned')
-            final pending = tests
-                .where((t) => now.isBefore(t.endDate))
+            // Upcoming tests: scheduled tests that haven't started yet OR live tests not yet attempted
+            // (status is already 'assigned' meaning not completed)
+            final upcoming = tests
+                .where((t) => now.isBefore(t.endDate)) // Not expired
                 .toList();
 
-            if (pending.isEmpty) {
-              return const _EmptyState(message: 'No pending tests');
+            // Sort by start date (upcoming first)
+            upcoming.sort((a, b) => a.startDate.compareTo(b.startDate));
+
+            if (upcoming.isEmpty) {
+              return const _EmptyState(message: 'No upcoming tests');
             }
 
             return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemBuilder: (ctx, i) =>
-                  _TestCard(item: _TestListItem.pending(test: pending[i])),
+                  _TestCard(item: _TestListItem.pending(test: upcoming[i])),
               separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemCount: pending.length,
+              itemCount: upcoming.length,
             );
           },
         );

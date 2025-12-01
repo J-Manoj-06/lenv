@@ -27,7 +27,9 @@ import '../screens/teacher/messages/messages_screen.dart';
 import '../screens/teacher/messages/chat_screen.dart';
 import '../screens/ai/ai_chat_page.dart';
 import '../screens/student/student_profile_screen.dart';
-import '../screens/learning/youtube_videos_screen.dart';
+import '../screens/student/student_groups_screen.dart';
+import '../screens/teacher/teacher_groups_screen.dart';
+import '../screens/teacher/profile_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -108,6 +110,9 @@ class AppRouter {
       case '/student-profile':
         return MaterialPageRoute(builder: (_) => const StudentProfileScreen());
 
+      case '/student-groups':
+        return MaterialPageRoute(builder: (_) => const StudentGroupsScreen());
+
       case '/teacher-dashboard':
         return MaterialPageRoute(
           builder: (_) => const TeacherMainNavigation(initialIndex: 0),
@@ -168,9 +173,7 @@ class AppRouter {
         );
 
       case '/profile':
-        return MaterialPageRoute(
-          builder: (_) => const TeacherMainNavigation(initialIndex: 4),
-        );
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
 
       case '/my-highlights':
         return MaterialPageRoute(builder: (_) => const MyHighlightsScreen());
@@ -224,8 +227,10 @@ class AppRouter {
       case '/ai-chat':
         return MaterialPageRoute(builder: (_) => const AiChatPage());
 
-      case '/youtube-videos':
-        return MaterialPageRoute(builder: (_) => const YouTubeVideosScreen());
+      case '/teacher-groups':
+        return MaterialPageRoute(builder: (_) => const TeacherGroupsScreen());
+
+      // YouTube feature removed
 
       // Add more routes here as screens are created
       default:

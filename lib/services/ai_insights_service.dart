@@ -1,66 +1,154 @@
 import '../models/test_result.dart';
 import 'deepseek_service.dart';
 
+class InsightResult {
+  final String text;
+  final Map<String, double> subjectAverages;
+
+  InsightResult({required this.text, required this.subjectAverages});
+}
+
 class AiInsightsService {
   final DeepSeekService _deepSeekService = DeepSeekService();
 
   // Generate smart insights based on test results using DeepSeek AI
-  Future<String> generateSmartInsights(List<TestResult> results) async {
+  Future<InsightResult> generateSmartInsights(List<TestResult> results) async {
     if (results.isEmpty) {
-      return "No test data available yet. Take some tests to see your performance insights!";
+      return InsightResult(
+        text:
+            "No test data available yet. Take some tests to see your performance insights!",
+        subjectAverages: {},
+      );
     }
 
-    if (results.length == 1) {
-      final test = results.first;
-      return "You scored ${test.percentage.toStringAsFixed(1)}% in ${test.subject}. Keep taking tests to track your progress!";
+    // Separate attempted vs not attempted tests
+    final attemptedTests = results.where((test) => test.isAttempted).toList();
+    final notAttemptedTests = results
+        .where((test) => !test.isAttempted)
+        .toList();
+
+    print('🎯 [AI Insights] Total tests: ${results.length}');
+    print('✅ Attempted: ${attemptedTests.length}');
+    print('❌ Not attempted: ${notAttemptedTests.length}');
+    for (var test in results) {
+      print(
+        '   - ${test.subject}: status=${test.status}, isAttempted=${test.isAttempted}',
+      );
     }
 
-    // Prepare data for AI analysis
+    if (attemptedTests.isEmpty) {
+      return InsightResult(
+        text:
+            "You have ${notAttemptedTests.length} assigned test(s) that you haven't attempted yet. Start taking tests to track your performance!",
+        subjectAverages: {},
+      );
+    }
+
+    if (attemptedTests.length == 1 && notAttemptedTests.isEmpty) {
+      final test = attemptedTests.first;
+      return InsightResult(
+        text:
+            "You scored ${test.percentage.toStringAsFixed(1)}% in ${test.subject}. Keep taking tests to track your progress!",
+        subjectAverages: {test.subject: test.percentage},
+      );
+    }
+
+    // Prepare data for AI analysis - only attempted tests
     final Map<String, List<double>> subjectScores = {};
     final Map<String, List<String>> subjectGrades = {};
+    final Map<String, List<bool>> subjectAttemptStatus = {};
 
+    // Process ALL results (attempted + not attempted) to track patterns
     for (var test in results) {
       if (!subjectScores.containsKey(test.subject)) {
         subjectScores[test.subject] = [];
         subjectGrades[test.subject] = [];
+        subjectAttemptStatus[test.subject] = [];
       }
-      subjectScores[test.subject]!.add(test.percentage);
-      subjectGrades[test.subject]!.add(test.grade);
+
+      if (test.isAttempted) {
+        // Cap percentages at 100% to handle data errors
+        final cappedPercentage = test.percentage.clamp(0.0, 100.0);
+        subjectScores[test.subject]!.add(cappedPercentage);
+        subjectGrades[test.subject]!.add(test.grade);
+        subjectAttemptStatus[test.subject]!.add(true);
+      } else {
+        // Mark as not attempted
+        subjectAttemptStatus[test.subject]!.add(false);
+      }
     }
 
-    // Build context for DeepSeek
-    String context =
-        "Analyze this student's performance data and provide 2-3 sentence insights:\n\n";
+    // Calculate subject averages (only from attempted tests)
+    final Map<String, double> subjectAverages = {};
+    subjectScores.forEach((subject, scores) {
+      if (scores.isNotEmpty) {
+        subjectAverages[subject] =
+            scores.reduce((a, b) => a + b) / scores.length;
+      }
+    });
+
+    // Build concise context for DeepSeek
+    String context = "Student performance (last ${results.length} tests):\n";
 
     subjectScores.forEach((subject, scores) {
-      final avg = scores.reduce((a, b) => a + b) / scores.length;
-      final latest = scores.first;
-      final grades = subjectGrades[subject]!.join(', ');
-      context +=
-          "$subject: Average ${avg.toStringAsFixed(1)}%, Latest ${latest.toStringAsFixed(1)}%, Grades: $grades\n";
+      if (scores.isNotEmpty) {
+        final avg = scores.reduce((a, b) => a + b) / scores.length;
+        final latest = scores.first;
+        final totalTests = subjectAttemptStatus[subject]!.length;
+        final attemptedCount = subjectAttemptStatus[subject]!
+            .where((x) => x)
+            .length;
+        final notAttemptedCount = totalTests - attemptedCount;
+
+        context +=
+            "$subject: Avg ${avg.toStringAsFixed(0)}%, Latest ${latest.toStringAsFixed(0)}%";
+        if (notAttemptedCount > 0) {
+          context += " ($notAttemptedCount skipped)";
+        }
+        context += "\n";
+      }
+    });
+
+    // Add non-attempted subjects
+    subjectAttemptStatus.forEach((subject, statuses) {
+      if (statuses.every((x) => !x)) {
+        context += "$subject: Not attempted\n";
+      }
     });
 
     context +=
-        "\nProvide actionable insights about strengths, weaknesses, and improvement trends.";
+        "\nGive 2 short sentences: strengths/weaknesses and if attendance is an issue.";
 
     try {
       // Use DeepSeek to generate insights
       final aiInsight = await _deepSeekService.chat(context);
-      return aiInsight.trim();
+      return InsightResult(
+        text: aiInsight.trim(),
+        subjectAverages: subjectAverages,
+      );
     } catch (e) {
       // Fallback to basic insights if API fails
-      return _generateBasicInsights(subjectScores);
+      return InsightResult(
+        text: _generateBasicInsights(subjectScores, subjectAttemptStatus),
+        subjectAverages: subjectAverages,
+      );
     }
   }
 
   // Fallback method for basic insights
-  String _generateBasicInsights(Map<String, List<double>> subjectScores) {
+  String _generateBasicInsights(
+    Map<String, List<double>> subjectScores,
+    Map<String, List<bool>> subjectAttemptStatus,
+  ) {
     String? bestSubject;
     double bestAvg = 0;
     String? worstSubject;
     double worstAvg = 100;
+    List<String> notAttemptedSubjects = [];
 
     subjectScores.forEach((subject, scores) {
+      if (scores.isEmpty) return;
+
       final avg = scores.reduce((a, b) => a + b) / scores.length;
       if (avg > bestAvg) {
         bestAvg = avg;
@@ -70,18 +158,48 @@ class AiInsightsService {
         worstAvg = avg;
         worstSubject = subject;
       }
+
+      // Check for not attempted tests
+      final totalTests = subjectAttemptStatus[subject]!.length;
+      final attemptedCount = subjectAttemptStatus[subject]!
+          .where((x) => x)
+          .length;
+      if (attemptedCount < totalTests) {
+        notAttemptedSubjects.add(subject);
+      }
     });
+
+    // Check for completely not attempted subjects
+    subjectAttemptStatus.forEach((subject, statuses) {
+      if (statuses.every((x) => !x)) {
+        notAttemptedSubjects.add(subject);
+      }
+    });
+
+    String insight = "";
+
+    if (subjectScores.isEmpty || subjectScores.values.every((s) => s.isEmpty)) {
+      insight =
+          "You have not attempted any tests yet. Start taking tests to see your performance!";
+      return insight;
+    }
 
     final allScores = subjectScores.values.expand((s) => s).toList();
     final overallAvg = allScores.reduce((a, b) => a + b) / allScores.length;
 
-    String insight = "Overall average: ${overallAvg.toStringAsFixed(1)}%.";
+    insight = "Overall average: ${overallAvg.toStringAsFixed(1)}%. ";
+
     if (bestSubject != null) {
-      insight += " Strongest in $bestSubject (${bestAvg.toStringAsFixed(1)}%).";
+      insight += "Strongest in $bestSubject (${bestAvg.toStringAsFixed(1)}%). ";
     }
     if (worstSubject != null && worstSubject != bestSubject) {
       insight +=
-          " $worstSubject needs focus (${worstAvg.toStringAsFixed(1)}%).";
+          "$worstSubject needs focus (${worstAvg.toStringAsFixed(1)}%). ";
+    }
+
+    if (notAttemptedSubjects.isNotEmpty) {
+      insight +=
+          "⚠️ Not attempted: ${notAttemptedSubjects.join(', ')}. Complete all assigned tests!";
     }
 
     return insight;

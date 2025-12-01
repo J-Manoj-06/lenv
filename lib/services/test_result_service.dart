@@ -36,7 +36,7 @@ class TestResultService {
       final results = snapshot.docs.map((doc) {
         final data = doc.data();
         print(
-          '   Test: ${data['testTitle']} - Score: ${data['score']}/${data['totalQuestions']}',
+          '   Test: ${data['testTitle']} - Score: ${data['score']}/${data['totalQuestions']}, Status: ${data['status'] ?? 'completed'}',
         );
         // Normalize numeric fields from Firestore (which may be int or double)
         final total = (data['totalQuestions'] is num)
@@ -63,6 +63,7 @@ class TestResultService {
             if (ts is num) return ts.toInt();
             return DateTime.now().millisecondsSinceEpoch;
           })(),
+          status: (data['status'] ?? 'completed').toString(),
         );
       }).toList();
 
@@ -113,6 +114,7 @@ class TestResultService {
             if (ts is num) return ts.toInt();
             return DateTime.now().millisecondsSinceEpoch;
           })(),
+          status: (data['status'] ?? 'completed').toString(),
         );
       }).toList();
 
@@ -158,6 +160,7 @@ class TestResultService {
             if (ts is num) return ts.toInt();
             return DateTime.now().millisecondsSinceEpoch;
           })(),
+          status: (data['status'] ?? 'completed').toString(),
         );
       }).toList();
 
@@ -226,6 +229,7 @@ class TestResultService {
             if (ts is num) return ts.toInt();
             return DateTime.now().millisecondsSinceEpoch;
           })(),
+          status: (data['status'] ?? 'completed').toString(),
         );
       }).toList();
 

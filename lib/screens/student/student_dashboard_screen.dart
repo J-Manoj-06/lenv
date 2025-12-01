@@ -163,6 +163,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               ],
             ),
           ),
+          // Removed Groups Button (student-groups navigation)
+          const SizedBox(width: 0),
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/student-profile'),
             child: Container(
@@ -254,16 +256,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               end: Alignment.centerRight,
               colors: [Color(0xFFFF8A00), Color(0xFFFF9E2E)],
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -274,32 +276,32 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     'Current Points',
                     style: const TextStyle(
                       color: Colors.white70,
-                      fontSize: 13,
+                      fontSize: 11,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     '--',
                     style: const TextStyle(
-                      fontSize: 40,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                       height: 1.0,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     'Rank: --',
                     style: const TextStyle(
                       color: Colors.white70,
-                      fontSize: 13,
+                      fontSize: 11,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
                 ],
               ),
-              const Icon(Icons.military_tech, size: 70, color: Colors.white54),
+              const Icon(Icons.military_tech, size: 50, color: Colors.white54),
             ],
           ),
         ),
@@ -349,18 +351,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     end: Alignment.centerRight,
                     colors: [Color(0xFFFF8A00), Color(0xFFFF9E2E)],
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 20,
+                  horizontal: 16,
+                  vertical: 14,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -372,26 +374,26 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                           'Current Points',
                           style: TextStyle(
                             color: Colors.white70,
-                            fontSize: 13,
+                            fontSize: 11,
                             fontWeight: FontWeight.w400,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         Text(
                           '$rewardPoints',
                           style: const TextStyle(
-                            fontSize: 40,
+                            fontSize: 28,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                             height: 1.0,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         Text(
                           rank > 0 ? 'Rank: #$rank' : 'Rank: --',
                           style: const TextStyle(
                             color: Colors.white70,
-                            fontSize: 13,
+                            fontSize: 11,
                             fontWeight: FontWeight.w400,
                           ),
                         ),
@@ -399,7 +401,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     ),
                     const Icon(
                       Icons.military_tech,
-                      size: 70,
+                      size: 50,
                       color: Colors.white54,
                     ),
                   ],
