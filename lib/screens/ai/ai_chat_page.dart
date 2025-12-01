@@ -6,7 +6,7 @@ import '../../services/ai_insights_service.dart';
 import '../../services/test_result_service.dart';
 import '../../services/student_profile_service.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/ai_insight_widgets.dart';
+// Removed insight widgets import since chat bubbles are no longer used.
 
 class AiChatPage extends StatefulWidget {
   const AiChatPage({super.key});
@@ -16,7 +16,6 @@ class AiChatPage extends StatefulWidget {
 }
 
 class _AiChatPageState extends State<AiChatPage> {
-  final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final DeepSeekService _aiService = DeepSeekService();
   final AiInsightsService _insightsService = AiInsightsService();
@@ -36,7 +35,6 @@ class _AiChatPageState extends State<AiChatPage> {
 
   @override
   void dispose() {
-    _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -53,52 +51,7 @@ class _AiChatPageState extends State<AiChatPage> {
     });
   }
 
-  Future<void> _handleSend() async {
-    final text = _controller.text.trim();
-    if (text.isEmpty) return;
-
-    _controller.clear();
-
-    // Detect insight or study plan requests
-    final textLower = text.toLowerCase();
-    final isInsightRequest =
-        textLower.contains('insight') ||
-        textLower.contains('analyse my performance') ||
-        textLower.contains('analyze my performance') ||
-        textLower.contains('how am i doing') ||
-        textLower.contains('my performance');
-    final isStudyPlanRequest =
-        textLower.contains('study plan') ||
-        textLower.contains('what should i study') ||
-        textLower.contains('what to study') ||
-        textLower.contains('study schedule');
-
-    setState(() {
-      _messages.add(ChatMessage(sender: 'student', text: text));
-      _isProcessing = true;
-    });
-    _scrollToEnd();
-    await _persistChat();
-
-    try {
-      if (isInsightRequest) {
-        await _handleInsightRequest();
-      } else if (isStudyPlanRequest) {
-        await _handleStudyPlanRequest();
-      } else {
-        await _handleRegularChat(text);
-      }
-    } catch (e) {
-      setState(() {
-        _messages.add(
-          ChatMessage(sender: 'ai', text: 'Sorry, I encountered an error: $e'),
-        );
-        _isProcessing = false;
-      });
-      _scrollToEnd();
-      await _persistChat();
-    }
-  }
+  // Chat composer removed to reduce token usage; actions are card-based only.
 
   Future<void> _handleInsightRequest() async {
     // Check if already used today
@@ -251,6 +204,162 @@ class _AiChatPageState extends State<AiChatPage> {
     }
   }
 
+  Future<void> _handleMotivationQuotes() async {
+    try {
+      setState(() => _isProcessing = true);
+      // Temporary fallback until service method is added.
+      // Replace with service or Firestore-backed fetch when available.
+      final items = <String>[
+        'Believe in yourself; you are stronger than you think.',
+        'Small steps every day lead to big results.',
+        'Mistakes are proof that you are trying.',
+        'Discipline beats motivation. Show up and do the work.',
+        'Learning is a journey—enjoy the process.',
+      ];
+      final text = items.isEmpty
+          ? 'No quotes available right now.'
+          : items.join('\n\n');
+      setState(() {
+        _messages.add(ChatMessage(sender: 'ai', text: text));
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+    } catch (e) {
+      setState(() {
+        _messages.add(
+          ChatMessage(sender: 'ai', text: 'Failed to load quotes: $e'),
+        );
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+    }
+  }
+
+  Future<void> _handleDailyFact() async {
+    try {
+      setState(() => _isProcessing = true);
+      // Educational facts - can be fetched from Firestore or API
+      final facts = <String>[
+        '🧠 The human brain has approximately 86 billion neurons.',
+        '🌍 The Earth\'s core is as hot as the surface of the Sun.',
+        '📚 Reading for just 6 minutes can reduce stress levels by 68%.',
+        '🔬 Honey never spoils. Archaeologists have found 3000-year-old honey that\'s still edible.',
+        '⚡ Lightning strikes the Earth about 100 times every second.',
+        '🌊 The Pacific Ocean is larger than all of Earth\'s land area combined.',
+      ];
+      final randomFact = (facts..shuffle()).first;
+      setState(() {
+        _messages.add(ChatMessage(sender: 'ai', text: randomFact));
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+    } catch (e) {
+      setState(() {
+        _messages.add(
+          ChatMessage(sender: 'ai', text: 'Failed to load daily fact: $e'),
+        );
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+    }
+  }
+
+  Future<void> _handleTodayInHistory() async {
+    try {
+      setState(() => _isProcessing = true);
+      final today = DateTime.now();
+      final monthDay = '${today.month}/${today.day}';
+
+      // Historical events - can be expanded or fetched from API
+      final events = <String, String>{
+        '12/2':
+            '📅 December 2, 1804: Napoleon Bonaparte crowned himself Emperor of France in a lavish ceremony at Notre-Dame Cathedral.',
+        '1/1':
+            '📅 January 1, 1863: The Emancipation Proclamation was issued by President Abraham Lincoln.',
+        '7/4':
+            '📅 July 4, 1776: The Declaration of Independence was adopted by the Continental Congress.',
+        '10/12':
+            '📅 October 12, 1492: Christopher Columbus reached the Americas.',
+      };
+
+      final event =
+          events[monthDay] ??
+          '📅 On this day in history: Many significant events occurred throughout the ages. Check back tomorrow for another historical fact!';
+
+      setState(() {
+        _messages.add(ChatMessage(sender: 'ai', text: event));
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+    } catch (e) {
+      setState(() {
+        _messages.add(
+          ChatMessage(sender: 'ai', text: 'Failed to load history: $e'),
+        );
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+    }
+  }
+
+  Future<void> _handleStudyTimeManager() async {
+    try {
+      setState(() => _isProcessing = true);
+
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toIso8601String().split('T')[0];
+      final lastStudyDate = prefs.getString('last_study_date') ?? '';
+      final studyMinutes = prefs.getInt('study_minutes_today') ?? 0;
+
+      String message;
+      if (lastStudyDate == today) {
+        final hours = studyMinutes ~/ 60;
+        final mins = studyMinutes % 60;
+        message = '⏱️ **Study Time Manager**\n\n';
+        message += 'Today\'s Progress: ${hours}h ${mins}m\n\n';
+        message += '📊 Keep going! Consistent study leads to success.\n\n';
+        message += 'Recommended daily goal: 2-3 hours\n';
+        if (studyMinutes < 120) {
+          message +=
+              '💪 You\'re ${120 - studyMinutes} minutes away from your goal!';
+        } else {
+          message += '🎉 Great job! You\'ve met your daily goal!';
+        }
+      } else {
+        message = '⏱️ **Study Time Manager**\n\n';
+        message += 'Start tracking your study time today!\n\n';
+        message += '📚 Tips for effective studying:\n';
+        message += '• Use Pomodoro: 25 min study, 5 min break\n';
+        message += '• Eliminate distractions\n';
+        message += '• Take notes actively\n';
+        message += '• Review regularly\n\n';
+        message += 'Recommended: 2-3 hours daily';
+      }
+
+      setState(() {
+        _messages.add(ChatMessage(sender: 'ai', text: message));
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+    } catch (e) {
+      setState(() {
+        _messages.add(
+          ChatMessage(sender: 'ai', text: 'Failed to load study manager: $e'),
+        );
+        _isProcessing = false;
+      });
+      _scrollToEnd();
+      await _persistChat();
+    }
+  }
+
   Future<void> _checkDailyUsage() async {
     final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now().toIso8601String().split('T')[0];
@@ -282,95 +391,9 @@ class _AiChatPageState extends State<AiChatPage> {
     });
   }
 
-  Future<void> _handleRegularChat(String text) async {
-    setState(() {
-      _messages.add(ChatMessage(sender: 'ai', text: ''));
-    });
-    _scrollToEnd();
+  // Free-form chat handler removed; page uses card-based actions only.
 
-    final aiIndex = _messages.length - 1;
-    await _aiService.chatStream(text, (delta) {
-      setState(() {
-        final current = _messages[aiIndex].text;
-        _messages[aiIndex] = ChatMessage(sender: 'ai', text: current + delta);
-      });
-      _scrollToEnd();
-      _persistChat();
-    });
-    setState(() {
-      _isProcessing = false;
-    });
-    await _persistChat();
-  }
-
-  Future<void> _showExplainTopicDialog() async {
-    final topicController = TextEditingController();
-
-    final topic = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Explain Topic',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: topicController,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Enter topic (e.g., Photosynthesis)',
-                hintStyle: const TextStyle(color: Colors.white54),
-                filled: true,
-                fillColor: const Color(0xFF1A1A1A),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              onSubmitted: (value) {
-                if (value.trim().isNotEmpty) {
-                  Navigator.pop(context, value.trim());
-                }
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white54),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (topicController.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please enter a topic')),
-                );
-                return;
-              }
-              Navigator.pop(context, topicController.text.trim());
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF8A00),
-            ),
-            child: const Text('Explain', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (topic != null && topic.isNotEmpty) {
-      _handleQuickAction('Explain $topic in simple terms with examples');
-    }
-  }
+  // Removed unused _showExplainTopicDialog to satisfy lint.
 
   Future<void> _showGenerateQuizDialog() async {
     final topicController = TextEditingController();
@@ -539,85 +562,20 @@ class _AiChatPageState extends State<AiChatPage> {
               ),
             ),
             const SizedBox(width: 12),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'AI Tutor',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Ask anything, learn smarter',
-                  style: TextStyle(color: Colors.white70, fontSize: 11),
-                ),
-              ],
+            const Text(
+              'Personal Assistant',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
       ),
       body: Stack(
         children: [
-          Column(
-            children: [
-              Container(
-                height: 64,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  children: [
-                    _ActionBubble(
-                      label: 'Generate Quiz',
-                      icon: Icons.quiz,
-                      onTap: _showGenerateQuizDialog,
-                    ),
-                    _ActionBubble(
-                      label: 'My Insights',
-                      icon: Icons.insights,
-                      isDisabled: _insightsUsedToday,
-                      onTap: _insightsUsedToday
-                          ? null
-                          : () => _handleQuickAction(
-                              'Give me insights on my performance',
-                            ),
-                    ),
-                    _ActionBubble(
-                      label: 'Study Plan',
-                      icon: Icons.calendar_today,
-                      isDisabled: _studyPlanUsedToday,
-                      onTap: _studyPlanUsedToday
-                          ? null
-                          : () => _handleQuickAction(
-                              'Create a study plan for me',
-                            ),
-                    ),
-                    _ActionBubble(
-                      label: 'Explain Topic',
-                      icon: Icons.lightbulb,
-                      onTap: _showExplainTopicDialog,
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _messages.length,
-                  itemBuilder: (context, i) {
-                    final msg = _messages[i];
-                    final isAi = msg.sender == 'ai';
-                    return _MessageBubble(message: msg, isAi: isAi);
-                  },
-                ),
-              ),
-              _buildComposer(),
-            ],
-          ),
+          SingleChildScrollView(child: _buildActionCards()),
           if (_isProcessing)
             Positioned.fill(
               child: Container(
@@ -639,102 +597,93 @@ class _AiChatPageState extends State<AiChatPage> {
     );
   }
 
-  Widget _buildComposer() {
-    return Container(
+  Widget _buildActionCards() {
+    // Large initial cards grid
+    return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A).withOpacity(0.95),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: Row(
+      child: GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.6,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Ask me anything...',
-                hintStyle: const TextStyle(color: Colors.white54),
-                filled: true,
-                fillColor: const Color(0xFF2A2A2A),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: const BorderSide(
-                    color: Color(0xFFFF8A00),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-              onSubmitted: (_) => _handleSend(),
-            ),
+          _ActionCard(
+            title: 'Generate Quiz',
+            icon: Icons.quiz,
+            color: const Color(0xFFFF8A00),
+            onTap: _showGenerateQuizDialog,
           ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _handleSend,
-              style: ElevatedButton.styleFrom(
-                shape: const CircleBorder(),
-                backgroundColor: const Color(0xFFFF8A00),
-                padding: EdgeInsets.zero,
-                elevation: 4,
-              ),
-              child: const Icon(Icons.send, color: Colors.white, size: 20),
-            ),
+          _ActionCard(
+            title: 'My Insights',
+            icon: Icons.insights,
+            color: Colors.blueAccent,
+            disabled: _insightsUsedToday,
+            onTap: _insightsUsedToday ? null : _handleInsightRequest,
+          ),
+          _ActionCard(
+            title: 'Study Plan',
+            icon: Icons.calendar_today,
+            color: Colors.green,
+            disabled: _studyPlanUsedToday,
+            onTap: _studyPlanUsedToday ? null : _handleStudyPlanRequest,
+          ),
+          _ActionCard(
+            title: 'Motivation Quotes',
+            icon: Icons.format_quote,
+            color: Colors.purpleAccent,
+            onTap: _handleMotivationQuotes,
+          ),
+          _ActionCard(
+            title: 'Daily Fact',
+            icon: Icons.lightbulb_outline,
+            color: Colors.amber,
+            onTap: _handleDailyFact,
+          ),
+          _ActionCard(
+            title: 'Today in History',
+            icon: Icons.history_edu,
+            color: Colors.deepOrange,
+            onTap: _handleTodayInHistory,
+          ),
+          _ActionCard(
+            title: 'Study Time Manager',
+            icon: Icons.timer,
+            color: Colors.cyan,
+            onTap: _handleStudyTimeManager,
+          ),
+          _ActionCard(
+            title: 'Games',
+            icon: Icons.videogame_asset,
+            color: Colors.teal,
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Games coming soon')),
+              );
+            },
           ),
         ],
       ),
     );
   }
 
+  // Mini actions row removed along with chat list to simplify UI.
+
   Future<void> _restoreChat() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final list = prefs.getStringList('ai_chat_messages') ?? [];
+      // Do not restore or prefill greeting messages; keep UI clean.
       if (list.isNotEmpty) {
         setState(() {
           _messages
             ..clear()
             ..addAll(list.map(ChatMessage.fromStorage));
         });
-      } else {
-        setState(() {
-          _messages.addAll([
-            ChatMessage(sender: 'ai', text: 'Hi! I\'m your AI Tutor'),
-            ChatMessage(
-              sender: 'ai',
-              text: 'Ask anything or tap the quiz icon to generate a test!',
-            ),
-          ]);
-        });
       }
     } catch (_) {
-      setState(() {
-        if (_messages.isEmpty) {
-          _messages.addAll([
-            ChatMessage(sender: 'ai', text: 'Hi! I\'m your AI Tutor'),
-            ChatMessage(
-              sender: 'ai',
-              text: 'Ask anything or tap the quiz icon to generate a test!',
-            ),
-          ]);
-        }
-      });
+      // Ignore errors and show only action cards.
     }
   }
 
@@ -748,10 +697,7 @@ class _AiChatPageState extends State<AiChatPage> {
     } catch (_) {}
   }
 
-  Future<void> _handleQuickAction(String prompt) async {
-    _controller.text = prompt;
-    await _handleSend();
-  }
+  // Quick actions now directly call their handlers; free-form prompt removed.
 }
 
 enum MessageType { normal, insight, studyPlan, quiz }
@@ -809,100 +755,7 @@ class ChatMessage {
   }
 }
 
-class _MessageBubble extends StatelessWidget {
-  final ChatMessage message;
-  final bool isAi;
-
-  const _MessageBubble({required this.message, required this.isAi});
-
-  @override
-  Widget build(BuildContext context) {
-    // Special rendering for insights and study plans
-    if (message.messageType == MessageType.insight) {
-      return PerformanceInsightBubble(
-        insightText: message.text,
-        performanceData: message.performanceData,
-      );
-    }
-    if (message.messageType == MessageType.studyPlan) {
-      return StudyPlanBubble(planText: message.text);
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: isAi
-            ? MainAxisAlignment.start
-            : MainAxisAlignment.end,
-        children: [
-          if (isAi) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFF8A00).withOpacity(0.3),
-                    blurRadius: 8,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: const CircleAvatar(
-                backgroundImage: NetworkImage(
-                  'https://lh3.googleusercontent.com/aida-public/AB6AXuD9pcmKfLiLClQbyKb3SfQZxBfLbG-l-xIAA2PojWyI7etev013XuM8mefxbHJdxeQ-seaLFLotA1QIrMyuczKAKWczBgQGodvaU203eB8YOUs-5nIiiyl_dnP6_Fcj_HST4YWOdOf7H9E81q_pmTf6CrCF7Wy6dWhSol47cA2a6_tHcJb7jVdxWrJiGHEopC_Dxfn0wFRYND5Qa2yDXcObiunmBwBlmQ5oBuJCO7Zv-QNxiDztbxGEoTwFEGfYXwJu_WCYl7Rq3m0',
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 500),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: isAi
-                      ? const Radius.circular(4)
-                      : const Radius.circular(16),
-                  bottomRight: isAi
-                      ? const Radius.circular(16)
-                      : const Radius.circular(4),
-                ),
-                border: Border.all(
-                  color: const Color(0xFFFF8A00).withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message.text,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      height: 1.4,
-                    ),
-                  ),
-                  if (message.quiz != null) ...[
-                    const SizedBox(height: 12),
-                    _QuizWidget(quizData: message.quiz!),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// Message bubble removed with chat list.
 
 class _QuizWidget extends StatefulWidget {
   final Map<String, dynamic> quizData;
@@ -1052,61 +905,70 @@ class _QuizWidgetState extends State<_QuizWidget> {
   }
 }
 
-class _ActionBubble extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback? onTap;
-  final bool isDisabled;
+// Removed ActionBubble since mini actions were removed.
 
-  const _ActionBubble({
-    required this.label,
+class _ActionCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+  final bool disabled;
+
+  const _ActionCard({
+    required this.title,
     required this.icon,
-    required this.onTap,
-    this.isDisabled = false,
+    required this.color,
+    this.onTap,
+    this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: InkWell(
-        onTap: isDisabled ? null : onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Opacity(
-          opacity: isDisabled ? 0.4 : 1.0,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A2A2A),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: (isDisabled ? Colors.grey : const Color(0xFFFF8A00))
-                    .withOpacity(0.3),
+    return InkWell(
+      onTap: disabled ? null : onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.35)),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  color: isDisabled ? Colors.grey : const Color(0xFFFF8A00),
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: isDisabled ? Colors.grey : Colors.white,
-                    fontSize: 13,
+            if (disabled)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    'Today used',
+                    style: TextStyle(color: Colors.grey, fontSize: 10),
                   ),
                 ),
-                if (isDisabled) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.lock, color: Colors.grey, size: 14),
-                ],
-              ],
-            ),
-          ),
+              ),
+          ],
         ),
       ),
     );
