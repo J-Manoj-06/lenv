@@ -6,6 +6,7 @@ import '../../services/ai_insights_service.dart';
 import '../../services/test_result_service.dart';
 import '../../services/student_profile_service.dart';
 import '../../providers/auth_provider.dart';
+import '../games/brain_games_menu_screen.dart';
 // Removed insight widgets import since chat bubbles are no longer used.
 
 class AiChatPage extends StatefulWidget {
@@ -658,8 +659,11 @@ class _AiChatPageState extends State<AiChatPage> {
             icon: Icons.videogame_asset,
             color: Colors.teal,
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Games coming soon')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BrainGamesMenuScreen(),
+                ),
               );
             },
           ),
