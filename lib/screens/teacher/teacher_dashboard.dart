@@ -313,22 +313,30 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.menu,
-                        color: Theme.of(context).iconTheme.color,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Hello, ${_teacherData?['teacherName'] ?? currentUser?.name ?? 'Teacher'}',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.menu,
+                          color: Theme.of(context).iconTheme.color,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Hello, ${_teacherData?['teacherName'] ?? currentUser?.name ?? 'Teacher'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(
+                                context,
+                              ).textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Stack(
                     children: [
@@ -361,6 +369,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 ),
                 child: DropdownButtonFormField<String>(
                   initialValue: selectedClass,
+                  isExpanded: true,
                   dropdownColor: Theme.of(context).cardColor,
                   decoration: const InputDecoration(
                     border: InputBorder.none,

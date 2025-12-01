@@ -4,7 +4,7 @@ import '../screens/student/student_dashboard_screen.dart';
 import '../screens/student/student_tests_screen.dart';
 import '../screens/student/student_rewards_screen.dart';
 import '../screens/student/student_leaderboard_screen.dart';
-import '../screens/student/student_profile_screen.dart';
+import '../screens/student/student_messages_screen.dart';
 
 /// Student Main Navigation Wrapper
 /// Uses IndexedStack to preserve state when switching tabs
@@ -40,9 +40,9 @@ class _StudentMainNavigationState extends State<StudentMainNavigation> {
         _screens.addAll([
           const StudentDashboardScreen(),
           const StudentTestsScreen(),
+          const StudentMessagesScreen(),
           const StudentRewardsScreen(),
           const StudentLeaderboardScreen(),
-          const StudentProfileScreen(),
         ]);
       }
     }
@@ -91,20 +91,20 @@ class _StudentMainNavigationState extends State<StudentMainNavigation> {
                   onTap: () => _onTap(1),
                 ),
                 _NavItem(
-                  icon: Icons.workspace_premium_outlined,
-                  label: 'Rewards',
+                  icon: Icons.chat_bubble_outline,
+                  label: 'Message',
                   isSelected: _currentIndex == 2,
                   onTap: () => _onTap(2),
                 ),
                 _NavItem(
-                  icon: Icons.leaderboard,
-                  label: 'Leaderboard',
+                  icon: Icons.workspace_premium_outlined,
+                  label: 'Rewards',
                   isSelected: _currentIndex == 3,
                   onTap: () => _onTap(3),
                 ),
                 _NavItem(
-                  icon: Icons.person_outline,
-                  label: 'Profile',
+                  icon: Icons.leaderboard,
+                  label: 'Leaderboard',
                   isSelected: _currentIndex == 4,
                   onTap: () => _onTap(4),
                 ),

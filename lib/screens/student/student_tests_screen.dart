@@ -7,7 +7,6 @@ import '../../models/test_model.dart';
 import '../../models/test_result_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
-import '../../services/firestore_service.dart';
 import 'test_rules_screen.dart';
 
 class StudentTestsScreen extends StatefulWidget {
@@ -56,10 +55,7 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             _Header(),
-
-            // Tabs
             Container(
               decoration: BoxDecoration(
                 border: Border(
@@ -92,7 +88,6 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
                 ],
               ),
             ),
-
             Expanded(
               child: studentId == null
                   ? const Center(child: Text('Please login as a student.'))
@@ -121,7 +116,6 @@ class _Header extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Removed back button - use bottom navigation instead
           Text(
             'Assigned Tests',
             textAlign: TextAlign.center,
@@ -141,15 +135,7 @@ class _AllTestsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final firestore = FirestoreService();
-
-    print('🔍 Building _AllTestsTab for student: $studentId');
-
-    // Query assigned tests from student's own testResults collection
-    // Unified stream: fetch all testResult documents for this student with statuses that could be active.
-    // We classify locally as pending vs completed so that if the website forgot to update 'status' to 'completed'
-    // but did set score/submittedAt, we still treat it as completed.
-    // Include 'submitted' status for website compatibility.
+    // Unified query: get all student assignments, then fetch test details and classify locally.
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('testResults')
@@ -164,175 +150,59 @@ class _AllTestsTab extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        print('🎓 Student Tests Query for $studentId:');
-        print('   Connection state: ${assignedSnap.connectionState}');
-        print('   Has error: ${assignedSnap.hasError}');
-        if (assignedSnap.hasError) {
-          print('   Error: ${assignedSnap.error}');
-        }
-        print('   Found ${assignedSnap.data?.docs.length ?? 0} assigned tests');
-
-        // All candidate documents (may include ones effectively completed)
         final resultDocs = assignedSnap.data?.docs ?? [];
         if (resultDocs.isEmpty) {
-          print('   No tests for this student');
           return const _EmptyState(message: 'No tests assigned yet');
         }
 
-        // Debug: Print all documents
-        for (var doc in resultDocs) {
-          final data = doc.data() as Map<String, dynamic>;
-          print(
-            '   📄 Result/Assignment: testId=${data['testId']}, status=${data['status']}, score=${data['score']}, submittedAt=${data['submittedAt']}',
-          );
-        }
-
-        // Collect all unique test IDs (limit Firestore whereIn batch to 10)
         final testIds = resultDocs
-            .map(
-              (doc) =>
-                  (doc.data() as Map<String, dynamic>)['testId'] as String?,
-            )
+            .map((d) => (d.data() as Map<String, dynamic>)['testId'] as String?)
             .where((id) => id != null && id.isNotEmpty)
             .toSet()
             .take(10)
             .toList();
 
-        print('   📋 Test IDs to fetch: $testIds');
-
         if (testIds.isEmpty) {
-          print('   ❌ No valid test IDs found in assignments');
           return const _EmptyState(message: 'No tests assigned yet');
         }
 
-        return StreamBuilder<List<TestModel>>(
+        return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('scheduledTests')
               .where(FieldPath.documentId, whereIn: testIds)
-              .snapshots()
-              .map((s) {
-                final tests = <TestModel>[];
-                for (var d in s.docs) {
-                  try {
-                    final data = d.data();
-                    final test = TestModel.fromScheduledTest(d.id, data);
-                    tests.add(test);
-                  } catch (e) {
-                    print('   ❌ Error converting test ${d.id}: $e');
-                  }
-                }
-                return tests;
-              }),
+              .snapshots(),
           builder: (context, testsSnap) {
             if (testsSnap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final tests = testsSnap.data ?? [];
-
-            // Fallback: include assignments whose scheduledTests doc is missing
-            final existingIds = tests.map((e) => e.id).toSet();
-            for (final doc in resultDocs) {
-              final data = doc.data() as Map<String, dynamic>;
-              final testId = data['testId'] as String?;
-              if (testId == null || testId.isEmpty) continue;
-              if (existingIds.contains(testId)) continue;
-
-              // Build synthetic TestModel from assignment data so it appears in UI
-              try {
-                final title = data['testTitle'] ?? data['title'] ?? 'Untitled';
-                final teacherName = data['teacherName'] ?? '';
-                final teacherId = (data['teacherId'] ?? '') as String;
-                final instituteId = (data['schoolCode'] ?? '') as String;
-                final subject = data['subject'] ?? '';
-                final className = data['className'];
-                final section = data['section'];
-                final duration = (data['duration'] as int?) ?? 60;
-                final dateStr = data['date'] as String?; // YYYY-MM-DD
-                final startTimeStr = data['startTime'] as String? ?? '00:00';
-                final endTimeStr = data['endTime'] as String? ?? '23:59';
-                DateTime startDate;
-                DateTime endDate;
-                try {
-                  startDate = dateStr != null
-                      ? DateTime.parse('$dateStr $startTimeStr')
-                      : DateTime.now();
-                  // endDate is the assignment deadline, not start + duration
-                  endDate = dateStr != null
-                      ? DateTime.parse('$dateStr $endTimeStr')
-                      : startDate.add(const Duration(hours: 24));
-                } catch (_) {
-                  startDate = DateTime.now();
-                  endDate = startDate.add(const Duration(hours: 24));
-                }
-                final createdAtTs = data['createdAt'];
-                final createdAt = createdAtTs is Timestamp
-                    ? createdAtTs.toDate()
-                    : DateTime.now();
-                final updatedAtTs = data['updatedAt'];
-                final updatedAt = updatedAtTs is Timestamp
-                    ? updatedAtTs.toDate()
-                    : null;
-
-                tests.add(
-                  TestModel(
-                    id: testId,
-                    title: title,
-                    description: '',
-                    teacherId: teacherId,
-                    teacherName: teacherName,
-                    instituteId: instituteId,
-                    subject: subject,
-                    className: className,
-                    section: section,
-                    questions: const [],
-                    totalPoints: (data['totalMarks'] as int?) ?? 0,
-                    duration: duration,
-                    startDate: startDate,
-                    endDate: endDate,
-                    status: TestStatus.published,
-                    assignedStudentIds: const [],
-                    createdAt: createdAt,
-                    updatedAt: updatedAt,
-                    resultsPublished: false,
-                    publishedAt: null,
+            final testDocs = testsSnap.data?.docs ?? [];
+            final tests = testDocs
+                .map(
+                  (d) => TestModel.fromScheduledTest(
+                    d.id,
+                    d.data() as Map<String, dynamic>,
                   ),
-                );
-                existingIds.add(testId);
-                print(
-                  '⚠️ Added synthetic test for missing scheduledTests doc: $testId',
-                );
-              } catch (e) {
-                print('❌ Failed to build synthetic test for $testId: $e');
-              }
+                )
+                .toList();
+
+            if (tests.isEmpty) {
+              return const _EmptyState(message: 'No tests assigned yet');
             }
 
-            print('📝 Available tests (including synthetic): ${tests.length}');
-            if (tests.isNotEmpty) {
-              for (final t in tests) {
-                print('     - ${t.title} (${t.className} ${t.section})');
-              }
-            } else {
-              return const _EmptyState();
-            }
-
-            // Classify completion locally: completed if status == completed OR has a non-null submittedAt OR score.
             final items = <_TestListItem>[];
 
             for (final t in tests) {
-              // Locate matching testResult document safely
               QueryDocumentSnapshot? matchingDoc;
               for (final doc in resultDocs) {
                 final raw = doc.data() as Map<String, dynamic>;
-                final docTestId = raw['testId'] as String?;
-                if (docTestId == t.id) {
+                if (raw['testId'] == t.id) {
                   matchingDoc = doc;
                   break;
                 }
               }
 
               if (matchingDoc == null) {
-                // No result doc yet; treat as pending
                 items.add(_TestListItem.pending(test: t));
                 continue;
               }
@@ -341,7 +211,6 @@ class _AllTestsTab extends StatelessWidget {
               final status = (data['status'] ?? '') as String;
               final submittedAt = data['submittedAt'];
               final score = data['score'];
-              // Recognize both 'completed' (app) and 'submitted' (website) as completed
               final isCompleted =
                   status == 'completed' ||
                   status == 'submitted' ||
@@ -353,20 +222,16 @@ class _AllTestsTab extends StatelessWidget {
                 continue;
               }
 
-              // Build TestResultModel
-              final endDate = t.endDate;
               try {
                 final result = TestResultModel.fromFirestore(
                   matchingDoc as DocumentSnapshot<Map<String, dynamic>>,
                 );
-                // Original gating: only show results after endDate
-                // endDate is always non-null for TestModel; show results only after endDate
-                final canShow = DateTime.now().isAfter(endDate);
+                final canShow = DateTime.now().isAfter(t.endDate);
                 items.add(
                   _TestListItem.completed(
                     result: result,
                     showResult: canShow,
-                    endDate: endDate,
+                    endDate: t.endDate,
                   ),
                 );
                 if (status != 'completed') {
@@ -384,7 +249,6 @@ class _AllTestsTab extends StatelessWidget {
               }
             }
 
-            // Sort by date
             items.sort((a, b) {
               final aDate = a.isPending
                   ? a.test!.createdAt
@@ -861,6 +725,8 @@ class _TestCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -872,10 +738,14 @@ class _TestCard extends StatelessWidget {
                           'Subject: ',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
-                        Text(
-                          subject,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                        Expanded(
+                          child: Text(
+                            subject,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
                         ),
                       ],
                     ),
@@ -887,10 +757,14 @@ class _TestCard extends StatelessWidget {
                             'Assigned By: ',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
-                          Text(
-                            assignedBy,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                          Expanded(
+                            child: Text(
+                              assignedBy,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
                           ),
                         ],
                       ),
@@ -909,6 +783,7 @@ class _TestCard extends StatelessWidget {
                 ),
                 child: Text(
                   statusLabel,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,

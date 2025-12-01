@@ -25,6 +25,9 @@ import '../widgets/student_main_navigation.dart';
 import '../widgets/teacher_main_navigation.dart';
 import '../screens/teacher/messages/messages_screen.dart';
 import '../screens/teacher/messages/chat_screen.dart';
+import '../screens/ai/ai_chat_page.dart';
+import '../screens/student/student_profile_screen.dart';
+import '../screens/learning/youtube_videos_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -74,7 +77,7 @@ class AppRouter {
 
       case '/student-rewards':
         return MaterialPageRoute(
-          builder: (_) => const StudentMainNavigation(initialIndex: 2),
+          builder: (_) => const StudentMainNavigation(initialIndex: 3),
         );
 
       case '/search-rewards':
@@ -99,13 +102,11 @@ class AppRouter {
 
       case '/student-leaderboard':
         return MaterialPageRoute(
-          builder: (_) => const StudentMainNavigation(initialIndex: 3),
+          builder: (_) => const StudentMainNavigation(initialIndex: 4),
         );
 
       case '/student-profile':
-        return MaterialPageRoute(
-          builder: (_) => const StudentMainNavigation(initialIndex: 4),
-        );
+        return MaterialPageRoute(builder: (_) => const StudentProfileScreen());
 
       case '/teacher-dashboard':
         return MaterialPageRoute(
@@ -219,6 +220,12 @@ class AppRouter {
             studentName: args['studentName'] as String,
           ),
         );
+
+      case '/ai-chat':
+        return MaterialPageRoute(builder: (_) => const AiChatPage());
+
+      case '/youtube-videos':
+        return MaterialPageRoute(builder: (_) => const YouTubeVideosScreen());
 
       // Add more routes here as screens are created
       default:

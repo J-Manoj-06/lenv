@@ -22,6 +22,7 @@ class StudentDashboardScreen extends StatefulWidget {
 }
 
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
+  double _fabScale = 1.0;
   @override
   void initState() {
     super.initState();
@@ -125,6 +126,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               ),
             ),
           ),
+          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+          floatingActionButton: _buildAiAssistantFab(theme),
         );
       },
     );
@@ -190,6 +193,52 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAiAssistantFab(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4.0),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _fabScale = 0.94),
+        onTapCancel: () => setState(() => _fabScale = 1.0),
+        onTapUp: (_) => setState(() => _fabScale = 1.0),
+        onTap: () {
+          Navigator.pushNamed(context, '/ai-chat');
+        },
+        child: AnimatedScale(
+          scale: _fabScale,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF8A00), Color(0xFFFFAA33)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF8A00).withOpacity(0.45),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.smart_toy_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
