@@ -60,15 +60,26 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Widget build(BuildContext context) {
     return Consumer<StudentProvider>(
       builder: (context, studentProvider, child) {
-        if (studentProvider.isLoading &&
+        // Show fetching screen while loading or when no student data
+        if (studentProvider.isLoading ||
             studentProvider.currentStudent == null) {
           return const Scaffold(
             backgroundColor: Color(0xFF16171A),
             body: Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
                       Color(0xFFF2800D),
                     ),
+                  ),
+                  SizedBox(height: 20),
+                  Text(
+                    'Fetching your details...',
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                ],
               ),
             ),
           );

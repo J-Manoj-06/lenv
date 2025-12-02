@@ -12,6 +12,7 @@ class StudentProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   bool _hasAttemptedChallenge = false;
+  bool _hasLoaded = false; // Prevent duplicate loads
 
   // Getters
   StudentModel? get currentStudent => _currentStudent;
@@ -27,6 +28,14 @@ class StudentProvider with ChangeNotifier {
 
   // Load student dashboard data
   Future<void> loadDashboardData(String studentId) async {
+    // Skip if already loaded to prevent flickering (but check if same student)
+    if (_hasLoaded &&
+        _currentStudent != null &&
+        _currentStudent!.uid == studentId) {
+      return;
+    }
+
+    // Force reload on user switch
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -51,6 +60,7 @@ class StudentProvider with ChangeNotifier {
 
         // Update stats
         await _updateStudentStats(studentId);
+        _hasLoaded = true; // Mark as loaded
       }
     } catch (e) {
       _errorMessage = 'Failed to load dashboard: ${e.toString()}';
@@ -185,6 +195,7 @@ class StudentProvider with ChangeNotifier {
     _notifications = [];
     _hasAttemptedChallenge = false;
     _errorMessage = null;
+    _hasLoaded = false; // Reset load flag
     notifyListeners();
   }
 }

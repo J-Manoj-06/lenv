@@ -65,11 +65,34 @@ class _GroupsListPageState extends State<GroupsListPage>
     _hasAttemptedLoad = true;
 
     try {
-      // Get student from StudentProvider (already ready by PostFrameCallback)
+      // Get student from StudentProvider
       final studentProvider = Provider.of<StudentProvider>(
         context,
         listen: false,
       );
+
+      // Wait for student data to be ready if it's still loading
+      if (studentProvider.isLoading || studentProvider.currentStudent == null) {
+        // Wait up to 2 seconds for data to load
+        int attempts = 0;
+        while ((studentProvider.isLoading ||
+                studentProvider.currentStudent == null) &&
+            attempts < 20) {
+          await Future.delayed(Duration(milliseconds: 100));
+          attempts++;
+          if (!mounted) return;
+        }
+
+        // If still no data after waiting, show error
+        if (studentProvider.currentStudent == null) {
+          setState(() {
+            _subjects = [];
+            _isLoading = false;
+            _classId = null;
+          });
+          return;
+        }
+      }
 
       final student = studentProvider.currentStudent;
       final studentUid = student?.uid ?? widget.studentId;
