@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 
@@ -106,9 +107,30 @@ class AuthProvider with ChangeNotifier {
 
   // Sign out
   Future<void> signOut() async {
-    await _authService.signOut();
-    _currentUser = null;
-    notifyListeners();
+    try {
+      // Clear all SharedPreferences data
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      print('✅ All local data cleared from SharedPreferences');
+
+      // Sign out from Firebase
+      await _authService.signOut();
+
+      // Clear current user
+      _currentUser = null;
+
+      // Reset initialization flag
+      _initialized = false;
+
+      notifyListeners();
+
+      print('✅ User signed out successfully');
+    } catch (e) {
+      print('❌ Error during sign out: $e');
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
   }
 
   // Callback to notify other providers when user changes

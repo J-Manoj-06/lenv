@@ -20,6 +20,8 @@ class StudentModel {
   final int pendingTests;
   final int completedTests;
   final int newNotifications;
+  final int streak;
+  final String? lastStreakDate;
   final DateTime createdAt;
   final bool isActive;
 
@@ -43,6 +45,8 @@ class StudentModel {
     this.pendingTests = 0,
     this.completedTests = 0,
     this.newNotifications = 0,
+    this.streak = 0,
+    this.lastStreakDate,
     required this.createdAt,
     this.isActive = true,
   });
@@ -72,6 +76,8 @@ class StudentModel {
       pendingTests: data['pendingTests'] ?? 0,
       completedTests: data['completedTests'] ?? 0,
       newNotifications: data['newNotifications'] ?? 0,
+      streak: data['streak'] ?? 0,
+      lastStreakDate: data['lastStreakDate'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isActive: data['isActive'] ?? true,
     );
@@ -97,6 +103,8 @@ class StudentModel {
       'pendingTests': pendingTests,
       'completedTests': completedTests,
       'newNotifications': newNotifications,
+      'streak': streak,
+      'lastStreakDate': lastStreakDate,
       'createdAt': Timestamp.fromDate(createdAt),
       'isActive': isActive,
       'role': 'student',
@@ -124,6 +132,8 @@ class StudentModel {
     int? pendingTests,
     int? completedTests,
     int? newNotifications,
+    int? streak,
+    String? lastStreakDate,
     DateTime? createdAt,
     bool? isActive,
   }) {
@@ -147,6 +157,8 @@ class StudentModel {
       pendingTests: pendingTests ?? this.pendingTests,
       completedTests: completedTests ?? this.completedTests,
       newNotifications: newNotifications ?? this.newNotifications,
+      streak: streak ?? this.streak,
+      lastStreakDate: lastStreakDate ?? this.lastStreakDate,
       createdAt: createdAt ?? this.createdAt,
       isActive: isActive ?? this.isActive,
     );

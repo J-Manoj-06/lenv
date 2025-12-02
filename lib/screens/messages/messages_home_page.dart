@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'groups_list_page.dart';
-import 'communities_list_page.dart';
+import '../student/communities_screen.dart';
 
 class MessagesHomePage extends StatefulWidget {
   final String studentId;
@@ -49,14 +49,6 @@ class _MessagesHomePageState extends State<MessagesHomePage>
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_square, color: Colors.white70),
-            onPressed: () {
-              // Future: Create new message functionality
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -82,7 +74,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
               controller: _tabController,
               children: [
                 GroupsListPage(studentId: widget.studentId),
-                CommunitiesListPage(studentId: widget.studentId),
+                const CommunitiesScreen(),
               ],
             ),
           ),

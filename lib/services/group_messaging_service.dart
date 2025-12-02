@@ -185,28 +185,116 @@ class GroupMessagingService {
   Future<String?> getStudentClassId(String studentId) async {
     try {
       final doc = await _firestore.collection('users').doc(studentId).get();
-      final data = doc.data();
 
-      if (data != null) {
-        final className = data['className'] ?? '';
-        final section = data['section'] ?? '';
+      if (!doc.exists || doc.data() == null) {
+        print('User document not found for: $studentId');
+        return null;
+      }
 
-        if (className.isNotEmpty && section.isNotEmpty) {
-          // Query classes collection to find the matching document
-          final classesQuery = await _firestore
-              .collection('classes')
-              .where('className', isEqualTo: className)
-              .where('section', isEqualTo: section)
-              .limit(1)
-              .get();
+      final data = doc.data()!;
+      final fullClassName = data['className'] ?? '';
+      final sectionField = data['section'] ?? '';
+      final schoolId = data['schoolId'] ?? '';
 
-          if (classesQuery.docs.isNotEmpty) {
-            return classesQuery.docs.first.id;
-          }
+      if (fullClassName.isEmpty) {
+        print('className is empty for user: $studentId');
+        return null;
+      }
+
+      // Parse className to extract grade (e.g., "Grade 10" from "Grade 10 - A")
+      String grade = '';
+      String section = sectionField;
+
+      final gradeMatch = RegExp(
+        r'Grade\s+(\d+)',
+        caseSensitive: false,
+      ).firstMatch(fullClassName);
+
+      if (gradeMatch != null) {
+        grade = 'Grade ${gradeMatch.group(1)}';
+      }
+
+      // Extract section from className if not in separate field
+      if (section.isEmpty) {
+        final sectionMatch = RegExp(
+          r'-\s*([A-Z])\s*$',
+        ).firstMatch(fullClassName);
+        if (sectionMatch != null) {
+          section = sectionMatch.group(1)!;
         }
       }
+
+      if (grade.isEmpty) {
+        grade = fullClassName; // Fallback to full className
+      }
+
+      // Approach 1: Try with schoolId if available
+      if (schoolId.isNotEmpty && section.isNotEmpty) {
+        final query1 = await _firestore
+            .collection('classes')
+            .where('schoolId', isEqualTo: schoolId)
+            .where('className', isEqualTo: grade)
+            .where('section', isEqualTo: section)
+            .limit(1)
+            .get();
+
+        if (query1.docs.isNotEmpty) {
+          return query1.docs.first.id;
+        }
+      }
+
+      // Approach 2: className + section (most reliable)
+      if (section.isNotEmpty) {
+        final query2 = await _firestore
+            .collection('classes')
+            .where('className', isEqualTo: grade)
+            .where('section', isEqualTo: section)
+            .limit(1)
+            .get();
+
+        if (query2.docs.isNotEmpty) {
+          return query2.docs.first.id;
+        }
+      }
+
+      // Approach 3: Query with just className and manually filter by section
+      final query3 = await _firestore
+          .collection('classes')
+          .where('className', isEqualTo: grade)
+          .limit(10)
+          .get();
+
+      if (query3.docs.isNotEmpty) {
+        // Try to match section if specified
+        if (section.isNotEmpty) {
+          for (var doc in query3.docs) {
+            final docSection = doc.data()['section'] ?? '';
+            if (docSection == section) {
+              return doc.id;
+            }
+          }
+        }
+        // Return first match if no section or no match found
+        return query3.docs.first.id;
+      }
+
+      // Approach 4: Try with fullClassName as-is
+      final query4 = await _firestore
+          .collection('classes')
+          .where('className', isEqualTo: fullClassName)
+          .limit(1)
+          .get();
+
+      if (query4.docs.isNotEmpty) {
+        return query4.docs.first.id;
+      }
+
+      print(
+        'No class found for: grade=$grade, section=$section, fullClassName=$fullClassName',
+      );
       return null;
     } catch (e) {
+      print('Error getting student class ID: $e');
       return null;
     }
   }

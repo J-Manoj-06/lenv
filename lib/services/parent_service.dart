@@ -370,48 +370,116 @@ class ParentService {
     String studentId,
   ) async {
     try {
-      final query = await _firestore.collection('attendance').get();
+      // Get student details from users collection (using auth UID)
+      final userDoc = await _firestore.collection('users').doc(studentId).get();
+
+      if (!userDoc.exists) {
+        print('❌ User document not found: $studentId');
+        return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
+      }
+
+      final userData = userDoc.data();
+      final className = userData?['className'] as String?;
+      final schoolCode = userData?['schoolCode'] as String?;
+
+      if (className == null || schoolCode == null || schoolCode.isEmpty) {
+        print('❌ Missing className or schoolCode for student: $studentId');
+        return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
+      }
+
+      // Parse grade and section from className (e.g., "Grade 10" or "Grade 10 - A")
+      final gradeMatch = RegExp(r'Grade\s+(\d+)').firstMatch(className);
+      final sectionMatch = RegExp(r'-\s*([A-Za-z])').firstMatch(className);
+      final grade = gradeMatch?.group(1);
+      final section = sectionMatch?.group(1);
+
+      if (grade == null) {
+        print('❌ Could not parse grade from className: $className');
+        return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
+      }
+
+      print(
+        '🔍 Fetching attendance breakdown for student $studentId, grade: $grade, section: $section, schoolCode: $schoolCode',
+      );
+
+      // Query attendance records
+      var query = _firestore
+          .collection('attendance')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('standard', isEqualTo: grade);
+
+      if (section != null && section.isNotEmpty) {
+        query = query.where('section', isEqualTo: section);
+      }
+
+      final snapshot = await query.limit(120).get();
 
       int present = 0;
       int absent = 0;
       int late = 0;
-      for (final doc in query.docs) {
-        final data = doc.data();
-        final students = data['students'];
-        if (students is Map<String, dynamic>) {
-          final entry = students[studentId];
-          if (entry != null) {
-            String? status;
-            if (entry is String) {
-              status = entry;
-            } else if (entry is Map<String, dynamic>) {
-              status = (entry['status'] ?? entry['attendance'] ?? '')
-                  .toString();
-            }
-            switch ((status ?? '').toLowerCase()) {
-              case 'present':
-                present++;
-                break;
-              case 'absent':
-                absent++;
-                break;
-              case 'late':
-                late++;
-                break;
-            }
-          }
+
+      for (final doc in snapshot.docs) {
+        final students = doc.data()['students'] as Map<String, dynamic>?;
+        if (students == null) continue;
+
+        // Look up student by auth UID (which is the studentId)
+        final studentInfo = students[studentId] as Map<String, dynamic>?;
+        if (studentInfo == null) continue;
+
+        final status =
+            studentInfo['status']?.toString().toLowerCase() ?? 'present';
+        switch (status) {
+          case 'present':
+            present++;
+            break;
+          case 'absent':
+            absent++;
+            break;
+          case 'late':
+            late++;
+            break;
         }
       }
+
+      final total = present + absent + late;
+      print(
+        '✅ Attendance breakdown: Present=$present, Absent=$absent, Late=$late, Total=$total',
+      );
 
       return {
         'present': present,
         'absent': absent,
         'late': late,
-        'total': present + absent + late,
+        'total': total,
       };
     } catch (e) {
       print('❌ Error fetching attendance breakdown: $e');
       return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
+    }
+  }
+
+  /// Get attendance percentage for student
+  /// Deprecated: Use getStudentAttendanceBreakdown for more detailed data
+  Future<double> getStudentAttendance(String studentId) async {
+    try {
+      final breakdown = await getStudentAttendanceBreakdown(studentId);
+      final present = breakdown['present'] ?? 0;
+      final total = breakdown['total'] ?? 0;
+
+      if (total == 0) {
+        print('⚠️ No attendance records found for student $studentId');
+        return 0.0;
+      }
+
+      final attendancePercentage = (present / total * 100).clamp(0.0, 100.0);
+      print(
+        '✅ Calculated attendance: $present/$total = ${attendancePercentage.toStringAsFixed(1)}%',
+      );
+
+      return attendancePercentage;
+    } catch (e) {
+      print('❌ Error fetching attendance: $e');
+      return 0.0;
     }
   }
 
@@ -1011,91 +1079,6 @@ class ParentService {
   }
 
   /// Get student's attendance percentage
-  Future<double> getStudentAttendance(String studentId) async {
-    try {
-      // Get student details from users collection (using auth UID)
-      final userDoc = await _firestore.collection('users').doc(studentId).get();
-
-      if (!userDoc.exists) {
-        print('❌ User document not found: $studentId');
-        return 0.0;
-      }
-
-      final userData = userDoc.data();
-      final className = userData?['className'] as String?;
-      final schoolCode = userData?['schoolCode'] as String?;
-
-      if (className == null || schoolCode == null || schoolCode.isEmpty) {
-        print('❌ Missing className or schoolCode for student: $studentId');
-        return 0.0;
-      }
-
-      // Parse grade and section from className (e.g., "Grade 10" or "Grade 10 - A")
-      final gradeMatch = RegExp(r'Grade\s+(\d+)').firstMatch(className);
-      final sectionMatch = RegExp(r'-\s*([A-Za-z])').firstMatch(className);
-      final grade = gradeMatch?.group(1);
-      final section = sectionMatch?.group(1);
-
-      if (grade == null) {
-        print('❌ Could not parse grade from className: $className');
-        return 0.0;
-      }
-
-      print(
-        '🔍 Fetching attendance for student $studentId, grade: $grade, section: $section, schoolCode: $schoolCode',
-      );
-
-      // Query attendance records
-      var query = _firestore
-          .collection('attendance')
-          .where('schoolCode', isEqualTo: schoolCode)
-          .where('standard', isEqualTo: grade);
-
-      if (section != null && section.isNotEmpty) {
-        query = query.where('section', isEqualTo: section);
-      }
-
-      final snapshot = await query.limit(120).get();
-
-      int totalDays = 0;
-      int presentDays = 0;
-
-      for (final doc in snapshot.docs) {
-        final students = doc.data()['students'] as Map<String, dynamic>?;
-        if (students == null) continue;
-
-        // Look up student by auth UID (which is the studentId)
-        final studentInfo = students[studentId] as Map<String, dynamic>?;
-        if (studentInfo == null) continue;
-
-        totalDays++;
-        final status =
-            studentInfo['status']?.toString().toLowerCase() ?? 'present';
-        if (status == 'present') {
-          presentDays++;
-        }
-      }
-
-      if (totalDays == 0) {
-        print('⚠️ No attendance records found for student $studentId');
-        return 0.0;
-      }
-
-      final attendancePercentage = (presentDays / totalDays * 100).clamp(
-        0.0,
-        100.0,
-      );
-      print(
-        '✅ Calculated attendance: $presentDays/$totalDays = ${attendancePercentage.toStringAsFixed(1)}%',
-      );
-
-      return attendancePercentage;
-    } catch (e) {
-      print('❌ Error fetching attendance: $e');
-      return 0.0;
-    }
-  }
-
   /// Get upcoming tests for student
   Future<List<Map<String, dynamic>>> getUpcomingTests(String studentId) async {
     try {

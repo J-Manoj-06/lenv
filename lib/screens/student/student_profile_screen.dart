@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/daily_challenge_provider.dart';
+import '../../providers/student_provider.dart';
 import '../../services/leaderboard_service.dart';
 import '../../services/student_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/student_model.dart';
 import '../../models/performance_model.dart';
-import '../../utils/session_manager.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -629,11 +630,21 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     if (confirmed != true) return;
 
     try {
-      // Clear session from SharedPreferences
-      await SessionManager.clearLoginSession();
-
-      // Clear auth provider state
       if (mounted) {
+        // Clear all provider states before sign out
+        final dailyChallengeProvider = Provider.of<DailyChallengeProvider>(
+          context,
+          listen: false,
+        );
+        await dailyChallengeProvider.clearAllState();
+
+        final studentProvider = Provider.of<StudentProvider>(
+          context,
+          listen: false,
+        );
+        studentProvider.clear();
+
+        // Clear auth provider and SharedPreferences (handled in signOut)
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         await authProvider.signOut();
       }

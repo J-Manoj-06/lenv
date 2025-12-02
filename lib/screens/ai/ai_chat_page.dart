@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import '../../services/deepseek_service.dart';
@@ -7,7 +10,16 @@ import '../../services/test_result_service.dart';
 import '../../services/student_profile_service.dart';
 import '../../providers/auth_provider.dart';
 import '../games/brain_games_menu_screen.dart';
+import '../../widgets/swipe_card_deck.dart';
+import 'motivation_fullscreen_page.dart';
+import '../../widgets/history_card_deck.dart';
+import 'history_fullscreen_page.dart';
 // Removed insight widgets import since chat bubbles are no longer used.
+import 'fact_fullscreen_page.dart';
+import 'quiz_fullscreen_page.dart';
+import 'insights_fullscreen_page.dart';
+import 'study_plan_fullscreen_page.dart';
+import 'time_management_fullscreen_page.dart';
 
 class AiChatPage extends StatefulWidget {
   const AiChatPage({super.key});
@@ -26,12 +38,28 @@ class _AiChatPageState extends State<AiChatPage> {
   bool _isProcessing = false;
   bool _insightsUsedToday = false;
   bool _studyPlanUsedToday = false;
+  String? _currentUserId; // Track user to scope daily usage keys
+  String? _todayInsightsText;
+  Map<String, double>? _todayInsightsAverages;
+  String? _todayStudyPlanText;
 
   @override
   void initState() {
     super.initState();
     _restoreChat();
     _checkDailyUsage();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Detect auth user changes and re-evaluate daily usage flags
+    final authProvider = Provider.of<AuthProvider>(context);
+    final uid = authProvider.currentUser?.uid;
+    if (uid != _currentUserId) {
+      _currentUserId = uid;
+      _checkDailyUsage();
+    }
   }
 
   @override
@@ -55,22 +83,29 @@ class _AiChatPageState extends State<AiChatPage> {
   // Chat composer removed to reduce token usage; actions are card-based only.
 
   Future<void> _handleInsightRequest() async {
-    // Check if already used today
-    if (_insightsUsedToday) {
-      setState(() {
-        _messages.add(
-          ChatMessage(
-            sender: 'ai',
-            text:
-                '⏰ You\'ve already used My Insights today. Come back tomorrow for fresh insights!',
-          ),
-        );
-        _isProcessing = false;
-      });
-      _scrollToEnd();
-      await _persistChat();
+    // If already generated today, just reopen stored content
+    if (_insightsUsedToday && _todayInsightsText != null) {
+      await Navigator.of(context).push(
+        PageRouteBuilder(
+          opaque: true,
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              InsightsFullScreenPage(
+                insightsText: _todayInsightsText!,
+                subjectAverages: _todayInsightsAverages ?? {},
+              ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curve = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            );
+            return FadeTransition(opacity: curve, child: child);
+          },
+        ),
+      );
       return;
     }
+
+    setState(() => _isProcessing = true);
 
     try {
       // Get student ID from auth
@@ -100,21 +135,43 @@ class _AiChatPageState extends State<AiChatPage> {
         results,
       );
 
+      if (!mounted) return;
+
+      // Persist today's insights so user can re-view
+      await _saveTodayInsights(
+        insightResult.text,
+        insightResult.subjectAverages,
+      );
+
+      await Navigator.of(context).push(
+        PageRouteBuilder(
+          opaque: true,
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              InsightsFullScreenPage(
+                insightsText: insightResult.text,
+                subjectAverages: insightResult.subjectAverages,
+              ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curve = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            );
+            return FadeTransition(opacity: curve, child: child);
+          },
+        ),
+      );
       setState(() {
         _messages.add(
           ChatMessage(
             sender: 'ai',
-            text: insightResult.text,
+            text: '📊 Insights viewed',
             messageType: MessageType.insight,
             performanceData: insightResult.subjectAverages,
           ),
         );
         _isProcessing = false;
       });
-
-      // Mark as used today
       await _markInsightUsed();
-
       _scrollToEnd();
       await _persistChat();
     } catch (e) {
@@ -130,22 +187,26 @@ class _AiChatPageState extends State<AiChatPage> {
   }
 
   Future<void> _handleStudyPlanRequest() async {
-    // Check if already used today
-    if (_studyPlanUsedToday) {
-      setState(() {
-        _messages.add(
-          ChatMessage(
-            sender: 'ai',
-            text:
-                '⏰ You\'ve already received a Study Plan today. Come back tomorrow for a new plan!',
-          ),
-        );
-        _isProcessing = false;
-      });
-      _scrollToEnd();
-      await _persistChat();
+    // If already generated today, just reopen stored content
+    if (_studyPlanUsedToday && _todayStudyPlanText != null) {
+      await Navigator.of(context).push(
+        PageRouteBuilder(
+          opaque: true,
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              StudyPlanFullScreenPage(planText: _todayStudyPlanText!),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curve = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            );
+            return FadeTransition(opacity: curve, child: child);
+          },
+        ),
+      );
       return;
     }
+
+    setState(() => _isProcessing = true);
 
     try {
       // Get student ID from auth
@@ -177,20 +238,36 @@ class _AiChatPageState extends State<AiChatPage> {
         results,
       );
 
+      if (!mounted) return;
+
+      // Persist today's study plan
+      await _saveTodayStudyPlan(planText);
+
+      await Navigator.of(context).push(
+        PageRouteBuilder(
+          opaque: true,
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              StudyPlanFullScreenPage(planText: planText),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curve = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            );
+            return FadeTransition(opacity: curve, child: child);
+          },
+        ),
+      );
       setState(() {
         _messages.add(
           ChatMessage(
             sender: 'ai',
-            text: planText,
+            text: '🗓 Study plan viewed',
             messageType: MessageType.studyPlan,
           ),
         );
         _isProcessing = false;
       });
-
-      // Mark as used today
       await _markStudyPlanUsed();
-
       _scrollToEnd();
       await _persistChat();
     } catch (e) {
@@ -208,51 +285,132 @@ class _AiChatPageState extends State<AiChatPage> {
   Future<void> _handleMotivationQuotes() async {
     try {
       setState(() => _isProcessing = true);
-      // Temporary fallback until service method is added.
-      // Replace with service or Firestore-backed fetch when available.
-      final items = <String>[
-        'Believe in yourself; you are stronger than you think.',
-        'Small steps every day lead to big results.',
-        'Mistakes are proof that you are trying.',
-        'Discipline beats motivation. Show up and do the work.',
-        'Learning is a journey—enjoy the process.',
-      ];
-      final text = items.isEmpty
-          ? 'No quotes available right now.'
-          : items.join('\n\n');
-      setState(() {
-        _messages.add(ChatMessage(sender: 'ai', text: text));
-        _isProcessing = false;
-      });
-      _scrollToEnd();
+      final uri = Uri.parse('https://zenquotes.io/api/today');
+      final resp = await http.get(uri).timeout(const Duration(seconds: 10));
+
+      if (resp.statusCode != 200) {
+        throw Exception('HTTP ${resp.statusCode}');
+      }
+
+      final decoded = json.decode(resp.body);
+      if (decoded is! List || decoded.isEmpty) {
+        throw Exception('Unexpected response');
+      }
+
+      final item = decoded.first as Map<String, dynamic>;
+      final quote = (item['q'] ?? '').toString();
+      final author = (item['a'] ?? 'Unknown').toString();
+
+      await _showSwipeableMotivation(
+        quote,
+        author,
+      ); // Call to the updated method
+
+      // Store to history
+      _messages.add(ChatMessage(sender: 'ai', text: '“$quote” — $author'));
       await _persistChat();
     } catch (e) {
-      setState(() {
-        _messages.add(
-          ChatMessage(sender: 'ai', text: 'Failed to load quotes: $e'),
-        );
-        _isProcessing = false;
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load quote: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
       _scrollToEnd();
-      await _persistChat();
     }
+  }
+
+  Future<void> _showSwipeableMotivation(String quote, String author) async {
+    final cards = [
+      CardData(category: 'Motivation', text: quote, author: '— $author'),
+    ];
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: true,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            MotivationFullScreenPage(cards: cards),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curve = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(opacity: curve, child: child);
+        },
+      ),
+    );
+  }
+
+  Future<void> _showQuoteDialog(String quote, String author) async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Today\'s Motivation',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '“$quote”',
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '— $author',
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: Colors.white70)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleDailyFact() async {
     try {
       setState(() => _isProcessing = true);
-      // Educational facts - can be fetched from Firestore or API
-      final facts = <String>[
-        '🧠 The human brain has approximately 86 billion neurons.',
-        '🌍 The Earth\'s core is as hot as the surface of the Sun.',
-        '📚 Reading for just 6 minutes can reduce stress levels by 68%.',
-        '🔬 Honey never spoils. Archaeologists have found 3000-year-old honey that\'s still edible.',
-        '⚡ Lightning strikes the Earth about 100 times every second.',
-        '🌊 The Pacific Ocean is larger than all of Earth\'s land area combined.',
-      ];
-      final randomFact = (facts..shuffle()).first;
+      final uri = Uri.parse(
+        'https://uselessfacts.jsph.pl/random.json?language=en',
+      );
+      String factText;
+      try {
+        final resp = await http.get(uri).timeout(const Duration(seconds: 10));
+        if (resp.statusCode != 200) {
+          throw Exception('HTTP ${resp.statusCode}');
+        }
+        final decoded = json.decode(resp.body);
+        if (decoded is Map && decoded['text'] != null) {
+          factText = decoded['text'].toString();
+        } else {
+          throw Exception('Unexpected response shape');
+        }
+      } catch (e) {
+        // Fallback list if API fails
+        final fallback = [
+          'The Eiffel Tower can be 15 cm taller during hot days due to thermal expansion.',
+          'Octopuses have three hearts and blue blood.',
+          'Bananas are berries, but strawberries are not.',
+          'Honeybees can recognize human faces.',
+          'A day on Venus is longer than its year.',
+        ];
+        factText = (fallback..shuffle()).first;
+      }
+
+      await _showFactFullscreen(factText);
+
       setState(() {
-        _messages.add(ChatMessage(sender: 'ai', text: randomFact));
+        _messages.add(ChatMessage(sender: 'ai', text: factText));
         _isProcessing = false;
       });
       _scrollToEnd();
@@ -269,115 +427,325 @@ class _AiChatPageState extends State<AiChatPage> {
     }
   }
 
+  Future<void> _showFactFullscreen(String fact) async {
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: true,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            FactFullScreenPage(facts: [fact]),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curve = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(opacity: curve, child: child);
+        },
+      ),
+    );
+  }
+
   Future<void> _handleTodayInHistory() async {
     try {
       setState(() => _isProcessing = true);
-      final today = DateTime.now();
-      final monthDay = '${today.month}/${today.day}';
+      final now = DateTime.now();
+      final mm = now.month.toString().padLeft(2, '0');
+      final dd = now.day.toString().padLeft(2, '0');
+      final uri = Uri.parse(
+        'https://api.wikimedia.org/feed/v1/wikipedia/en/onthisday/all/$mm/$dd',
+      );
 
-      // Historical events - can be expanded or fetched from API
-      final events = <String, String>{
-        '12/2':
-            '📅 December 2, 1804: Napoleon Bonaparte crowned himself Emperor of France in a lavish ceremony at Notre-Dame Cathedral.',
-        '1/1':
-            '📅 January 1, 1863: The Emancipation Proclamation was issued by President Abraham Lincoln.',
-        '7/4':
-            '📅 July 4, 1776: The Declaration of Independence was adopted by the Continental Congress.',
-        '10/12':
-            '📅 October 12, 1492: Christopher Columbus reached the Americas.',
-      };
+      final resp = await http
+          .get(
+            uri,
+            headers: const {
+              'Accept': 'application/json',
+              'User-Agent': 'LenV-Edu/1.0 (AI Assistant)',
+            },
+          )
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              throw TimeoutException(
+                'The request took too long. Please check your internet connection and try again.',
+              );
+            },
+          );
 
-      final event =
-          events[monthDay] ??
-          '📅 On this day in history: Many significant events occurred throughout the ages. Check back tomorrow for another historical fact!';
+      if (resp.statusCode != 200) {
+        if (resp.statusCode == 404) {
+          throw Exception(
+            'No historical events found for today. Please try again later.',
+          );
+        } else if (resp.statusCode >= 500) {
+          throw Exception(
+            'The history service is temporarily unavailable. Please try again in a few moments.',
+          );
+        } else {
+          throw Exception(
+            'Unable to fetch history (Error ${resp.statusCode}). Please try again.',
+          );
+        }
+      }
 
-      setState(() {
-        _messages.add(ChatMessage(sender: 'ai', text: event));
-        _isProcessing = false;
-      });
-      _scrollToEnd();
-      await _persistChat();
-    } catch (e) {
-      setState(() {
-        _messages.add(
-          ChatMessage(sender: 'ai', text: 'Failed to load history: $e'),
+      final data = json.decode(resp.body) as Map<String, dynamic>;
+
+      List<Map<String, String>> items = [];
+
+      List<Map<String, String>> extract(List? arr, String category) {
+        if (arr == null) return [];
+        return arr
+            .take(8)
+            .map<Map<String, String>>((e) {
+              final m = e as Map<String, dynamic>;
+              String title = '';
+              String thumb = '';
+              final pages = m['pages'];
+              if (pages is List && pages.isNotEmpty) {
+                final p0 = pages.first as Map<String, dynamic>;
+                final titles = p0['titles'] as Map<String, dynamic>?;
+                title = (titles?['display'] ?? p0['title'] ?? '').toString();
+                final thumbMap = p0['thumbnail'] as Map<String, dynamic>?;
+                thumb = (thumbMap?['source'] ?? '').toString();
+              }
+              return {
+                'text': (m['text'] ?? '').toString(),
+                'year': (m['year'] ?? '').toString(),
+                'title': title,
+                'thumb': thumb,
+                'category': category,
+              };
+            })
+            .where((m) => (m['text'] ?? '').isNotEmpty)
+            .toList();
+      }
+
+      items.addAll(extract(data['selected'] as List?, 'Selected'));
+      items.addAll(extract(data['events'] as List?, 'Event'));
+      if (items.isEmpty) {
+        throw Exception(
+          'No historical events available for today. Please try again later.',
         );
-        _isProcessing = false;
-      });
-      _scrollToEnd();
+      }
+
+      await _showHistorySheet(items);
+
+      // Persist a concise summary to chat history
+      final top = items
+          .take(3)
+          .map((e) {
+            final y = e['year']?.isNotEmpty == true ? '(${e['year']}) ' : '';
+            return '• $y${e['text']}';
+          })
+          .join('\n');
+      _messages.add(
+        ChatMessage(sender: 'ai', text: 'Today in History\n\n$top'),
+      );
       await _persistChat();
+    } on TimeoutException {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.access_time, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Request timeout. Please check your connection and try again.',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange.shade700,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } on FormatException {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text('Received invalid data. Please try again later.'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red.shade700,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        final errorMessage = e.toString().replaceFirst('Exception: ', '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    errorMessage.length > 100
+                        ? 'Unable to load history. Please try again.'
+                        : errorMessage,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red.shade800,
+            duration: const Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: _handleTodayInHistory,
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+      _scrollToEnd();
     }
   }
 
-  Future<void> _handleStudyTimeManager() async {
-    try {
-      setState(() => _isProcessing = true);
-
-      final prefs = await SharedPreferences.getInstance();
-      final today = DateTime.now().toIso8601String().split('T')[0];
-      final lastStudyDate = prefs.getString('last_study_date') ?? '';
-      final studyMinutes = prefs.getInt('study_minutes_today') ?? 0;
-
-      String message;
-      if (lastStudyDate == today) {
-        final hours = studyMinutes ~/ 60;
-        final mins = studyMinutes % 60;
-        message = '⏱️ **Study Time Manager**\n\n';
-        message += 'Today\'s Progress: ${hours}h ${mins}m\n\n';
-        message += '📊 Keep going! Consistent study leads to success.\n\n';
-        message += 'Recommended daily goal: 2-3 hours\n';
-        if (studyMinutes < 120) {
-          message +=
-              '💪 You\'re ${120 - studyMinutes} minutes away from your goal!';
-        } else {
-          message += '🎉 Great job! You\'ve met your daily goal!';
-        }
-      } else {
-        message = '⏱️ **Study Time Manager**\n\n';
-        message += 'Start tracking your study time today!\n\n';
-        message += '📚 Tips for effective studying:\n';
-        message += '• Use Pomodoro: 25 min study, 5 min break\n';
-        message += '• Eliminate distractions\n';
-        message += '• Take notes actively\n';
-        message += '• Review regularly\n\n';
-        message += 'Recommended: 2-3 hours daily';
+  Future<void> _showHistorySheet(List<Map<String, String>> items) async {
+    // Convert history items to HistoryCardData with rich details
+    final RegExp htmlTag = RegExp(r'<[^>]+>');
+    final RegExp spanTitle = RegExp(
+      r'<span[^>]*>(.*?)<\/span>',
+      caseSensitive: false,
+    );
+    String cleanTitle(String raw) {
+      // Prefer extracting from <span> if present, else strip all tags
+      final match = spanTitle.firstMatch(raw);
+      if (match != null && match.groupCount > 0) {
+        return match.group(1)!.replaceAll(htmlTag, '').trim();
       }
-
-      setState(() {
-        _messages.add(ChatMessage(sender: 'ai', text: message));
-        _isProcessing = false;
-      });
-      _scrollToEnd();
-      await _persistChat();
-    } catch (e) {
-      setState(() {
-        _messages.add(
-          ChatMessage(sender: 'ai', text: 'Failed to load study manager: $e'),
-        );
-        _isProcessing = false;
-      });
-      _scrollToEnd();
-      await _persistChat();
+      return raw.replaceAll(htmlTag, '').trim();
     }
+
+    final cards = items.take(10).map((it) {
+      final year = it['year'] ?? '';
+      final text = it['text'] ?? '';
+      final titleRaw = it['title'] ?? '';
+      final title = cleanTitle(titleRaw);
+      final thumb = it['thumb'] ?? '';
+      final category = it['category'] ?? 'Events';
+
+      return HistoryCardData(
+        title: title.isNotEmpty ? title : text,
+        description: title.isNotEmpty ? text : 'Historical event from $year',
+        year: year.isNotEmpty ? year : 'Unknown',
+        imageUrl: thumb,
+        category: category,
+      );
+    }).toList();
+
+    // Present as a full-screen page for immersive experience
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: true,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            HistoryFullScreenPage(cards: cards),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curve = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(opacity: curve, child: child);
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleStudyTimeManager() async {
+    // Navigate to the new Time Management full-screen tool
+    if (!mounted) return;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final uid = authProvider.currentUser?.uid;
+    await Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: true,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            TimeManagementFullScreenPage(userId: uid),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curve = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(opacity: curve, child: child);
+        },
+      ),
+    );
   }
 
   Future<void> _checkDailyUsage() async {
     final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now().toIso8601String().split('T')[0];
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final uid = authProvider.currentUser?.uid;
+    _currentUserId = uid; // keep in sync
 
-    final lastInsightDate = prefs.getString('last_insight_date') ?? '';
-    final lastStudyPlanDate = prefs.getString('last_study_plan_date') ?? '';
+    if (uid == null) {
+      setState(() {
+        _insightsUsedToday = false;
+        _studyPlanUsedToday = false;
+      });
+      return;
+    }
+
+    final insightKey = 'last_insight_date_$uid';
+    final studyPlanKey = 'last_study_plan_date_$uid';
+    final insightContentKey = 'insights_content_${uid}_$today';
+    final insightAveragesKey = 'insights_avgs_${uid}_$today';
+    final studyPlanContentKey = 'study_plan_content_${uid}_$today';
+
+    final lastInsightDate = prefs.getString(insightKey) ?? '';
+    final lastStudyPlanDate = prefs.getString(studyPlanKey) ?? '';
+
+    // Load persisted content if present
+    final storedInsight = prefs.getString(insightContentKey);
+    final storedInsightAverages = prefs.getString(insightAveragesKey);
+    final storedStudyPlan = prefs.getString(studyPlanContentKey);
 
     setState(() {
       _insightsUsedToday = lastInsightDate == today;
       _studyPlanUsedToday = lastStudyPlanDate == today;
+      _todayInsightsText = storedInsight;
+      if (storedInsightAverages != null) {
+        try {
+          final map =
+              json.decode(storedInsightAverages) as Map<String, dynamic>;
+          _todayInsightsAverages = map.map(
+            (k, v) => MapEntry(k, (v as num).toDouble()),
+          );
+        } catch (_) {
+          _todayInsightsAverages = null;
+        }
+      }
+      _todayStudyPlanText = storedStudyPlan;
     });
   }
 
   Future<void> _markInsightUsed() async {
     final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now().toIso8601String().split('T')[0];
-    await prefs.setString('last_insight_date', today);
+    if (_currentUserId == null) return; // no user -> don't persist
+    final key = 'last_insight_date_${_currentUserId!}';
+    await prefs.setString(key, today);
     setState(() {
       _insightsUsedToday = true;
     });
@@ -386,10 +754,36 @@ class _AiChatPageState extends State<AiChatPage> {
   Future<void> _markStudyPlanUsed() async {
     final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now().toIso8601String().split('T')[0];
-    await prefs.setString('last_study_plan_date', today);
+    if (_currentUserId == null) return;
+    final key = 'last_study_plan_date_${_currentUserId!}';
+    await prefs.setString(key, today);
     setState(() {
       _studyPlanUsedToday = true;
     });
+  }
+
+  Future<void> _saveTodayInsights(
+    String text,
+    Map<String, double> averages,
+  ) async {
+    if (_currentUserId == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    await prefs.setString('insights_content_${_currentUserId!}_$today', text);
+    await prefs.setString(
+      'insights_avgs_${_currentUserId!}_$today',
+      json.encode(averages),
+    );
+    _todayInsightsText = text;
+    _todayInsightsAverages = averages;
+  }
+
+  Future<void> _saveTodayStudyPlan(String text) async {
+    if (_currentUserId == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    await prefs.setString('study_plan_content_${_currentUserId!}_$today', text);
+    _todayStudyPlanText = text;
   }
 
   // Free-form chat handler removed; page uses card-based actions only.
@@ -505,11 +899,26 @@ class _AiChatPageState extends State<AiChatPage> {
 
     try {
       final quizData = await _aiService.generateQuiz(topic, count);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        PageRouteBuilder(
+          opaque: true,
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              QuizFullScreenPage(quizData: quizData),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curve = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            );
+            return FadeTransition(opacity: curve, child: child);
+          },
+        ),
+      );
       setState(() {
         _messages.add(
           ChatMessage(
             sender: 'ai',
-            text: '📝 ${quizData['title'] ?? 'Quiz'}',
+            text: '📝 ${quizData['title'] ?? 'Quiz'} (opened)',
             quiz: quizData,
             messageType: MessageType.quiz,
           ),
@@ -617,18 +1026,18 @@ class _AiChatPageState extends State<AiChatPage> {
             onTap: _showGenerateQuizDialog,
           ),
           _ActionCard(
-            title: 'My Insights',
+            title: _insightsUsedToday ? 'View Insights' : 'My Insights',
             icon: Icons.insights,
             color: Colors.blueAccent,
-            disabled: _insightsUsedToday,
-            onTap: _insightsUsedToday ? null : _handleInsightRequest,
+            disabled: false,
+            onTap: _handleInsightRequest,
           ),
           _ActionCard(
-            title: 'Study Plan',
+            title: _studyPlanUsedToday ? 'View Study Plan' : 'Study Plan',
             icon: Icons.calendar_today,
             color: Colors.green,
-            disabled: _studyPlanUsedToday,
-            onTap: _studyPlanUsedToday ? null : _handleStudyPlanRequest,
+            disabled: false,
+            onTap: _handleStudyPlanRequest,
           ),
           _ActionCard(
             title: 'Motivation Quotes',

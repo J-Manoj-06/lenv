@@ -3,11 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../services/daily_challenge_service.dart';
 
 /// Provider for managing daily challenge state with caching
 /// Prevents unnecessary Firestore reads and maintains state across navigation
+/// Now uses OpenTriviaDB API for fetching questions
 class DailyChallengeProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final DailyChallengeService _challengeService = DailyChallengeService();
 
   // Cache management - per student
   final Map<String, Map<String, dynamic>?> _cachedChallenges = {};
@@ -24,6 +27,7 @@ class DailyChallengeProvider with ChangeNotifier {
   // Getters - now require studentId
   Map<String, dynamic>? getCachedChallenge(String studentId) =>
       _cachedChallenges[studentId];
+  bool hasChallenge(String studentId) => _cachedChallenges[studentId] != null;
   bool isLoading(String studentId) => _loadingStates[studentId] ?? false;
   String? get errorMessage => _errorMessage;
   String? getSelectedAnswer(String studentId) => _selectedAnswers[studentId];
@@ -118,7 +122,7 @@ class DailyChallengeProvider with ChangeNotifier {
     }
   }
 
-  /// Fetch today's challenge from Firestore
+  /// Fetch today's challenge from OpenTriviaDB API
   Future<void> fetchChallenge(
     String studentId, {
     bool forceRefresh = false,
@@ -137,27 +141,74 @@ class DailyChallengeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Query by date field
-      final querySnapshot = await _firestore
-          .collection('daily_challenges')
-          .where('date', isEqualTo: today)
-          .limit(1)
-          .get();
+      // Check if challenge exists in SharedPreferences for today
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'daily_challenge_${studentId}_date';
+      final dataKey = 'daily_challenge_${studentId}_data';
+      final standardKey = 'daily_challenge_${studentId}_standard';
 
-      if (querySnapshot.docs.isNotEmpty) {
-        _cachedChallenges[studentId] = querySnapshot.docs.first.data();
+      final cachedDatePref = prefs.getString(cacheKey);
+      final cachedDataPref = prefs.getString(dataKey);
+
+      // If cache is from today, use it
+      if (!forceRefresh && cachedDatePref == today && cachedDataPref != null) {
+        _cachedChallenges[studentId] = jsonDecode(cachedDataPref);
         _cachedDate = today;
         _errorMessage = null;
-
-        // Save to cache
-        await _saveToCache(studentId, today, _cachedChallenges[studentId]!);
+        debugPrint('✅ Loaded cached challenge for student $studentId');
       } else {
-        _cachedChallenges[studentId] = null;
-        _errorMessage = 'No challenge available today';
+        // Fetch new challenge from OpenTriviaDB
+        debugPrint(
+          '🔄 Fetching NEW challenge from OpenTriviaDB for student $studentId',
+        );
+
+        // Get student's standard/class from Firestore
+        int standard = 8; // Default
+        try {
+          final userDoc = await _firestore
+              .collection('users')
+              .doc(studentId)
+              .get();
+          if (userDoc.exists) {
+            final data = userDoc.data();
+            // Try different field names for standard
+            standard =
+                data?['standard'] ?? data?['class'] ?? data?['grade'] ?? 8;
+          }
+        } catch (e) {
+          debugPrint('⚠️ Could not fetch student standard, using default: $e');
+        }
+
+        // Fetch from OpenTriviaDB
+        final challenge = await _challengeService.getDailyChallengeForToday(
+          studentId,
+          standard,
+        );
+
+        if (challenge != null) {
+          final challengeData = challenge.toJson();
+          _cachedChallenges[studentId] = challengeData;
+          _cachedDate = today;
+          _errorMessage = null;
+
+          // Save to cache
+          await _saveToCache(studentId, today, challengeData);
+          await prefs.setInt(standardKey, standard);
+
+          debugPrint(
+            '✅ Fetched and cached new challenge for student $studentId (standard: $standard)',
+          );
+        } else {
+          _cachedChallenges[studentId] = null;
+          _errorMessage = 'Unable to fetch challenge from OpenTriviaDB';
+          debugPrint(
+            '❌ Failed to fetch challenge from OpenTriviaDB for student $studentId',
+          );
+        }
       }
     } catch (e) {
       _errorMessage = 'Error loading challenge: ${e.toString()}';
-      debugPrint(_errorMessage);
+      debugPrint('❌ Error in fetchChallenge for student $studentId: $e');
     } finally {
       _loadingStates[studentId] = false;
       notifyListeners();
@@ -178,7 +229,13 @@ class DailyChallengeProvider with ChangeNotifier {
     final selectedAnswer = _selectedAnswers[studentId];
     final cachedChallenge = _cachedChallenges[studentId];
 
-    if (selectedAnswer == null || cachedChallenge == null) {
+    if (selectedAnswer == null) {
+      debugPrint('❌ Submit failed: No selected answer for student $studentId');
+      return false;
+    }
+
+    if (cachedChallenge == null) {
+      debugPrint('❌ Submit failed: No cached challenge for student $studentId');
       return false;
     }
 
@@ -190,23 +247,26 @@ class DailyChallengeProvider with ChangeNotifier {
       final isCorrect = selectedAnswer == correctAnswer;
       final today = _getTodayDate();
 
-      // Save answer record to daily_challenge_answers with student-specific doc ID
-      await _firestore
-          .collection('daily_challenge_answers')
-          .doc('${studentId}_$today')
-          .set({
-            'studentId': studentId,
-            'studentEmail': studentEmail,
-            'date': today,
-            'selectedAnswer': selectedAnswer,
-            'correctAnswer': correctAnswer,
-            'isCorrect': isCorrect,
-            'answeredAt': FieldValue.serverTimestamp(),
-          });
-
       debugPrint(
-        '📝 Student $studentId answered: $selectedAnswer (${isCorrect ? "CORRECT" : "WRONG"})',
+        '📝 Submitting answer for student $studentId: selected="$selectedAnswer", correct="$correctAnswer", isCorrect=$isCorrect',
       );
+
+      // Save answer record to daily_challenge_answers with student-specific doc ID
+      final docId = '${studentId}_$today';
+      await _firestore.collection('daily_challenge_answers').doc(docId).set({
+        'studentId': studentId,
+        'studentEmail': studentEmail,
+        'date': today,
+        'selectedAnswer': selectedAnswer,
+        'correctAnswer': correctAnswer,
+        'isCorrect': isCorrect,
+        'answeredAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('✅ Saved to daily_challenge_answers with doc ID: $docId');
+
+      // Update streak regardless of correct/incorrect answer
+      await _updateStreak(studentId, today);
 
       if (isCorrect) {
         debugPrint(
@@ -241,6 +301,14 @@ class DailyChallengeProvider with ChangeNotifier {
       _hasAnsweredStates[studentId] = true;
       _resultStates[studentId] = isCorrect ? 'correct' : 'incorrect';
       _submittingStates[studentId] = false;
+
+      // Clear selected answer after submission
+      _selectedAnswers[studentId] = null;
+
+      debugPrint(
+        '✅ Daily Challenge: Updated state for student $studentId - hasAnswered: true, result: ${isCorrect ? "correct" : "incorrect"}',
+      );
+
       notifyListeners();
 
       return isCorrect;
@@ -252,6 +320,85 @@ class DailyChallengeProvider with ChangeNotifier {
       _submittingStates[studentId] = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Update streak for a student
+  Future<void> _updateStreak(String studentId, String today) async {
+    try {
+      // Get student document
+      final studentDoc = await _firestore
+          .collection('users')
+          .doc(studentId)
+          .get();
+
+      if (!studentDoc.exists) {
+        debugPrint('⚠️ Student document not found for $studentId');
+        return;
+      }
+
+      final data = studentDoc.data() as Map<String, dynamic>;
+      final lastStreakDate = data['lastStreakDate'] as String?;
+      final currentStreak = data['streak'] as int? ?? 0;
+
+      int newStreak;
+
+      if (lastStreakDate == null) {
+        // First time answering
+        newStreak = 1;
+      } else if (lastStreakDate == today) {
+        // Already answered today (shouldn't happen, but keep current streak)
+        newStreak = currentStreak;
+      } else {
+        // Check if it's a consecutive day
+        final lastDate = _parseDate(lastStreakDate);
+        final todayDate = _parseDate(today);
+
+        if (lastDate != null && todayDate != null) {
+          final daysDiff = todayDate.difference(lastDate).inDays;
+
+          if (daysDiff == 1) {
+            // Consecutive day - increment streak
+            newStreak = currentStreak + 1;
+          } else {
+            // Missed days - reset streak
+            newStreak = 1;
+          }
+        } else {
+          // Error parsing dates - reset streak
+          newStreak = 1;
+        }
+      }
+
+      // Update student document
+      await _firestore.collection('users').doc(studentId).set({
+        'streak': newStreak,
+        'lastStreakDate': today,
+      }, SetOptions(merge: true));
+
+      debugPrint(
+        '🔥 Updated streak for $studentId: $newStreak (previous: $currentStreak, lastDate: $lastStreakDate)',
+      );
+    } catch (e) {
+      debugPrint('❌ Error updating streak for $studentId: $e');
+    }
+  }
+
+  /// Parse date string (yyyy-MM-dd) to DateTime
+  DateTime? _parseDate(String dateStr) {
+    try {
+      final parts = dateStr.split('-');
+      if (parts.length != 3) return null;
+
+      final year = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final day = int.tryParse(parts[2]);
+
+      if (year == null || month == null || day == null) return null;
+
+      return DateTime(year, month, day);
+    } catch (e) {
+      return null;
     }
   }
 
@@ -269,7 +416,25 @@ class DailyChallengeProvider with ChangeNotifier {
   }
 
   /// Clear all state completely (used on logout/user switch)
-  void clearAllState() {
+  Future<void> clearAllState() async {
+    try {
+      // Clear SharedPreferences for all cached students
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+
+      // Remove all daily_challenge related keys
+      for (final key in keys) {
+        if (key.startsWith('daily_challenge_')) {
+          await prefs.remove(key);
+        }
+      }
+
+      debugPrint('🧹 DailyChallengeProvider: Cleared SharedPreferences cache');
+    } catch (e) {
+      debugPrint('⚠️ Error clearing SharedPreferences: $e');
+    }
+
+    // Clear in-memory state
     _cachedChallenges.clear();
     _cachedDate = null;
     _selectedAnswers.clear();

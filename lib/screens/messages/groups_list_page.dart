@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/group_subject.dart';
+import '../../providers/student_provider.dart';
 import '../../services/group_messaging_service.dart';
 import 'group_chat_page.dart';
 
@@ -12,26 +14,80 @@ class GroupsListPage extends StatefulWidget {
   State<GroupsListPage> createState() => _GroupsListPageState();
 }
 
-class _GroupsListPageState extends State<GroupsListPage> {
+class _GroupsListPageState extends State<GroupsListPage>
+    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   final GroupMessagingService _messagingService = GroupMessagingService();
   List<GroupSubject> _subjects = [];
   bool _isLoading = true;
   String? _classId;
+  bool _hasAttemptedLoad = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    _loadClassSubjects();
+    WidgetsBinding.instance.addObserver(this);
+    // Delay initial load to ensure StudentProvider is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadClassSubjects();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _hasAttemptedLoad) {
+      // Reload when app comes to foreground
+      _loadClassSubjects();
+    }
+  }
+
+  @override
+  void didUpdateWidget(GroupsListPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload if studentId changes
+    if (oldWidget.studentId != widget.studentId) {
+      _loadClassSubjects();
+    }
   }
 
   Future<void> _loadClassSubjects() async {
+    if (!mounted) return;
+
     setState(() => _isLoading = true);
+    _hasAttemptedLoad = true;
 
     try {
-      // Get student's class ID from their profile
-      final classId = await _messagingService.getStudentClassId(
-        widget.studentId,
+      // Get student from StudentProvider (already ready by PostFrameCallback)
+      final studentProvider = Provider.of<StudentProvider>(
+        context,
+        listen: false,
       );
+
+      final student = studentProvider.currentStudent;
+      final studentUid = student?.uid ?? widget.studentId;
+
+      if (studentUid.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _subjects = [];
+          _isLoading = false;
+          _classId = null;
+        });
+        return;
+      }
+
+      // Get student's class ID from their profile
+      final classId = await _messagingService.getStudentClassId(studentUid);
+
+      if (!mounted) return;
 
       if (classId == null) {
         setState(() {
@@ -47,38 +103,100 @@ class _GroupsListPageState extends State<GroupsListPage> {
       // Fetch subjects from classes/{classId}/subjects collection
       final subjects = await _messagingService.getClassSubjects(classId);
 
+      if (!mounted) return;
+
       setState(() {
         _subjects = subjects;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ GroupsListPage error: $e');
+      print('Stack trace: $stackTrace');
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFFFF8800)),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: Color(0xFFFF8800)),
+            const SizedBox(height: 16),
+            Text(
+              'Loading your groups...',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     if (_classId == null) {
-      return const Center(
-        child: Text(
-          'Unable to determine your class.\nPlease contact your administrator.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white70),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.white.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Unable to determine your class.\nPlease contact your administrator.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadClassSubjects,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF8800),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
         ),
       );
     }
 
     if (_subjects.isEmpty) {
-      return const Center(
-        child: Text(
-          'No subject groups available yet.',
-          style: TextStyle(color: Colors.white70),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.groups_outlined,
+              size: 64,
+              color: Colors.white.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'No subject groups available yet.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadClassSubjects,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF8800),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
         ),
       );
     }

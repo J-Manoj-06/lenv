@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// import 'package:lottie/lottie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/student_provider.dart';
+import '../../providers/daily_challenge_provider.dart';
 import '../../models/test_model.dart';
 import '../../models/test_result_model.dart';
 import '../../models/status_model.dart';
@@ -10,9 +10,11 @@ import '../../models/student_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/parent_service.dart';
-import '../../widgets/daily_challenge_card.dart';
 import '../teacher/status_view_screen.dart';
-import '../../widgets/achievement_section.dart';
+import 'daily_challenge_screen.dart';
+import 'student_profile_screen.dart';
+import '../ai/ai_chat_page.dart';
+import 'dart:math' as math;
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({super.key});
@@ -22,15 +24,12 @@ class StudentDashboardScreen extends StatefulWidget {
 }
 
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
-  double _fabScale = 1.0;
   @override
   void initState() {
     super.initState();
-    // Ensure auth restored (FirebaseAuth currentUser) before loading data.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await authProvider.ensureInitialized();
-      // If still unauthenticated after restore attempt, stay; router can handle redirect.
       await _loadDashboardData();
     });
   }
@@ -41,16 +40,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       context,
       listen: false,
     );
-    // Attempt one more lazy re-init if user is null (cold start race condition)
     if (authProvider.currentUser == null && !authProvider.isLoading) {
       await authProvider.initializeAuth();
     }
     if (authProvider.currentUser == null) {
-      // User truly not logged in; skip loading (UI will reflect auth state elsewhere)
       return;
     }
 
-    // Process any ended tests to award pending points
     try {
       await FirestoreService().processEndedTests();
     } catch (e) {
@@ -60,21 +56,19 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     await studentProvider.loadDashboardData(authProvider.currentUser!.uid);
   }
 
-  // Navigation handled by shared StudentBottomNav widget.
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Consumer<StudentProvider>(
       builder: (context, studentProvider, child) {
         if (studentProvider.isLoading &&
             studentProvider.currentStudent == null) {
-          return Scaffold(
-            backgroundColor: theme.scaffoldBackgroundColor,
-            body: const Center(
+          return const Scaffold(
+            backgroundColor: Color(0xFF16171A),
+            body: Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF27F0D)),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFFF2800D),
+                    ),
               ),
             ),
           );
@@ -84,1052 +78,276 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         final authUser = Provider.of<AuthProvider>(context).currentUser;
 
         return Scaffold(
-          backgroundColor: theme.scaffoldBackgroundColor,
+          backgroundColor: const Color(0xFF16171A),
           body: RefreshIndicator(
             onRefresh: _loadDashboardData,
-            color: const Color(0xFFF27F0D),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  // Top App Bar
-                  _buildTopAppBar(theme, student, authUser),
+            color: const Color(0xFFF2800D),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                // Custom Header
+                SliverToBoxAdapter(child: _buildHeader(student, authUser)),
 
-                  // Scrollable Content
-                  Expanded(
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Announcements Section
-                          if (student != null)
-                            _buildAnnouncementsSection(theme, student),
-                          // Removed duplicate progress subtitle (already shown in top app bar)
-                          // _buildProgressText(theme),
-                          _buildPointsCard(theme, student),
-                          // Daily Challenge Card
-                          if (student != null)
-                            DailyChallengeCard(
-                              studentId: student.uid,
-                              studentEmail: student.email,
-                            ),
-                          _buildActiveTestsSection(theme),
-                          _buildPerformanceSection(theme, student),
-                          _buildRewardsSection(theme, student),
-                          _buildAchievementsSection(theme),
-                          const SizedBox(height: 80),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-          floatingActionButton: _buildAiAssistantFab(theme),
-        );
-      },
-    );
-  }
+                // Main Content
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      // Announcements Section (above points)
+                      if (student != null) _buildAnnouncementsSection(student),
 
-  Widget _buildTopAppBar(ThemeData theme, student, authUser) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hi, ${student?.name?.split(' ').first ?? authUser?.email?.split('@').first ?? 'Student'} 👋',
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "Here’s your progress for today",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFFB0B0B0),
+                      const SizedBox(height: 16),
+
+                      // Points Card
+                      _buildPointsCard(student),
+
+                      const SizedBox(height: 24),
+
+                      // Daily Challenge
+                      if (student != null) _buildDailyChallengeCard(student),
+
+                      const SizedBox(height: 24),
+
+                      // Assigned Tests
+                      _buildAssignedTestsSection(student),
+
+                      const SizedBox(height: 24),
+
+                      // Performance
+                      _buildPerformanceSection(student),
+
+                      const SizedBox(height: 24),
+
+                      // Attendance
+                      _buildAttendanceSection(student),
+
+                      const SizedBox(height: 24),
+
+                      // Badges
+                      _buildBadgesSection(student),
+
+                      const SizedBox(height: 100),
+                    ]),
                   ),
                 ),
               ],
             ),
           ),
-          // Removed Groups Button (student-groups navigation)
-          const SizedBox(width: 0),
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/student-profile'),
-            child: Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                image: student?.photoUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(student!.photoUrl!),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-                color: student?.photoUrl == null
-                    ? const Color(0xFFFF8A00)
-                    : null,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AiChatPage()),
+              );
+            },
+            backgroundColor: const Color(0xFFF2800D),
+            child: const Icon(Icons.smart_toy, color: Colors.white),
+          ),
+        );
+      },
+    );
+  }
+
+  // Header with profile picture and streak
+  Widget _buildHeader(StudentModel? student, authUser) {
+    String firstName = 'Student';
+
+    try {
+      if (student?.name != null && student!.name.isNotEmpty) {
+        final nameParts = student.name.trim().split(' ');
+        firstName = nameParts.isNotEmpty ? nameParts.first : 'Student';
+      } else if (authUser?.email != null && authUser.email.isNotEmpty) {
+        final emailParts = authUser.email.split('@');
+        firstName = emailParts.isNotEmpty ? emailParts.first : 'Student';
+      }
+    } catch (e) {
+      debugPrint('Error parsing name: $e');
+      firstName = 'Student';
+    }
+
+    return Container(
+      color: const Color(0xFF16171A),
+      child: Column(
+        children: [
+          const SizedBox(height: 64),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Hi, $firstName 👋',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          height: 1.2,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Here's your progress for today",
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Color(0xFFE5E5E5),
+                          fontWeight: FontWeight.w400,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: student?.photoUrl == null
-                  ? const Icon(Icons.person, color: Colors.white, size: 28)
-                  : null,
+                ),
+                Row(
+                  children: [
+                    _buildStreakBadge(),
+                    const SizedBox(width: 12),
+                    _buildProfileIcon(),
+                  ],
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  Widget _buildAiAssistantFab(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4.0),
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _fabScale = 0.94),
-        onTapCancel: () => setState(() => _fabScale = 1.0),
-        onTapUp: (_) => setState(() => _fabScale = 1.0),
-        onTap: () {
-          Navigator.pushNamed(context, '/ai-chat');
-        },
-        child: AnimatedScale(
-          scale: _fabScale,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-          child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF8A00), Color(0xFFFFAA33)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFFF8A00).withOpacity(0.45),
-                  blurRadius: 18,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.smart_toy_rounded,
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
+  Widget _buildStreakBadge() {
+    return Consumer<StudentProvider>(
+      builder: (context, studentProvider, child) {
+        final student = studentProvider.currentStudent;
+        final streakDays = student?.streak ?? 0;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF2800D).withOpacity(0.2),
+            borderRadius: BorderRadius.circular(24),
           ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.local_fire_department,
+                color: Color(0xFFF2800D),
+                size: 24,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '$streakDays',
+                style: const TextStyle(
+                  color: Color(0xFFF2800D),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProfileIcon() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const StudentProfileScreen()),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF2C2C2E), width: 1),
         ),
+        child: const Icon(Icons.person_outline, color: Colors.white, size: 24),
       ),
     );
   }
 
-  Widget _buildPointsCard(ThemeData theme, student) {
-    if (student == null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [Color(0xFFFF8A00), Color(0xFFFF9E2E)],
-            ),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Current Points',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '--',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      height: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Rank: --',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
-              ),
-              const Icon(Icons.military_tech, size: 50, color: Colors.white54),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Aggregate all points from student_rewards collection (tests + daily challenges)
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('student_rewards')
-          .where('studentId', isEqualTo: student.uid)
-          .snapshots(),
-      builder: (context, rewardsSnapshot) {
-        int rewardPoints = 0;
-
-        // Sum all pointsEarned from student_rewards (tests + daily challenges)
-        if (rewardsSnapshot.hasData) {
-          for (final doc in rewardsSnapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>?;
-            if (data != null) {
-              final points = data['pointsEarned'];
-              if (points is int) {
-                rewardPoints += points;
-              } else if (points is num) {
-                rewardPoints += points.toInt();
-              }
-            }
-          }
-        }
-
-        // Calculate rank dynamically based on class
-        return FutureBuilder<int?>(
-          future: _calculateClassRank(
-            student.uid,
-            student.className,
-            rewardPoints,
-          ),
-          builder: (context, rankSnapshot) {
-            final rank = rankSnapshot.data ?? student.classRank;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [Color(0xFFFF8A00), Color(0xFFFF9E2E)],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Current Points',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '$rewardPoints',
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            height: 1.0,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          rank > 0 ? 'Rank: #$rank' : 'Rank: --',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Icon(
-                      Icons.military_tech,
-                      size: 50,
-                      color: Colors.white54,
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<int?> _calculateClassRank(
-    String uid,
-    String? className,
-    int rewardPoints,
-  ) async {
-    if (className == null || className.isEmpty) return null;
-
-    try {
-      // Get all students in the same class
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('className', isEqualTo: className)
-          .where('role', isEqualTo: 'student')
-          .get();
-
-      if (snapshot.docs.isEmpty) return null;
-
-      // Sort by reward points descending
-      final students = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {'uid': doc.id, 'rewardPoints': data['rewardPoints'] ?? 0};
-      }).toList();
-
-      students.sort(
-        (a, b) =>
-            (b['rewardPoints'] as int).compareTo(a['rewardPoints'] as int),
-      );
-
-      // Find this student's rank
-      for (int i = 0; i < students.length; i++) {
-        if (students[i]['uid'] == uid) {
-          return i + 1; // 1-based rank
-        }
-      }
-
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Widget _buildActiveTestsSection(ThemeData theme) {
-    final studentProvider = Provider.of<StudentProvider>(
-      context,
-      listen: false,
-    );
-    final student = studentProvider.currentStudent;
-    if (student == null) {
-      return SizedBox.shrink();
-    }
-    final studentId = student.uid;
-    final resultsStream = FirestoreService().getTestResultsByStudent(studentId);
-    return StreamBuilder<List<TestResultModel>>(
-      stream: resultsStream,
-      builder: (context, resultsSnap) {
-        final completedTestIds = <String>{
-          if (resultsSnap.hasData) ...resultsSnap.data!.map((r) => r.testId),
-        };
-        return StreamBuilder<List<TestModel>>(
-          stream: FirestoreService().getAvailableTestsForStudent(
-            studentId,
-            studentEmail: student.email,
-          ),
-          builder: (context, testsSnap) {
-            if (resultsSnap.connectionState == ConnectionState.waiting ||
-                testsSnap.connectionState == ConnectionState.waiting) {
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-
-            final tests = testsSnap.data ?? [];
-            final now = DateTime.now();
-            final liveUnattempted = tests.where((t) {
-              final inWindow =
-                  !t.startDate.isAfter(now) && !t.endDate.isBefore(now);
-              final notAttempted = !completedTestIds.contains(t.id);
-              return inWindow && notAttempted;
-            }).toList();
-
-            if (liveUnattempted.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                child: Text(
-                  'No live tests available. Assigned tests will appear here when active and not attempted.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.hintColor,
-                  ),
-                ),
-              );
-            }
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                  child: Text(
-                    'Your Active Tests 📘',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                ...liveUnattempted.map(
-                  (test) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: theme.cardColor,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: theme.dividerColor),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF27F0D).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.calculate,
-                              color: Color(0xFFF27F0D),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  test.title,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Duration: ${test.duration} minutes',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.textTheme.bodySmall?.color,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          OutlinedButton(
-                            onPressed: () => Navigator.pushNamed(
-                              context,
-                              '/student-tests',
-                              arguments: test,
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFFF27F0D)),
-                              foregroundColor: const Color(0xFFF27F0D),
-                            ),
-                            child: const Text('Start Test'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildPerformanceSection(ThemeData theme, student) {
-    if (student == null) {
-      return SizedBox.shrink();
-    }
-
-    return StreamBuilder<List<TestResultModel>>(
-      stream: FirestoreService().getTestResultsByStudent(student.uid),
-      builder: (context, snapshot) {
-        // Calculate real performance metrics
-        int testsTaken = 0;
-        double avgScore = 0.0;
-
-        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          final results = snapshot.data!;
-          testsTaken = results.length;
-
-          // Calculate average score (score field is already a percentage)
-          double totalScore = 0.0;
-          for (var result in results) {
-            totalScore += result.score; // 0-100
-          }
-          avgScore = testsTaken > 0 ? totalScore / testsTaken : 0.0;
-        }
-
-        // Fetch attendance percentage for the student
-        return FutureBuilder<double>(
-          future: ParentService().getStudentAttendance(student.uid),
-          builder: (context, attSnap) {
-            final attendancePct = (attSnap.data ?? 0.0).clamp(0.0, 100.0);
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 32, 16, 12),
-                  child: const Text(
-                    'Your Performance 📊',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2A),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 20,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _performanceCell(
-                            testsTaken > 0
-                                ? '${avgScore.toStringAsFixed(0)}%'
-                                : '-',
-                            'Avg. Score',
-                            highlight: true,
-                          ),
-                        ),
-                        Container(
-                          width: 1,
-                          height: 46,
-                          color: Colors.white.withOpacity(0.1),
-                        ),
-                        Expanded(
-                          child: _performanceCell('$testsTaken', 'Tests Taken'),
-                        ),
-                        Container(
-                          width: 1,
-                          height: 46,
-                          color: Colors.white.withOpacity(0.1),
-                        ),
-                        Expanded(
-                          child: _performanceCell(
-                            attSnap.connectionState == ConnectionState.waiting
-                                ? '--%'
-                                : '${attendancePct.toStringAsFixed(0)}%',
-                            'Attendance',
-                            highlight: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _performanceCell(
-    String value,
-    String label, {
-    bool highlight = false,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-            color: highlight ? const Color(0xFFFF8A00) : Colors.white,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFFB0B0B0),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRewardsSection(ThemeData theme, student) {
-    if (student == null) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Rewards 🎁',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.dividerColor),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Points',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.textTheme.bodySmall?.color,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '0',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFF27F0D),
-                        ),
-                      ),
-                    ],
-                  ),
-                  ElevatedButton(
-                    onPressed: () =>
-                        Navigator.pushNamed(context, '/student-rewards'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF27F0D).withOpacity(0.2),
-                      foregroundColor: const Color(0xFFF27F0D),
-                      elevation: 0,
-                    ),
-                    child: const Text('View'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Stream the user document to get real-time reward points
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(student.uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        int rewardPoints = student.rewardPoints;
-
-        if (snapshot.hasData && snapshot.data != null) {
-          final data = snapshot.data!.data() as Map<String, dynamic>?;
-          if (data != null && data.containsKey('rewardPoints')) {
-            rewardPoints = data['rewardPoints'] ?? 0;
-          }
-        }
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Rewards 🎁',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.dividerColor),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Total Points',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.textTheme.bodySmall?.color,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '$rewardPoints',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFFF27F0D),
-                          ),
-                        ),
-                      ],
-                    ),
-                    ElevatedButton(
-                      onPressed: () =>
-                          Navigator.pushNamed(context, '/student-rewards'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(
-                          0xFFF27F0D,
-                        ).withOpacity(0.2),
-                        foregroundColor: const Color(0xFFF27F0D),
-                        elevation: 0,
-                      ),
-                      child: const Text('View'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAchievementsSection(ThemeData theme) {
-    // Replace previous static achievements with real earned badges
-    final student = Provider.of<StudentProvider>(
-      context,
-      listen: false,
-    ).currentStudent;
-    if (student == null) {
-      return const SizedBox.shrink();
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Text(
-            'Your Achievements 🏅',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-            ),
-          ),
-        ),
-        // Real achievements fetched from Firestore badges array
-        // Achievements list
-        // ignore: prefer_const_constructors
-        AchievementSection(studentId: student.uid),
-      ],
-    );
-  }
-
-  // Bottom nav is centralized in StudentBottomNav widget.
-
-  /// Build announcements section with beautiful card design
-  Widget _buildAnnouncementsSection(ThemeData theme, StudentModel student) {
+  // Announcements Section (WhatsApp-style)
+  Widget _buildAnnouncementsSection(StudentModel student) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUserId = authProvider.currentUser?.uid ?? '';
-
-    // Get school identifier - USE SCHOOLCODE FIRST (like "OAK001")!
     final schoolIdentifier =
-        student.schoolCode ?? // PRIMARY: schoolCode from Firestore
-        student.schoolId ?? // Fallback: old schoolId if exists
-        student.schoolName ?? // Last resort: full name
-        '';
+        student.schoolCode ?? student.schoolId ?? student.schoolName ?? '';
 
-    // Check if we have any valid identifier
-    if (schoolIdentifier.isEmpty) {
-      return _buildErrorCard(
-        theme,
-        '⚠️ Configuration Issue',
-        'Your school information is missing. Please contact your administrator to update your profile in the system.',
-      );
-    }
+    if (schoolIdentifier.isEmpty) return const SizedBox.shrink();
 
-    // Use FutureBuilder to fetch section if needed
     return FutureBuilder<Map<String, String>>(
       future: _parseStudentInfo(student),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const SizedBox.shrink();
-        }
+        if (!snapshot.hasData) return const SizedBox.shrink();
 
         final userStandard = snapshot.data!['standard'] ?? '';
         final userSection = snapshot.data!['section'] ?? '';
 
-        return _buildAnnouncementsStream(
-          theme,
-          student,
-          schoolIdentifier,
-          currentUserId,
-          userStandard,
-          userSection,
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('class_highlights')
+              .where('instituteId', isEqualTo: schoolIdentifier)
+              .where('expiresAt', isGreaterThan: Timestamp.now())
+              .orderBy('expiresAt', descending: false)
+              .orderBy('createdAt', descending: true)
+              .limit(10)
+              .snapshots(),
+          builder: (context, announcementSnapshot) {
+            if (announcementSnapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const SizedBox.shrink();
+            }
+
+            final announcements = announcementSnapshot.hasData
+                ? announcementSnapshot.data!.docs
+                      .map((doc) => StatusModel.fromFirestore(doc))
+                      .where(
+                        (a) =>
+                            a.teacherId.isNotEmpty &&
+                            a.isVisibleTo(
+                              userStandard: userStandard,
+                              userSection: userSection,
+                            ),
+                      )
+                      .toList()
+                : <StatusModel>[];
+
+            if (announcements.isEmpty) return const SizedBox.shrink();
+
+            return _buildAnnouncementsRow(announcements, currentUserId);
+          },
         );
       },
     );
   }
 
-  /// Parse student's className and fetch section from Firestore if needed
-  Future<Map<String, String>> _parseStudentInfo(StudentModel student) async {
-    String userStandard = '';
-    String userSection = '';
-
-    // First, check if section is directly available in StudentModel
-    if (student.section != null && student.section!.isNotEmpty) {
-      userSection = student.section!.trim();
-    }
-
-    if (student.className != null && student.className!.isNotEmpty) {
-      final className = student.className!;
-
-      // Handle formats like "Grade 10 - A" or "Grade 10-A"
-      if (className.contains('-')) {
-        final parts = className.split('-').map((e) => e.trim()).toList();
-        if (parts.length == 2) {
-          userStandard = parts[0]
-              .replaceAll('Grade', '')
-              .replaceAll('grade', '')
-              .trim();
-          userSection = parts[1].trim();
-        }
-      }
-      // Handle format like "Grade 10" (no section in className, fetch from Firestore)
-      else if (className.toLowerCase().contains('grade')) {
-        userStandard = className
-            .replaceAll('Grade', '')
-            .replaceAll('grade', '')
-            .trim();
-      }
-      // Handle format like "10A"
-      else {
-        final match = RegExp(r'^(\d+)([A-Z])$').firstMatch(className);
-        if (match != null) {
-          userStandard = match.group(1) ?? '';
-          userSection = match.group(2) ?? '';
-        } else {
-          userStandard = className.trim();
-        }
-      }
-    }
-
-    // If section is still empty, fetch it from the student document in Firestore
-    if (userSection.isEmpty && student.uid.isNotEmpty) {
-      try {
-        final studentDoc = await FirebaseFirestore.instance
-            .collection('students')
-            .doc(student.uid)
-            .get();
-        if (studentDoc.exists) {
-          userSection =
-              (studentDoc.data()?['section'] as String?)?.trim() ?? '';
-        }
-      } catch (e) {
-        print('⚠️ Error fetching section: $e');
-      }
-    }
-
-    print(
-      '📊 Student Info - Standard: "$userStandard", Section: "$userSection"',
-    );
-    print('   className: "${student.className}"');
-
-    return {'standard': userStandard, 'section': userSection};
-  }
-
-  /// Build the actual announcements stream widget
-  Widget _buildAnnouncementsStream(
-    ThemeData theme,
-    StudentModel student,
-    String schoolIdentifier,
-    String currentUserId,
-    String userStandard,
-    String userSection,
-  ) {
-    print('   schoolCode: "$schoolIdentifier"');
-
-    // TEMPORARY FIX: If schoolIdentifier is empty or doesn't match, query ALL announcements
-    // and filter client-side. This helps diagnose the issue.
-    final hasValidSchoolId = schoolIdentifier.isNotEmpty;
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: hasValidSchoolId
-          ? FirebaseFirestore.instance
-                .collection('class_highlights')
-                .where('instituteId', isEqualTo: schoolIdentifier)
-                .where('expiresAt', isGreaterThan: Timestamp.now())
-                .orderBy('expiresAt', descending: false)
-                .orderBy('createdAt', descending: true)
-                .limit(10)
-                .snapshots()
-          : FirebaseFirestore.instance
-                .collection('class_highlights')
-                .where('expiresAt', isGreaterThan: Timestamp.now())
-                .orderBy('expiresAt', descending: false)
-                .orderBy('createdAt', descending: true)
-                .limit(10)
-                .snapshots(),
-      builder: (context, snapshot) {
-        // Loading state
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildAnnouncementsLoadingCard(theme);
-        }
-
-        // Parse and filter announcements
-        final allAnnouncements = snapshot.hasData
-            ? snapshot.data!.docs
-                  .map((doc) {
-                    final announcement = StatusModel.fromFirestore(doc);
-                    return announcement;
-                  })
-                  .where((announcement) {
-                    // Show only teacher-posted announcements
-                    final fromTeacher = announcement.teacherId.isNotEmpty;
-                    if (!fromTeacher) return false;
-
-                    // If we're querying all, also check instituteId matches
-                    final sameInstitute =
-                        !hasValidSchoolId ||
-                        announcement.instituteId == schoolIdentifier;
-                    if (!sameInstitute) return false;
-
-                    final isVisible = announcement.isVisibleTo(
-                      userStandard: userStandard,
-                      userSection:
-                          userSection, // Pass just the section letter (e.g., 'A')
-                    );
-                    return isVisible;
-                  })
-                  .toList()
-            : <StatusModel>[];
-
-        // Only show announcements section if there are teacher announcements
-        if (allAnnouncements.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return _buildAnnouncementsHorizontalRow(
-          theme,
-          allAnnouncements,
-          currentUserId,
-        );
-      },
-    );
-  }
-
-  /// Build horizontal scrollable row of announcements (WhatsApp-style)
-  Widget _buildAnnouncementsHorizontalRow(
-    ThemeData theme,
+  Widget _buildAnnouncementsRow(
     List<StatusModel> announcements,
     String currentUserId,
   ) {
-    // Group announcements by teacherId
     final Map<String, List<StatusModel>> groupedByTeacher = {};
     for (final announcement in announcements) {
-      final teacherId = announcement.teacherId;
-      if (!groupedByTeacher.containsKey(teacherId)) {
-        groupedByTeacher[teacherId] = [];
-      }
-      groupedByTeacher[teacherId]!.add(announcement);
+      groupedByTeacher
+          .putIfAbsent(announcement.teacherId, () => [])
+          .add(announcement);
     }
 
-    // Convert to list of teacher groups (sorted by most recent announcement)
     final teacherGroups = groupedByTeacher.entries.map((entry) {
-      final teacherAnnouncements = entry.value;
-      // Sort announcements by creation time (newest first)
-      teacherAnnouncements.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return teacherAnnouncements;
+      final list = entry.value;
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
     }).toList();
 
-    // Sort teacher groups by their most recent announcement
     teacherGroups.sort(
       (a, b) => b.first.createdAt.compareTo(a.first.createdAt),
     );
@@ -1137,173 +355,124 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section Title
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 12),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF27F0D).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.campaign,
-                  color: Color(0xFFF27F0D),
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 10),
+              Icon(Icons.campaign, color: Color(0xFFF2800D), size: 20),
+              SizedBox(width: 8),
               Text(
                 '📢 Announcements',
-                style: theme.textTheme.titleMedium?.copyWith(
+                style: TextStyle(
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1A1A1A),
+                  color: Colors.white,
                 ),
               ),
             ],
           ),
         ),
-
-        // Horizontal scrollable list
         SizedBox(
           height: 100,
-          child: teacherGroups.isEmpty
-              ? _buildEmptyAnnouncementsList(theme)
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: teacherGroups.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 16),
-                  itemBuilder: (context, index) {
-                    final teacherAnnouncements = teacherGroups[index];
-                    final latestAnnouncement = teacherAnnouncements.first;
+          child: ListView.separated(
+            padding: const EdgeInsets.only(bottom: 8),
+            scrollDirection: Axis.horizontal,
+            itemCount: teacherGroups.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            itemBuilder: (context, index) {
+              final teacherAnnouncements = teacherGroups[index];
+              final latest = teacherAnnouncements.first;
+              final hasUnread = teacherAnnouncements.any(
+                (a) => !a.viewedBy.contains(currentUserId),
+              );
 
-                    // Check if ANY announcement from this teacher is unread
-                    final hasUnread = teacherAnnouncements.any(
-                      (a) => !a.viewedBy.contains(currentUserId),
-                    );
-
-                    return _buildAnnouncementAvatar(
-                      theme,
-                      latestAnnouncement,
-                      hasUnread,
-                      () {
-                        _openAnnouncementViewer(teacherAnnouncements, 0);
-                      },
-                      announcementCount: teacherAnnouncements.length,
-                    );
-                  },
-                ),
+              return _buildAnnouncementAvatar(
+                latest,
+                hasUnread,
+                () => _openAnnouncementViewer(teacherAnnouncements, 0),
+                count: teacherAnnouncements.length,
+              );
+            },
+          ),
         ),
       ],
     );
   }
 
-  /// Empty announcements list (shows placeholder message)
-  Widget _buildEmptyAnnouncementsList(ThemeData theme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.mail_outline, size: 32, color: Colors.grey[400]),
-            const SizedBox(height: 8),
-            Text(
-              'No announcements yet',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Build individual announcement avatar (circular with gradient border)
   Widget _buildAnnouncementAvatar(
-    ThemeData theme,
     StatusModel announcement,
     bool isUnread,
     VoidCallback onTap, {
-    int announcementCount = 1, // Number of announcements from this teacher
+    int count = 1,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Avatar with gradient border if unread
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 68,
-                height: 68,
+                width: 64,
+                height: 64,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: isUnread
                       ? const LinearGradient(
-                          colors: [Color(0xFFFFA726), Color(0xFFF27F0D)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFFFA726), Color(0xFFF2800D)],
                         )
                       : null,
                   border: !isUnread
-                      ? Border.all(color: Colors.grey[300]!, width: 2)
+                      ? Border.all(color: Colors.grey[700]!, width: 2)
                       : null,
                 ),
                 padding: const EdgeInsets.all(3),
                 child: Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    color: theme.scaffoldBackgroundColor,
+                    color: Color(0xFF16171A),
                   ),
                   padding: const EdgeInsets.all(2),
                   child: CircleAvatar(
-                    radius: 28,
+                    radius: 26,
                     backgroundColor: const Color(0xFFFFF5EB),
                     child: Text(
                       announcement.teacherName.isNotEmpty
                           ? announcement.teacherName[0].toUpperCase()
                           : 'T',
                       style: const TextStyle(
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFF27F0D),
+                        color: Color(0xFFF2800D),
                       ),
                     ),
                   ),
                 ),
               ),
-              // Count badge (if more than 1 announcement)
-              if (announcementCount > 1)
+              if (count > 1)
                 Positioned(
                   right: -2,
                   top: -2,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF27F0D),
-                      borderRadius: BorderRadius.circular(10),
+                      color: const Color(0xFFF2800D),
+                      shape: BoxShape.circle,
                       border: Border.all(
-                        color: theme.scaffoldBackgroundColor,
+                        color: const Color(0xFF16171A),
                         width: 2,
                       ),
                     ),
-                    constraints: const BoxConstraints(minWidth: 20),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
                     child: Text(
-                      '$announcementCount',
+                      '$count',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
@@ -1313,16 +482,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          // Teacher name (truncated)
           SizedBox(
-            width: 68,
+            width: 64,
             child: Text(
-              announcement.teacherName.split(' ').first,
-              style: theme.textTheme.bodySmall?.copyWith(
+              announcement.teacherName.isNotEmpty
+                  ? announcement.teacherName.split(' ').first
+                  : 'Teacher',
+              style: TextStyle(
+                fontSize: 11,
                 fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
-                color: isUnread
-                    ? const Color(0xFFF27F0D)
-                    : theme.textTheme.bodySmall?.color,
+                color: isUnread ? const Color(0xFFF2800D) : Colors.white70,
               ),
               textAlign: TextAlign.center,
               maxLines: 1,
@@ -1334,7 +503,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
   }
 
-  /// Open announcement viewer (full-screen status viewer)
   void _openAnnouncementViewer(
     List<StatusModel> announcements,
     int initialIndex,
@@ -1354,152 +522,1079 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
   }
 
-  /// Loading state for horizontal row
-  Widget _buildAnnouncementsLoadingCard(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section Title
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF27F0D).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.campaign,
-                  color: Color(0xFFF27F0D),
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '� Announcements',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1A1A1A),
-                ),
-              ),
-            ],
-          ),
-        ),
+  Future<Map<String, String>> _parseStudentInfo(StudentModel student) async {
+    String userStandard = '';
+    String userSection = '';
 
-        // Shimmer loading circles
-        SizedBox(
-          height: 100,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollDirection: Axis.horizontal,
-            itemCount: 5,
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
-            itemBuilder: (_, __) => Column(
+    if (student.section != null && student.section!.isNotEmpty) {
+      userSection = student.section!.trim();
+    }
+
+    if (student.className != null && student.className!.isNotEmpty) {
+      final className = student.className!;
+      if (className.contains('-')) {
+        final parts = className.split('-').map((e) => e.trim()).toList();
+        if (parts.length == 2) {
+          userStandard = parts[0].replaceAll(RegExp(r'[Gg]rade\s*'), '').trim();
+          userSection = parts[1].trim();
+        }
+      } else if (className.toLowerCase().contains('grade')) {
+        userStandard = className.replaceAll(RegExp(r'[Gg]rade\s*'), '').trim();
+      } else {
+        final match = RegExp(r'^(\d+)([A-Z])$').firstMatch(className);
+        if (match != null) {
+          userStandard = match.group(1) ?? '';
+          userSection = match.group(2) ?? '';
+        } else {
+          userStandard = className.trim();
+        }
+      }
+    }
+
+    if (userSection.isEmpty && student.uid.isNotEmpty) {
+      try {
+        final studentDoc = await FirebaseFirestore.instance
+            .collection('students')
+            .doc(student.uid)
+            .get();
+        if (studentDoc.exists) {
+          userSection =
+              (studentDoc.data()?['section'] as String?)?.trim() ?? '';
+        }
+      } catch (e) {
+        print('⚠️ Error fetching section: $e');
+      }
+    }
+
+    return {'standard': userStandard, 'section': userSection};
+  }
+
+  // Points Card with circular progress
+  Widget _buildPointsCard(StudentModel? student) {
+    if (student == null) {
+      return _buildEmptyPointsCard();
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('student_rewards')
+          .where('studentId', isEqualTo: student.uid)
+          .snapshots(),
+      builder: (context, rewardsSnapshot) {
+        int studentPoints = 0;
+
+        if (rewardsSnapshot.hasData) {
+          for (final doc in rewardsSnapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>?;
+            if (data != null) {
+              final points = data['pointsEarned'];
+              if (points is int) {
+                studentPoints += points;
+              } else if (points is num) {
+                studentPoints += points.toInt();
+              }
+            }
+          }
+        }
+
+        // Get topper points from class
+        return FutureBuilder<int>(
+          future: _getTopperPoints(student),
+          builder: (context, topperSnapshot) {
+            final topperPoints = topperSnapshot.data ?? 0;
+
+            return Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Circular Comparison Chart
+                  _buildCircularComparison(studentPoints, topperPoints),
+                  const SizedBox(height: 20),
+
+                  // Points Info
+                  Text(
+                    'Your Points: $studentPoints',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Topper: $topperPoints pts',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFFBBBBBB),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCircularComparison(int studentPoints, int topperPoints) {
+    // Calculate percentage
+    double percentage = 0.0;
+    if (topperPoints > 0) {
+      percentage = (studentPoints / topperPoints).clamp(0.0, 1.0);
+    } else if (studentPoints > 0) {
+      percentage = 1.0;
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: percentage),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutQuart,
+      builder: (context, animatedValue, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // Background circle
+            SizedBox(
+              width: 150,
+              height: 150,
+              child: CustomPaint(
+                painter: _CircularComparisonPainter(
+                  progress: animatedValue,
+                  strokeWidth: 14,
+                ),
+              ),
+            ),
+            // Center content
+            Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.grey[300],
+                Text(
+                  '$studentPoints',
+                  style: const TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    shadows: [Shadow(color: Colors.white24, blurRadius: 8)],
                   ),
                 ),
-                const SizedBox(height: 6),
-                Container(
-                  width: 50,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(6),
+                const SizedBox(height: 4),
+                const Text(
+                  'POINTS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFBBBBBB),
+                    letterSpacing: 1.2,
                   ),
                 ),
               ],
             ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<int> _getTopperPoints(StudentModel student) async {
+    try {
+      // Get all students from same school and class
+      Query query = FirebaseFirestore.instance.collection('users');
+
+      if (student.schoolId != null) {
+        query = query.where('schoolId', isEqualTo: student.schoolId);
+      }
+      if (student.className != null) {
+        query = query.where('className', isEqualTo: student.className);
+      }
+
+      query = query.where('role', isEqualTo: 'student');
+
+      final snapshot = await query.get();
+
+      int maxPoints = 0;
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null) {
+          final points = data['rewardPoints'];
+          if (points is int && points > maxPoints) {
+            maxPoints = points;
+          } else if (points is num && points.toInt() > maxPoints) {
+            maxPoints = points.toInt();
+          }
+        }
+      }
+
+      return maxPoints;
+    } catch (e) {
+      debugPrint('Error getting topper points: $e');
+      return 0;
+    }
+  }
+
+  Widget _buildEmptyPointsCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.stars, size: 60, color: Colors.white24),
+          SizedBox(height: 12),
+          Text(
+            'No points yet',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white54,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<int> _calculateStreakDays(String studentId) async {
+    // Placeholder - implement actual streak calculation
+    return 4;
+  }
+
+  // Daily Challenge Card
+  Widget _buildDailyChallengeCard(StudentModel student) {
+    return Consumer<DailyChallengeProvider>(
+      builder: (context, provider, child) {
+        final hasAnswered = provider.hasAnsweredToday(student.uid);
+        final result = provider.getTodayResult(student.uid);
+        final isCorrect = result == 'correct';
+
+        return GestureDetector(
+          onTap: hasAnswered
+              ? null
+              : () async {
+                  // Navigate to challenge screen
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DailyChallengeScreen(
+                        studentId: student.uid,
+                        studentEmail: student.email,
+                      ),
+                    ),
+                  );
+                  // Force refresh provider state after returning
+                  if (mounted) {
+                    // Small delay to ensure database write has completed
+                    await Future.delayed(const Duration(milliseconds: 100));
+                    await provider.initialize(student.uid);
+                  }
+                },
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: hasAnswered
+                  ? null
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF2A2A2A), Color(0xFF1C1C1E)],
+                    ),
+              color: hasAnswered
+                  ? (isCorrect
+                        ? const Color(0xFF4CAF50).withOpacity(0.1)
+                        : const Color(0xFFEF5350).withOpacity(0.1))
+                  : null,
+              borderRadius: BorderRadius.circular(16),
+              border: hasAnswered
+                  ? Border.all(
+                      color: isCorrect
+                          ? const Color(0xFF4CAF50)
+                          : const Color(0xFFEF5350),
+                      width: 2,
+                    )
+                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title
+                Text(
+                  hasAnswered
+                      ? (isCorrect
+                            ? 'Challenge Completed!'
+                            : 'Challenge Attempted')
+                      : 'Daily Challenge',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: hasAnswered
+                        ? (isCorrect
+                              ? const Color(0xFF4CAF50)
+                              : const Color(0xFFEF5350))
+                        : Colors.white,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // Subtitle
+                Text(
+                  hasAnswered
+                      ? (isCorrect
+                            ? 'You earned +5 points!'
+                            : 'Try again tomorrow!')
+                      : "Answer today's MCQ to earn points",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: hasAnswered
+                        ? (isCorrect
+                              ? const Color(0xFF4CAF50).withOpacity(0.7)
+                              : const Color(0xFFEF5350).withOpacity(0.7))
+                        : Colors.white70,
+                  ),
+                ),
+                // Button
+                if (!hasAnswered) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF8E24),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Text(
+                      'Take Challenge',
+                      style: TextStyle(
+                        color: Color(0xFF23190F),
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+                // Status icon for completed
+                if (hasAnswered) ...[
+                  const SizedBox(height: 12),
+                  Icon(
+                    isCorrect ? Icons.check_circle : Icons.cancel,
+                    color: isCorrect
+                        ? const Color(0xFF4CAF50)
+                        : const Color(0xFFEF5350),
+                    size: 32,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Assigned Tests Section
+  Widget _buildAssignedTestsSection(StudentModel? student) {
+    if (student == null) return const SizedBox.shrink();
+
+    final resultsStream = FirestoreService().getTestResultsByStudent(
+      student.uid,
+    );
+
+    return StreamBuilder<List<TestResultModel>>(
+      stream: resultsStream,
+      builder: (context, resultsSnap) {
+        final completedTestIds = <String>{
+          if (resultsSnap.hasData) ...resultsSnap.data!.map((r) => r.testId),
+        };
+
+        return StreamBuilder<List<TestModel>>(
+          stream: FirestoreService().getAvailableTestsForStudent(
+            student.uid,
+            studentEmail: student.email,
+          ),
+          builder: (context, testsSnap) {
+            if (resultsSnap.connectionState == ConnectionState.waiting ||
+                testsSnap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final tests = testsSnap.data ?? [];
+            final now = DateTime.now();
+            final liveTests = tests.where((t) {
+              final inWindow =
+                  !t.startDate.isAfter(now) && !t.endDate.isBefore(now);
+              final notAttempted = !completedTestIds.contains(t.id);
+              return inWindow && notAttempted;
+            }).toList();
+
+            if (liveTests.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Assigned Test',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ...liveTests.take(3).map((test) => _buildTestCard(test)),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTestCard(TestModel test) {
+    final now = DateTime.now();
+    final isDueToday =
+        test.endDate.year == now.year &&
+        test.endDate.month == now.month &&
+        test.endDate.day == now.day;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title with Due Today badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  test.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              if (isDueToday)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2800D),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Due Today',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Due date
+          Row(
+            children: [
+              const Icon(Icons.access_time, color: Colors.white70, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                'Due Today, ${_formatTime(test.endDate)}',
+                style: const TextStyle(fontSize: 13, color: Colors.white70),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Questions count
+          Row(
+            children: [
+              const Icon(
+                Icons.article_outlined,
+                color: Colors.white70,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${test.questions.length} Questions',
+                style: const TextStyle(fontSize: 13, color: Colors.white70),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Start Test Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                '/student-tests',
+                arguments: test,
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF2800D),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Start Test',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime date) {
+    final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute $period';
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final testDate = DateTime(date.year, date.month, date.day);
+
+    if (testDate == today) {
+      return 'Today, ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (testDate == today.add(const Duration(days: 1))) {
+      return 'Tomorrow';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  // Performance Section
+  Widget _buildPerformanceSection(StudentModel? student) {
+    if (student == null) return const SizedBox.shrink();
+
+    return StreamBuilder<List<TestResultModel>>(
+      stream: FirestoreService().getTestResultsByStudent(student.uid),
+      builder: (context, snapshot) {
+        int testsTaken = 0;
+        double avgScore = 0.0;
+
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          final results = snapshot.data!;
+          testsTaken = results.length;
+          double totalScore = 0.0;
+          for (var result in results) {
+            totalScore += result.score;
+          }
+          avgScore = testsTaken > 0 ? totalScore / testsTaken : 0.0;
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Performance',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  // Circular score
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 120,
+                        height: 120,
+                        child: CustomPaint(
+                          painter: CircularProgressPainter(
+                            progress: avgScore / 100,
+                            strokeWidth: 12,
+                          ),
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${avgScore.toInt()}%',
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(color: Colors.white24, blurRadius: 8),
+                              ],
+                            ),
+                          ),
+                          const Text(
+                            'Avg. Score',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  // Tests taken
+                  Column(
+                    children: [
+                      Text(
+                        '$testsTaken',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(color: Colors.white24, blurRadius: 8),
+                          ],
+                        ),
+                      ),
+                      const Text(
+                        'Tests Taken',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Attendance Section
+  Widget _buildAttendanceSection(StudentModel? student) {
+    if (student == null) return const SizedBox.shrink();
+
+    return FutureBuilder<Map<String, int>>(
+      future: ParentService().getStudentAttendanceBreakdown(student.uid),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+
+        final data = snapshot.data!;
+        final presentDays = data['present'] ?? 0;
+        final absentDays = data['absent'] ?? 0;
+        final totalDays = presentDays + absentDays;
+
+        final attendancePct = totalDays > 0
+            ? (presentDays / totalDays * 100).clamp(0.0, 100.0)
+            : 0.0;
+
+        if (totalDays == 0) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Attendance',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Circular attendance
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 90,
+                        height: 90,
+                        child: CustomPaint(
+                          painter: CircularProgressPainter(
+                            progress: attendancePct / 100,
+                            strokeWidth: 12,
+                            color: const Color(0xFF81C784),
+                            backgroundColor: const Color(
+                              0xFFEF5350,
+                            ).withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${attendancePct.toInt()}%',
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 24),
+                  // Legend
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF81C784),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$presentDays Days Present',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFEF5350),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$absentDays Days Absent',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Badges Section
+  Widget _buildBadgesSection(StudentModel? student) {
+    if (student == null) return const SizedBox.shrink();
+
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _fetchEarnedBadges(student.uid),
+      builder: (context, snapshot) {
+        final earnedBadges = snapshot.data ?? [];
+
+        // Sample badges for display
+        final badges = [
+          {
+            'icon': Icons.school,
+            'label': 'Scholar',
+            'color': const Color(0xFFBA68C8),
+            'earned': earnedBadges.length > 0,
+          },
+          {
+            'icon': Icons.local_fire_department,
+            'label': 'Streak',
+            'color': const Color(0xFFFFB26B),
+            'earned': earnedBadges.length > 1,
+          },
+          {
+            'icon': Icons.military_tech,
+            'label': 'Achiever',
+            'color': const Color(0xFF64B5F6),
+            'earned': earnedBadges.length > 2,
+          },
+          {
+            'icon': Icons.lock,
+            'label': 'Locked',
+            'color': Colors.white24,
+            'earned': false,
+          },
+        ];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Badges Earned',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: badges
+                  .map(
+                    (badge) => _buildBadge(
+                      badge['icon'] as IconData,
+                      badge['label'] as String,
+                      badge['color'] as Color,
+                      badge['earned'] as bool,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBadge(IconData icon, String label, Color color, bool earned) {
+    return Column(
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            shape: BoxShape.circle,
+            boxShadow: earned
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(0.5),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(
+            icon,
+            color: earned ? Colors.white : Colors.white38,
+            size: 32,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: earned ? Colors.white70 : Colors.white38,
           ),
         ),
       ],
     );
   }
 
-  /// Error state card for configuration issues
-  Widget _buildErrorCard(ThemeData theme, String title, String message) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.red[50],
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.red[300]!, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.red[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.error_outline,
-                    color: Colors.red[700],
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red[900],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.red[800],
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '🔍 Check console logs for technical details',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.red[700],
-                  fontStyle: FontStyle.italic,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<List<Map<String, dynamic>>> _fetchEarnedBadges(
+    String studentId,
+  ) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('student_badges')
+          .doc(studentId)
+          .get();
+      return (doc.data()?['badges'] as List<dynamic>?)
+              ?.cast<Map<String, dynamic>>() ??
+          [];
+    } catch (e) {
+      return [];
+    }
   }
 }
 
-// Press-to-scale wrapper used by badges
-// Removed unused helper widgets and legacy stat/progress builders.
+// Custom Circular Comparison Painter
+class _CircularComparisonPainter extends CustomPainter {
+  final double progress;
+  final double strokeWidth;
+
+  _CircularComparisonPainter({required this.progress, this.strokeWidth = 14});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    // Background track (dark grey)
+    final bgPaint = Paint()
+      ..color = const Color(0xFF2E2E2E)
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Progress arc (orange)
+    if (progress > 0) {
+      final progressPaint = Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0xFFFFA726), Color(0xFFF2800D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ).createShader(Rect.fromCircle(center: center, radius: radius))
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      final sweepAngle = 2 * math.pi * progress;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -math.pi / 2,
+        sweepAngle,
+        false,
+        progressPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CircularComparisonPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+// Custom Circular Progress Painter
+class CircularProgressPainter extends CustomPainter {
+  final double progress;
+  final double strokeWidth;
+  final Color color;
+  final Color backgroundColor;
+
+  CircularProgressPainter({
+    required this.progress,
+    this.strokeWidth = 12,
+    this.color = const Color(0xFFF2800D),
+    this.backgroundColor = const Color(0x1AFFFFFF),
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    // Background circle
+    final bgPaint = Paint()
+      ..color = backgroundColor
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Progress arc
+    final progressPaint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final sweepAngle = 2 * math.pi * progress;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      sweepAngle,
+      false,
+      progressPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(CircularProgressPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
