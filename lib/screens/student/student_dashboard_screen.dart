@@ -24,6 +24,8 @@ class StudentDashboardScreen extends StatefulWidget {
 }
 
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
+  bool _isInitializing = true;
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +33,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await authProvider.ensureInitialized();
       await _loadDashboardData();
+      // Mark initialization complete
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+      }
     });
   }
 
@@ -40,12 +48,22 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       context,
       listen: false,
     );
+    final dailyChallengeProvider = Provider.of<DailyChallengeProvider>(
+      context,
+      listen: false,
+    );
+
+    // Ensure auth is initialized before proceeding
     if (authProvider.currentUser == null && !authProvider.isLoading) {
       await authProvider.initializeAuth();
     }
     if (authProvider.currentUser == null) {
+      print('❌ No authenticated user found');
       return;
     }
+
+    final userId = authProvider.currentUser!.uid;
+    print('✅ Loading dashboard for user: $userId');
 
     try {
       await FirestoreService().processEndedTests();
@@ -53,15 +71,25 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       print('⚠️ Error processing ended tests: $e');
     }
 
-    await studentProvider.loadDashboardData(authProvider.currentUser!.uid);
+    // CRITICAL: Initialize daily challenge BEFORE loading student data
+    // This ensures challenge state is ready when dashboard renders
+    print('🎯 Initializing daily challenge for user: $userId');
+    await dailyChallengeProvider.initialize(userId);
+    print(
+      '✅ Daily challenge initialized. Has answered: ${dailyChallengeProvider.hasAnsweredToday(userId)}',
+    );
+
+    // Load student data (with cache integration)
+    await studentProvider.loadDashboardData(userId);
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<StudentProvider>(
       builder: (context, studentProvider, child) {
-        // Show fetching screen while loading or when no student data
-        if (studentProvider.isLoading ||
+        // Show fetching screen while initializing OR loading student data
+        if (_isInitializing ||
+            studentProvider.isLoading ||
             studentProvider.currentStudent == null) {
           return const Scaffold(
             backgroundColor: Color(0xFF16171A),
@@ -808,13 +836,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       ),
                     ),
                   );
-                  // Force refresh both providers after returning
+                  // Refresh state after returning from challenge
                   if (mounted) {
                     // Small delay to ensure database write has completed
                     await Future.delayed(const Duration(milliseconds: 300));
-                    // Only refresh daily challenge provider state
+                    // Re-check if student answered today (provider will fetch fresh state)
                     await dailyChallengeProvider.initialize(student.uid);
-                    // Lightweight refresh - only updates streak in cached student object
+                    // Also refresh student data to get updated streak
                     await studentProvider.refreshStudentStreak(student.uid);
                   }
                 },

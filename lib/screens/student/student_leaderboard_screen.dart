@@ -45,7 +45,13 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   @override
   void initState() {
     super.initState();
-    _initContextAndOverall();
+    print('🏁 StudentLeaderboardScreen.initState() called');
+    // Wait for auth to initialize before loading leaderboard data
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      await auth.ensureInitialized();
+      await _initContextAndOverall();
+    });
   }
 
   @override
@@ -977,14 +983,20 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   }
 
   Future<void> _initContextAndOverall() async {
+    print('🔧 _initContextAndOverall() started');
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final uid = auth.currentUser?.uid;
     final email = auth.currentUser?.email;
-    if (uid == null) return;
+    print('👤 Current user: uid=$uid, email=$email');
+    if (uid == null) {
+      print('⚠️ No uid found, returning early');
+      return;
+    }
 
     _currentUid = uid;
 
     // Find student's school/class/section from students collection
+    print('🔍 Fetching student document from students/$uid');
     final stDoc = await FirebaseFirestore.instance
         .collection('students')
         .doc(uid)
@@ -992,23 +1004,43 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     Map<String, dynamic>? st;
     if (stDoc.exists) {
       st = stDoc.data();
+      print('✅ Found student doc by uid');
     } else if (email != null) {
+      print('⚠️ Student doc not found by uid, trying email query...');
       final q = await FirebaseFirestore.instance
           .collection('students')
           .where('email', isEqualTo: email)
           .limit(1)
           .get();
-      if (q.docs.isNotEmpty) st = q.docs.first.data();
+      if (q.docs.isNotEmpty) {
+        st = q.docs.first.data();
+        print('✅ Found student doc by email');
+      } else {
+        print('❌ Student doc not found by email either');
+      }
     }
 
     _schoolCode = (st?['schoolCode'] as String?)?.trim();
     _className = (st?['className'] as String?)?.trim();
     _section = (st?['section'] as String?)?.trim();
 
+    // Treat empty strings as null to avoid filtering issues
+    if (_schoolCode != null && _schoolCode!.isEmpty) _schoolCode = null;
+    if (_className != null && _className!.isEmpty) _className = null;
+    if (_section != null && _section!.isEmpty) _section = null;
+
+    print(
+      '📍 Leaderboard context: school=$_schoolCode, class=$_className, section=$_section',
+    );
+
     if (_schoolCode != null && _className != null) {
       setState(() {
         _overallStream = _buildOverallStream();
       });
+    } else {
+      print(
+        '⚠️ Missing required context for leaderboard: school=$_schoolCode, class=$_className',
+      );
     }
   }
 

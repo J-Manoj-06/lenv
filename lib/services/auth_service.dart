@@ -25,6 +25,9 @@ class AuthService {
         final data = userDoc.data()!;
         // ignore: avoid_print
         print('[AuthService] getUserData: found users/$uid');
+        // CRITICAL: Ensure uid is set in the data map before converting to UserModel
+        // The uid is stored as the document ID in Firestore, not in the data itself
+        data['uid'] = uid;
         return UserModel.fromJson(data);
       }
 

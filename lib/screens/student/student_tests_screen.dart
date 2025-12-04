@@ -45,62 +45,88 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    final studentId = auth.currentUser?.uid;
 
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF111827)
           : const Color(0xFFF7F3EF),
       body: SafeArea(
-        child: Column(
-          children: [
-            _Header(),
-            Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
+        child: Consumer<AuthProvider>(
+          builder: (context, auth, child) {
+            // Show loading while auth is initializing
+            if (auth.isLoading || auth.currentUser == null) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFFF2800D),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Loading your tests...',
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : Colors.black54,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final studentId = auth.currentUser!.uid;
+
+            return Column(
+              children: [
+                _Header(),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: isDark
+                            ? Colors.grey.shade800
+                            : const Color(0xFFE8DBCE),
+                      ),
+                    ),
                     color: isDark
-                        ? Colors.grey.shade800
-                        : const Color(0xFFE8DBCE),
+                        ? Colors.black.withOpacity(0.1)
+                        : Colors.white.withOpacity(0.8),
+                  ),
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: Theme.of(context).textTheme.bodyLarge?.color,
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    unselectedLabelColor: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.color?.withOpacity(0.6),
+                    indicatorColor: const Color(0xFFF2800D),
+                    indicatorWeight: 2,
+                    tabs: const [
+                      Tab(text: 'All'),
+                      Tab(text: 'Upcoming'),
+                      Tab(text: 'Completed'),
+                    ],
                   ),
                 ),
-                color: isDark
-                    ? Colors.black.withOpacity(0.1)
-                    : Colors.white.withOpacity(0.8),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                labelColor: Theme.of(context).textTheme.bodyLarge?.color,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _AllTestsTab(studentId: studentId),
+                      _UpcomingTab(studentId: studentId),
+                      _CompletedTab(studentId: studentId),
+                    ],
+                  ),
                 ),
-                unselectedLabelColor: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                indicatorColor: const Color(0xFFF2800D),
-                indicatorWeight: 2,
-                tabs: const [
-                  Tab(text: 'All'),
-                  Tab(text: 'Upcoming'),
-                  Tab(text: 'Completed'),
-                ],
-              ),
-            ),
-            Expanded(
-              child: studentId == null
-                  ? const Center(child: Text('Please login as a student.'))
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _AllTestsTab(studentId: studentId),
-                        _UpcomingTab(studentId: studentId),
-                        _CompletedTab(studentId: studentId),
-                      ],
-                    ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );

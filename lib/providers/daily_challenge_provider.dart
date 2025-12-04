@@ -42,17 +42,25 @@ class DailyChallengeProvider with ChangeNotifier {
   }
 
   /// Initialize provider - load from cache and check answer status
+  /// CRITICAL: This must run on EVERY dashboard load (including app restart)
   Future<void> initialize(String studentId) async {
     final today = _getTodayDate();
+    print('🔧 DailyChallengeProvider.initialize for student: $studentId');
 
-    // Load from cache first for instant display
+    // STEP 1: Load from cache first for instant display
     await _loadFromCache(studentId, today);
+    print('📦 Cache loaded for $studentId');
 
-    // Check if THIS student has answered today
+    // STEP 2: Check answer status from Firestore (CRITICAL)
+    // This ensures correct state even after app restart
     await _checkIfAnsweredToday(studentId);
+    print(
+      '✅ Answer status checked. Has answered: ${_hasAnsweredStates[studentId]}',
+    );
 
-    // Then fetch fresh data in background
+    // STEP 3: Fetch fresh challenge data in background
     await fetchChallenge(studentId, forceRefresh: false);
+    print('🔄 Fresh challenge data fetched');
   }
 
   /// Load cached challenge from SharedPreferences (per student)
@@ -96,13 +104,22 @@ class DailyChallengeProvider with ChangeNotifier {
   }
 
   /// Check if THIS SPECIFIC student has already answered today's challenge
+  /// CRITICAL: Force fresh read from Firestore to ensure we get the latest state
+  /// even on app restart or when offline persistence hasn't synced yet
   Future<void> _checkIfAnsweredToday(String studentId) async {
     try {
       final today = _getTodayDate();
+      debugPrint(
+        '🔍 Checking if student $studentId answered today ($today)...',
+      );
+
+      // CRITICAL: Force fresh read from Firestore
+      // This ensures we always get the latest answer status from the server
+      // even on app restart when offline persistence might not be synced yet
       final answerDoc = await _firestore
           .collection('daily_challenge_answers')
           .doc('${studentId}_$today')
-          .get();
+          .get(const GetOptions(source: Source.server));
 
       if (answerDoc.exists) {
         _hasAnsweredStates[studentId] = true;
@@ -118,7 +135,37 @@ class DailyChallengeProvider with ChangeNotifier {
       }
       notifyListeners();
     } catch (e) {
-      debugPrint('Error checking answer status for student $studentId: $e');
+      // If server fetch fails (no internet), fall back to local cache
+      debugPrint(
+        '⚠️ Server fetch failed for $studentId, trying local cache: $e',
+      );
+      try {
+        final today = _getTodayDate();
+        final answerDoc = await _firestore
+            .collection('daily_challenge_answers')
+            .doc('${studentId}_$today')
+            .get(const GetOptions(source: Source.cache));
+
+        if (answerDoc.exists) {
+          _hasAnsweredStates[studentId] = true;
+          final isCorrect = answerDoc.data()?['isCorrect'] == true;
+          _resultStates[studentId] = isCorrect ? 'correct' : 'incorrect';
+          debugPrint(
+            '✅ Student $studentId (cached): ${isCorrect ? "correct" : "incorrect"}',
+          );
+        } else {
+          _hasAnsweredStates[studentId] = false;
+          _resultStates[studentId] = null;
+          debugPrint('📝 Student $studentId (cached): NOT answered');
+        }
+      } catch (cacheError) {
+        debugPrint(
+          '❌ Both server and cache failed for $studentId: $cacheError',
+        );
+        _hasAnsweredStates[studentId] = false;
+        _resultStates[studentId] = null;
+      }
+      notifyListeners();
     }
   }
 

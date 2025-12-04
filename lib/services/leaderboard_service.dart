@@ -69,95 +69,97 @@ class LeaderboardService {
   }
 
   // Overall leaderboard based on users.rewardPoints within same school/class/section
+  // OPTIMIZED: Gets class roster from students, then fetches rewardPoints from users in parallel
   Future<List<LeaderboardEntry>> getOverallLeaderboardForClass({
     required String schoolCode,
     required String className,
     String? section,
     int limit = 50,
   }) async {
-    // 1) Get class roster from students collection
-    var q = _db
-        .collection('students')
-        .where('schoolCode', isEqualTo: schoolCode)
-        .where('className', isEqualTo: className);
-    if (section != null && section.isNotEmpty) {
-      q = q.where('section', isEqualTo: section);
-    }
-    final studentsSnap = await q.get();
-    if (studentsSnap.docs.isEmpty) return <LeaderboardEntry>[];
+    try {
+      // 1) Get class roster from students collection (has className and section)
+      var q = _db
+          .collection('students')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('className', isEqualTo: className);
 
-    // 2) For each student, calculate total points from student_rewards (includes both tests and daily challenges)
-    final entries = <Map<String, dynamic>>[];
-    for (final sDoc in studentsSnap.docs) {
-      final s = sDoc.data();
-      final email = (s['email'] as String?) ?? s['studentEmail'] as String?;
-      final name = (s['name'] as String?) ?? s['studentName'] as String? ?? '';
-      final photoUrl = s['photoUrl'] as String?;
-      String? uidFromUsers;
-      int totalPoints = 0;
-
-      if (email != null && email.isNotEmpty) {
-        final uq = await _db
-            .collection('users')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get();
-        if (uq.docs.isNotEmpty) {
-          final u = uq.docs.first.data();
-          uidFromUsers = (u['uid'] as String?) ?? uq.docs.first.id;
-
-          // Sum ALL points from student_rewards (this includes both test scores and daily challenges)
-          totalPoints = await _sumStudentRewards(uidFromUsers);
-
-          // If still zero, try to get from users.rewardPoints as fallback
-          if (totalPoints == 0) {
-            totalPoints = (u['rewardPoints'] as num?)?.toInt() ?? 0;
-          }
-        }
+      if (section != null && section.isNotEmpty) {
+        q = q.where('section', isEqualTo: section);
       }
 
-      // If we didn't find a users doc, try fallback using students doc id
-      if ((uidFromUsers == null || uidFromUsers.isEmpty) || totalPoints == 0) {
-        final fallbackUid =
-            sDoc['studentId'] as String? ??
-            sDoc['uid'] as String? ??
-            sDoc['id'] as String? ??
-            sDoc['email'] as String? ??
-            sDoc['rollNumber'] as String?;
-        if (fallbackUid != null && fallbackUid.isNotEmpty && totalPoints == 0) {
-          totalPoints = await _sumStudentRewards(fallbackUid);
-          if (uidFromUsers == null || uidFromUsers.isEmpty) {
-            uidFromUsers = fallbackUid;
-          }
-        }
-      }
+      final studentsSnap = await q.get();
+      if (studentsSnap.docs.isEmpty) return <LeaderboardEntry>[];
 
-      entries.add({
-        'uid': uidFromUsers ?? sDoc.id,
-        'name': name,
-        'photoUrl': photoUrl,
-        'points': totalPoints.toDouble(),
-      });
-    }
-
-    // 3) Sort by points desc and assign ranks
-    entries.sort(
-      (a, b) => (b['points'] as double).compareTo(a['points'] as double),
-    );
-    final result = <LeaderboardEntry>[];
-    for (var i = 0; i < entries.length && i < limit; i++) {
-      final e = entries[i];
-      result.add(
-        LeaderboardEntry(
-          studentId: e['uid'] as String,
-          name: e['name'] as String,
-          photoUrl: e['photoUrl'] as String?,
-          rank: i + 1,
-          score: e['points'] as double,
-        ),
+      print(
+        '📊 Found ${studentsSnap.docs.length} students in class $className',
       );
+
+      // 2) Batch fetch rewardPoints from users collection
+      final entries = <LeaderboardEntry>[];
+
+      for (final studentDoc in studentsSnap.docs) {
+        final studentData = studentDoc.data();
+        final uid =
+            studentData['uid'] as String? ??
+            studentData['studentId'] as String? ??
+            studentDoc.id;
+
+        // Fetch from users collection
+        if (uid.isNotEmpty) {
+          try {
+            final userDoc = await _db.collection('users').doc(uid).get();
+            if (userDoc.exists) {
+              final userData = userDoc.data()!;
+              final name =
+                  userData['name'] as String? ??
+                  studentData['studentName'] as String? ??
+                  'Unknown';
+              final photoUrl = userData['profileImage'] as String?;
+              final points =
+                  (userData['rewardPoints'] as num?)?.toDouble() ?? 0.0;
+
+              entries.add(
+                LeaderboardEntry(
+                  studentId: uid,
+                  name: name,
+                  photoUrl: photoUrl,
+                  rank: 0, // Will be set after sorting
+                  score: points,
+                ),
+              );
+            }
+          } catch (e) {
+            print('⚠️ Error fetching user $uid: $e');
+          }
+        }
+      }
+
+      if (entries.isEmpty) {
+        print('❌ No users found with rewardPoints');
+        return <LeaderboardEntry>[];
+      }
+
+      // 3) Sort by points descending and assign ranks
+      entries.sort((a, b) => b.score.compareTo(a.score));
+      final result = <LeaderboardEntry>[];
+      for (var i = 0; i < entries.length && i < limit; i++) {
+        result.add(
+          LeaderboardEntry(
+            studentId: entries[i].studentId,
+            name: entries[i].name,
+            photoUrl: entries[i].photoUrl,
+            rank: i + 1,
+            score: entries[i].score,
+          ),
+        );
+      }
+
+      print('✅ Leaderboard loaded: ${result.length} entries');
+      return result;
+    } catch (e) {
+      print('❌ Error getting overall leaderboard: $e');
+      return <LeaderboardEntry>[];
     }
-    return result;
   }
 
   // Per-test leaderboard: rank students by their score for a specific test

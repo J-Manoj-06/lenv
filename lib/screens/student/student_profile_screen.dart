@@ -642,7 +642,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           context,
           listen: false,
         );
-        studentProvider.clear();
+        await studentProvider.clear();
 
         // Clear auth provider and SharedPreferences (handled in signOut)
         final authProvider = Provider.of<AuthProvider>(context, listen: false);

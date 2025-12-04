@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/student_model.dart';
 import '../services/student_service.dart';
+import '../utils/cache_manager.dart';
 
 class StudentProvider with ChangeNotifier {
   final StudentService _studentService = StudentService();
@@ -41,10 +42,24 @@ class StudentProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load student data
+      // Step 1: Try to load from cache first (instant UI update)
+      final cachedStudent = await CacheManager.getStudentDataCache(
+        studentId: studentId,
+      );
+      if (cachedStudent != null) {
+        _currentStudent = cachedStudent;
+        notifyListeners(); // Show cached data immediately
+        print('📦 Loaded student data from cache');
+      }
+
+      // Step 2: Load from Firestore in parallel
       _currentStudent = await _studentService.getCurrentStudent();
 
       if (_currentStudent != null) {
+        // Cache the fresh data
+        await CacheManager.cacheStudentData(_currentStudent!);
+        print('💾 Cached fresh student data');
+
         // Load today's challenge
         _todayChallenge = await _studentService.getTodayChallenge();
 
@@ -65,6 +80,17 @@ class StudentProvider with ChangeNotifier {
     } catch (e) {
       _errorMessage = 'Failed to load dashboard: ${e.toString()}';
       print(_errorMessage);
+
+      // If Firestore fails, at least we have cache
+      if (_currentStudent == null) {
+        final cachedStudent = await CacheManager.getStudentDataCache(
+          studentId: studentId,
+        );
+        if (cachedStudent != null) {
+          _currentStudent = cachedStudent;
+          print('⚠️ Using cached data (offline mode)');
+        }
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -236,13 +262,17 @@ class StudentProvider with ChangeNotifier {
   }
 
   // Clear all data (logout)
-  void clear() {
+  Future<void> clear() async {
     _currentStudent = null;
     _todayChallenge = null;
     _notifications = [];
     _hasAttemptedChallenge = false;
     _errorMessage = null;
     _hasLoaded = false; // Reset load flag
+
+    // Clear cached student data on logout
+    await CacheManager.clearStudentDataCache();
+
     notifyListeners();
   }
 }

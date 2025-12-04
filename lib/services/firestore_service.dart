@@ -23,7 +23,10 @@ class FirestoreService {
   Future<UserModel?> getUser(String uid) async {
     final doc = await _db.collection('users').doc(uid).get();
     if (doc.exists) {
-      return UserModel.fromJson(doc.data()!);
+      final data = doc.data()!;
+      // CRITICAL: Ensure uid is set in the data map before converting to UserModel
+      data['uid'] = uid;
+      return UserModel.fromJson(data);
     }
     return null;
   }
@@ -39,9 +42,12 @@ class FirestoreService {
         .where('instituteId', isEqualTo: instituteId)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => UserModel.fromJson(doc.data()))
-              .toList(),
+          (snapshot) => snapshot.docs.map((doc) {
+            final data = doc.data();
+            // CRITICAL: Ensure uid is set in the data map before converting to UserModel
+            data['uid'] = doc.id;
+            return UserModel.fromJson(data);
+          }).toList(),
         );
   }
 
