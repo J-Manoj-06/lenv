@@ -786,10 +786,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   // Daily Challenge Card
   Widget _buildDailyChallengeCard(StudentModel student) {
-    return Consumer<DailyChallengeProvider>(
-      builder: (context, provider, child) {
-        final hasAnswered = provider.hasAnsweredToday(student.uid);
-        final result = provider.getTodayResult(student.uid);
+    return Consumer2<DailyChallengeProvider, StudentProvider>(
+      builder: (context, dailyChallengeProvider, studentProvider, child) {
+        final hasAnswered = dailyChallengeProvider.hasAnsweredToday(
+          student.uid,
+        );
+        final result = dailyChallengeProvider.getTodayResult(student.uid);
         final isCorrect = result == 'correct';
 
         return GestureDetector(
@@ -806,11 +808,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       ),
                     ),
                   );
-                  // Force refresh provider state after returning
+                  // Force refresh both providers after returning
                   if (mounted) {
                     // Small delay to ensure database write has completed
-                    await Future.delayed(const Duration(milliseconds: 100));
-                    await provider.initialize(student.uid);
+                    await Future.delayed(const Duration(milliseconds: 300));
+                    // Only refresh daily challenge provider state
+                    await dailyChallengeProvider.initialize(student.uid);
+                    // Lightweight refresh - only updates streak in cached student object
+                    await studentProvider.refreshStudentStreak(student.uid);
                   }
                 },
           child: Container(

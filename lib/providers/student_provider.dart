@@ -71,6 +71,53 @@ class StudentProvider with ChangeNotifier {
     }
   }
 
+  // Force refresh student data (bypasses _hasLoaded check)
+  Future<void> forceRefreshStudentData(String studentId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // Load student data
+      _currentStudent = await _studentService.getCurrentStudent();
+
+      if (_currentStudent != null) {
+        // Load today's challenge
+        _todayChallenge = await _studentService.getTodayChallenge();
+
+        // Check if student has attempted today's challenge
+        _hasAttemptedChallenge = await _studentService
+            .hasAttemptedTodayChallenge(studentId);
+
+        // Load notifications
+        _notifications = await _studentService.getStudentNotifications(
+          studentId,
+          limit: 20,
+        );
+
+        // Update stats
+        await _updateStudentStats(studentId);
+      }
+    } catch (e) {
+      _errorMessage = 'Failed to refresh data: ${e.toString()}';
+      print(_errorMessage);
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Refresh only student data (lightweight - just updates streak in UI)
+  Future<void> refreshStudentStreak(String studentId) async {
+    try {
+      // Only fetch current student - no full reload
+      _currentStudent = await _studentService.getCurrentStudent();
+      notifyListeners();
+    } catch (e) {
+      print('Error refreshing streak: $e');
+    }
+  }
+
   // Update student stats
   Future<void> _updateStudentStats(String studentId) async {
     try {

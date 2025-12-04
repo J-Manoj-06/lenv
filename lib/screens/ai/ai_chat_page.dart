@@ -38,6 +38,7 @@ class _AiChatPageState extends State<AiChatPage> {
   bool _isProcessing = false;
   bool _insightsUsedToday = false;
   bool _studyPlanUsedToday = false;
+  int _quizAttemptsToday = 0; // Track daily quiz attempts (max 2)
   String? _currentUserId; // Track user to scope daily usage keys
   String? _todayInsightsText;
   Map<String, double>? _todayInsightsAverages;
@@ -709,12 +710,15 @@ class _AiChatPageState extends State<AiChatPage> {
 
     final insightKey = 'last_insight_date_$uid';
     final studyPlanKey = 'last_study_plan_date_$uid';
+    final quizAttemptsKey =
+        'quiz_attempts_${uid}_$today'; // Track quiz attempts per day
     final insightContentKey = 'insights_content_${uid}_$today';
     final insightAveragesKey = 'insights_avgs_${uid}_$today';
     final studyPlanContentKey = 'study_plan_content_${uid}_$today';
 
     final lastInsightDate = prefs.getString(insightKey) ?? '';
     final lastStudyPlanDate = prefs.getString(studyPlanKey) ?? '';
+    final quizAttempts = prefs.getInt(quizAttemptsKey) ?? 0;
 
     // Load persisted content if present
     final storedInsight = prefs.getString(insightContentKey);
@@ -724,6 +728,7 @@ class _AiChatPageState extends State<AiChatPage> {
     setState(() {
       _insightsUsedToday = lastInsightDate == today;
       _studyPlanUsedToday = lastStudyPlanDate == today;
+      _quizAttemptsToday = quizAttempts;
       _todayInsightsText = storedInsight;
       if (storedInsightAverages != null) {
         try {
@@ -786,13 +791,39 @@ class _AiChatPageState extends State<AiChatPage> {
     _todayStudyPlanText = text;
   }
 
+  Future<void> _incrementQuizAttempt() async {
+    if (_currentUserId == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    final key = 'quiz_attempts_${_currentUserId!}_$today';
+    final newCount = _quizAttemptsToday + 1;
+    await prefs.setInt(key, newCount);
+    setState(() {
+      _quizAttemptsToday = newCount;
+    });
+  }
+
   // Free-form chat handler removed; page uses card-based actions only.
 
   // Removed unused _showExplainTopicDialog to satisfy lint.
 
   Future<void> _showGenerateQuizDialog() async {
+    // Check if user has exceeded daily quiz attempts (max 2 per day)
+    if (_quizAttemptsToday >= 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Daily quiz limit reached! You can generate 2 quizzes per day. (${_quizAttemptsToday}/2 used)',
+          ),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     final topicController = TextEditingController();
-    int numQuestions = 5;
+    int numQuestions = 3; // Default to 3
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -835,11 +866,13 @@ class _AiChatPageState extends State<AiChatPage> {
                     value: numQuestions,
                     dropdownColor: const Color(0xFF2A2A2A),
                     style: const TextStyle(color: Colors.white),
-                    items: [3, 5, 10]
-                        .map(
-                          (n) => DropdownMenuItem(value: n, child: Text('$n')),
-                        )
-                        .toList(),
+                    items:
+                        [1, 2, 3, 4, 5] // Limited to 1-5 questions
+                            .map(
+                              (n) =>
+                                  DropdownMenuItem(value: n, child: Text('$n')),
+                            )
+                            .toList(),
                     onChanged: (v) => setDialogState(() => numQuestions = v!),
                   ),
                 ],
@@ -914,11 +947,15 @@ class _AiChatPageState extends State<AiChatPage> {
           },
         ),
       );
+      // Increment quiz attempt count
+      await _incrementQuizAttempt();
+
       setState(() {
         _messages.add(
           ChatMessage(
             sender: 'ai',
-            text: '📝 ${quizData['title'] ?? 'Quiz'} (opened)',
+            text:
+                '📝 ${quizData['title'] ?? 'Quiz'} (opened) - Attempt $_quizAttemptsToday/2',
             quiz: quizData,
             messageType: MessageType.quiz,
           ),
@@ -1024,6 +1061,8 @@ class _AiChatPageState extends State<AiChatPage> {
             icon: Icons.quiz,
             color: const Color(0xFFFF8A00),
             onTap: _showGenerateQuizDialog,
+            remainingCount: 2 - _quizAttemptsToday,
+            showRemainingCount: true,
           ),
           _ActionCard(
             title: _insightsUsedToday ? 'View Insights' : 'My Insights',
@@ -1326,6 +1365,8 @@ class _ActionCard extends StatelessWidget {
   final Color color;
   final VoidCallback? onTap;
   final bool disabled;
+  final int? remainingCount;
+  final bool showRemainingCount;
 
   const _ActionCard({
     required this.title,
@@ -1333,6 +1374,8 @@ class _ActionCard extends StatelessWidget {
     required this.color,
     this.onTap,
     this.disabled = false,
+    this.remainingCount,
+    this.showRemainingCount = false,
   });
 
   @override
@@ -1378,6 +1421,25 @@ class _ActionCard extends StatelessWidget {
                   child: const Text(
                     'Today used',
                     style: TextStyle(color: Colors.grey, fontSize: 10),
+                  ),
+                ),
+              ),
+            if (showRemainingCount && remainingCount != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    remainingCount! > 0
+                        ? 'You have $remainingCount'
+                        : 'You have 0',
+                    style: TextStyle(
+                      color: remainingCount! > 0
+                          ? Colors.grey
+                          : Colors.redAccent,
+                      fontSize: 10,
+                    ),
                   ),
                 ),
               ),
