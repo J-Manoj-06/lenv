@@ -131,6 +131,39 @@ class _TestResultScreenState extends State<TestResultScreen> {
         _lowestScore = 0.0;
       }
 
+      // Sort assignments: completed students first (by highest score), then pending (alphabetically)
+      allAssignments.sort((a, b) {
+        final aStatus = a['status'] as String;
+        final bStatus = b['status'] as String;
+        final aCompleted = aStatus == 'completed';
+        final bCompleted = bStatus == 'completed';
+
+        // If both completed or both not completed, sort accordingly
+        if (aCompleted && bCompleted) {
+          // Both completed: sort by score (highest first)
+          final aTotalQuestions = a['totalQuestions'] as int;
+          final bTotalQuestions = b['totalQuestions'] as int;
+
+          // Calculate percentages
+          final aPercentage = aTotalQuestions > 0
+              ? (a['correctAnswers'] as int) / aTotalQuestions * 100
+              : 0.0;
+          final bPercentage = bTotalQuestions > 0
+              ? (b['correctAnswers'] as int) / bTotalQuestions * 100
+              : 0.0;
+
+          return bPercentage.compareTo(aPercentage); // Descending order
+        } else if (!aCompleted && !bCompleted) {
+          // Both pending: sort alphabetically by name
+          final aName = (a['studentName'] as String).toLowerCase();
+          final bName = (b['studentName'] as String).toLowerCase();
+          return aName.compareTo(bName);
+        } else {
+          // One completed, one not: completed students first
+          return aCompleted ? -1 : 1;
+        }
+      });
+
       setState(() {
         _completedResults = completed;
         _allAssignments = allAssignments;
