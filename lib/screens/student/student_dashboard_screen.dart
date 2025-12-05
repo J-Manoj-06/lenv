@@ -10,6 +10,7 @@ import '../../models/student_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/parent_service.dart';
+import '../../utils/cache_manager.dart';
 import '../teacher/status_view_screen.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
@@ -749,7 +750,20 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   Future<int> _getTopperPoints(StudentModel student) async {
     try {
-      // Get all students from same school and class
+      // OPTIMIZATION: Check cache first (5-minute expiration)
+      // This reduces Firestore reads from 20-40 docs to 0 reads per dashboard load
+      final cachedPoints = await CacheManager.getTopperPointsCache(
+        schoolId: student.schoolId ?? '',
+        className: student.className ?? '',
+      );
+
+      if (cachedPoints != null) {
+        return cachedPoints; // ✅ Return cached value (no Firestore read needed)
+      }
+
+      // Cache miss or expired - fetch from Firestore
+      debugPrint('🔍 Fetching topper points from Firestore (cache miss)');
+
       Query query = FirebaseFirestore.instance.collection('users');
 
       if (student.schoolId != null) {
@@ -762,6 +776,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       query = query.where('role', isEqualTo: 'student');
 
       final snapshot = await query.get();
+      debugPrint(
+        '📊 Fetched ${snapshot.docs.length} students for topper calculation',
+      );
 
       int maxPoints = 0;
       for (final doc in snapshot.docs) {
@@ -776,9 +793,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         }
       }
 
+      // Cache the result for 5 minutes
+      await CacheManager.cacheTopperPoints(
+        schoolId: student.schoolId ?? '',
+        className: student.className ?? '',
+        points: maxPoints,
+      );
+
       return maxPoints;
     } catch (e) {
-      debugPrint('Error getting topper points: $e');
+      debugPrint('❌ Error getting topper points: $e');
       return 0;
     }
   }

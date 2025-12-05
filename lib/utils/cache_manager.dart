@@ -17,13 +17,15 @@ class CacheManager {
   static Future<void> cacheStudentData(StudentModel student) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final studentJson = jsonEncode(student.toFirestore());
+      final studentJson = jsonEncode(
+        student.toCacheableMap(),
+      ); // ✅ Use cacheable map
       await prefs.setString(_studentDataKey, studentJson);
       await prefs.setInt(
         _studentDataTimestampKey,
         DateTime.now().millisecondsSinceEpoch,
       );
-      print('✅ Student data cached');
+      print('✅ Student data cached successfully');
     } catch (e) {
       print('❌ Error caching student data: $e');
     }
@@ -113,6 +115,82 @@ class CacheManager {
       print('✅ Student data cache cleared');
     } catch (e) {
       print('❌ Error clearing student data cache: $e');
+    }
+  }
+
+  // ==================== TOPPER POINTS CACHE ====================
+
+  /// Cache topper points for a specific class with 5-minute expiration
+  /// This dramatically reduces Firestore reads on dashboard loads
+  static Future<void> cacheTopperPoints({
+    required String schoolId,
+    required String className,
+    required int points,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'topper_points_${schoolId}_$className';
+      final timestampKey = '${cacheKey}_timestamp';
+
+      await prefs.setInt(cacheKey, points);
+      await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
+      print('✅ Topper points cached: $points for class $className');
+    } catch (e) {
+      print('❌ Error caching topper points: $e');
+    }
+  }
+
+  /// Get cached topper points if still valid (within 5 minutes)
+  /// Returns null if cache is expired or doesn't exist
+  static Future<int?> getTopperPointsCache({
+    required String schoolId,
+    required String className,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'topper_points_${schoolId}_$className';
+      final timestampKey = '${cacheKey}_timestamp';
+
+      final cachedPoints = prefs.getInt(cacheKey);
+      final timestamp = prefs.getInt(timestampKey);
+
+      if (cachedPoints != null && timestamp != null) {
+        final age = DateTime.now().millisecondsSinceEpoch - timestamp;
+        final ageInMinutes = age / 60000;
+
+        // Cache valid for 5 minutes (300000 milliseconds)
+        if (age < 300000) {
+          print(
+            '✅ Using cached topper points: $cachedPoints (age: ${ageInMinutes.toStringAsFixed(1)}m)',
+          );
+          return cachedPoints;
+        } else {
+          print(
+            '⏰ Topper points cache expired (age: ${ageInMinutes.toStringAsFixed(1)}m)',
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error getting topper cache: $e');
+    }
+    return null;
+  }
+
+  /// Clear topper points cache for a specific class
+  static Future<void> clearTopperPointsCache({
+    required String schoolId,
+    required String className,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'topper_points_${schoolId}_$className';
+      final timestampKey = '${cacheKey}_timestamp';
+
+      await prefs.remove(cacheKey);
+      await prefs.remove(timestampKey);
+      print('✅ Topper points cache cleared for class $className');
+    } catch (e) {
+      print('❌ Error clearing topper cache: $e');
     }
   }
 

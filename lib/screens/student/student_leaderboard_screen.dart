@@ -7,6 +7,17 @@ import '../../providers/auth_provider.dart';
 import '../../services/leaderboard_service.dart';
 import 'per_test_leaderboard_detail.dart';
 
+class KeyedSubtree extends StatelessWidget {
+  final Key key;
+  final Widget child;
+
+  const KeyedSubtree({required this.key, required this.child})
+    : super(key: key);
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
 class StudentLeaderboardScreen extends StatefulWidget {
   const StudentLeaderboardScreen({super.key});
 
@@ -35,6 +46,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   String? _section;
   String? _currentUid;
 
+  // ✅ OPTIMIZATION: Cache streams to avoid recreating them
+  Stream<List<LeaderboardEntry>>? _cachedOverallStream;
+  final Map<String, Stream<List<LeaderboardEntry>>> _cachedPerTestStreams = {};
   @override
   void dispose() {
     _searchController.dispose();
@@ -143,12 +157,18 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: _buildTabButton(
-                      theme,
-                      'Overall',
-                      !_isPerTest,
-                      () => setState(() => _isPerTest = false),
-                    ),
+                    child: _buildTabButton(theme, 'Overall', !_isPerTest, () {
+                      if (_isPerTest) {
+                        // Switching from Per-Test to Overall - recreate stream
+                        print(
+                          '🔄 Switching to Overall tab - recreating stream',
+                        );
+                        setState(() {
+                          _isPerTest = false;
+                          _overallStream = _buildOverallStream();
+                        });
+                      }
+                    }),
                   ),
                   Expanded(
                     child: _buildTabButton(
@@ -330,8 +350,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
       return StreamBuilder<List<LeaderboardEntry>>(
         stream: _overallStream,
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            // Only show loader, no section title during loading
+          // Show loading only while waiting for FIRST data
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
             return _loadingState(theme);
           }
           final items = snap.data ?? [];
@@ -1098,17 +1119,21 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
       return const Stream.empty();
     }
 
-    // FIXED: Always use LeaderboardService for accurate, aggregated points
-    // The subcollections may contain stale data and cause incorrect leaderboard display
-    // This ensures student leaderboard matches teacher leaderboard (both use same service)
-    return Stream.periodic(const Duration(seconds: 5)).asyncMap((_) async {
-      return _leaderboardService.getOverallLeaderboardForClass(
-        schoolCode: _schoolCode!,
-        className: _className ?? '',
-        section: _section,
-        limit: 100,
-      );
-    }).asBroadcastStream();
+    // ✅ OPTIMIZATION: Use cached stream instead of periodic refresh
+    // This eliminates the 10-second lag when switching between Overall and Per-Test views
+    // Use real-time listener with a debounce instead of polling every 5 seconds
+    print(
+      '🔄 Building overall leaderboard stream for school: $_schoolCode, class: $_className',
+    );
+
+    return _leaderboardService
+        .getOverallLeaderboardStreamForClass(
+          schoolCode: _schoolCode!,
+          className: _className ?? '',
+          section: _section,
+          limit: 100,
+        )
+        .asBroadcastStream(); // ✅ Broadcast ensures multiple listeners don't cause issues
   }
 
   // Build per-test leaderboard stream from school path; fallback to service

@@ -111,6 +111,36 @@ class StudentModel {
     };
   }
 
+  // To Cacheable Map (for SharedPreferences - converts Timestamp to milliseconds)
+  Map<String, dynamic> toCacheableMap() {
+    return {
+      'studentId': studentId,
+      'email': email,
+      'name': name,
+      'photoUrl': photoUrl,
+      'schoolId': schoolId,
+      'schoolCode': schoolCode,
+      'schoolName': schoolName,
+      'className': className,
+      'section': section,
+      'phone': phone,
+      'parentPhone': parentPhone,
+      'rewardPoints': rewardPoints,
+      'classRank': classRank,
+      'monthlyProgress': monthlyProgress,
+      'monthlyTarget': monthlyTarget,
+      'pendingTests': pendingTests,
+      'completedTests': completedTests,
+      'newNotifications': newNotifications,
+      'streak': streak,
+      'lastStreakDate': lastStreakDate,
+      'createdAt':
+          createdAt.millisecondsSinceEpoch, // ✅ Convert to int for JSON
+      'isActive': isActive,
+      'role': 'student',
+    };
+  }
+
   // Copy with
   StudentModel copyWith({
     String? uid,

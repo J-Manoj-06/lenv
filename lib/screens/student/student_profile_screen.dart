@@ -705,14 +705,6 @@ class _LogoutConfirmationDialogState extends State<_LogoutConfirmationDialog>
     super.dispose();
   }
 
-  void _closeDialog(bool confirmed) {
-    _animationController.reverse().then((_) {
-      if (mounted) {
-        Navigator.of(context).pop(confirmed);
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -800,7 +792,7 @@ class _LogoutConfirmationDialogState extends State<_LogoutConfirmationDialog>
                           // Cancel button
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () => _closeDialog(false),
+                              onPressed: () => Navigator.of(context).pop(false),
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
@@ -853,7 +845,8 @@ class _LogoutConfirmationDialogState extends State<_LogoutConfirmationDialog>
                                 ],
                               ),
                               child: ElevatedButton(
-                                onPressed: () => _closeDialog(true),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.transparent,
                                   shadowColor: Colors.transparent,

@@ -99,67 +99,73 @@ class LeaderboardService {
 
       for (final studentDoc in studentsSnap.docs) {
         final studentData = studentDoc.data();
-        final uid =
-            studentData['uid'] as String? ??
-            studentData['studentId'] as String? ??
-            studentDoc.id;
+        final uid = studentData['uid'] as String?;
+        if (uid == null) continue;
 
-        // Fetch from users collection
-        if (uid.isNotEmpty) {
-          try {
-            final userDoc = await _db.collection('users').doc(uid).get();
-            if (userDoc.exists) {
-              final userData = userDoc.data()!;
-              final name =
-                  userData['name'] as String? ??
-                  studentData['studentName'] as String? ??
-                  'Unknown';
-              final photoUrl = userData['profileImage'] as String?;
-              final points =
-                  (userData['rewardPoints'] as num?)?.toDouble() ?? 0.0;
+        final userDoc = await _db.collection('users').doc(uid).get();
+        if (!userDoc.exists) continue;
 
-              entries.add(
-                LeaderboardEntry(
-                  studentId: uid,
-                  name: name,
-                  photoUrl: photoUrl,
-                  rank: 0, // Will be set after sorting
-                  score: points,
-                ),
-              );
-            }
-          } catch (e) {
-            print('⚠️ Error fetching user $uid: $e');
-          }
-        }
-      }
-
-      if (entries.isEmpty) {
-        print('❌ No users found with rewardPoints');
-        return <LeaderboardEntry>[];
-      }
-
-      // 3) Sort by points descending and assign ranks
-      entries.sort((a, b) => b.score.compareTo(a.score));
-      final result = <LeaderboardEntry>[];
-      for (var i = 0; i < entries.length && i < limit; i++) {
-        result.add(
+        final userData = userDoc.data() ?? {};
+        entries.add(
           LeaderboardEntry(
-            studentId: entries[i].studentId,
-            name: entries[i].name,
-            photoUrl: entries[i].photoUrl,
-            rank: i + 1,
-            score: entries[i].score,
+            studentId: uid,
+            name:
+                userData['name'] as String? ??
+                studentData['studentName'] as String? ??
+                'Student',
+            photoUrl: userData['photoUrl'] as String?,
+            rank: 0, // Will assign after sorting
+            score: userData['rewardPoints'] as num? ?? 0,
           ),
         );
       }
 
-      print('✅ Leaderboard loaded: ${result.length} entries');
-      return result;
+      // 3) Sort by score (descending) and assign ranks
+      entries.sort((a, b) => b.score.compareTo(a.score));
+      for (var i = 0; i < entries.length; i++) {
+        entries[i] = LeaderboardEntry(
+          studentId: entries[i].studentId,
+          name: entries[i].name,
+          photoUrl: entries[i].photoUrl,
+          rank: i + 1,
+          score: entries[i].score,
+        );
+      }
+
+      return entries.take(limit).toList();
     } catch (e) {
       print('❌ Error getting overall leaderboard: $e');
-      return <LeaderboardEntry>[];
+      return [];
     }
+  }
+
+  // ✅ NEW: Stream-based overall leaderboard with real-time updates
+  // Listens to student_rewards collection for immediate score updates
+  Stream<List<LeaderboardEntry>> getOverallLeaderboardStreamForClass({
+    required String schoolCode,
+    required String className,
+    String? section,
+    int limit = 50,
+  }) {
+    if (schoolCode.isEmpty || className.isEmpty) {
+      return const Stream.empty();
+    }
+
+    print(
+      '🔄 Creating real-time leaderboard stream for $schoolCode / $className',
+    );
+
+    // ✅ Listen to student_rewards changes for real-time updates
+    // This avoids the 10-second lag issue completely
+    return _db.collection('student_rewards').snapshots().asyncMap((_) async {
+      // When ANY reward is added/updated, refresh leaderboard
+      return getOverallLeaderboardForClass(
+        schoolCode: schoolCode,
+        className: className,
+        section: section,
+        limit: limit,
+      );
+    }).asBroadcastStream();
   }
 
   // Per-test leaderboard: rank students by their score for a specific test
