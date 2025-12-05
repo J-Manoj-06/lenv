@@ -375,76 +375,95 @@ class _HistoryCardState extends State<HistoryCard>
                                 ),
                               ],
                             ),
+                          // Add top padding when no image
+                          if (widget.imageUrl.isEmpty)
+                            const SizedBox(height: 40),
                           // Text content
-                          Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Year badge with gradient
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    gradient: _categoryGradient,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: _categoryColor.withOpacity(0.6),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    widget.year,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.95),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              padding: EdgeInsets.zero,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  24,
+                                  24,
+                                  32,
                                 ),
-                                const SizedBox(height: 16),
-                                // Title with accent underline
-                                Column(
+                                child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      widget.title,
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.92),
-                                        fontSize: 21,
-                                        fontWeight: FontWeight.bold,
-                                        height: 1.3,
-                                      ),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 8),
+                                    // Year badge with gradient
                                     Container(
-                                      height: 3,
-                                      width: 60,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
                                       decoration: BoxDecoration(
                                         gradient: _categoryGradient,
-                                        borderRadius: BorderRadius.circular(2),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: _categoryColor.withOpacity(
+                                            0.6,
+                                          ),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        widget.year,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.95),
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    // Title with accent underline
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          widget.title,
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(
+                                              0.92,
+                                            ),
+                                            fontSize: 21,
+                                            fontWeight: FontWeight.bold,
+                                            height: 1.3,
+                                          ),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          height: 3,
+                                          width: 60,
+                                          decoration: BoxDecoration(
+                                            gradient: _categoryGradient,
+                                            borderRadius: BorderRadius.circular(
+                                              2,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    // Description
+                                    Text(
+                                      widget.description,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.85),
+                                        fontSize: 16,
+                                        height: 1.5,
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 16),
-                                // Description
-                                Text(
-                                  widget.description,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.85),
-                                    fontSize: 16,
-                                    height: 1.5,
-                                  ),
-                                  maxLines: 5,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         ],

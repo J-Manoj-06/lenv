@@ -3,9 +3,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class TeacherService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// Get teacher details by email
+  // Cache to avoid redundant queries
+  static final Map<String, Map<String, dynamic>> _teacherCache = {};
+  static final Map<String, List<Map<String, dynamic>>> _studentsCache = {};
+  static DateTime? _teacherCacheTime;
+  static DateTime? _studentsCacheTime;
+  static const Duration _cacheDuration = Duration(minutes: 5);
+
+  /// Get teacher details by email with caching
   Future<Map<String, dynamic>?> getTeacherByEmail(String email) async {
     try {
+      // Check cache first
+      final now = DateTime.now();
+      if (_teacherCache.containsKey(email) &&
+          _teacherCacheTime != null &&
+          now.difference(_teacherCacheTime!) < _cacheDuration) {
+        return _teacherCache[email];
+      }
+
       final querySnapshot = await _firestore
           .collection('teachers')
           .where('email', isEqualTo: email)
@@ -15,6 +30,11 @@ class TeacherService {
       if (querySnapshot.docs.isNotEmpty) {
         final data = querySnapshot.docs.first.data();
         data['id'] = querySnapshot.docs.first.id;
+
+        // Cache the result
+        _teacherCache[email] = data;
+        _teacherCacheTime = now;
+
         return data;
       }
 
@@ -22,6 +42,14 @@ class TeacherService {
     } catch (e) {
       return null;
     }
+  }
+
+  /// Clear cache manually if needed
+  static void clearCache() {
+    _teacherCache.clear();
+    _studentsCache.clear();
+    _teacherCacheTime = null;
+    _studentsCacheTime = null;
   }
 
   /// Normalize sections input (supports string like "A, B" or list like ["A","B"]) to a String list
@@ -53,6 +81,17 @@ class TeacherService {
     List<dynamic>? classAssignments,
   }) async {
     try {
+      // Create cache key from parameters
+      final cacheKey = '$schoolId-$classesHandled-$sections-$classAssignments';
+
+      // Check cache first
+      final now = DateTime.now();
+      if (_studentsCache.containsKey(cacheKey) &&
+          _studentsCacheTime != null &&
+          now.difference(_studentsCacheTime!) < _cacheDuration) {
+        return _studentsCache[cacheKey]!;
+      }
+
       final List<Map<String, dynamic>> allStudents = [];
 
       // First, try using classesHandled + sections if available
@@ -79,47 +118,15 @@ class TeacherService {
               final studentData = doc.data();
               studentData['id'] = doc.id;
 
-              // Fetch total points by summing all pointsEarned from student_rewards
-              try {
-                final studentEmail =
-                    studentData['email'] as String? ??
-                    studentData['studentEmail'] as String?;
-                String? actualUid;
-                int totalPoints = 0;
+              // ✅ OPTIMIZED: Use cached rewardPoints from student document
+              // The rewardPoints field is automatically updated when students earn points
+              // No need to query users collection or aggregate student_rewards
+              final rewardPoints =
+                  studentData['rewardPoints'] as int? ??
+                  studentData['totalPoints'] as int? ??
+                  0;
+              studentData['rewardPoints'] = rewardPoints;
 
-                // Step 1: Find the user by email to get the real Auth UID
-                if (studentEmail != null && studentEmail.isNotEmpty) {
-                  final userQuery = await _firestore
-                      .collection('users')
-                      .where('email', isEqualTo: studentEmail)
-                      .limit(1)
-                      .get();
-
-                  if (userQuery.docs.isNotEmpty) {
-                    final userDoc = userQuery.docs.first;
-                    final userData = userDoc.data();
-                    actualUid = userData['uid'] as String? ?? userDoc.id;
-                  }
-                }
-
-                // Step 2: Sum ALL pointsEarned from student_rewards (tests + daily challenges)
-                if (actualUid != null) {
-                  final rewardsSnap = await _firestore
-                      .collection('student_rewards')
-                      .where('studentId', isEqualTo: actualUid)
-                      .get();
-
-                  for (final rd in rewardsSnap.docs) {
-                    final points =
-                        (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
-                    totalPoints += points;
-                  }
-                }
-
-                studentData['rewardPoints'] = totalPoints;
-              } catch (e) {
-                studentData['rewardPoints'] = 0;
-              }
               allStudents.add(studentData);
             }
           }
@@ -155,51 +162,20 @@ class TeacherService {
           final studentData = doc.data();
           studentData['id'] = doc.id;
 
-          // Fetch total points by summing all pointsEarned from student_rewards
-          try {
-            final studentEmail =
-                studentData['email'] as String? ??
-                studentData['studentEmail'] as String?;
-            String? actualUid;
-            int totalPoints = 0;
-
-            // Step 1: Find the user by email to get the real Auth UID
-            if (studentEmail != null && studentEmail.isNotEmpty) {
-              final userQuery = await _firestore
-                  .collection('users')
-                  .where('email', isEqualTo: studentEmail)
-                  .limit(1)
-                  .get();
-
-              if (userQuery.docs.isNotEmpty) {
-                final userDoc = userQuery.docs.first;
-                final userData = userDoc.data();
-                actualUid = userData['uid'] as String? ?? userDoc.id;
-              }
-            }
-
-            // Step 2: Sum ALL pointsEarned from student_rewards (tests + daily challenges)
-            if (actualUid != null) {
-              final rewardsSnap = await _firestore
-                  .collection('student_rewards')
-                  .where('studentId', isEqualTo: actualUid)
-                  .get();
-
-              for (final rd in rewardsSnap.docs) {
-                final points =
-                    (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
-                totalPoints += points;
-              }
-            }
-
-            studentData['rewardPoints'] = totalPoints;
-          } catch (e) {
-            studentData['rewardPoints'] = 0;
-          }
+          // ✅ OPTIMIZED: Use cached rewardPoints from student document
+          final rewardPoints =
+              studentData['rewardPoints'] as int? ??
+              studentData['totalPoints'] as int? ??
+              0;
+          studentData['rewardPoints'] = rewardPoints;
 
           allStudents.add(studentData);
         }
       }
+
+      // Cache the results
+      _studentsCache[cacheKey] = allStudents;
+      _studentsCacheTime = now;
 
       return allStudents;
     } catch (e) {
@@ -359,214 +335,92 @@ class TeacherService {
     List<dynamic>? classAssignments,
   }) {
     try {
-      print(
-        '🔍 Stream query - schoolId: $schoolId, classesHandled: $classesHandled, sections: $sections, classAssignments: $classAssignments',
-      );
+      // Parse class-section combinations from classAssignments
+      List<Map<String, String>> classesInfo = [];
 
-      // If no classesHandled, try to extract from classAssignments
-      if ((classesHandled == null || classesHandled.isEmpty) &&
-          classAssignments != null) {
-        print('📚 Using classAssignments fallback');
-        // Parse classAssignments to get class-section combinations
-        final formatted = getTeacherClasses(
-          null,
-          null,
-          classAssignments: classAssignments,
-        );
-        print('📚 Formatted classes from assignments: $formatted');
+      if (classAssignments != null && classAssignments.isNotEmpty) {
+        // Parse "Grade 10: A, Subject" format
+        for (final assignment in classAssignments) {
+          final assignmentStr = assignment.toString();
+          final colonParts = assignmentStr.split(':');
+          if (colonParts.length < 2) continue;
 
-        return _firestore
-            .collection('students')
-            .where('schoolCode', isEqualTo: schoolId)
-            .snapshots()
-            .asyncMap((snapshot) async {
-              print(
-                '📦 Stream received ${snapshot.docs.length} student documents (classAssignments mode)',
-              );
-              final List<Map<String, dynamic>> allStudents = [];
+          final gradeRaw = colonParts[0].trim();
+          final rightSide = colonParts[1];
+          final commaParts = rightSide.split(',');
+          if (commaParts.isEmpty) continue;
 
-              for (var fc in formatted) {
-                // fc like "10 - A" -> className="Grade 10", section="A"
-                final parts = fc.split(' - ');
-                if (parts.length != 2) continue;
-                final className = 'Grade ${parts[0].trim()}';
-                final section = parts[1].trim();
+          final sectionPart = commaParts[0].trim();
+          final className = gradeRaw; // e.g., "Grade 10"
 
-                print(
-                  '🔎 Looking for students: className=$className, section=$section',
-                );
-
-                for (var doc in snapshot.docs) {
-                  final studentData = doc.data();
-                  final studentClassName =
-                      studentData['className']?.toString() ?? '';
-                  final studentSection =
-                      studentData['section']?.toString() ?? '';
-
-                  if (studentClassName == className &&
-                      studentSection == section) {
-                    studentData['id'] = doc.id;
-                    print(
-                      '   ✅ Matched student: ${studentData['studentName']}',
-                    );
-
-                    // Fetch reward points
-                    try {
-                      final studentEmail =
-                          studentData['email'] as String? ??
-                          studentData['studentEmail'] as String?;
-                      String? actualUid;
-                      int totalPoints = 0;
-
-                      if (studentEmail != null && studentEmail.isNotEmpty) {
-                        final userQuery = await _firestore
-                            .collection('users')
-                            .where('email', isEqualTo: studentEmail)
-                            .limit(1)
-                            .get();
-
-                        if (userQuery.docs.isNotEmpty) {
-                          final userData = userQuery.docs.first.data();
-                          actualUid =
-                              userData['uid'] as String? ??
-                              userQuery.docs.first.id;
-                        }
-                      }
-
-                      if (actualUid != null) {
-                        final rewardsSnap = await _firestore
-                            .collection('student_rewards')
-                            .where('studentId', isEqualTo: actualUid)
-                            .get();
-
-                        for (final rd in rewardsSnap.docs) {
-                          final points =
-                              (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
-                          totalPoints += points;
-                        }
-                      }
-
-                      studentData['rewardPoints'] = totalPoints;
-                    } catch (e) {
-                      studentData['rewardPoints'] = 0;
-                    }
-
-                    allStudents.add(studentData);
-                  }
-                }
-              }
-
-              print(
-                '✅ Stream returning ${allStudents.length} matched students (classAssignments mode)',
-              );
-              return allStudents;
-            });
+          classesInfo.add({'className': className, 'section': sectionPart});
+        }
+      } else if (classesHandled != null && classesHandled.isNotEmpty) {
+        final sectionList = _normalizeSections(sections);
+        for (final classItem in classesHandled) {
+          final className = classItem.toString();
+          for (final section in sectionList) {
+            if (section.isNotEmpty) {
+              classesInfo.add({'className': className, 'section': section});
+            }
+          }
+        }
       }
 
-      // Original classesHandled logic
-      print('📚 Using classesHandled logic');
+      if (classesInfo.isEmpty) {
+        return Stream.value([]);
+      }
 
-      // For simplicity, we'll query all students in the school and filter locally
-      // This is more efficient than managing multiple stream subscriptions
+      // ✅ OPTIMIZED: Query only the specific class-section combinations
+      // Use the first class-section as the primary query
+      final firstClass = classesInfo.first;
+
       return _firestore
           .collection('students')
           .where('schoolCode', isEqualTo: schoolId)
+          .where('className', isEqualTo: firstClass['className'])
+          .where('section', isEqualTo: firstClass['section'])
           .snapshots()
           .asyncMap((snapshot) async {
-            print(
-              '📦 Stream received ${snapshot.docs.length} student documents',
-            );
             final List<Map<String, dynamic>> allStudents = [];
 
-            // Filter students based on teacher's classes
-            final sectionList = _normalizeSections(sections);
-            print('📋 Normalized sections: $sectionList');
-
+            // Add students from first query
             for (var doc in snapshot.docs) {
               final studentData = doc.data();
               studentData['id'] = doc.id;
+              // ✅ Use cached rewardPoints
+              studentData['rewardPoints'] =
+                  studentData['rewardPoints'] as int? ?? 0;
+              allStudents.add(studentData);
+            }
 
-              // Check if student belongs to teacher's classes
-              final studentClassName =
-                  studentData['className']?.toString() ?? '';
-              final studentSection = studentData['section']?.toString() ?? '';
+            // ✅ Fetch remaining classes in parallel (if any)
+            if (classesInfo.length > 1) {
+              final additionalQueries = classesInfo.skip(1).map((classInfo) {
+                return _firestore
+                    .collection('students')
+                    .where('schoolCode', isEqualTo: schoolId)
+                    .where('className', isEqualTo: classInfo['className'])
+                    .where('section', isEqualTo: classInfo['section'])
+                    .get();
+              });
 
-              bool matchesClass = false;
-
-              if (classesHandled != null && classesHandled.isNotEmpty) {
-                for (final classItem in classesHandled) {
-                  // Normalize comparison: both should have "Grade" prefix
-                  String normalizedTeacherClass = classItem.toString();
-                  if (!normalizedTeacherClass.toLowerCase().startsWith(
-                    'grade',
-                  )) {
-                    normalizedTeacherClass = 'Grade $normalizedTeacherClass';
-                  }
-
-                  print(
-                    '🔎 Comparing: student "$studentClassName" (section: "$studentSection") with teacher class "$normalizedTeacherClass"',
-                  );
-
-                  if (studentClassName == normalizedTeacherClass &&
-                      sectionList.contains(studentSection)) {
-                    matchesClass = true;
-                    print('   ✅ Match found!');
-                    break;
-                  }
+              final results = await Future.wait(additionalQueries);
+              for (var result in results) {
+                for (var doc in result.docs) {
+                  final studentData = doc.data();
+                  studentData['id'] = doc.id;
+                  studentData['rewardPoints'] =
+                      studentData['rewardPoints'] as int? ?? 0;
+                  allStudents.add(studentData);
                 }
-              }
-
-              if (matchesClass) {
-                // Fetch total points by summing all pointsEarned from student_rewards
-                try {
-                  final studentEmail =
-                      studentData['email'] as String? ??
-                      studentData['studentEmail'] as String?;
-                  String? actualUid;
-                  int totalPoints = 0;
-
-                  if (studentEmail != null && studentEmail.isNotEmpty) {
-                    final userQuery = await _firestore
-                        .collection('users')
-                        .where('email', isEqualTo: studentEmail)
-                        .limit(1)
-                        .get();
-
-                    if (userQuery.docs.isNotEmpty) {
-                      final userData = userQuery.docs.first.data();
-                      actualUid =
-                          userData['uid'] as String? ?? userQuery.docs.first.id;
-                    }
-                  }
-
-                  // Sum ALL pointsEarned from student_rewards
-                  if (actualUid != null) {
-                    final rewardsSnap = await _firestore
-                        .collection('student_rewards')
-                        .where('studentId', isEqualTo: actualUid)
-                        .get();
-
-                    for (final rd in rewardsSnap.docs) {
-                      final points =
-                          (rd.data()['pointsEarned'] as num?)?.toInt() ?? 0;
-                      totalPoints += points;
-                    }
-                  }
-
-                  studentData['rewardPoints'] = totalPoints;
-                } catch (e) {
-                  studentData['rewardPoints'] = 0;
-                }
-
-                allStudents.add(studentData);
               }
             }
 
-            print('✅ Stream returning ${allStudents.length} matched students');
             return allStudents;
           });
     } catch (e) {
-      print('❌ Stream error: $e');
+      print('❌ Error in getStudentsStream: $e');
       return Stream.value([]);
     }
   }

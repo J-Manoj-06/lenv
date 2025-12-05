@@ -64,12 +64,23 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // Defer heavy work and provider notifications until after first frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadTeacherData();
-      // Sweep expired highlights for this teacher (best-effort; prefer Firestore TTL)
-      _cleanupExpiredHighlights();
+    // Load data immediately to show UI faster
+    _loadTeacherData();
+    // Defer non-critical cleanup to after page loads
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        _cleanupExpiredHighlights();
+        _autoPublishTests();
+      }
     });
+  }
+
+  Future<void> _autoPublishTests() async {
+    try {
+      await FirestoreService().autoPublishExpiredTests();
+    } catch (_) {
+      // Silent fail for background task
+    }
   }
 
   @override
@@ -85,32 +96,32 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       });
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-      // DEBUG: trace startup auth/session state
-      // ignore: avoid_print
-      print('[Dashboard] Starting _loadTeacherData');
-      // Attempt to initialize auth in case app was cold-started
-      await authProvider.initializeAuth();
       final currentUser = authProvider.currentUser;
-      // ignore: avoid_print
-      print(
-        '[Dashboard] auth.currentUser: ${currentUser?.email} role=${currentUser?.role}',
-      );
 
+      // Skip expensive re-initialization - user is already logged in
       if (currentUser == null) {
-        setState(() {
-          _error = 'No user logged in';
-          _isLoading = false;
-        });
-        // ignore: avoid_print
-        print('[Dashboard] No user after initializeAuth');
-        return;
+        // Only initialize if truly not logged in
+        await authProvider.initializeAuth();
+        final retryUser = authProvider.currentUser;
+        if (retryUser == null) {
+          setState(() {
+            _error = 'No user logged in';
+            _isLoading = false;
+          });
+          return;
+        }
       }
 
-      // Fetch teacher data
-      final teacherData = await _teacherService.getTeacherByEmail(
-        currentUser.email,
-      );
+      final user = authProvider.currentUser!;
+
+      // Fetch teacher data and students in parallel for faster loading
+      final results = await Future.wait([
+        _teacherService.getTeacherByEmail(user.email),
+        // We'll fetch students after we have teacher data
+        Future.value(null),
+      ]);
+
+      final teacherData = results[0] as Map<String, dynamic>?;
 
       if (teacherData == null) {
         setState(() {
@@ -131,17 +142,99 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         classAssignments: teacherData['classAssignments'], // Fallback
       );
 
-      // Fetch students (supports both classesHandled and classAssignments)
+      // Show UI immediately with classes, then fetch students in background
+      setState(() {
+        _teacherData = teacherData;
+        _classes = classes;
+        _isLoading = false;
+
+        // Build subject mapping from classAssignments
+        _buildSubjectMapping(teacherData, classes);
+
+        // Set initial selected class
+        if (classes.isNotEmpty) {
+          final firstClass = classes.first;
+          final subjects = _classSubjectMap[firstClass] ?? const <String>[];
+          selectedClass = subjects.isNotEmpty
+              ? '$firstClass::${subjects.first}'
+              : firstClass;
+        }
+      });
+
+      // Fetch students in background after UI is shown
+      _fetchStudentsInBackground(user, teacherData, sections, classes);
+    } catch (e) {
+      print('Error loading teacher data: $e');
+      setState(() {
+        _error = 'Failed to load data';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _buildSubjectMapping(
+    Map<String, dynamic> teacherData,
+    List<String> classes,
+  ) {
+    _classSubjectMap = <String, List<String>>{};
+    final assignments = teacherData['classAssignments'];
+    if (assignments is List) {
+      for (final assignment in assignments) {
+        final assignmentStr = assignment.toString();
+        final colonParts = assignmentStr.split(':');
+        if (colonParts.length < 2) continue;
+        final gradeRaw = colonParts[0].trim();
+        final rightSide = colonParts[1];
+        final commaParts = rightSide.split(',');
+        if (commaParts.isEmpty) continue;
+        final sectionPart = commaParts[0].trim();
+        String? subjectPart;
+        if (commaParts.length > 1) {
+          subjectPart = commaParts[1].trim();
+        }
+        final grade = gradeRaw
+            .replaceAll('Grade ', '')
+            .replaceAll('grade ', '')
+            .trim();
+        final key = '$grade - $sectionPart';
+        if (subjectPart != null && subjectPart.isNotEmpty) {
+          _classSubjectMap.putIfAbsent(key, () => <String>[]);
+          if (!_classSubjectMap[key]!.contains(subjectPart)) {
+            _classSubjectMap[key]!.add(subjectPart);
+          }
+        }
+      }
+    }
+    // Fallback: if no mapping derived but subjectsHandled exists
+    if (_classSubjectMap.isEmpty) {
+      final subjectsHandled = teacherData['subjectsHandled'];
+      if (subjectsHandled is List && subjectsHandled.isNotEmpty) {
+        final fallbackSubject = subjectsHandled.first.toString();
+        for (final c in classes) {
+          _classSubjectMap[c] = [fallbackSubject];
+        }
+      }
+    }
+  }
+
+  Future<void> _fetchStudentsInBackground(
+    dynamic user,
+    Map<String, dynamic> teacherData,
+    dynamic sections,
+    List<String> classes,
+  ) async {
+    try {
+      // Fetch students in background
       final students = await _teacherService.getStudentsByTeacher(
-        currentUser.instituteId ?? teacherData['schoolCode'] ?? '',
+        user.instituteId ?? teacherData['schoolCode'] ?? '',
         teacherData['classesHandled'],
         sections,
         classAssignments: teacherData['classAssignments'],
       );
 
+      if (!mounted) return;
+
       setState(() {
-        _teacherData = teacherData;
-        _classes = classes;
         _students = students;
 
         // Calculate student count per class
@@ -167,75 +260,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             _classStudentCounts[className] = count;
           }
         }
-
-        // Build subject mapping from classAssignments if available (e.g. "Grade 10: A, Science")
-        _classSubjectMap = <String, List<String>>{};
-        final assignments = teacherData['classAssignments'];
-        if (assignments is List) {
-          for (final assignment in assignments) {
-            final assignmentStr = assignment.toString();
-            final colonParts = assignmentStr.split(':');
-            if (colonParts.length < 2) continue;
-            final gradeRaw = colonParts[0].trim(); // e.g. "Grade 10"
-            final rightSide = colonParts[1]; // e.g. " A, Science"
-            final commaParts = rightSide.split(',');
-            if (commaParts.isEmpty) continue;
-            final sectionPart = commaParts[0].trim(); // "A"
-            String? subjectPart;
-            if (commaParts.length > 1) {
-              subjectPart = commaParts[1].trim();
-            }
-            // Extract number from grade
-            final grade = gradeRaw
-                .replaceAll('Grade ', '')
-                .replaceAll('grade ', '')
-                .trim();
-            final key = '$grade - $sectionPart';
-            if (subjectPart != null && subjectPart.isNotEmpty) {
-              _classSubjectMap.putIfAbsent(key, () => <String>[]);
-              if (!_classSubjectMap[key]!.contains(subjectPart)) {
-                _classSubjectMap[key]!.add(subjectPart);
-              }
-            }
-          }
-        }
-        // Fallback: if no mapping derived but subjectsHandled exists, apply first subject to all classes
-        if (_classSubjectMap.isEmpty) {
-          final subjectsHandled = teacherData['subjectsHandled'];
-          if (subjectsHandled is List && subjectsHandled.isNotEmpty) {
-            final fallbackSubject = subjectsHandled.first.toString();
-            for (final c in classes) {
-              _classSubjectMap[c] = [fallbackSubject];
-            }
-          }
-        }
-
-        // Ensure selectedClass matches exactly one dropdown item
-        if (classes.isNotEmpty) {
-          final firstClass = classes.first;
-          final subjects = _classSubjectMap[firstClass] ?? const <String>[];
-          selectedClass = subjects.isNotEmpty
-              ? '$firstClass::${subjects.first}'
-              : firstClass;
-        } else {
-          selectedClass = null;
-        }
-
-        _isLoading = false;
       });
-
-      // After loading, run best-effort auto-publish sweep
-      // (app-side scheduled check in case backend cron isn't available)
-      try {
-        await FirestoreService().autoPublishExpiredTests();
-      } catch (_) {}
     } catch (e) {
-      // ignore: avoid_print
-      print('Error loading teacher data: $e');
-      setState(() {
-        _error = 'Failed to load data';
-        _isLoading = false;
-      });
+      print('Error fetching students: $e');
+      // Don't show error, just leave students empty
     }
   }
 
@@ -244,7 +272,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? _buildLoadingSkeleton()
           : _error != null
           ? Center(
               child: Column(
@@ -2438,6 +2466,87 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             color: theme.brightness == Brightness.dark
                 ? Colors.grey[800]
                 : Colors.grey[300],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Fast loading skeleton shown while data loads
+  Widget _buildLoadingSkeleton() {
+    final theme = Theme.of(context);
+    final shimmerColor = theme.brightness == Brightness.dark
+        ? Colors.grey[800]
+        : Colors.grey[300];
+
+    return Column(
+      children: [
+        // Header skeleton
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Theme.of(context).primaryColor.withOpacity(0.3),
+                Theme.of(context).primaryColor.withOpacity(0.1),
+              ],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 200,
+                height: 24,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: shimmerColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: 150,
+                height: 16,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: shimmerColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Stats banner skeleton
+                Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: shimmerColor,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Cards skeleton
+                ...List.generate(
+                  3,
+                  (index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Container(
+                      height: 100,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: shimmerColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],

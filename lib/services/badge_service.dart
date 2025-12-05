@@ -10,6 +10,8 @@ class BadgeService {
     String badgeId, {
     String? testId,
   }) async {
+    print('🏅 Attempting to award badge: $badgeId to student: $studentId');
+
     // Prefer dedicated collection: student_badges/{studentId}
     final badgeDocRef = _firestore.collection('student_badges').doc(studentId);
     final badgeDoc = await badgeDocRef.get();
@@ -29,15 +31,19 @@ class BadgeService {
       if (testId != null) 'testId': testId,
     };
 
+    print('🏅 Writing badge to: student_badges/$studentId');
+
     // Write to dedicated badges document (create if missing)
     if (!badgeDoc.exists) {
       await badgeDocRef.set({
         'badges': [entry],
       });
+      print('✅ Created new badge document with badge: $badgeId');
     } else {
       await badgeDocRef.update({
         'badges': FieldValue.arrayUnion([entry]),
       });
+      print('✅ Added badge to existing document: $badgeId');
     }
 
     // Backward-compat: also update students/{id}.badges array if present
@@ -45,7 +51,10 @@ class BadgeService {
       await _firestore.collection('students').doc(studentId).update({
         'badges': FieldValue.arrayUnion([entry]),
       });
-    } catch (_) {}
+      print('✅ Also updated students collection');
+    } catch (e) {
+      print('⚠️ Could not update students collection: $e');
+    }
 
     print('✅ Awarded badge: $badgeId to student $studentId');
   }
@@ -53,15 +62,24 @@ class BadgeService {
   Future<List<Map<String, dynamic>>> fetchEarnedBadgesRaw(
     String studentId,
   ) async {
+    print('🔍 Fetching badges for student: $studentId');
+
     // Read from dedicated collection first
     final badgeDoc = await _firestore
         .collection('student_badges')
         .doc(studentId)
         .get();
+
+    print('🔍 Badge doc exists: ${badgeDoc.exists}');
+    print('🔍 Badge doc data: ${badgeDoc.data()}');
+
     List<dynamic> earned = (badgeDoc.data()?['badges'] ?? []) as List<dynamic>;
+
+    print('🔍 Badges from student_badges collection: ${earned.length}');
 
     // Fallback: students/{id}.badges array
     if (earned.isEmpty) {
+      print('🔍 Trying fallback: students collection');
       try {
         final sdoc = await _firestore
             .collection('students')
@@ -69,8 +87,13 @@ class BadgeService {
             .get();
         final sdata = sdoc.data();
         earned = (sdata?['badges'] ?? []) as List<dynamic>;
-      } catch (_) {}
+        print('🔍 Badges from students collection: ${earned.length}');
+      } catch (e) {
+        print('❌ Error fetching from students: $e');
+      }
     }
+
+    print('🔍 Total earned badges raw: ${earned.length}');
     return earned.cast<Map<String, dynamic>>();
   }
 
@@ -81,7 +104,7 @@ class BadgeService {
     for (final raw in earned) {
       final id = raw['id'] as String?;
       if (id == null) continue;
-      final match = badgeMasterList.firstWhere(
+      final Badge match = badgeMasterList.firstWhere(
         (b) => b.id == id,
         orElse: () => const Badge(
           id: 'unknown',
@@ -89,7 +112,6 @@ class BadgeService {
           description: 'Badge not found',
           emoji: '❓',
           category: 'other',
-          points: 0,
         ),
       );
       result.add(match);

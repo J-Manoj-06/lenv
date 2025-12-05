@@ -328,12 +328,13 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
             ),
           ),
 
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
 
           // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   community.name,
@@ -353,18 +354,28 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
                   children: [
-                    const Icon(Icons.people, size: 14, color: Colors.white38),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${community.memberCount} members',
-                      style: const TextStyle(
-                        color: Colors.white38,
-                        fontSize: 12,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.people,
+                          size: 14,
+                          color: Colors.white38,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${community.memberCount} members',
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -389,76 +400,79 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
             ),
           ),
 
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
 
           // Join/Joined Button
-          SizedBox(
-            height: 36,
-            child: isJoined
-                ? Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: const Color(0xFF4CAF50),
-                        width: 1.5,
-                      ),
+          isJoined
+              ? Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: const Color(0xFF4CAF50),
+                      width: 1.5,
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          size: 16,
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        size: 16,
+                        color: Color(0xFF4CAF50),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Joined',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                           color: Color(0xFF4CAF50),
                         ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Joined',
+                      ),
+                    ],
+                  ),
+                )
+              : ElevatedButton(
+                  onPressed: isJoining ? null : () => _joinCommunity(community),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFA929),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(
+                      0xFFFFA929,
+                    ).withValues(alpha: 0.5),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: isJoining
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Join',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF4CAF50),
                           ),
                         ),
-                      ],
-                    ),
-                  )
-                : ElevatedButton(
-                    onPressed: isJoining
-                        ? null
-                        : () => _joinCommunity(community),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFA929),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(
-                        0xFFFFA929,
-                      ).withValues(alpha: 0.5),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                    ),
-                    child: isJoining
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text(
-                            'Join',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
-          ),
+                ),
         ],
       ),
     );

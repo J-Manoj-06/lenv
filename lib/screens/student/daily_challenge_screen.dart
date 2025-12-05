@@ -83,6 +83,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     return showDialog(
       context: context,
       barrierDismissible: false,
+      barrierColor: const Color(0xFF23190F),
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(

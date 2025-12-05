@@ -4,7 +4,6 @@ class Badge {
   final String description;
   final String emoji; // emoji icon for universal rendering
   final String category;
-  final int points;
 
   const Badge({
     required this.id,
@@ -12,6 +11,5 @@ class Badge {
     required this.description,
     required this.emoji,
     required this.category,
-    required this.points,
   });
 }

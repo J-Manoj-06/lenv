@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Badge;
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/student_provider.dart';
@@ -11,9 +11,13 @@ import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/parent_service.dart';
 import '../../utils/cache_manager.dart';
+import '../../services/badge_service.dart';
+import '../../badges/badge_model.dart';
+import '../../badges/badge_master.dart';
 import '../teacher/status_view_screen.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
+import 'badge_gallery_screen.dart';
 import '../ai/ai_chat_page.dart';
 import 'dart:math' as math;
 
@@ -1447,64 +1451,120 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Widget _buildBadgesSection(StudentModel? student) {
     if (student == null) return const SizedBox.shrink();
 
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _fetchEarnedBadges(student.uid),
-      builder: (context, snapshot) {
-        final earnedBadges = snapshot.data ?? [];
+    print('🎯 Building badges section for student: ${student.uid}');
 
-        // Sample badges for display
-        final badges = [
-          {
-            'icon': Icons.school,
-            'label': 'Scholar',
-            'color': const Color(0xFFBA68C8),
-            'earned': earnedBadges.length > 0,
-          },
-          {
-            'icon': Icons.local_fire_department,
-            'label': 'Streak',
-            'color': const Color(0xFFFFB26B),
-            'earned': earnedBadges.length > 1,
-          },
-          {
-            'icon': Icons.military_tech,
-            'label': 'Achiever',
-            'color': const Color(0xFF64B5F6),
-            'earned': earnedBadges.length > 2,
-          },
-          {
-            'icon': Icons.lock,
-            'label': 'Locked',
-            'color': Colors.white24,
-            'earned': false,
-          },
-        ];
+    return FutureBuilder<List<Badge>>(
+      future: BadgeService().fetchEarnedBadges(student.uid),
+      builder: (context, snapshot) {
+        print('🎯 Badge FutureBuilder state: ${snapshot.connectionState}');
+
+        if (snapshot.hasError) {
+          print('❌ Badge fetch error: ${snapshot.error}');
+        }
+
+        final earnedBadges = snapshot.data ?? [];
+        final earnedIds = earnedBadges.map((b) => b.id).toSet();
+
+        print('🎯 Earned badges count: ${earnedBadges.length}');
+        print('🎯 Earned badge IDs: $earnedIds');
+
+        // Prioritize earned badges first, then fill with locked badges
+        final displayBadges = <Badge>[];
+
+        // Add earned badges first
+        displayBadges.addAll(earnedBadges.take(6));
+
+        // Fill remaining slots with unearned badges
+        if (displayBadges.length < 6) {
+          final unearnedBadges = badgeMasterList
+              .where((badge) => !earnedIds.contains(badge.id))
+              .take(6 - displayBadges.length);
+          displayBadges.addAll(unearnedBadges);
+        }
+
+        print(
+          '🎯 Displaying ${displayBadges.length} badges in dashboard (${earnedBadges.length} earned)',
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Badges Earned',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: badges
-                  .map(
-                    (badge) => _buildBadge(
-                      badge['icon'] as IconData,
-                      badge['label'] as String,
-                      badge['color'] as Color,
-                      badge['earned'] as bool,
-                    ),
-                  )
-                  .toList(),
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Badges Earned',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    height: 1.2,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            BadgeGalleryScreen(studentId: student.uid),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      Text(
+                        'View All (${earnedBadges.length}/${badgeMasterList.length})',
+                        style: const TextStyle(
+                          color: Color(0xFFFF8800),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Color(0xFFFF8800),
+                        size: 14,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Premium Badge Grid with staggered animations
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // Responsive grid: 3 columns on larger screens, 2 on small
+                final crossAxisCount = constraints.maxWidth > 400 ? 3 : 2;
+                final childAspectRatio = constraints.maxWidth > 400 ? 0.9 : 1.0;
+
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: childAspectRatio,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: displayBadges.length,
+                  itemBuilder: (context, index) {
+                    final badge = displayBadges[index];
+                    final isEarned = earnedIds.contains(badge.id);
+                    // Staggered animation delay
+                    final delay = Duration(milliseconds: 100 * index);
+                    return _PremiumBadgeTile(
+                      badge: badge,
+                      isUnlocked: isEarned,
+                      animationDelay: delay,
+                      onTap: () => _showRotatingBadgeDialog(badge, isEarned),
+                    );
+                  },
+                );
+              },
             ),
           ],
         );
@@ -1512,57 +1572,425 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
   }
 
-  Widget _buildBadge(IconData icon, String label, Color color, bool earned) {
-    return Column(
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
-            shape: BoxShape.circle,
-            boxShadow: earned
-                ? [
-                    BoxShadow(
-                      color: color.withOpacity(0.5),
-                      blurRadius: 12,
-                      spreadRadius: 2,
+  void _showRotatingBadgeDialog(Badge badge, bool earned) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _RotatingBadgeWidget(badge: badge, earned: earned),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    badge.title,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
-                  ]
-                : null,
-          ),
-          child: Icon(
-            icon,
-            color: earned ? Colors.white : Colors.white38,
-            size: 32,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    badge.description,
+                    style: const TextStyle(fontSize: 14, color: Colors.white70),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: earned ? const Color(0xFF28A745) : Colors.white12,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      earned ? '✓ Earned' : '🔒 Locked',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Close',
+                style: TextStyle(
+                  color: Color(0xFFFF8800),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Premium Badge Tile with Elegant Glow and Animations
+class _PremiumBadgeTile extends StatefulWidget {
+  final Badge badge;
+  final bool isUnlocked;
+  final Duration animationDelay;
+  final VoidCallback onTap;
+
+  const _PremiumBadgeTile({
+    required this.badge,
+    required this.isUnlocked,
+    required this.animationDelay,
+    required this.onTap,
+  });
+
+  @override
+  State<_PremiumBadgeTile> createState() => _PremiumBadgeTileState();
+}
+
+class _PremiumBadgeTileState extends State<_PremiumBadgeTile>
+    with SingleTickerProviderStateMixin {
+  bool _isPressed = false;
+  late AnimationController _shimmerController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Shimmer animation for unlocked badges
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    );
+    if (widget.isUnlocked) {
+      _shimmerController.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: 0.85 + (0.15 * value),
+          child: Opacity(opacity: value, child: child),
+        );
+      },
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          setState(() => _isPressed = false);
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: widget.isUnlocked
+                    ? [const Color(0xFF1A1C1F), const Color(0xFF252729)]
+                    : [
+                        const Color(0xFF1A1C1F).withValues(alpha: 0.5),
+                        const Color(0xFF1A1C1F).withValues(alpha: 0.3),
+                      ],
+              ),
+              border: Border.all(
+                color: widget.isUnlocked
+                    ? const Color(0xFFFF8800)
+                    : const Color(0xFF303236),
+                width: widget.isUnlocked ? 2 : 1,
+              ),
+              boxShadow: [
+                // Outer glow for unlocked badges
+                if (widget.isUnlocked)
+                  BoxShadow(
+                    color: const Color(0xFFFFA726).withValues(alpha: 0.4),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
+                  ),
+                // Subtle shadow for depth
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+                // Inner shadow effect
+                BoxShadow(
+                  color: widget.isUnlocked
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  spreadRadius: -4,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Stack(
+                children: [
+                  // Shimmer effect for unlocked badges
+                  if (widget.isUnlocked)
+                    AnimatedBuilder(
+                      animation: _shimmerController,
+                      builder: (context, child) {
+                        return Positioned(
+                          left:
+                              -100 +
+                              (MediaQuery.of(context).size.width *
+                                  _shimmerController.value),
+                          top: -50,
+                          child: Container(
+                            width: 100,
+                            height: 200,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.0),
+                                  Colors.white.withValues(alpha: 0.1),
+                                  Colors.white.withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                  // Main content
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Badge emoji - centered
+                        Center(
+                          child: Text(
+                            widget.badge.emoji,
+                            style: TextStyle(
+                              fontSize: 48,
+                              color: widget.isUnlocked
+                                  ? null
+                                  : Colors.white.withValues(alpha: 0.2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Badge title
+                        Text(
+                          widget.badge.title,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.2,
+                            color: widget.isUnlocked
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.4),
+                            fontWeight: widget.isUnlocked
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Earned tick icon
+                  if (widget.isUnlocked)
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF28A745), Color(0xFF20C997)],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF28A745,
+                              ).withValues(alpha: 0.5),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+
+                  // Locked overlay for locked badges
+                  if (!widget.isUnlocked)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          color: Colors.black.withValues(alpha: 0.4),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.lock_rounded,
+                            color: Colors.white.withValues(alpha: 0.3),
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: earned ? Colors.white70 : Colors.white38,
+      ),
+    );
+  }
+}
+
+// Rotating Badge Widget with 3D effect
+class _RotatingBadgeWidget extends StatefulWidget {
+  final Badge badge;
+  final bool earned;
+
+  const _RotatingBadgeWidget({required this.badge, required this.earned});
+
+  @override
+  State<_RotatingBadgeWidget> createState() => _RotatingBadgeWidgetState();
+}
+
+class _RotatingBadgeWidgetState extends State<_RotatingBadgeWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Soft glow behind badge
+        Container(
+          width: 240,
+          height: 240,
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              colors: [
+                widget.earned
+                    ? const Color(0x33FF8800)
+                    : const Color(0x11FFFFFF),
+                const Color(0x00000000),
+              ],
+            ),
           ),
+        ),
+
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final angle = _controller.value * 2 * math.pi;
+
+            return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.001)
+                ..rotateY(angle)
+                ..scale(1 + 0.05 * math.sin(angle)),
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: widget.earned
+                        ? const Color(0xFFFF8800)
+                        : Colors.white24,
+                    width: 4,
+                  ),
+                  boxShadow: widget.earned
+                      ? [
+                          BoxShadow(
+                            color: const Color(
+                              0xFFFF8800,
+                            ).withValues(alpha: 0.5),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Center(
+                  child: Text(
+                    widget.badge.emoji,
+                    style: TextStyle(
+                      fontSize: 80,
+                      color: widget.earned
+                          ? null
+                          : Colors.white.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchEarnedBadges(
-    String studentId,
-  ) async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('student_badges')
-          .doc(studentId)
-          .get();
-      return (doc.data()?['badges'] as List<dynamic>?)
-              ?.cast<Map<String, dynamic>>() ??
-          [];
-    } catch (e) {
-      return [];
-    }
   }
 }
 
