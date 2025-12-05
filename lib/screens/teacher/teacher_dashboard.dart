@@ -342,28 +342,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.menu,
-                          color: Theme.of(context).iconTheme.color,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Hello, ${_teacherData?['teacherName'] ?? currentUser?.name ?? 'Teacher'}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(
-                                context,
-                              ).textTheme.bodyLarge?.color,
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'Hello, ${_teacherData?['teacherName'] ?? currentUser?.name ?? 'Teacher'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -2204,7 +2191,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             List<Map<String, dynamic>> filteredStudents = allStudents;
 
             if (selectedClass != null && selectedClass!.isNotEmpty) {
-              final parts = selectedClass!.split(' - ');
+              // Remove subject if present (format: "10 - A::english")
+              final classOnly = selectedClass!.split('::').first;
+              final parts = classOnly.split(' - ');
               if (parts.length == 2) {
                 final selectedGrade = parts[0].trim();
                 final selectedSection = parts[1].trim();

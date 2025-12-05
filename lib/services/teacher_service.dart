@@ -383,9 +383,13 @@ class TeacherService {
           .snapshots()
           .asyncMap((snapshot) async {
             final List<Map<String, dynamic>> allStudents = [];
+            final Set<String> seenIds = {}; // Deduplicate by student ID
 
             // Add students from first query
             for (var doc in snapshot.docs) {
+              if (seenIds.contains(doc.id)) continue;
+              seenIds.add(doc.id);
+
               final studentData = doc.data();
               studentData['id'] = doc.id;
               // ✅ Use cached rewardPoints
@@ -408,6 +412,9 @@ class TeacherService {
               final results = await Future.wait(additionalQueries);
               for (var result in results) {
                 for (var doc in result.docs) {
+                  if (seenIds.contains(doc.id)) continue;
+                  seenIds.add(doc.id);
+
                   final studentData = doc.data();
                   studentData['id'] = doc.id;
                   studentData['rewardPoints'] =
