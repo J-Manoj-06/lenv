@@ -126,11 +126,6 @@ class _TeacherSubjectMessagesScreenState
               : Colors.white,
           elevation: 1,
           titleSpacing: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Navigator.pop(context),
-            color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-          ),
           centerTitle: true,
           title: Text(
             'Messages',
@@ -265,24 +260,6 @@ class _TeacherSubjectMessagesScreenState
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Container(
-            height: 48,
-            width: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFF7C4DFF),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.filter_list, color: Colors.white),
-              onPressed: () {
-                // Placeholder for future filter expansion
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Advanced filters coming soon')),
-                );
-              },
-            ),
-          ),
         ],
       ),
     );
@@ -391,34 +368,10 @@ class _TeacherSubjectMessagesScreenState
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: primary),
-                            borderRadius: BorderRadius.circular(32),
-                          ),
-                          child: const Text(
-                            'Group Chat',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF7C4DFF),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                      ],
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: Colors.grey,
                     ),
                   ],
                 ),
