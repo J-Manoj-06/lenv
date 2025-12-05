@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../models/group_subject.dart';
-import '../../providers/student_provider.dart';
 import '../../services/group_messaging_service.dart';
 import 'group_chat_page.dart';
 
@@ -65,39 +63,11 @@ class _GroupsListPageState extends State<GroupsListPage>
     _hasAttemptedLoad = true;
 
     try {
-      // Get student from StudentProvider
-      final studentProvider = Provider.of<StudentProvider>(
-        context,
-        listen: false,
-      );
-
-      // Wait for student data to be ready if it's still loading
-      if (studentProvider.isLoading || studentProvider.currentStudent == null) {
-        // Wait up to 2 seconds for data to load
-        int attempts = 0;
-        while ((studentProvider.isLoading ||
-                studentProvider.currentStudent == null) &&
-            attempts < 20) {
-          await Future.delayed(Duration(milliseconds: 100));
-          attempts++;
-          if (!mounted) return;
-        }
-
-        // If still no data after waiting, show error
-        if (studentProvider.currentStudent == null) {
-          setState(() {
-            _subjects = [];
-            _isLoading = false;
-            _classId = null;
-          });
-          return;
-        }
-      }
-
-      final student = studentProvider.currentStudent;
-      final studentUid = student?.uid ?? widget.studentId;
+      // Use studentId directly (already authenticated from AuthProvider)
+      final studentUid = widget.studentId;
 
       if (studentUid.isEmpty) {
+        print('❌ GroupsListPage: studentId is empty');
         if (!mounted) return;
         setState(() {
           _subjects = [];
@@ -107,12 +77,17 @@ class _GroupsListPageState extends State<GroupsListPage>
         return;
       }
 
-      // Get student's class ID from their profile
+      print(
+        '📱 GroupsListPage: Loading class subjects for student: $studentUid',
+      );
+
+      // Get student's class ID from their profile (checks students collection first)
       final classId = await _messagingService.getStudentClassId(studentUid);
 
       if (!mounted) return;
 
       if (classId == null) {
+        print('❌ GroupsListPage: No class ID found for student: $studentUid');
         setState(() {
           _subjects = [];
           _isLoading = false;
@@ -122,12 +97,14 @@ class _GroupsListPageState extends State<GroupsListPage>
       }
 
       _classId = classId;
+      print('✅ GroupsListPage: Found classId: $classId');
 
       // Fetch subjects from classes/{classId}/subjects collection
       final subjects = await _messagingService.getClassSubjects(classId);
 
       if (!mounted) return;
 
+      print('✅ GroupsListPage: Loaded ${subjects.length} subjects');
       setState(() {
         _subjects = subjects;
         _isLoading = false;

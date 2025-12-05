@@ -184,26 +184,58 @@ class GroupMessagingService {
   /// Get student's class ID from their profile
   Future<String?> getStudentClassId(String studentId) async {
     try {
-      final doc = await _firestore.collection('users').doc(studentId).get();
+      // ✅ FIX: Check students collection first (primary source for student data)
+      final studentDoc = await _firestore
+          .collection('students')
+          .doc(studentId)
+          .get();
 
-      if (!doc.exists || doc.data() == null) {
-        print('User document not found for: $studentId');
-        return null;
+      String? fullClassName;
+      String? sectionField;
+      String? schoolCode;
+
+      if (studentDoc.exists && studentDoc.data() != null) {
+        // Student found in students collection
+        final studentData = studentDoc.data()!;
+        fullClassName = studentData['className'] ?? '';
+        sectionField = studentData['section'] ?? '';
+        schoolCode = studentData['schoolCode'] ?? '';
+
+        print(
+          '📚 Found student in students collection: className=$fullClassName, section=$sectionField, schoolCode=$schoolCode',
+        );
+      } else {
+        // Fallback: Try users collection
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(studentId)
+            .get();
+
+        if (!userDoc.exists || userDoc.data() == null) {
+          print(
+            '❌ User document not found in both students and users for: $studentId',
+          );
+          return null;
+        }
+
+        final userData = userDoc.data()!;
+        fullClassName = userData['className'] ?? '';
+        sectionField = userData['section'] ?? '';
+        schoolCode = userData['schoolId'] ?? userData['schoolCode'] ?? '';
+
+        print(
+          '📚 Found student in users collection: className=$fullClassName, section=$sectionField',
+        );
       }
 
-      final data = doc.data()!;
-      final fullClassName = data['className'] ?? '';
-      final sectionField = data['section'] ?? '';
-      final schoolId = data['schoolId'] ?? '';
-
-      if (fullClassName.isEmpty) {
-        print('className is empty for user: $studentId');
+      if (fullClassName == null || fullClassName.isEmpty) {
+        print('❌ className is empty for user: $studentId');
         return null;
       }
 
       // Parse className to extract grade (e.g., "Grade 10" from "Grade 10 - A")
       String grade = '';
-      String section = sectionField;
+      String section = sectionField ?? '';
 
       final gradeMatch = RegExp(
         r'Grade\s+(\d+)',
@@ -228,22 +260,27 @@ class GroupMessagingService {
         grade = fullClassName; // Fallback to full className
       }
 
-      // Approach 1: Try with schoolId if available
-      if (schoolId.isNotEmpty && section.isNotEmpty) {
+      print(
+        '🔍 Looking for class: grade=$grade, section=$section, schoolCode=$schoolCode',
+      );
+
+      // Approach 1: Try with schoolCode if available (most specific)
+      if (schoolCode != null && schoolCode.isNotEmpty && section.isNotEmpty) {
         final query1 = await _firestore
             .collection('classes')
-            .where('schoolId', isEqualTo: schoolId)
+            .where('schoolCode', isEqualTo: schoolCode)
             .where('className', isEqualTo: grade)
             .where('section', isEqualTo: section)
             .limit(1)
             .get();
 
         if (query1.docs.isNotEmpty) {
+          print('✅ Found class via schoolCode: ${query1.docs.first.id}');
           return query1.docs.first.id;
         }
       }
 
-      // Approach 2: className + section (most reliable)
+      // Approach 2: className + section (fallback)
       if (section.isNotEmpty) {
         final query2 = await _firestore
             .collection('classes')
@@ -253,6 +290,7 @@ class GroupMessagingService {
             .get();
 
         if (query2.docs.isNotEmpty) {
+          print('✅ Found class via className+section: ${query2.docs.first.id}');
           return query2.docs.first.id;
         }
       }
