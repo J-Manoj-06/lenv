@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/cache_manager.dart';
+import 'dart:async';
 
 class LeaderboardEntry {
   final String studentId;
@@ -139,33 +141,121 @@ class LeaderboardService {
     }
   }
 
-  // ✅ NEW: Stream-based overall leaderboard with real-time updates
-  // Listens to student_rewards collection for immediate score updates
+  /// Helper: Convert LeaderboardEntry to cacheable map
+  List<Map<String, dynamic>> _entriesToCacheableList(
+    List<LeaderboardEntry> entries,
+  ) {
+    return entries
+        .map(
+          (e) => {
+            'studentId': e.studentId,
+            'name': e.name,
+            'photoUrl': e.photoUrl,
+            'rank': e.rank,
+            'score': e.score,
+          },
+        )
+        .toList();
+  }
+
+  /// Helper: Convert cacheable map to LeaderboardEntry
+  List<LeaderboardEntry> _cacheableListToEntries(
+    List<Map<String, dynamic>> cached,
+  ) {
+    return cached
+        .map(
+          (e) => LeaderboardEntry(
+            studentId: e['studentId'] as String,
+            name: e['name'] as String,
+            photoUrl: e['photoUrl'] as String?,
+            rank: e['rank'] as int,
+            score: e['score'] as num,
+          ),
+        )
+        .toList();
+  }
+
+  /// Get overall leaderboard with caching - fetches from cache first, then updates
+  Future<List<LeaderboardEntry>> getOverallLeaderboardForClassWithCache({
+    required String schoolCode,
+    required String className,
+    String? section,
+    int limit = 50,
+  }) async {
+    // Fetch fresh data and cache it
+    final entries = await getOverallLeaderboardForClass(
+      schoolCode: schoolCode,
+      className: className,
+      section: section,
+      limit: limit,
+    );
+
+    // Cache the results for instant display next time
+    if (entries.isNotEmpty) {
+      await CacheManager.cacheLeaderboardData(
+        schoolCode: schoolCode,
+        className: className,
+        entries: _entriesToCacheableList(entries),
+      );
+    }
+
+    return entries;
+  }
+
+  // ✅ OPTIMIZED: Stream-based overall leaderboard with instant cache display + real-time updates
+  // Emits cached data IMMEDIATELY (0s), then listens for real-time updates
   Stream<List<LeaderboardEntry>> getOverallLeaderboardStreamForClass({
     required String schoolCode,
     required String className,
     String? section,
     int limit = 50,
-  }) {
+  }) async* {
     if (schoolCode.isEmpty || className.isEmpty) {
-      return const Stream.empty();
+      yield [];
+      return;
     }
 
     print(
-      '🔄 Creating real-time leaderboard stream for $schoolCode / $className',
+      '🔄 Creating optimized leaderboard stream for $schoolCode / $className',
     );
 
-    // ✅ Listen to student_rewards changes for real-time updates
-    // This avoids the 10-second lag issue completely
-    return _db.collection('student_rewards').snapshots().asyncMap((_) async {
-      // When ANY reward is added/updated, refresh leaderboard
-      return getOverallLeaderboardForClass(
+    // ✅ STEP 1: Emit cached data IMMEDIATELY for instant display (0 seconds!)
+    final cachedData = await CacheManager.getLeaderboardCache(
+      schoolCode: schoolCode,
+      className: className,
+    );
+
+    if (cachedData != null && cachedData.isNotEmpty) {
+      print('⚡ Emitting cached leaderboard (${cachedData.length} entries)');
+      yield _cacheableListToEntries(cachedData);
+    }
+
+    // ✅ STEP 2: Listen to student_rewards for real-time updates
+    // Uses a debounce approach to avoid excessive refreshes
+    DateTime? lastUpdate;
+    const debounceDuration = Duration(seconds: 2);
+
+    await for (final _ in _db.collection('student_rewards').snapshots()) {
+      final now = DateTime.now();
+
+      // Debounce: Only refresh if 2 seconds passed since last update
+      if (lastUpdate != null && now.difference(lastUpdate) < debounceDuration) {
+        continue;
+      }
+
+      lastUpdate = now;
+      print('🔄 Real-time update detected, refreshing leaderboard...');
+
+      // Fetch fresh data and cache it
+      final entries = await getOverallLeaderboardForClassWithCache(
         schoolCode: schoolCode,
         className: className,
         section: section,
         limit: limit,
       );
-    }).asBroadcastStream();
+
+      yield entries;
+    }
   }
 
   // Per-test leaderboard: rank students by their score for a specific test

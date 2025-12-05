@@ -7,9 +7,13 @@ import '../models/student_model.dart';
 class CacheManager {
   static const String _studentDataKey = 'student_cache_data';
   static const String _studentDataTimestampKey = 'student_cache_timestamp';
+  static const String _leaderboardDataKey = 'leaderboard_cache_data';
+  static const String _leaderboardTimestampKey = 'leaderboard_cache_timestamp';
 
   /// Cache duration before refresh is recommended (in hours)
   static const int defaultCacheDurationHours = 1;
+  static const int leaderboardCacheDurationMinutes =
+      5; // 5 minutes for leaderboard
 
   // ==================== STUDENT DATA CACHE ====================
 
@@ -311,5 +315,79 @@ class CacheManager {
     if (timestamp == null) return null;
     final cacheTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
     return DateTime.now().difference(cacheTime).inHours;
+  }
+
+  // ==================== LEADERBOARD DATA CACHE ====================
+
+  /// Cache leaderboard data for instant display
+  static Future<void> cacheLeaderboardData({
+    required String schoolCode,
+    required String className,
+    required List<Map<String, dynamic>> entries,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = '${_leaderboardDataKey}_${schoolCode}_$className';
+      final timestampKey =
+          '${_leaderboardTimestampKey}_${schoolCode}_$className';
+
+      final leaderboardJson = jsonEncode(entries);
+      await prefs.setString(cacheKey, leaderboardJson);
+      await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
+      print(
+        '✅ Leaderboard cached: $schoolCode/$className (${entries.length} entries)',
+      );
+    } catch (e) {
+      print('❌ Error caching leaderboard: $e');
+    }
+  }
+
+  /// Get cached leaderboard data for instant display
+  static Future<List<Map<String, dynamic>>?> getLeaderboardCache({
+    required String schoolCode,
+    required String className,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = '${_leaderboardDataKey}_${schoolCode}_$className';
+      final jsonString = prefs.getString(cacheKey);
+
+      if (jsonString == null) {
+        print('📝 No cached leaderboard for $schoolCode/$className');
+        return null;
+      }
+
+      final List<dynamic> decoded = jsonDecode(jsonString);
+      final entries = decoded.map((e) => e as Map<String, dynamic>).toList();
+      print('✅ Restored leaderboard from cache: ${entries.length} entries');
+      return entries;
+    } catch (e) {
+      print('❌ Error restoring leaderboard: $e');
+      return null;
+    }
+  }
+
+  /// Check if leaderboard cache is still valid
+  static Future<bool> isLeaderboardCacheValid({
+    required String schoolCode,
+    required String className,
+    int cacheMinutes = leaderboardCacheDurationMinutes,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final timestampKey =
+          '${_leaderboardTimestampKey}_${schoolCode}_$className';
+      final timestamp = prefs.getInt(timestampKey);
+
+      if (timestamp == null) return false;
+
+      final cacheTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+      final now = DateTime.now();
+      final difference = now.difference(cacheTime).inMinutes;
+
+      return difference < cacheMinutes;
+    } catch (e) {
+      return false;
+    }
   }
 }

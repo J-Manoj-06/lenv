@@ -1119,21 +1119,18 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
       return const Stream.empty();
     }
 
-    // ✅ OPTIMIZATION: Use cached stream instead of periodic refresh
-    // This eliminates the 10-second lag when switching between Overall and Per-Test views
-    // Use real-time listener with a debounce instead of polling every 5 seconds
+    // ✅ OPTIMIZATION: Use cached stream with instant display + real-time updates
+    // Emits cached data immediately (0s) then listens for real-time updates
     print(
       '🔄 Building overall leaderboard stream for school: $_schoolCode, class: $_className',
     );
 
-    return _leaderboardService
-        .getOverallLeaderboardStreamForClass(
-          schoolCode: _schoolCode!,
-          className: _className ?? '',
-          section: _section,
-          limit: 100,
-        )
-        .asBroadcastStream(); // ✅ Broadcast ensures multiple listeners don't cause issues
+    return _leaderboardService.getOverallLeaderboardStreamForClass(
+      schoolCode: _schoolCode!,
+      className: _className ?? '',
+      section: _section,
+      limit: 100,
+    );
   }
 
   // Build per-test leaderboard stream from school path; fallback to service
