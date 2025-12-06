@@ -619,139 +619,137 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
             const SizedBox(height: 16),
 
-            // Time/Date info
-            if (isLive)
-              FutureBuilder<List<int>>(
-                future: Future.wait([
-                  _getCompletedCount(testId ?? ''),
-                  _getTotalStudentsInClass(className, section, schoolCode),
-                ]),
-                builder: (context, snapshot) {
-                  final completedCount = snapshot.data?[0] ?? 0;
-                  final totalCount = snapshot.data?[1] ?? 0;
-                  final progress = totalCount > 0
-                      ? completedCount / totalCount
-                      : 0.0;
+            // Time/Date info - Fixed height container for consistent card sizes
+            SizedBox(
+              height: 60,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  if (isLive)
+                    FutureBuilder<List<int>>(
+                      future: Future.wait([
+                        _getCompletedCount(testId ?? ''),
+                        _getTotalStudentsInClass(
+                          className,
+                          section,
+                          schoolCode,
+                        ),
+                      ]),
+                      builder: (context, snapshot) {
+                        final completedCount = snapshot.data?[0] ?? 0;
+                        final totalCount = snapshot.data?[1] ?? 0;
+                        final progress = totalCount > 0
+                            ? completedCount / totalCount
+                            : 0.0;
 
-                  return StreamBuilder<DateTime>(
-                    stream: Stream<DateTime>.periodic(
-                      const Duration(seconds: 1),
-                      (_) => DateTime.now(),
-                    ),
-                    builder: (context, snapshot) {
-                      final now = snapshot.data ?? DateTime.now();
-                      final remaining = endDate.difference(now);
-                      final hh = remaining.inHours.toString().padLeft(2, '0');
-                      final mm = (remaining.inMinutes % 60).toString().padLeft(
-                        2,
-                        '0',
-                      );
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Ends in: ${hh}h ${mm}m',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFFA0A0A0),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            width: double.infinity,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2A2D30),
-                              borderRadius: BorderRadius.circular(9999),
-                            ),
-                            child: progress > 0
-                                ? FractionallySizedBox(
-                                    alignment: Alignment.centerLeft,
-                                    widthFactor: progress,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFA726),
-                                        borderRadius: BorderRadius.circular(
-                                          9999,
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2A2D30),
+                                borderRadius: BorderRadius.circular(9999),
+                              ),
+                              child: progress > 0
+                                  ? FractionallySizedBox(
+                                      alignment: Alignment.centerLeft,
+                                      widthFactor: progress,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFA726),
+                                          borderRadius: BorderRadius.circular(
+                                            9999,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '$completedCount / $totalCount students completed',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFFA0A0A0),
+                                    )
+                                  : null,
                             ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                },
-              )
-            else if (isPast)
-              FutureBuilder<List<int>>(
-                future: Future.wait([
-                  _getCompletedCount(testId ?? ''),
-                  _getTotalStudentsInClass(className, section, schoolCode),
-                ]),
-                builder: (context, snapshot) {
-                  final completedCount = snapshot.data?[0] ?? 0;
-                  final totalCount = snapshot.data?[1] ?? 0;
+                            const SizedBox(height: 6),
+                            Text(
+                              '$completedCount / $totalCount students completed',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFFA0A0A0),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    )
+                  else if (isPast)
+                    FutureBuilder<List<int>>(
+                      future: Future.wait([
+                        _getCompletedCount(testId ?? ''),
+                        _getTotalStudentsInClass(
+                          className,
+                          section,
+                          schoolCode,
+                        ),
+                      ]),
+                      builder: (context, snapshot) {
+                        final completedCount = snapshot.data?[0] ?? 0;
+                        final totalCount = snapshot.data?[1] ?? 0;
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Completed: ${_formatDateTime(endDate)}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFFA0A0A0),
-                        ),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Completed: ${_formatDateTime(endDate)}',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFFA0A0A0),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              width: double.infinity,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2A2D30),
+                                borderRadius: BorderRadius.circular(9999),
+                              ),
+                              child: totalCount > 0 && completedCount > 0
+                                  ? FractionallySizedBox(
+                                      alignment: Alignment.centerLeft,
+                                      widthFactor: completedCount / totalCount,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF7961FF),
+                                          borderRadius: BorderRadius.circular(
+                                            9999,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '$completedCount / $totalCount students completed',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFFA0A0A0),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    )
+                  else
+                    Text(
+                      'Scheduled: ${_formatDateTime(startDate)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFFA0A0A0),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2A2D30),
-                          borderRadius: BorderRadius.circular(9999),
-                        ),
-                        child: totalCount > 0 && completedCount > 0
-                            ? FractionallySizedBox(
-                                alignment: Alignment.centerLeft,
-                                widthFactor: completedCount / totalCount,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF7961FF),
-                                    borderRadius: BorderRadius.circular(9999),
-                                  ),
-                                ),
-                              )
-                            : null,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '$completedCount / $totalCount students completed',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFFA0A0A0),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              )
-            else
-              Text(
-                'Scheduled: ${_formatDateTime(startDate)}',
-                style: const TextStyle(fontSize: 14, color: Color(0xFFA0A0A0)),
+                    ),
+                ],
               ),
+            ),
 
             const SizedBox(height: 16),
 
@@ -779,11 +777,15 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                           ),
                           builder: (context, snapshot) {
                             final now = snapshot.data ?? DateTime.now();
-                            final elapsed = now.difference(startDate);
-                            final mm = (elapsed.inMinutes % 60)
+                            final remaining = endDate.difference(now);
+                            final hh = remaining.inHours.toString().padLeft(
+                              2,
+                              '0',
+                            );
+                            final mm = (remaining.inMinutes % 60)
                                 .toString()
                                 .padLeft(2, '0');
-                            final ss = (elapsed.inSeconds % 60)
+                            final ss = (remaining.inSeconds % 60)
                                 .toString()
                                 .padLeft(2, '0');
 
@@ -796,7 +798,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  '$mm:$ss',
+                                  '$hh:$mm:$ss',
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
