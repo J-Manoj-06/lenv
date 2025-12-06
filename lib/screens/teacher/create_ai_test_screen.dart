@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../services/ai_test_service.dart';
@@ -10,6 +11,7 @@ import '../../models/test_model.dart' as tm;
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart' as auth_provider;
 import '../../providers/test_provider.dart';
+import '../../widgets/test_schedule_picker.dart';
 
 /// Screen for generating tests using AI
 ///
@@ -533,113 +535,86 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Date and Time Pickers
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: _scheduledDate ?? DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
+            // Date and Time Picker
+            InkWell(
+              onTap: () async {
+                await TestSchedulePicker.show(
+                  context: context,
+                  initialDate: _scheduledDate ?? DateTime.now(),
+                  initialTime: _scheduledTime ?? TimeOfDay.now(),
+                  onComplete: (dateTime) {
+                    setState(() {
+                      _scheduledDate = DateTime(
+                        dateTime.year,
+                        dateTime.month,
+                        dateTime.day,
                       );
-                      if (date != null) {
-                        setState(() {
-                          _scheduledDate = date;
-                        });
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
+                      _scheduledTime = TimeOfDay(
+                        hour: dateTime.hour,
+                        minute: dateTime.minute,
+                      );
+                    });
+                  },
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade700),
+                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFF1E1E2E),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_month_rounded,
+                      size: 24,
+                      color: Colors.blue.shade400,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 20,
-                            color: Colors.blue.shade700,
+                          Text(
+                            _scheduledDate == null
+                                ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
+                                : '${_scheduledDate!.day}/${_scheduledDate!.month}/${_scheduledDate!.year}',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: _scheduledDate == null
+                                  ? Colors.white.withOpacity(0.4)
+                                  : Colors.white,
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _scheduledDate == null
-                                  ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
-                                  : '${_scheduledDate!.day}/${_scheduledDate!.month}/${_scheduledDate!.year}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium?.color ??
-                                    Colors.black87,
-                              ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _scheduledTime == null
+                                ? TimeOfDay.now().format(context)
+                                : _scheduledTime!.format(context),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _scheduledTime == null
+                                  ? Colors.white.withOpacity(0.3)
+                                  : Colors.white.withOpacity(0.6),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: _scheduledTime ?? TimeOfDay.now(),
-                      );
-                      if (time != null) {
-                        setState(() {
-                          _scheduledTime = time;
-                        });
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.access_time,
-                            size: 20,
-                            color: Colors.blue.shade700,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _scheduledTime == null
-                                  ? TimeOfDay.now().format(context)
-                                  : _scheduledTime!.format(context),
-                              style: TextStyle(
-                                fontSize: 14,
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium?.color ??
-                                    Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    const SizedBox(width: 12),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 16,
+                      color: Colors.white.withOpacity(0.4),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
             // const SizedBox(height: 2),
           ],
@@ -1139,114 +1114,192 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
     setState(() => _isGenerating = true);
 
     try {
-      // Show loading dialog
+      // Show premium loading dialog
       if (mounted) {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF6366F1).withOpacity(0.3),
-                    spreadRadius: 2,
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+          barrierColor: Colors.black.withOpacity(0.6),
+          builder: (context) => BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // AI Icon with glow effect
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome,
-                      size: 48,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Title
-                  const Text(
-                    '✨ AI Magic in Progress',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  // Loading indicator
-                  const SizedBox(
-                    height: 4,
-                    child: LinearProgressIndicator(
-                      backgroundColor: Colors.white24,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Description
-                  Text(
-                    'Crafting intelligent questions\njust for you...',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withOpacity(0.9),
-                      height: 1.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  // Time estimate
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.schedule,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '10-30 seconds',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.95),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: 0.8 + (0.2 * value),
+                    child: Opacity(opacity: value, child: child),
+                  );
+                },
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 340),
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF6A4FF7),
+                        Color(0xFF7B5FFF),
+                        Color(0xFF8F66FF),
                       ],
                     ),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6A4FF7).withOpacity(0.4),
+                        spreadRadius: 0,
+                        blurRadius: 40,
+                        offset: const Offset(0, 10),
+                      ),
+                      BoxShadow(
+                        color: const Color(0xFF8F66FF).withOpacity(0.2),
+                        spreadRadius: -5,
+                        blurRadius: 20,
+                        offset: const Offset(0, 0),
+                      ),
+                    ],
                   ),
-                ],
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Animated AI Icon with pulsing effect
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        duration: const Duration(milliseconds: 1500),
+                        curve: Curves.easeInOut,
+                        builder: (context, value, child) {
+                          return Transform.scale(
+                            scale: 1.0 + (0.1 * (0.5 - (value - 0.5).abs())),
+                            child: child,
+                          );
+                        },
+                        onEnd: () {
+                          // Repeat animation
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withOpacity(0.2),
+                                spreadRadius: 0,
+                                blurRadius: 20,
+                                offset: const Offset(0, 0),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.auto_awesome,
+                            size: 48,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      // Title with sparkle
+                      const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('✨', style: TextStyle(fontSize: 22)),
+                          SizedBox(width: 8),
+                          Text(
+                            'AI Magic in Progress',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      // Smooth shimmer progress bar
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: SizedBox(
+                          height: 4,
+                          width: double.infinity,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.0, end: 1.0),
+                            duration: const Duration(milliseconds: 2000),
+                            curve: Curves.easeInOut,
+                            builder: (context, value, child) {
+                              return LinearProgressIndicator(
+                                value: value,
+                                backgroundColor: Colors.white.withOpacity(0.2),
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              );
+                            },
+                            onEnd: () {
+                              // Repeat animation
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Description
+                      Text(
+                        'Crafting intelligent questions\njust for you...',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.85),
+                          height: 1.6,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      // Time estimate pill
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.schedule_rounded,
+                              size: 16,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '10–30 seconds',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.white.withOpacity(0.95),
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

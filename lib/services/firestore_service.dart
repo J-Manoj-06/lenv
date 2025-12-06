@@ -103,7 +103,6 @@ class FirestoreService {
       // Fetch test document to get the target className and section
       final testDoc = await _db.collection('scheduledTests').doc(testId).get();
       if (!testDoc.exists) {
-        print('❌ Test document not found: $testId');
         return;
       }
       final testData = testDoc.data()!;
@@ -114,10 +113,6 @@ class FirestoreService {
           testData['title'] ?? testData['testTitle'] ?? 'Untitled Test';
       final subject = testData['subject'] ?? '';
       final teacherName = testData['teacherName'] ?? '';
-
-      print(
-        '📝 Assigning test "$testTitle" to class: $targetClassName, section: $targetSection',
-      );
 
       // Fetch teacher document
       var teacherDoc = await _db
@@ -146,14 +141,12 @@ class FirestoreService {
       }
 
       if (teacherData == null) {
-        print('❌ Teacher data not found');
         return;
       }
 
       final schoolCode = teacherData['schoolCode'] as String? ?? '';
 
       if (schoolCode.isEmpty || targetClassName.isEmpty) {
-        print('❌ Missing schoolCode or className');
         return;
       }
 
@@ -167,226 +160,207 @@ class FirestoreService {
       }
       final snapshot = await query.get();
 
-      print('👥 Found ${snapshot.docs.length} students in class');
-
-      // Get student emails and UIDs
-      final studentAssignments = <Map<String, String>>[];
-      final skippedStudents = <String>[];
+      // Batch fetch all user documents at once for better performance
+      final studentEmails = <String>[];
+      final studentDataMap = <String, Map<String, dynamic>>{};
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        final studentDocId = doc.id;
         final email =
             data['email'] as String? ?? data['studentEmail'] as String?;
-        final studentName =
-            data['studentName'] as String? ?? (data['name'] as String? ?? '');
-
-        if (email == null || email.isEmpty) {
-          print('⚠️  Student document $studentDocId has no email, skipping');
-          skippedStudents.add('$studentName (no email)');
-          continue;
+        if (email != null && email.isNotEmpty) {
+          studentEmails.add(email);
+          studentDataMap[email] = {
+            'docId': doc.id,
+            'name':
+                data['studentName'] as String? ??
+                (data['name'] as String? ?? ''),
+            'data': data,
+          };
         }
+      }
 
-        // Look up Auth UID from users collection
-        final userQuery = await _db
-            .collection('users')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get();
+      // Batch query users collection
+      final userDocs = await Future.wait(
+        studentEmails.map(
+          (email) => _db
+              .collection('users')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get(),
+        ),
+      );
+
+      final studentAssignments = <Map<String, String>>[];
+      final usersToCreate = <String, Map<String, dynamic>>{};
+
+      for (var i = 0; i < studentEmails.length; i++) {
+        final email = studentEmails[i];
+        final userQuery = userDocs[i];
+        final studentInfo = studentDataMap[email]!;
 
         String? uid;
-
         if (userQuery.docs.isNotEmpty) {
-          final userDoc = userQuery.docs.first;
-          final userData = userDoc.data();
+          final userData = userQuery.docs.first.data();
           uid = (userData['uid'] as String?)?.trim();
         } else {
-          // User document doesn't exist - create it using student doc data
-          print('⚠️  No user document found for $email, creating one...');
-
-          try {
-            // Use student document ID as UID (since they don't have Auth account)
-            uid = studentDocId;
-
-            await _db.collection('users').doc(uid).set({
-              'uid': uid,
-              'email': email,
-              'name': studentName,
-              'role': 'student',
-              'schoolCode': schoolCode,
-              'className': data['className'] ?? targetClassName,
-              'section': data['section'] ?? targetSection,
-              'pendingTests': 0,
-              'completedTests': 0,
-              'newNotifications': 0,
-              'totalPoints': data['totalPoints'] ?? 0,
-              'rewardPoints': data['rewardPoints'] ?? 0,
-              'createdAt': FieldValue.serverTimestamp(),
-              'autoCreated': true, // Flag to identify auto-created accounts
-            }, SetOptions(merge: true));
-
-            print('✅ Created user document for $email with UID: $uid');
-          } catch (e) {
-            print('❌ Failed to create user document for $email: $e');
-            skippedStudents.add('$studentName ($email)');
-            continue;
-          }
+          // User doesn't exist, prepare to create
+          uid = studentInfo['docId'] as String;
+          usersToCreate[uid] = {
+            'uid': uid,
+            'email': email,
+            'name': studentInfo['name'],
+            'role': 'student',
+            'schoolCode': schoolCode,
+            'className': studentInfo['data']['className'] ?? targetClassName,
+            'section': studentInfo['data']['section'] ?? targetSection,
+            'pendingTests': 0,
+            'completedTests': 0,
+            'newNotifications': 0,
+            'totalPoints': studentInfo['data']['totalPoints'] ?? 0,
+            'rewardPoints': studentInfo['data']['rewardPoints'] ?? 0,
+            'createdAt': FieldValue.serverTimestamp(),
+            'autoCreated': true,
+          };
         }
 
         if (uid != null && uid.isNotEmpty) {
           studentAssignments.add({
             'studentId': uid,
             'studentEmail': email,
-            'studentName': studentName,
+            'studentName': studentInfo['name'],
           });
-        } else {
-          print('⚠️  Student $email has no valid UID, skipping');
-          skippedStudents.add('$studentName ($email)');
         }
       }
 
-      print('✅ Found ${studentAssignments.length} students with valid UIDs');
-      if (skippedStudents.isNotEmpty) {
-        print('⚠️  Skipped ${skippedStudents.length} students:');
-        for (final skipped in skippedStudents) {
-          print('   - $skipped');
-        }
+      // Check existing assignments in batch - handle Firestore's whereIn limit of 10
+      final existingStudentIds = <String>{};
+      final allStudentIds = studentAssignments
+          .map((s) => s['studentId']!)
+          .toList();
+
+      // Query in chunks of 10 (Firestore whereIn limit)
+      for (var i = 0; i < allStudentIds.length; i += 10) {
+        final chunk = allStudentIds.skip(i).take(10).toList();
+        final existingAssignments = await _db
+            .collection('testResults')
+            .where('testId', isEqualTo: testId)
+            .where('studentId', whereIn: chunk)
+            .get();
+
+        existingStudentIds.addAll(
+          existingAssignments.docs
+              .map((doc) => doc.data()['studentId'] as String?)
+              .where((id) => id != null)
+              .cast<String>(),
+        );
       }
 
-      // Create individual assignment documents for each student
-      // Store in testResults collection with status="assigned"
-      int successCount = 0;
-      int errorCount = 0;
+      // Use batched writes for better performance
+      var batch = _db.batch();
+      var batchCount = 0;
+      final batches = <WriteBatch>[];
+
+      // Extract test data once
+      final duration = testData['duration'] ?? 60;
+      final totalQuestions =
+          (testData['questions'] as List?)?.length ??
+          testData['questionCount'] ??
+          testData['totalQuestions'] ??
+          0;
+      final startDate = testData['startDate'] ?? testData['date'];
+      final startTime = testData['startTime'] ?? '';
+
+      String dateStr = '';
+      if (startDate is Timestamp) {
+        final dt = startDate.toDate();
+        dateStr =
+            '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      } else if (startDate is String) {
+        dateStr = startDate;
+      }
 
       for (final student in studentAssignments) {
-        try {
-          // CHECK if assignment already exists for this student
-          final existingAssignment = await _db
-              .collection('testResults')
-              .where('testId', isEqualTo: testId)
-              .where('studentId', isEqualTo: student['studentId'])
-              .limit(1)
-              .get();
+        // Skip if already assigned
+        if (existingStudentIds.contains(student['studentId'])) {
+          continue;
+        }
 
-          if (existingAssignment.docs.isNotEmpty) {
-            print(
-              '⏭️  Assignment already exists for ${student['studentEmail']}, skipping',
-            );
-            successCount++; // Count as success since assignment exists
-            continue;
-          }
-
-          // Extract more fields from testData for complete assignment structure
-          final duration = testData['duration'] ?? 60;
-          final totalQuestions =
-              (testData['questions'] as List?)?.length ??
-              testData['questionCount'] ??
-              testData['totalQuestions'] ??
-              0;
-          final startDate = testData['startDate'] ?? testData['date'];
-          final startTime = testData['startTime'] ?? '';
-
-          // Format date string
-          String dateStr = '';
-          if (startDate is Timestamp) {
-            final dt = startDate.toDate();
-            dateStr =
-                '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-          } else if (startDate is String) {
-            dateStr = startDate;
-          }
-
-          final assignmentDoc = {
-            'testId': testId,
-            'studentId': student['studentId']!,
-            'studentEmail': student['studentEmail']!,
-            'studentName': student['studentName']!,
-            'testTitle': testTitle,
-            'subject': subject,
-            'className': targetClassName,
-            'section': targetSection,
-            'teacherId': teacherAuthUid,
-            'teacherName': teacherName,
-            'teacherEmail': teacherData['email'] ?? '',
-            'status': 'assigned', // assigned, started, completed
-            'assignedAt': FieldValue.serverTimestamp(),
-            'startedAt': null,
-            'submittedAt': null,
-            'score': 0,
-            'totalMarks': testData['totalMarks'] ?? 0,
-            'totalQuestions': totalQuestions,
-            'totalPoints': 0,
-            'correctAnswers': 0,
-            'earnedPoints': 0,
-            'duration': duration,
-            'date': dateStr,
-            'startTime': startTime,
-            'timeTaken': 0,
-            'schoolCode': schoolCode,
-            'answers': [],
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-            // Per-student shuffled question order (store indices)
-            'questionOrder': totalQuestions > 0
-                ? (List<int>.generate(totalQuestions, (i) => i)..shuffle())
-                : [],
-          };
-
-          // Create document in testResults collection
-          final assignmentRef = await _db
-              .collection('testResults')
-              .add(assignmentDoc);
-          print(
-            '✅ Created assignment ${assignmentRef.id} for ${student['studentEmail']} (UID: ${student['studentId']})',
+        // Create user document if needed
+        if (usersToCreate.containsKey(student['studentId'])) {
+          final userRef = _db.collection('users').doc(student['studentId']);
+          batch.set(
+            userRef,
+            usersToCreate[student['studentId']]!,
+            SetOptions(merge: true),
           );
+          batchCount++;
+        }
 
-          // Update user's pendingTests counter (create document if missing)
-          try {
-            final userDocRef = _db
-                .collection('users')
-                .doc(student['studentId']);
-            final userDocSnap = await userDocRef.get();
+        // Create assignment document
+        final assignmentDoc = {
+          'testId': testId,
+          'studentId': student['studentId']!,
+          'studentEmail': student['studentEmail']!,
+          'studentName': student['studentName']!,
+          'testTitle': testTitle,
+          'subject': subject,
+          'className': targetClassName,
+          'section': targetSection,
+          'teacherId': teacherAuthUid,
+          'teacherName': teacherName,
+          'teacherEmail': teacherData['email'] ?? '',
+          'status': 'assigned',
+          'assignedAt': FieldValue.serverTimestamp(),
+          'startedAt': null,
+          'submittedAt': null,
+          'score': 0,
+          'totalMarks': testData['totalMarks'] ?? 0,
+          'totalQuestions': totalQuestions,
+          'totalPoints': 0,
+          'correctAnswers': 0,
+          'earnedPoints': 0,
+          'duration': duration,
+          'date': dateStr,
+          'startTime': startTime,
+          'timeTaken': 0,
+          'schoolCode': schoolCode,
+          'answers': [],
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'questionOrder': totalQuestions > 0
+              ? (List<int>.generate(totalQuestions, (i) => i)..shuffle())
+              : [],
+        };
 
-            if (userDocSnap.exists) {
-              await userDocRef.update({
-                'pendingTests': FieldValue.increment(1),
-                'newNotifications': FieldValue.increment(1),
-              });
-            } else {
-              // Create user document if it doesn't exist
-              await userDocRef.set({
-                'uid': student['studentId'],
-                'email': student['studentEmail'],
-                'name': student['studentName'],
-                'role': 'student',
-                'pendingTests': 1,
-                'completedTests': 0,
-                'newNotifications': 1,
-                'totalPoints': 0,
-                'rewardPoints': 0,
-                'createdAt': FieldValue.serverTimestamp(),
-              });
-              print('✅ Created user document for ${student['studentEmail']}');
-            }
-          } catch (e) {
-            print(
-              '⚠️  Could not update counters for ${student['studentEmail']}: $e',
-            );
-          }
+        final assignmentRef = _db.collection('testResults').doc();
+        batch.set(assignmentRef, assignmentDoc);
+        batchCount++;
 
-          successCount++;
-        } catch (e) {
-          print('❌ Error assigning to ${student['studentEmail']}: $e');
-          errorCount++;
+        // Update user counters - use set with merge to avoid errors if doc doesn't exist
+        final userDocRef = _db.collection('users').doc(student['studentId']);
+        batch.set(userDocRef, {
+          'pendingTests': FieldValue.increment(1),
+          'newNotifications': FieldValue.increment(1),
+        }, SetOptions(merge: true));
+        batchCount++;
+
+        // Firestore batch limit is 500 operations
+        if (batchCount >= 450) {
+          batches.add(batch);
+          batch = _db.batch(); // Create new batch
+          batchCount = 0;
         }
       }
 
-      print('✅ Successfully assigned test to $successCount students');
-      if (errorCount > 0) {
-        print('⚠️  Failed to assign to $errorCount students');
+      // Add final batch if it has operations
+      if (batchCount > 0) {
+        batches.add(batch);
       }
+
+      // Commit all batches
+      await Future.wait(batches.map((b) => b.commit()));
     } catch (e) {
-      print('❌ Error in assignTestToClass: $e');
       rethrow;
     }
   }
@@ -547,12 +521,10 @@ class FirestoreService {
 
   Future<void> updateTest(String testId, Map<String, dynamic> data) async {
     await _db.collection('scheduledTests').doc(testId).update(data);
-    print('✅ Test updated in scheduledTests: $testId');
   }
 
   Future<void> deleteTest(String testId) async {
     await _db.collection('scheduledTests').doc(testId).delete();
-    print('✅ Test deleted from scheduledTests: $testId');
   }
 
   /// Safer delete: remove the test and clean up related data

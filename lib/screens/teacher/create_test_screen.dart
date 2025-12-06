@@ -6,6 +6,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/teacher_service.dart';
 import '../../widgets/teacher_bottom_nav.dart';
+import '../../widgets/test_schedule_picker.dart';
+import 'tests_screen.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // no longer needed: assignment computed server-side
 
 class CreateTestScreen extends StatefulWidget {
@@ -329,57 +331,36 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             placeholder: 'e.g. Mid-term Algebra Exam',
           ),
           const SizedBox(height: 16),
-          // Subject and Class
-          Row(
-            children: [
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Subject',
-                  value: selectedSubject,
-                  items: subjects,
-                  onChanged: subjects.isEmpty
-                      ? null
-                      : (value) {
-                          setState(() {
-                            selectedSubject = value;
-                          });
-                        },
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Class',
-                  value: selectedClass,
-                  items: classes,
-                  onChanged: classes.isEmpty
-                      ? null
-                      : (value) {
-                          setState(() {
-                            selectedClass = value;
-                            // Update sections based on selected class
-                            final grade = (selectedClass ?? '').trim();
-                            final secList = _gradeSections[grade] ?? <String>[];
-                            sections = secList.map((s) => 'Section $s').toList()
-                              ..sort();
-                            // Reset selectedSection if not in new list
-                            if (!sections.contains(selectedSection)) {
-                              selectedSection = sections.isNotEmpty
-                                  ? sections.first
-                                  : null;
-                            }
-                            // Update subjects filtered by new class/section
-                            subjects = _filteredSubjectsForSelection();
-                            if (!subjects.contains(selectedSubject)) {
-                              selectedSubject = subjects.isNotEmpty
-                                  ? subjects.first
-                                  : null;
-                            }
-                          });
-                        },
-                ),
-              ),
-            ],
+          // Class
+          _buildDropdown(
+            label: 'Class',
+            value: selectedClass,
+            items: classes,
+            onChanged: classes.isEmpty
+                ? null
+                : (value) {
+                    setState(() {
+                      selectedClass = value;
+                      // Update sections based on selected class
+                      final grade = (selectedClass ?? '').trim();
+                      final secList = _gradeSections[grade] ?? <String>[];
+                      sections = secList.map((s) => 'Section $s').toList()
+                        ..sort();
+                      // Reset selectedSection if not in new list
+                      if (!sections.contains(selectedSection)) {
+                        selectedSection = sections.isNotEmpty
+                            ? sections.first
+                            : null;
+                      }
+                      // Update subjects filtered by new class/section
+                      subjects = _filteredSubjectsForSelection();
+                      if (!subjects.contains(selectedSubject)) {
+                        selectedSubject = subjects.isNotEmpty
+                            ? subjects.first
+                            : null;
+                      }
+                    });
+                  },
           ),
           const SizedBox(height: 16),
           // Section
@@ -398,6 +379,20 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                             ? subjects.first
                             : null;
                       }
+                    });
+                  },
+          ),
+          const SizedBox(height: 16),
+          // Subject
+          _buildDropdown(
+            label: 'Subject',
+            value: selectedSubject,
+            items: subjects,
+            onChanged: subjects.isEmpty
+                ? null
+                : (value) {
+                    setState(() {
+                      selectedSubject = value;
                     });
                   },
           ),
@@ -440,108 +435,82 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: scheduledDate ?? DateTime.now(),
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
+          InkWell(
+            onTap: () async {
+              await TestSchedulePicker.show(
+                context: context,
+                initialDate: scheduledDate ?? DateTime.now(),
+                initialTime: scheduledTime ?? TimeOfDay.now(),
+                onComplete: (dateTime) {
+                  setState(() {
+                    scheduledDate = DateTime(
+                      dateTime.year,
+                      dateTime.month,
+                      dateTime.day,
                     );
-                    if (date != null) {
-                      setState(() {
-                        scheduledDate = date;
-                      });
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: theme.dividerColor),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
+                    scheduledTime = TimeOfDay(
+                      hour: dateTime.hour,
+                      minute: dateTime.minute,
+                    );
+                  });
+                },
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                border: Border.all(color: theme.dividerColor),
+                borderRadius: BorderRadius.circular(12),
+                color: theme.cardColor,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_month_rounded,
+                    size: 24,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 20,
-                          color: theme.colorScheme.primary,
+                        Text(
+                          scheduledDate == null
+                              ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
+                              : '${scheduledDate!.day}/${scheduledDate!.month}/${scheduledDate!.year}',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: scheduledDate == null
+                                ? theme.colorScheme.onSurface.withOpacity(0.4)
+                                : theme.colorScheme.onSurface,
+                          ),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            scheduledDate == null
-                                ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
-                                : '${scheduledDate!.day}/${scheduledDate!.month}/${scheduledDate!.year}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontSize: 14,
-                              color: scheduledDate == null
-                                  ? theme.colorScheme.onSurface.withOpacity(0.4)
-                                  : theme.colorScheme.onSurface,
-                            ),
+                        const SizedBox(height: 4),
+                        Text(
+                          scheduledTime == null
+                              ? TimeOfDay.now().format(context)
+                              : scheduledTime!.format(context),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontSize: 14,
+                            color: scheduledTime == null
+                                ? theme.colorScheme.onSurface.withOpacity(0.3)
+                                : theme.colorScheme.onSurface.withOpacity(0.6),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: InkWell(
-                  onTap: () async {
-                    final time = await showTimePicker(
-                      context: context,
-                      initialTime: scheduledTime ?? TimeOfDay.now(),
-                    );
-                    if (time != null) {
-                      setState(() {
-                        scheduledTime = time;
-                      });
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: theme.dividerColor),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 20,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            scheduledTime == null
-                                ? TimeOfDay.now().format(context)
-                                : scheduledTime!.format(context),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontSize: 14,
-                              color: scheduledTime == null
-                                  ? theme.colorScheme.onSurface.withOpacity(0.4)
-                                  : theme.colorScheme.onSurface,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: theme.colorScheme.onSurface.withOpacity(0.4),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),
@@ -623,7 +592,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             border: Border.all(color: theme.dividerColor),
           ),
           child: DropdownButtonFormField<String>(
-            initialValue: (value != null && items.contains(value)) ? value : null,
+            initialValue: (value != null && items.contains(value))
+                ? value
+                : null,
             isExpanded: true,
             decoration: InputDecoration(
               border: InputBorder.none,
@@ -736,13 +707,12 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                 ? List.from(question.options!)
                                 : null,
                             correctAnswerIndex: question.correctAnswerIndex,
-                            matchPairs: question.matchPairs?.map(
-                                        (p) => MatchPair(
-                                          left: p.left,
-                                          right: p.right,
-                                        ),
-                                      )
-                                      .toList(),
+                            matchPairs: question.matchPairs
+                                ?.map(
+                                  (p) =>
+                                      MatchPair(left: p.left, right: p.right),
+                                )
+                                .toList(),
                           ),
                         );
                       });
@@ -1082,73 +1052,37 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   }
 
   void _showAddQuestionDialog() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Question'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('Multiple Choice'),
-                leading: const Icon(Icons.radio_button_checked),
-                onTap: () {
-                  setState(() {
-                    questions.add(
-                      Question(
-                        id: questions.length + 1,
-                        type: QuestionType.multipleChoice,
-                        questionText: '',
-                        options: ['', '', ''],
-                        correctAnswerIndex: 0,
-                      ),
-                    );
-                  });
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('True or False'),
-                leading: const Icon(Icons.check_circle_outline),
-                onTap: () {
-                  setState(() {
-                    questions.add(
-                      Question(
-                        id: questions.length + 1,
-                        type: QuestionType.trueFalse,
-                        questionText: '',
-                        options: ['True', 'False'],
-                        correctAnswerIndex: 0,
-                      ),
-                    );
-                  });
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Match the Following'),
-                leading: const Icon(Icons.compare_arrows),
-                onTap: () {
-                  setState(() {
-                    questions.add(
-                      Question(
-                        id: questions.length + 1,
-                        type: QuestionType.matchFollowing,
-                        questionText: '',
-                        matchPairs: [
-                          MatchPair(left: '', right: ''),
-                          MatchPair(left: '', right: ''),
-                        ],
-                      ),
-                    );
-                  });
-                  Navigator.pop(context);
-                },
-              ),
-            ],
-          ),
-        ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => AddQuestionModal(
+        onSelect: (questionType) {
+          setState(() {
+            if (questionType == QuestionType.multipleChoice) {
+              questions.add(
+                Question(
+                  id: questions.length + 1,
+                  type: QuestionType.multipleChoice,
+                  questionText: '',
+                  options: ['', '', ''],
+                  correctAnswerIndex: 0,
+                ),
+              );
+            } else if (questionType == QuestionType.trueFalse) {
+              questions.add(
+                Question(
+                  id: questions.length + 1,
+                  type: QuestionType.trueFalse,
+                  questionText: '',
+                  options: ['True', 'False'],
+                  correctAnswerIndex: 0,
+                ),
+              );
+            }
+          });
+          Navigator.pop(context);
+        },
       ),
     );
   }
@@ -1214,7 +1148,39 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
+              // Show loading dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (BuildContext context) {
+                  return const Center(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFF6366F1),
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Publishing test...',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
               await _saveTest(publish: true, schedule: false);
+              if (mounted) {
+                Navigator.pop(context); // Close loading dialog
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.primary,
@@ -1245,60 +1211,72 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Schedule Test'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'This test will be scheduled for:',
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(
-                  Icons.calendar_today,
-                  size: 18,
-                  color: Colors.orange,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (context) => ScheduleTestDialog(
+        date: formattedDate,
+        time: formattedTime,
+        onSchedule: () async {
+          final navigator = Navigator.of(context);
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+          navigator.pop(); // Close schedule dialog
+
+          // Show loading dialog
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext dialogContext) {
+              return const Center(
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Color(0xFF6A4FF7),
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Scheduling test...',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Text(formattedDate),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.access_time, size: 18, color: Colors.orange),
-                const SizedBox(width: 8),
-                Text(formattedTime),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Students will be able to access it at the scheduled time.',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _saveTest(publish: false, schedule: true);
+              );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6366F1),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Schedule'),
-          ),
-        ],
+          );
+
+          // Save the test
+          final success = await _saveTest(publish: false, schedule: true);
+
+          if (mounted) {
+            // Close loading dialog
+            navigator.pop();
+
+            if (success) {
+              // Navigate to tests page
+              navigator.pushReplacement(
+                MaterialPageRoute(builder: (context) => const TestsScreen()),
+              );
+
+              // Show success message after navigation
+              Future.delayed(const Duration(milliseconds: 100), () {
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('Test scheduled successfully!')),
+                );
+              });
+            } else {
+              scaffoldMessenger.showSnackBar(
+                const SnackBar(content: Text('Failed to schedule test')),
+              );
+            }
+          }
+        },
       ),
     );
   }
@@ -1334,7 +1312,7 @@ class MatchPair {
 }
 
 extension on _CreateTestScreenState {
-  Future<void> _saveTest({
+  Future<bool> _saveTest({
     required bool publish,
     required bool schedule,
   }) async {
@@ -1346,33 +1324,33 @@ extension on _CreateTestScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please login as a teacher to continue')),
       );
-      return;
+      return false;
     }
 
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a test title')),
       );
-      return;
+      return false;
     }
 
     if (selectedSubject == null || selectedSubject!.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please select a subject')));
-      return;
+      return false;
     }
     if (selectedClass == null || selectedClass!.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please select a class')));
-      return;
+      return false;
     }
     if (selectedSection == null || selectedSection!.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please select a section')));
-      return;
+      return false;
     }
 
     final duration = int.tryParse(_timeLimitController.text.trim()) ?? 60;
@@ -1486,46 +1464,675 @@ extension on _CreateTestScreenState {
         scheduledDate: scheduledDate!,
         scheduledTime: scheduledTime!,
       );
-      if (ok) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Test scheduled successfully!')),
-        );
-        if (mounted) {
-          Navigator.pop(context);
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed: ${testProv.errorMessage ?? 'Unknown error'}',
-            ),
-          ),
-        );
-      }
+      return ok;
     } else {
       final ok = await testProv.createTest(test);
-      if (ok) {
-        if (publish) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Test published successfully!')),
-          );
-        } else {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Draft saved!')));
-        }
-        if (mounted) {
-          Navigator.pop(context);
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed: ${testProv.errorMessage ?? 'Unknown error'}',
-            ),
+      return ok;
+    }
+  }
+}
+
+/// Modern Add Question Modal with premium UI
+class AddQuestionModal extends StatefulWidget {
+  final Function(QuestionType) onSelect;
+
+  const AddQuestionModal({super.key, required this.onSelect});
+
+  @override
+  State<AddQuestionModal> createState() => _AddQuestionModalState();
+}
+
+class _AddQuestionModalState extends State<AddQuestionModal>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutCubic,
           ),
         );
+
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E2E).withOpacity(0.98),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF6A4FF7).withOpacity(0.2),
+                blurRadius: 30,
+                offset: const Offset(0, -10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Title
+              Row(
+                children: [
+                  const SizedBox(width: 24),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF6A4FF7), Color(0xFF8F66FF)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF6A4FF7).withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.add_circle_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Text(
+                    'Add Question',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.only(left: 24, right: 24),
+                child: Text(
+                  'Choose the question type for your test',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.6),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              // Options
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    QuestionOptionTile(
+                      icon: Icons.format_list_bulleted_rounded,
+                      title: 'Multiple Choice',
+                      subtitle: 'Create questions with multiple options',
+                      delay: 100,
+                      onTap: () => widget.onSelect(QuestionType.multipleChoice),
+                    ),
+                    const SizedBox(height: 16),
+                    QuestionOptionTile(
+                      icon: Icons.check_circle_rounded,
+                      title: 'True or False',
+                      subtitle: 'Simple yes/no or true/false questions',
+                      delay: 200,
+                      onTap: () => widget.onSelect(QuestionType.trueFalse),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Individual option tile with animations
+class QuestionOptionTile extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final int delay;
+
+  const QuestionOptionTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.delay = 0,
+  });
+
+  @override
+  State<QuestionOptionTile> createState() => _QuestionOptionTileState();
+}
+
+class _QuestionOptionTileState extends State<QuestionOptionTile>
+    with SingleTickerProviderStateMixin {
+  bool _isPressed = false;
+  bool _isVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Staggered animation entrance
+    Future.delayed(Duration(milliseconds: widget.delay), () {
+      if (mounted) {
+        setState(() {
+          _isVisible = true;
+        });
       }
-    }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _isVisible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        child: GestureDetector(
+          onTapDown: (_) => setState(() => _isPressed = true),
+          onTapUp: (_) {
+            setState(() => _isPressed = false);
+            widget.onTap();
+          },
+          onTapCancel: () => setState(() => _isPressed = false),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A3E).withOpacity(0.6),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF6A4FF7).withOpacity(0.2),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _isPressed
+                      ? const Color(0xFF6A4FF7).withOpacity(0.3)
+                      : Colors.transparent,
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onTap,
+                borderRadius: BorderRadius.circular(20),
+                splashColor: const Color(0xFF6A4FF7).withOpacity(0.2),
+                highlightColor: const Color(0xFF6A4FF7).withOpacity(0.1),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      // Icon container
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF6A4FF7).withOpacity(0.2),
+                              const Color(0xFF8F66FF).withOpacity(0.1),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFF6A4FF7).withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Icon(
+                          widget.icon,
+                          color: const Color(0xFF8F66FF),
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Text content
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.title,
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.subtitle,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withOpacity(0.5),
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Arrow icon
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        color: const Color(0xFF6A4FF7).withOpacity(0.6),
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Modern Schedule Test Dialog with premium UI
+class ScheduleTestDialog extends StatefulWidget {
+  final String date;
+  final String time;
+  final VoidCallback onSchedule;
+
+  const ScheduleTestDialog({
+    super.key,
+    required this.date,
+    required this.time,
+    required this.onSchedule,
+  });
+
+  @override
+  State<ScheduleTestDialog> createState() => _ScheduleTestDialogState();
+}
+
+class _ScheduleTestDialogState extends State<ScheduleTestDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E2E).withOpacity(0.98),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6A4FF7).withOpacity(0.25),
+                  blurRadius: 40,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Icon and Title
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF6A4FF7), Color(0xFF8F66FF)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF6A4FF7).withOpacity(0.4),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.event_available_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Schedule Test',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Confirm schedule details',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  // Date Card
+                  _buildInfoCard(
+                    icon: Icons.calendar_today_rounded,
+                    label: 'Date',
+                    value: widget.date,
+                  ),
+                  const SizedBox(height: 16),
+                  // Time Card
+                  _buildInfoCard(
+                    icon: Icons.access_time_rounded,
+                    label: 'Time',
+                    value: widget.time,
+                  ),
+                  const SizedBox(height: 24),
+                  // Info Message
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6A4FF7).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF6A4FF7).withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          color: const Color(0xFF8F66FF).withOpacity(0.8),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Students will be able to access it at the scheduled time.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withOpacity(0.7),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  // Action Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ScheduleButton(
+                          label: 'Cancel',
+                          isPrimary: false,
+                          onTap: () => Navigator.pop(context),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _ScheduleButton(
+                          label: 'Schedule',
+                          isPrimary: true,
+                          onTap: widget.onSchedule,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A3E).withOpacity(0.5),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFF6A4FF7).withOpacity(0.15),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6A4FF7).withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: const Color(0xFF8F66FF), size: 22),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withOpacity(0.5),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Animated Schedule Button
+class _ScheduleButton extends StatefulWidget {
+  final String label;
+  final bool isPrimary;
+  final VoidCallback onTap;
+
+  const _ScheduleButton({
+    required this.label,
+    required this.isPrimary,
+    required this.onTap,
+  });
+
+  @override
+  State<_ScheduleButton> createState() => _ScheduleButtonState();
+}
+
+class _ScheduleButtonState extends State<_ScheduleButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: _isPressed ? 0.95 : 1.0,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          setState(() => _isPressed = false);
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            gradient: widget.isPrimary
+                ? const LinearGradient(
+                    colors: [Color(0xFF6A4FF7), Color(0xFF8F66FF)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: widget.isPrimary
+                ? null
+                : const Color(0xFF2A2A3E).withOpacity(0.5),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: widget.isPrimary
+                  ? Colors.transparent
+                  : const Color(0xFF6A4FF7).withOpacity(0.2),
+              width: 1.5,
+            ),
+            boxShadow: widget.isPrimary
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF6A4FF7).withOpacity(0.4),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: widget.isPrimary
+                    ? Colors.white
+                    : Colors.white.withOpacity(0.7),
+                letterSpacing: -0.3,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
