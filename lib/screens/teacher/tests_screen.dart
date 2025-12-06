@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
-import '../../widgets/teacher_bottom_nav.dart';
-import '../../services/firestore_service.dart';
 
 class TestsScreen extends StatefulWidget {
   const TestsScreen({super.key});
@@ -85,7 +84,48 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     }
   }
 
-  final List<String> _tabs = ['All', 'Live', 'Past'];
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF1A1C20),
+              ),
+              child: const Icon(
+                Icons.school_outlined,
+                size: 60,
+                color: Color(0xFF2A2D30),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Start assessing your class with ease.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Create your first test now to get started.',
+              style: TextStyle(color: Color(0xFFA0A0A0), fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<String> _buildClassFilters(List<TestModel> tests) {
     final set = <String>{'All Classes'};
     for (final t in tests) {
@@ -118,7 +158,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
     final filtered = _applyFilters(tests);
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
           Column(
@@ -126,15 +166,18 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
               _buildHeader(),
               _buildSearchBar(),
               _buildTabs(),
-              _buildClassFiltersRow(filters),
               Expanded(
                 child: testProv.isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation(Color(0xFF7961FF)),
+                        ),
+                      )
                     : filtered.isEmpty
                     ? RefreshIndicator(
+                        color: const Color(0xFF7961FF),
                         onRefresh: () async {
                           _loadTests();
-                          // Wait a bit for the refresh to complete
                           await Future.delayed(
                             const Duration(milliseconds: 500),
                           );
@@ -143,14 +186,14 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                           physics: const AlwaysScrollableScrollPhysics(),
                           child: SizedBox(
                             height: MediaQuery.of(context).size.height * 0.5,
-                            child: const Center(child: Text('No tests found')),
+                            child: _buildEmptyState(),
                           ),
                         ),
                       )
                     : RefreshIndicator(
+                        color: const Color(0xFF7961FF),
                         onRefresh: () async {
                           _loadTests();
-                          // Wait a bit for the refresh to complete
                           await Future.delayed(
                             const Duration(milliseconds: 500),
                           );
@@ -175,34 +218,19 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
   Widget _buildHeader() {
     return Container(
-      decoration: BoxDecoration(color: Theme.of(context).cardColor),
+      decoration: BoxDecoration(color: Colors.black.withOpacity(0.8)),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const SizedBox(width: 48),
-              Text(
-                'Tests',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).textTheme.bodyLarge?.color,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                iconSize: 24,
-                color: Theme.of(context).iconTheme.color,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Notifications')),
-                  );
-                },
-              ),
-            ],
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: const Text(
+            'Tests',
+            style: TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: -0.5,
+            ),
           ),
         ),
       ),
@@ -211,28 +239,32 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
   Widget _buildSearchBar() {
     return Container(
-      color: Theme.of(context).cardColor,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      color: Colors.black.withOpacity(0.8),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: TextField(
         controller: _searchController,
+        style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          hintText: 'Search by test name...',
-          hintStyle: TextStyle(color: Theme.of(context).hintColor),
-          prefixIcon: Icon(
-            Icons.search,
-            color: Theme.of(context).iconTheme.color,
-          ),
+          hintText: 'Search for a test...',
+          hintStyle: const TextStyle(color: Color(0xFFA0A0A0)),
+          prefixIcon: const Icon(Icons.search, color: Color(0xFFA0A0A0)),
           filled: true,
-          fillColor: Theme.of(context).brightness == Brightness.dark
-              ? Colors.grey[800]
-              : const Color(0xFFF6F7F8),
+          fillColor: const Color(0xFF1A1C20),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(9999),
+            borderSide: const BorderSide(color: Color(0xFF2A2D30)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(9999),
+            borderSide: const BorderSide(color: Color(0xFF2A2D30)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(9999),
+            borderSide: const BorderSide(color: Color(0xFF7961FF), width: 2),
           ),
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
+            horizontal: 20,
+            vertical: 14,
           ),
         ),
         onChanged: (value) {
@@ -243,127 +275,52 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildTabs() {
+    final tabLabels = ['All Tests', 'Live', 'Scheduled', 'Completed'];
     return Container(
-      color: Theme.of(context).cardColor,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: List.generate(_tabs.length, (index) {
-          final isSelected = _selectedTabIndex == index;
-          return Expanded(
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  _selectedTabIndex = index;
-                });
-                _armTicker();
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: isSelected
-                          ? const Color(0xFF6366F1)
-                          : Colors.transparent,
-                      width: 3,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  _tabs[index],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected
-                        ? const Color(0xFF6366F1)
-                        : Theme.of(context).textTheme.bodyMedium?.color,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildClassFiltersRow(List<String> classFilters) {
-    return Container(
-      color: Theme.of(context).cardColor,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      color: Colors.black.withOpacity(0.8),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children: [
-            // All Classes dropdown
-            InkWell(
-              onTap: () {
-                _showClassFilterSheet();
-              },
-              child: Container(
-                height: 32,
-                padding: const EdgeInsets.only(left: 16, right: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _selectedClassFilter,
-                      style: const TextStyle(
+          children: List.generate(tabLabels.length, (index) {
+            final isSelected = _selectedTabIndex == index;
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedTabIndex = index;
+                  });
+                  _armTicker();
+                },
+                child: Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF7961FF)
+                        : const Color(0xFF1A1C20),
+                    borderRadius: BorderRadius.circular(9999),
+                    border: isSelected
+                        ? null
+                        : Border.all(color: const Color(0xFF2A2D30)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      tabLabels[index],
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF6366F1),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.expand_more,
-                      size: 18,
-                      color: Color(0xFF6366F1),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Individual class filters
-            ...(classFilters.skip(1).map((className) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedClassFilter = className;
-                    });
-                  },
-                  child: Container(
-                    height: 32,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.grey[800]
-                          : const Color(0xFFF6F7F8),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Center(
-                      child: Text(
-                        className,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
-                        ),
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFFA0A0A0),
                       ),
                     ),
                   ),
                 ),
-              );
-            }).toList()),
-          ],
+              ),
+            );
+          }),
         ),
       ),
     );
@@ -385,7 +342,9 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
           return true;
         case 1: // Live
           return isLive;
-        case 2: // Past (note: Past is index 2, not Scheduled)
+        case 2: // Scheduled
+          return isScheduled;
+        case 3: // Completed
           return isPast;
         default:
           return true;
@@ -429,44 +388,38 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
       builder: (context, snapshot) {
         final now = snapshot.data ?? DateTime.now();
         final isLive = t.startDate.isBefore(now) && t.endDate.isAfter(now);
+        final isPast = t.endDate.isBefore(now);
         final isScheduled = t.startDate.isAfter(now);
+
         final statusText = isLive
-            ? 'Live'
-            : (isScheduled ? 'Scheduled' : 'Past');
+            ? 'LIVE'
+            : (isScheduled ? 'UPCOMING' : 'COMPLETED');
         final statusColor = isLive
-            ? const Color(0xFF10B981)
-            : (isScheduled ? const Color(0xFF6366F1) : const Color(0xFF1F2937));
+            ? const Color(0xFFFFA726)
+            : (isScheduled ? const Color(0xFF64B5F6) : const Color(0xFF4CAF50));
         final statusBg = isLive
-            ? const Color(0xFFD1FAE5)
+            ? const Color(0xFFFFA726).withOpacity(0.2)
             : (isScheduled
-                  ? const Color(0xFF6366F1).withOpacity(0.2)
-                  : const Color(0xFFE5E7EB));
+                  ? const Color(0xFF64B5F6).withOpacity(0.2)
+                  : const Color(0xFF4CAF50).withOpacity(0.2));
 
-        final subtitle = (t.className ?? '').isNotEmpty
-            ? (t.section != null && (t.section ?? '').isNotEmpty
-                  ? '${t.className} - ${t.section}'
-                  : t.className!)
-            : t.subject;
+        final subtitle =
+            'Subject: ${t.subject} | ${(t.className ?? '').isNotEmpty ? (t.section != null && (t.section ?? '').isNotEmpty ? '${t.className} - ${t.section}' : t.className!) : 'Class'}';
 
-        String footerText;
-        IconData footerIcon;
-        Color footerIconColor;
-        if (isLive) {
-          final remaining = t.endDate.difference(now);
-          final hh = remaining.inHours.toString().padLeft(2, '0');
-          final mm = (remaining.inMinutes % 60).toString().padLeft(2, '0');
-          final ss = (remaining.inSeconds % 60).toString().padLeft(2, '0');
-          footerText = 'Ends in: $hh:$mm:$ss';
-          footerIcon = Icons.timer_outlined;
-          footerIconColor = const Color(0xFF6366F1);
-        } else if (isScheduled) {
-          footerText = _formatDateTime(t.startDate);
-          footerIcon = Icons.calendar_today_outlined;
-          footerIconColor = const Color(0xFF6B7280);
+        IconData subjectIcon;
+        Color iconColor;
+        if (t.subject.toLowerCase().contains('math')) {
+          subjectIcon = Icons.calculate_outlined;
+          iconColor = const Color(0xFF4CAF50);
+        } else if (t.subject.toLowerCase().contains('science')) {
+          subjectIcon = Icons.science_outlined;
+          iconColor = const Color(0xFFFFA726);
+        } else if (t.subject.toLowerCase().contains('history')) {
+          subjectIcon = Icons.history_edu_outlined;
+          iconColor = const Color(0xFF64B5F6);
         } else {
-          footerText = 'Total: ${t.totalPoints} pts';
-          footerIcon = Icons.leaderboard_outlined;
-          footerIconColor = const Color(0xFF6366F1);
+          subjectIcon = Icons.school_outlined;
+          iconColor = const Color(0xFF7961FF);
         }
 
         return _buildTestCard(
@@ -476,12 +429,16 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
           status: statusText,
           statusColor: statusColor,
           statusBgColor: statusBg,
-          footerIcon: footerIcon,
-          footerText: footerText,
-          footerIconColor: footerIconColor,
-          showEditButton: false,
-          showDeleteButton: true,
-          showStatsButton: !isScheduled,
+          subjectIcon: subjectIcon,
+          iconColor: iconColor,
+          isLive: isLive,
+          isPast: isPast,
+          endDate: t.endDate,
+          startDate: t.startDate,
+          totalPoints: t.totalPoints,
+          className: t.className,
+          section: t.section,
+          schoolCode: t.instituteId,
           onDelete: () async {
             final prov = Provider.of<TestProvider>(context, listen: false);
             final ok = await prov.deleteTest(t.id);
@@ -504,6 +461,41 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<int> _getCompletedCount(String testId) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('testResults')
+          .where('testId', isEqualTo: testId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+      return snapshot.docs.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  Future<int> _getTotalStudentsInClass(
+    String? className,
+    String? section,
+    String? schoolCode,
+  ) async {
+    try {
+      if (className == null || section == null || schoolCode == null) {
+        return 0;
+      }
+      final snapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('className', isEqualTo: className)
+          .where('section', isEqualTo: section)
+          .get();
+      return snapshot.docs.length;
+    } catch (e) {
+      print('Error getting class student count: $e');
+      return 0;
+    }
+  }
+
   String _formatDateTime(DateTime dt) {
     final y = dt.year;
     final m = dt.month.toString().padLeft(2, '0');
@@ -520,12 +512,16 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     required String status,
     required Color statusColor,
     required Color statusBgColor,
-    required IconData footerIcon,
-    required String footerText,
-    required Color footerIconColor,
-    bool showEditButton = false,
-    bool showDeleteButton = false,
-    bool showStatsButton = false,
+    required IconData subjectIcon,
+    required Color iconColor,
+    required bool isLive,
+    required bool isPast,
+    required DateTime endDate,
+    required DateTime startDate,
+    required int totalPoints,
+    String? className,
+    String? section,
+    String? schoolCode,
     Future<void> Function()? onDelete,
   }) {
     return InkWell(
@@ -538,30 +534,27 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
             'name': title,
             'class': subtitle,
             'status': status,
-            'endTime': footerText.contains('Ends in')
-                ? footerText.replaceAll('Ends in: ', '')
-                : footerText.replaceAll(
-                    '28 Oct 2023, 10:00 AM',
-                    '24 Oct 2023, 10:00 AM',
-                  ),
+            'endTime': '',
           },
         );
       },
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF1A1C20),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF2A2D30)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
             Row(
@@ -571,124 +564,312 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusBgColor,
+                          borderRadius: BorderRadius.circular(9999),
+                        ),
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: statusColor,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Text(
                         title,
-                        style: TextStyle(
-                          fontSize: 16,
+                        style: const TextStyle(
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                          color: Colors.white,
+                          letterSpacing: -0.3,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
-                          color: Theme.of(context).textTheme.bodyMedium?.color,
+                          color: Color(0xFFA0A0A0),
                         ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: statusBgColor,
-                    borderRadius: BorderRadius.circular(20),
+                    color: const Color(0xFF111315),
+                    shape: BoxShape.circle,
                   ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: statusColor,
-                    ),
-                  ),
+                  child: Icon(subjectIcon, color: iconColor, size: 28),
                 ),
               ],
             ),
+
             const SizedBox(height: 16),
-            // Footer
-            Container(
-              padding: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: Theme.of(context).dividerColor,
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+
+            // Time/Date info
+            if (isLive)
+              FutureBuilder<List<int>>(
+                future: Future.wait([
+                  _getCompletedCount(testId ?? ''),
+                  _getTotalStudentsInClass(className, section, schoolCode),
+                ]),
+                builder: (context, snapshot) {
+                  final completedCount = snapshot.data?[0] ?? 0;
+                  final totalCount = snapshot.data?[1] ?? 0;
+                  final progress = totalCount > 0
+                      ? completedCount / totalCount
+                      : 0.0;
+
+                  return StreamBuilder<DateTime>(
+                    stream: Stream<DateTime>.periodic(
+                      const Duration(seconds: 1),
+                      (_) => DateTime.now(),
+                    ),
+                    builder: (context, snapshot) {
+                      final now = snapshot.data ?? DateTime.now();
+                      final remaining = endDate.difference(now);
+                      final hh = remaining.inHours.toString().padLeft(2, '0');
+                      final mm = (remaining.inMinutes % 60).toString().padLeft(
+                        2,
+                        '0',
+                      );
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ends in: ${hh}h ${mm}m',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFFA0A0A0),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2A2D30),
+                              borderRadius: BorderRadius.circular(9999),
+                            ),
+                            child: progress > 0
+                                ? FractionallySizedBox(
+                                    alignment: Alignment.centerLeft,
+                                    widthFactor: progress,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFA726),
+                                        borderRadius: BorderRadius.circular(
+                                          9999,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '$completedCount / $totalCount students completed',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFFA0A0A0),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              )
+            else if (isPast)
+              FutureBuilder<List<int>>(
+                future: Future.wait([
+                  _getCompletedCount(testId ?? ''),
+                  _getTotalStudentsInClass(className, section, schoolCode),
+                ]),
+                builder: (context, snapshot) {
+                  final completedCount = snapshot.data?[0] ?? 0;
+                  final totalCount = snapshot.data?[1] ?? 0;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(footerIcon, size: 18, color: footerIconColor),
-                      const SizedBox(width: 8),
                       Text(
-                        footerText,
-                        style: TextStyle(
+                        'Completed: ${_formatDateTime(endDate)}',
+                        style: const TextStyle(
                           fontSize: 14,
-                          color: Theme.of(context).textTheme.bodyMedium?.color,
+                          color: Color(0xFFA0A0A0),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2A2D30),
+                          borderRadius: BorderRadius.circular(9999),
+                        ),
+                        child: totalCount > 0 && completedCount > 0
+                            ? FractionallySizedBox(
+                                alignment: Alignment.centerLeft,
+                                widthFactor: completedCount / totalCount,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF7961FF),
+                                    borderRadius: BorderRadius.circular(9999),
+                                  ),
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '$completedCount / $totalCount students completed',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFFA0A0A0),
                         ),
                       ),
                     ],
-                  ),
-                  Row(
-                    children: [
-                      if (showStatsButton)
-                        IconButton(
-                          icon: const Icon(Icons.bar_chart_outlined),
-                          iconSize: 20,
-                          color: Theme.of(
-                            context,
-                          ).iconTheme.color?.withOpacity(0.6),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('View stats for $title')),
-                            );
-                          },
-                          padding: const EdgeInsets.all(8),
-                          constraints: const BoxConstraints(),
-                        ),
-                      if (showEditButton)
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          iconSize: 20,
-                          color: Theme.of(
-                            context,
-                          ).iconTheme.color?.withOpacity(0.6),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Edit $title')),
-                            );
-                          },
-                          padding: const EdgeInsets.all(8),
-                          constraints: const BoxConstraints(),
-                        ),
-                      if (showDeleteButton)
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          iconSize: 20,
-                          color: Theme.of(
-                            context,
-                          ).iconTheme.color?.withOpacity(0.6),
-                          onPressed: () {
-                            if (onDelete != null) {
-                              _showDeleteDialogConfirm(title, onDelete);
-                            }
-                          },
-                          padding: const EdgeInsets.all(8),
-                          constraints: const BoxConstraints(),
-                        ),
-                    ],
-                  ),
-                ],
+                  );
+                },
+              )
+            else
+              Text(
+                'Scheduled: ${_formatDateTime(startDate)}',
+                style: const TextStyle(fontSize: 14, color: Color(0xFFA0A0A0)),
               ),
+
+            const SizedBox(height: 16),
+
+            // Footer buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (isLive)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7961FF).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(9999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        StreamBuilder<DateTime>(
+                          stream: Stream<DateTime>.periodic(
+                            const Duration(seconds: 1),
+                            (_) => DateTime.now(),
+                          ),
+                          builder: (context, snapshot) {
+                            final now = snapshot.data ?? DateTime.now();
+                            final elapsed = now.difference(startDate);
+                            final mm = (elapsed.inMinutes % 60)
+                                .toString()
+                                .padLeft(2, '0');
+                            final ss = (elapsed.inSeconds % 60)
+                                .toString()
+                                .padLeft(2, '0');
+
+                            return Row(
+                              children: [
+                                const Icon(
+                                  Icons.timer,
+                                  color: Color(0xFF7961FF),
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '$mm:$ss',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF7961FF),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  )
+                else if (isPast)
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/test-result',
+                        arguments: {
+                          'testId': testId ?? '',
+                          'name': title,
+                          'class': subtitle,
+                          'status': status,
+                          'endTime': '',
+                        },
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7961FF),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(9999),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'View Results',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                else
+                  const SizedBox(),
+
+                // Delete button
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF111315),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFF2A2D30)),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    iconSize: 20,
+                    color: Colors.red,
+                    onPressed: () {
+                      if (onDelete != null) {
+                        _showDeleteDialogConfirm(title, onDelete);
+                      }
+                    },
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -698,75 +879,39 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
   Widget _buildFAB() {
     return Positioned(
-      bottom: 100,
+      bottom: 24,
       right: 24,
-      child: FloatingActionButton(
-        onPressed: () {
-          Navigator.pushNamed(context, '/create-test-entry');
-        },
-        backgroundColor: const Color(0xFF6366F1),
-        child: const Icon(Icons.add, size: 30, color: Colors.white),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return const Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: TeacherBottomNav(selectedIndex: 2),
-    );
-  }
-
-  void _showClassFilterSheet() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      backgroundColor: Theme.of(context).cardColor,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Filter by Class',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).textTheme.bodyLarge?.color,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ..._buildClassFilters(
-                Provider.of<TestProvider>(context, listen: false).tests,
-              ).map((className) {
-                return ListTile(
-                  title: Text(
-                    className,
-                    style: TextStyle(
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
-                    ),
-                  ),
-                  trailing: _selectedClassFilter == className
-                      ? const Icon(Icons.check, color: Color(0xFF6366F1))
-                      : null,
-                  onTap: () {
-                    setState(() {
-                      _selectedClassFilter = className;
-                    });
-                    Navigator.pop(context);
-                  },
-                );
-              }),
-            ],
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF7961FF), Color(0xFFA371F7)],
           ),
-        );
-      },
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF7961FF).withOpacity(0.4),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              Navigator.pushNamed(context, '/create-test-entry');
+            },
+            customBorder: const CircleBorder(),
+            child: const Center(
+              child: Icon(Icons.add, size: 32, color: Colors.white),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
