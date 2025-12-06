@@ -334,6 +334,17 @@ class _StudentListScreenState extends State<StudentListScreen> {
     return int.tryParse(v.toString()) ?? 0;
   }
 
+  int _getAttendancePercentage(Map<String, dynamic> s) {
+    final attendance =
+        s['attendance'] ??
+        s['attendancePercentage'] ??
+        s['attendancePercent'] ??
+        0;
+    if (attendance is int) return attendance;
+    if (attendance is double) return attendance.round();
+    return int.tryParse(attendance.toString()) ?? 0;
+  }
+
   String? _avatar(Map<String, dynamic> s) {
     return (s['imageUrl'] ?? s['photoUrl'] ?? s['avatar'])?.toString();
   }
@@ -383,7 +394,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Section $_sectionForQuery • ${_score(student)}%'.trim(),
+                      'Attendance: ${_getAttendancePercentage(student)}%',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

@@ -5,7 +5,7 @@ import '../screens/teacher/teacher_dashboard.dart';
 import '../screens/teacher/classes_screen.dart';
 import '../screens/teacher/tests_screen.dart';
 import '../screens/teacher/messages/messages_screen.dart';
-import '../screens/teacher/messages/teacher_subject_messages_screen.dart';
+import '../screens/teacher/messages/teacher_message_groups_screen.dart';
 import '../screens/teacher/leaderboard_screen.dart';
 
 /// Teacher Main Navigation Wrapper
@@ -42,8 +42,8 @@ class _TeacherMainNavigationState extends State<TeacherMainNavigation> {
         _screens.addAll([
           const TeacherDashboardScreen(),
           const TestsScreen(),
-          // Replace legacy one-to-one MessagesScreen with aggregated subject messages
-          const TeacherSubjectMessagesScreen(),
+          // Replace legacy one-to-one MessagesScreen with separate tiles for each subject+class+section
+          const TeacherMessageGroupsScreen(),
           const ClassesScreen(),
           const LeaderboardScreen(),
         ]);
