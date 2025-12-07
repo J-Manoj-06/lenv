@@ -20,10 +20,33 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadClassData();
+    // ✅ NEW: Ensure auth is initialized before loading data
+    _initializeAndLoad();
+  }
+
+  /// Initialize auth and load class data
+  Future<void> _initializeAndLoad() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      // ✅ CRITICAL: Wait for auth to initialize on app start
+      await authProvider.ensureInitialized();
+
+      // Now load class data after auth is ready
+      await _loadClassData();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error: $e';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadClassData() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;

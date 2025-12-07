@@ -64,8 +64,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // Load data immediately to show UI faster
-    _loadTeacherData();
+    // ✅ NEW: Ensure auth is initialized before loading data
+    _initializeAndLoad();
     // Defer non-critical cleanup to after page loads
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -73,6 +73,26 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         _autoPublishTests();
       }
     });
+  }
+
+  /// Initialize auth and load teacher data
+  Future<void> _initializeAndLoad() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      // ✅ CRITICAL: Wait for auth to initialize on app start
+      await authProvider.ensureInitialized();
+
+      // Now load teacher data after auth is ready
+      await _loadTeacherData();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Error: $e';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _autoPublishTests() async {
@@ -90,6 +110,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Future<void> _loadTeacherData() async {
     try {
+      if (!mounted) return;
+
       setState(() {
         _isLoading = true;
         _error = null;
@@ -104,10 +126,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         await authProvider.initializeAuth();
         final retryUser = authProvider.currentUser;
         if (retryUser == null) {
-          setState(() {
-            _error = 'No user logged in';
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _error = 'No user logged in';
+              _isLoading = false;
+            });
+          }
           return;
         }
       }

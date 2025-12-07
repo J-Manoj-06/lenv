@@ -266,7 +266,28 @@ class _TeacherMessageGroupsScreenState
   @override
   void initState() {
     super.initState();
-    _loadGroups();
+    // ✅ NEW: Ensure auth is initialized before loading groups
+    _initializeAndLoad();
+  }
+
+  /// Initialize auth and load groups
+  Future<void> _initializeAndLoad() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      // ✅ CRITICAL: Wait for auth to initialize on app start
+      await authProvider.ensureInitialized();
+
+      // Now load groups after auth is ready
+      await _loadGroups();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error: $e';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadGroups({bool forceRefresh = false}) async {
@@ -274,6 +295,8 @@ class _TeacherMessageGroupsScreenState
     if (forceRefresh) {
       _service.clearCache();
     }
+
+    if (!mounted) return;
 
     setState(() {
       _isLoading = true;
