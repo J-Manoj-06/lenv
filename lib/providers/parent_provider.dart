@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
 import '../models/reward_request_model.dart';
@@ -7,6 +8,9 @@ import '../services/parent_service.dart';
 
 class ParentProvider with ChangeNotifier {
   final ParentService _parentService = ParentService();
+
+  // SharedPreferences key for persisting selected child
+  static const String _selectedChildKey = 'parent_selected_child_uid';
 
   // Parent information
   String? _parentEmail;
@@ -114,7 +118,10 @@ class ParentProvider with ChangeNotifier {
       _children = await _parentService.getChildrenByParentEmail(_parentEmail!);
       print('✅ ParentProvider: Loaded ${_children.length} children');
 
-      // Load data for the first child if available
+      // ✅ Load persisted child selection
+      await _loadPersistedSelection();
+
+      // Load data for the selected child if available
       if (_children.isNotEmpty) {
         await loadSelectedChildData();
       }
@@ -127,12 +134,50 @@ class ParentProvider with ChangeNotifier {
     }
   }
 
+  /// ✅ Load persisted child selection from SharedPreferences
+  Future<void> _loadPersistedSelection() async {
+    if (_children.isEmpty) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedChildUid = prefs.getString(_selectedChildKey);
+
+      if (savedChildUid != null) {
+        final savedIndex = _children.indexWhere((c) => c.uid == savedChildUid);
+        if (savedIndex >= 0) {
+          _selectedChildIndex = savedIndex;
+          print('✅ Restored child selection: ${_children[savedIndex].name}');
+        }
+      }
+    } catch (e) {
+      print('⚠️ Failed to load persisted selection: $e');
+    }
+  }
+
+  /// ✅ Persist child selection to SharedPreferences
+  Future<void> _persistSelection() async {
+    final child = selectedChild;
+    if (child == null) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_selectedChildKey, child.uid);
+      print('💾 Persisted child selection: ${child.name}');
+    } catch (e) {
+      print('⚠️ Failed to persist selection: $e');
+    }
+  }
+
   /// Switch to a different child
+  /// ✅ ENHANCED: Now persists selection and updates globally
   Future<void> selectChild(int index) async {
     if (index < 0 || index >= _children.length) return;
 
     _selectedChildIndex = index;
     notifyListeners();
+
+    // ✅ Persist the selection
+    await _persistSelection();
 
     await loadSelectedChildData();
   }

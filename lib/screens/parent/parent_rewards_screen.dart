@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/reward_request_model.dart';
+import '../../widgets/student_selection/student_avatar_row.dart';
 
 class ParentRewardsScreen extends StatefulWidget {
   const ParentRewardsScreen({super.key});
@@ -50,43 +51,58 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
           if (!parentProvider.hasChildren) {
             return _buildEmpty(isDark, 'No children found');
           }
-          if (parentProvider.isLoadingRewards) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(parentGreen),
+
+          return Column(
+            children: [
+              // ✅ NEW: Student selection row
+              const StudentAvatarRow(),
+
+              // Main content
+              Expanded(
+                child: parentProvider.isLoadingRewards
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation(parentGreen),
+                        ),
+                      )
+                    : _buildRewardsContent(context, isDark, parentProvider),
               ),
-            );
-          }
-
-          final selectedChild = parentProvider.selectedChild;
-          final points = selectedChild?.rewardPoints ?? 0;
-          final requests = _filtered(parentProvider.rewardRequests);
-
-          return RefreshIndicator(
-            onRefresh: () => parentProvider.refresh(),
-            color: parentGreen,
-            child: ListView(
-              padding: const EdgeInsets.only(bottom: 32),
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                _buildPointsHeader(isDark, points, selectedChild?.name ?? ''),
-                _buildFilterRow(isDark),
-                if (requests.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 40,
-                    ),
-                    child: _buildEmpty(isDark, 'No reward requests'),
-                  )
-                else
-                  ...requests.map(
-                    (r) => _buildRequestCard(isDark, r, parentProvider),
-                  ),
-              ],
-            ),
+            ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildRewardsContent(
+    BuildContext context,
+    bool isDark,
+    ParentProvider parentProvider,
+  ) {
+    final selectedChild = parentProvider.selectedChild;
+    final points = selectedChild?.rewardPoints ?? 0;
+    final requests = _filtered(parentProvider.rewardRequests);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return RefreshIndicator(
+      onRefresh: () => parentProvider.refresh(),
+      color: parentGreen,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 32),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          _buildPointsHeader(isDark, points, selectedChild?.name ?? ''),
+          _buildFilterRow(isDark),
+          if (requests.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+              child: _buildEmpty(isDark, 'No reward requests'),
+            )
+          else
+            ...requests.map(
+              (r) => _buildRequestCard(isDark, r, parentProvider),
+            ),
+        ],
       ),
     );
   }

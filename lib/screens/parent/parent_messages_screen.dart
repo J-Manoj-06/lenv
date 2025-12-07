@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/parent_provider.dart';
+import '../../widgets/student_selection/student_avatar_row.dart';
 import 'parent_chat_screen.dart';
 
 class ParentMessagesScreen extends StatefulWidget {
@@ -23,6 +24,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
   List<Map<String, dynamic>> _filteredTeachers = [];
   bool _isLoading = true;
   bool _queuedReload = false;
+  String? _lastLoadedChildId; // Track which child we loaded teachers for
 
   @override
   void initState() {
@@ -31,6 +33,21 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadTeachers();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload teachers if selected child has changed
+    final parentProvider = Provider.of<ParentProvider>(context, listen: false);
+    final currentChildId = parentProvider.selectedChild?.uid;
+
+    if (currentChildId != _lastLoadedChildId && currentChildId != null) {
+      _lastLoadedChildId = currentChildId;
+      if (!_isLoading) {
+        _loadTeachers();
+      }
+    }
   }
 
   @override
@@ -72,115 +89,123 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         return;
       }
 
+      // Get only the SELECTED child's teachers
+      final child = parentProvider.selectedChild;
+      if (child == null) {
+        setState(() {
+          _isLoading = false;
+          _teachers = [];
+          _filteredTeachers = [];
+        });
+        return;
+      }
+
       final Set<String> teacherIds = {};
       final List<Map<String, dynamic>> teachersList = [];
 
-      // Get all children's class info
-      for (final child in parentProvider.children) {
-        if (child.className != null && child.schoolCode != null) {
-          final studentClass = child.className!;
-          final studentSection = child.section ?? '';
+      // Get selected child's class info
+      if (child.className != null && child.schoolCode != null) {
+        final studentClass = child.className!;
+        final studentSection = child.section ?? '';
 
-          // Build efficient token for arrayContains query
-          // Token format: "Grade 10|A" or "Grade 10|" if no section
-          final token = studentSection.isEmpty
-              ? '$studentClass|'
-              : '$studentClass|$studentSection';
+        // Build efficient token for arrayContains query
+        // Token format: "Grade 10|A" or "Grade 10|" if no section
+        final token = studentSection.isEmpty
+            ? '$studentClass|'
+            : '$studentClass|$studentSection';
 
-          print('🔍 Efficient query token: "$token" for ${child.schoolCode}');
+        print('🔍 Efficient query token: "$token" for ${child.schoolCode}');
 
-          // OPTIMIZED: Single query with arrayContains on indexed field
-          final teachersSnapshot = await FirebaseFirestore.instance
-              .collection('teachers')
-              .where('schoolCode', isEqualTo: child.schoolCode)
-              .where('classAssignmentTokens', arrayContains: token)
-              .get();
+        // OPTIMIZED: Single query with arrayContains on indexed field
+        final teachersSnapshot = await FirebaseFirestore.instance
+            .collection('teachers')
+            .where('schoolCode', isEqualTo: child.schoolCode)
+            .where('classAssignmentTokens', arrayContains: token)
+            .get();
 
-          // Fallback: if tokens are not populated, use legacy parsing
-          final docsToScan = teachersSnapshot.docs.isNotEmpty
-              ? teachersSnapshot.docs
-              : (await FirebaseFirestore.instance
-                        .collection('teachers')
-                        .where('schoolCode', isEqualTo: child.schoolCode)
-                        .get())
-                    .docs;
+        // Fallback: if tokens are not populated, use legacy parsing
+        final docsToScan = teachersSnapshot.docs.isNotEmpty
+            ? teachersSnapshot.docs
+            : (await FirebaseFirestore.instance
+                      .collection('teachers')
+                      .where('schoolCode', isEqualTo: child.schoolCode)
+                      .get())
+                  .docs;
 
-          if (teachersSnapshot.docs.isEmpty) {
-            print(
-              'ℹ️ Tokens not populated yet. Using classAssignments parsing fallback',
-            );
+        if (teachersSnapshot.docs.isEmpty) {
+          print(
+            'ℹ️ Tokens not populated yet. Using classAssignments parsing fallback',
+          );
+        } else {
+          print(
+            '✅ Found ${teachersSnapshot.docs.length} matching teachers directly',
+          );
+        }
+
+        for (final doc in docsToScan) {
+          final data = doc.data();
+          final teacherId = doc.id;
+
+          // If using token query, any doc here is a match.
+          // If falling back, we need to check classAssignments.
+          bool matches = teachersSnapshot.docs.isNotEmpty;
+          String? subject;
+
+          if (!matches) {
+            final assignments = (data['classAssignments'] as List?) ?? [];
+            for (final a in assignments) {
+              final str = a.toString();
+              // Expect format: "Grade 10: A, math"
+              if (str.contains(':')) {
+                final parts = str.split(':');
+                final className = parts[0].trim();
+                final second = parts.length > 1 ? parts[1].trim() : '';
+                final subParts = second.split(',');
+                final section = subParts.isNotEmpty ? subParts[0].trim() : '';
+                final subj = subParts.length > 1 ? subParts[1].trim() : '';
+                if (className == studentClass &&
+                    (studentSection.isEmpty || section == studentSection)) {
+                  matches = true;
+                  subject = subj.isNotEmpty ? subj : null;
+                  break;
+                }
+              }
+            }
           } else {
-            print(
-              '✅ Found ${teachersSnapshot.docs.length} matching teachers directly',
-            );
-          }
-
-          for (final doc in docsToScan) {
-            final data = doc.data();
-            final teacherId = doc.id;
-
-            // If using token query, any doc here is a match.
-            // If falling back, we need to check classAssignments.
-            bool matches = teachersSnapshot.docs.isNotEmpty;
-            String? subject;
-
-            if (!matches) {
-              final assignments = (data['classAssignments'] as List?) ?? [];
+            // We can still try to extract subject for display
+            final assignments = data['classAssignments'] as List?;
+            if (assignments != null) {
               for (final a in assignments) {
                 final str = a.toString();
-                // Expect format: "Grade 10: A, math"
-                if (str.contains(':')) {
-                  final parts = str.split(':');
-                  final className = parts[0].trim();
-                  final second = parts.length > 1 ? parts[1].trim() : '';
-                  final subParts = second.split(',');
-                  final section = subParts.isNotEmpty ? subParts[0].trim() : '';
-                  final subj = subParts.length > 1 ? subParts[1].trim() : '';
-                  if (className == studentClass &&
-                      (studentSection.isEmpty || section == studentSection)) {
-                    matches = true;
-                    subject = subj.isNotEmpty ? subj : null;
+                if (str.contains(studentClass) &&
+                    (studentSection.isEmpty || str.contains(studentSection))) {
+                  final parts = str.split(',');
+                  if (parts.length > 1) {
+                    subject = parts.last.trim();
                     break;
                   }
                 }
               }
-            } else {
-              // We can still try to extract subject for display
-              final assignments = data['classAssignments'] as List?;
-              if (assignments != null) {
-                for (final a in assignments) {
-                  final str = a.toString();
-                  if (str.contains(studentClass) &&
-                      (studentSection.isEmpty ||
-                          str.contains(studentSection))) {
-                    final parts = str.split(',');
-                    if (parts.length > 1) {
-                      subject = parts.last.trim();
-                      break;
-                    }
-                  }
-                }
-              }
             }
+          }
 
-            if (matches && !teacherIds.contains(teacherId)) {
-              teacherIds.add(teacherId);
-              final teacherName =
-                  data['teacherName'] ?? data['name'] ?? 'Unknown Teacher';
-              print(
-                '✅ Teacher: $teacherName${subject != null ? " - $subject" : ""}',
-              );
+          if (matches && !teacherIds.contains(teacherId)) {
+            teacherIds.add(teacherId);
+            final teacherName =
+                data['teacherName'] ?? data['name'] ?? 'Unknown Teacher';
+            print(
+              '✅ Teacher: $teacherName${subject != null ? " - $subject" : ""}',
+            );
 
-              final teacherUid = (data['uid'] as String?) ?? teacherId;
-              teachersList.add({
-                'id': teacherUid,
-                'name': teacherName,
-                'email': data['email'] ?? '',
-                'subject': subject ?? 'General',
-                'className': studentClass,
-                'profileImage': data['profileImage'],
-              });
-            }
+            final teacherUid = (data['uid'] as String?) ?? teacherId;
+            teachersList.add({
+              'id': teacherUid,
+              'name': teacherName,
+              'email': data['email'] ?? '',
+              'subject': subject ?? 'General',
+              'className': studentClass,
+              'profileImage': data['profileImage'],
+            });
           }
         }
       }
@@ -196,6 +221,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         _teachers = teachersList;
         _filteredTeachers = teachersList;
         _isLoading = false;
+        _lastLoadedChildId = child.uid; // Track which child we loaded for
       });
     } catch (e) {
       print('❌ Error loading teachers: $e');
@@ -254,6 +280,9 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
 
           return Column(
             children: [
+              // Student Selection Row
+              const StudentAvatarRow(),
+
               // Search Bar
               _buildSearchBar(isDark),
 

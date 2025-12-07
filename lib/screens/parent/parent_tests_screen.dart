@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/test_result_model.dart';
+import '../../widgets/student_selection/student_avatar_row.dart';
 import 'parent_test_result_detail_screen.dart';
 
 class ParentTestsScreen extends StatefulWidget {
@@ -71,17 +72,27 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
             );
           }
 
-          return RefreshIndicator(
-            onRefresh: () => parentProvider.refresh(),
-            color: parentGreen,
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildCompletedTests(isDark, parentProvider),
-                _buildPendingTests(isDark, parentProvider),
-                _buildUpcomingTests(isDark, parentProvider),
-              ],
-            ),
+          return Column(
+            children: [
+              // Student Selection Row
+              const StudentAvatarRow(),
+
+              // Tabs Content
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () => parentProvider.refresh(),
+                  color: parentGreen,
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildCompletedTests(isDark, parentProvider),
+                      _buildPendingTests(isDark, parentProvider),
+                      _buildUpcomingTests(isDark, parentProvider),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
