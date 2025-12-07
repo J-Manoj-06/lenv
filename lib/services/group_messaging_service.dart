@@ -152,79 +152,103 @@ class GroupMessagingService {
   /// Get subjects for a specific class
   Future<List<GroupSubject>> getClassSubjects(String classId) async {
     try {
-      // First, try to get subjects from subcollection
-      final subjectsSnapshot = await _firestore
-          .collection('classes')
-          .doc(classId)
-          .collection('subjects')
-          .get();
+      print('📚 getClassSubjects called for classId: $classId');
 
-      if (subjectsSnapshot.docs.isNotEmpty) {
-        return subjectsSnapshot.docs
-            .map((doc) => GroupSubject.fromFirestore(doc.data(), doc.id))
-            .toList();
-      }
-
-      // If no subcollection, try to get subjects array from the class document itself
+      // Get the class document
       final classDoc = await _firestore
           .collection('classes')
           .doc(classId)
           .get();
-      final classData = classDoc.data();
 
-      if (classData != null && classData['subjects'] is List) {
-        final subjectsList = classData['subjects'] as List;
-        return subjectsList
-            .map((subject) {
-              if (subject is String) {
-                // If subjects are just strings, create GroupSubject with default values
-                return GroupSubject(
-                  id: subject.toLowerCase().replaceAll(' ', '_'),
-                  name: subject,
-                  teacherName: 'Teacher',
-                  icon: _getIconForSubject(subject),
-                );
-              } else if (subject is Map) {
-                // If subjects are objects with details
-                return GroupSubject(
-                  id:
-                      subject['id']?.toString() ??
-                      subject['name']?.toString().toLowerCase().replaceAll(
-                        ' ',
-                        '_',
-                      ) ??
-                      '',
-                  name: subject['name']?.toString() ?? '',
-                  teacherName: subject['teacherName']?.toString() ?? 'Teacher',
-                  icon:
-                      subject['icon']?.toString() ??
-                      _getIconForSubject(subject['name']?.toString() ?? ''),
-                );
-              }
-              return GroupSubject(id: '', name: '', teacherName: '', icon: '');
-            })
-            .where((s) => s.name.isNotEmpty)
-            .toList();
+      if (!classDoc.exists) {
+        print('❌ Class document not found: $classId');
+        return [];
       }
 
-      return [];
-    } catch (e) {
+      final classData = classDoc.data();
+      if (classData == null) {
+        print('❌ Class data is null');
+        return [];
+      }
+
+      print('✅ Class data retrieved: ${classData.keys.toList()}');
+
+      // Get subjects array and subjectTeachers map
+      final subjectsList = classData['subjects'] as List?;
+      final subjectTeachers =
+          classData['subjectTeachers'] as Map<String, dynamic>?;
+
+      if (subjectsList == null || subjectsList.isEmpty) {
+        print('❌ No subjects found in class document');
+        return [];
+      }
+
+      print('📖 Found ${subjectsList.length} subjects: $subjectsList');
+      print('👨‍🏫 Subject teachers map: ${subjectTeachers?.keys.toList()}');
+
+      // Create GroupSubject objects from subjects array and subjectTeachers map
+      final List<GroupSubject> groupSubjects = [];
+
+      for (final subject in subjectsList) {
+        if (subject is String && subject.isNotEmpty) {
+          // Get teacher info from subjectTeachers map
+          final subjectKey = subject.toLowerCase().trim();
+          final teacherInfo =
+              subjectTeachers?[subjectKey] as Map<String, dynamic>?;
+
+          final teacherName =
+              teacherInfo?['teacherName'] as String? ?? 'Teacher';
+
+          print('  ➜ Subject: $subject, Teacher: $teacherName');
+
+          groupSubjects.add(
+            GroupSubject(
+              id: subjectKey.replaceAll(' ', '_'),
+              name: _capitalizeSubject(subject),
+              teacherName: teacherName,
+              icon: _getIconForSubject(subject),
+            ),
+          );
+        }
+      }
+
+      print('✅ Created ${groupSubjects.length} GroupSubject objects');
+      return groupSubjects;
+    } catch (e, stackTrace) {
+      print('❌ Error in getClassSubjects: $e');
+      print('Stack trace: $stackTrace');
       return [];
     }
+  }
+
+  /// Capitalize subject name properly
+  String _capitalizeSubject(String subject) {
+    return subject
+        .split(' ')
+        .map(
+          (word) => word.isEmpty
+              ? ''
+              : word[0].toUpperCase() + word.substring(1).toLowerCase(),
+        )
+        .join(' ');
   }
 
   String _getIconForSubject(String subject) {
     final s = subject.toLowerCase();
     if (s.contains('math')) return '🔢';
-    if (s.contains('science')) return '🔬';
+    if (s.contains('science') &&
+        !s.contains('social') &&
+        !s.contains('computer'))
+      return '🔬';
     if (s.contains('social')) return '🌍';
     if (s.contains('english')) return '📖';
     if (s.contains('hindi')) return '📚';
     if (s.contains('chem')) return '🧪';
-    if (s.contains('phy')) return '⚡';
+    if (s.contains('phy') && !s.contains('education')) return '⚡';
     if (s.contains('bio')) return '🧬';
     if (s.contains('computer')) return '💻';
     if (s.contains('history')) return '📜';
+    if (s.contains('physical') || s.contains('education')) return '⚽';
     return '📕';
   }
 
