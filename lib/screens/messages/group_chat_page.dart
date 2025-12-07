@@ -43,6 +43,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
     super.initState();
     // ✅ Mark as read when entering chat
     _markAsRead();
+    // Scroll to bottom on initial load
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scrollToBottom(force: true),
+    );
   }
 
   Future<void> _markAsRead() async {
@@ -68,14 +72,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
+        if (force || _scrollController.offset < 100) {
+          _scrollController.jumpTo(0);
+        }
       }
     });
   }
@@ -108,7 +111,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         message,
       );
 
-      _scrollToBottom();
+      // Don't auto-scroll - let user stay where they are
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -234,12 +237,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   );
                 }
 
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _scrollToBottom();
-                });
-
                 return ListView.builder(
                   controller: _scrollController,
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {

@@ -19,14 +19,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final CommunityService _communityService = CommunityService();
-  bool _showScrollToBottom = false;
-  bool _isSending = false;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scrollToBottom(force: true),
+    );
   }
 
   @override
@@ -36,28 +35,18 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     super.dispose();
   }
 
-  void _onScroll() {
+  void _scrollToBottom({bool force = false}) {
     if (_scrollController.hasClients) {
-      final showButton = _scrollController.offset > 200;
-      if (showButton != _showScrollToBottom) {
-        setState(() => _showScrollToBottom = showButton);
+      // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
+      if (force || _scrollController.offset < 100) {
+        _scrollController.jumpTo(0);
       }
-    }
-  }
-
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
     }
   }
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || _isSending) return;
+    if (text.isEmpty) return;
 
     final student = Provider.of<StudentProvider>(
       context,
@@ -76,19 +65,19 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       return;
     }
 
-    setState(() => _isSending = true);
+    // Clear input immediately for instant feedback
+    _messageController.clear();
 
     try {
-      await _communityService.sendMessage(
+      // Send without blocking UI
+      _communityService.sendMessage(
         communityId: widget.community.id,
         senderId: student.uid,
         senderName: student.name,
         senderRole: 'Student',
         content: text,
       );
-
-      _messageController.clear();
-      Future.delayed(const Duration(milliseconds: 300), _scrollToBottom);
+      // Don't auto-scroll - let user stay where they are
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -97,10 +86,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
             backgroundColor: Colors.red,
           ),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSending = false);
       }
     }
   }
@@ -197,20 +182,19 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
                 return ListView.builder(
                   controller: _scrollController,
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
                     final isCurrentUser = message.senderId == student.uid;
                     final showDateDivider =
-                        index == 0 ||
+                        index == messages.length - 1 ||
                         _formatDate(message.createdAt) !=
-                            _formatDate(messages[index - 1].createdAt);
+                            _formatDate(messages[index + 1].createdAt);
 
                     return Column(
                       children: [
-                        if (showDateDivider)
-                          _buildDateDivider(message.createdAt),
                         if (message.type == 'announcement')
                           _buildAnnouncement(message)
                         else
@@ -219,6 +203,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                             isCurrentUser,
                             student.name,
                           ),
+                        if (showDateDivider)
+                          _buildDateDivider(message.createdAt),
                       ],
                     );
                   },
@@ -229,13 +215,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           _buildMessageInput(),
         ],
       ),
-      floatingActionButton: _showScrollToBottom
-          ? FloatingActionButton.small(
-              onPressed: _scrollToBottom,
-              backgroundColor: const Color(0xFFFFA929),
-              child: const Icon(Icons.arrow_downward, color: Colors.black),
-            )
-          : null,
     );
   }
 
@@ -443,25 +422,12 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatTime(message.createdAt),
-                        style: const TextStyle(
-                          color: Color(0xFF757575),
-                          fontSize: 11,
-                        ),
-                      ),
-                      if (isCurrentUser) ...[
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.done_all,
-                          size: 14,
-                          color: Color(0xFF64B5F6),
-                        ),
-                      ],
-                    ],
+                  child: Text(
+                    _formatTime(message.createdAt),
+                    style: const TextStyle(
+                      color: Color(0xFF757575),
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ],
@@ -529,17 +495,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: _isSending
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.black,
-                        ),
-                      )
-                    : const Icon(Icons.send, color: Colors.black),
-                onPressed: _isSending ? null : _sendMessage,
+                icon: const Icon(Icons.send, color: Colors.black),
+                onPressed: _sendMessage,
               ),
             ),
           ],

@@ -41,10 +41,15 @@ class GroupMessagingService {
         .collection('subjects')
         .doc(subjectId)
         .collection('messages')
-        .orderBy('timestamp', descending: false)
+        .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
+              .where((doc) {
+                // Filter out documents with invalid data
+                final data = doc.data();
+                return data['timestamp'] != null;
+              })
               .map((doc) => GroupChatMessage.fromFirestore(doc.data(), doc.id))
               .toList();
         });
@@ -278,10 +283,15 @@ class GroupMessagingService {
         .collection('communities')
         .doc(communityId)
         .collection('messages')
-        .orderBy('timestamp', descending: false)
+        .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
+              .where((doc) {
+                // Filter out documents with invalid data
+                final data = doc.data();
+                return data['timestamp'] != null;
+              })
               .map((doc) => GroupChatMessage.fromFirestore(doc.data(), doc.id))
               .toList();
         });

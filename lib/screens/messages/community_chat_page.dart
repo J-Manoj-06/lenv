@@ -28,7 +28,15 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
-  bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Scroll to bottom on initial load only
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom(force: true);
+    });
+  }
 
   @override
   void dispose() {
@@ -37,14 +45,13 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
+        if (force || _scrollController.offset < 100) {
+          _scrollController.jumpTo(0);
+        }
       }
     });
   }
@@ -58,7 +65,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
     if (currentUser == null) return;
 
-    setState(() => _isSending = true);
+    // Clear input immediately for instant feedback
     _messageController.clear();
 
     try {
@@ -71,17 +78,15 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         timestamp: DateTime.now().millisecondsSinceEpoch,
       );
 
-      await _messagingService.sendCommunityMessage(widget.communityId, message);
-
-      _scrollToBottom();
+      // Send without blocking UI
+      _messagingService.sendCommunityMessage(widget.communityId, message);
+      // Don't auto-scroll - let user stay where they are
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
       }
-    } finally {
-      setState(() => _isSending = false);
     }
   }
 
@@ -95,8 +100,6 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       );
 
       if (image == null) return;
-
-      setState(() => _isSending = true);
 
       // Upload to Firebase Storage
       final storageRef = FirebaseStorage.instance
@@ -115,8 +118,6 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
       }
-    } finally {
-      setState(() => _isSending = false);
     }
   }
 
@@ -195,12 +196,9 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   );
                 }
 
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _scrollToBottom();
-                });
-
                 return ListView.builder(
                   controller: _scrollController,
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
@@ -240,7 +238,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
             // Image Button
             IconButton(
               icon: const Icon(Icons.image, color: Color(0xFFFF8800)),
-              onPressed: _isSending ? null : _pickAndSendImage,
+              onPressed: _pickAndSendImage,
             ),
             const SizedBox(width: 8),
 
@@ -262,7 +260,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   ),
                   maxLines: null,
                   textCapitalization: TextCapitalization.sentences,
-                  enabled: !_isSending,
+                  enabled: true,
                 ),
               ),
             ),
@@ -277,17 +275,8 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: _isSending
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(Icons.send, color: Colors.white),
-                onPressed: _isSending ? null : () => _sendMessage(),
+                icon: const Icon(Icons.send, color: Colors.white),
+                onPressed: () => _sendMessage(),
               ),
             ),
           ],

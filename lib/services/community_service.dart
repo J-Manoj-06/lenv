@@ -515,10 +515,15 @@ class CommunityService {
         .collection('communities')
         .doc(communityId)
         .collection('messages')
-        .orderBy('createdAt', descending: false)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
+              .where((doc) {
+                // Filter out documents with invalid timestamp data
+                final data = doc.data();
+                return data['createdAt'] != null;
+              })
               .map((doc) => CommunityMessageModel.fromFirestore(doc))
               .toList();
         });

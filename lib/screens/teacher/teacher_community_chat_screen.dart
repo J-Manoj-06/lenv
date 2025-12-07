@@ -22,7 +22,6 @@ class _TeacherCommunityChatScreenState
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final CommunityService _communityService = CommunityService();
-  bool _showScrollToBottom = false;
   bool _isSending = false;
   String? _teacherName;
   String? _teacherId;
@@ -30,9 +29,10 @@ class _TeacherCommunityChatScreenState
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
     _loadTeacherData();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scrollToBottom(force: true),
+    );
   }
 
   @override
@@ -63,22 +63,12 @@ class _TeacherCommunityChatScreenState
     }
   }
 
-  void _onScroll() {
+  void _scrollToBottom({bool force = false}) {
     if (_scrollController.hasClients) {
-      final showButton = _scrollController.offset > 200;
-      if (showButton != _showScrollToBottom) {
-        setState(() => _showScrollToBottom = showButton);
+      // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
+      if (force || _scrollController.offset < 100) {
+        _scrollController.jumpTo(0);
       }
-    }
-  }
-
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
     }
   }
 
@@ -113,7 +103,7 @@ class _TeacherCommunityChatScreenState
       );
 
       _messageController.clear();
-      Future.delayed(const Duration(milliseconds: 300), _scrollToBottom);
+      // Don't auto-scroll - let user stay where they are
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -227,20 +217,19 @@ class _TeacherCommunityChatScreenState
 
                 return ListView.builder(
                   controller: _scrollController,
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
                     final isCurrentUser = message.senderId == _teacherId;
                     final showDateDivider =
-                        index == 0 ||
+                        index == messages.length - 1 ||
                         _formatDate(message.createdAt) !=
-                            _formatDate(messages[index - 1].createdAt);
+                            _formatDate(messages[index + 1].createdAt);
 
                     return Column(
                       children: [
-                        if (showDateDivider)
-                          _buildDateDivider(message.createdAt),
                         if (message.type == 'announcement')
                           _buildAnnouncement(message)
                         else
@@ -249,6 +238,8 @@ class _TeacherCommunityChatScreenState
                             isCurrentUser,
                             _teacherName!,
                           ),
+                        if (showDateDivider)
+                          _buildDateDivider(message.createdAt),
                       ],
                     );
                   },
@@ -259,13 +250,6 @@ class _TeacherCommunityChatScreenState
           _buildMessageInput(),
         ],
       ),
-      floatingActionButton: _showScrollToBottom
-          ? FloatingActionButton.small(
-              onPressed: _scrollToBottom,
-              backgroundColor: const Color(0xFF6A4FF7),
-              child: const Icon(Icons.arrow_downward, color: Colors.white),
-            )
-          : null,
     );
   }
 
