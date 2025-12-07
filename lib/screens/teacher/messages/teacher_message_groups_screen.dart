@@ -257,14 +257,42 @@ class _TeacherMessageGroupsScreenState
     extends State<TeacherMessageGroupsScreen> {
   final MessageGroupsService _service = MessageGroupsService();
   List<MessageGroup> _groups = [];
+  List<MessageGroup> _filteredGroups = [];
   bool _isLoading = true;
   String? _errorMessage;
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
 
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchChanged);
     // ✅ NEW: Ensure auth is initialized before loading groups
     _initializeAndLoad();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredGroups = _groups;
+        _isSearching = false;
+      } else {
+        _isSearching = true;
+        _filteredGroups = _groups.where((group) {
+          return group.subjectName.toLowerCase().contains(query) ||
+              group.className.toLowerCase().contains(query) ||
+              group.sectionName.toLowerCase().contains(query) ||
+              group.displayName.toLowerCase().contains(query);
+        }).toList();
+      }
+    });
   }
 
   /// Initialize auth and load groups
@@ -316,6 +344,7 @@ class _TeacherMessageGroupsScreenState
 
       setState(() {
         _groups = groups;
+        _filteredGroups = groups;
         _isLoading = false;
       });
     } catch (e) {
@@ -339,6 +368,7 @@ class _TeacherMessageGroupsScreenState
             ? const Color(0xFF130F23)
             : const Color(0xFFF6F5F8),
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: const Text(
           'Messages',
           style: TextStyle(
@@ -347,20 +377,58 @@ class _TeacherMessageGroupsScreenState
             letterSpacing: -0.5,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search_rounded),
-            onPressed: () {
-              // Implement search
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loadGroups,
-          ),
+      ),
+      body: Column(
+        children: [
+          _buildSearchBar(isDark),
+          Expanded(child: _buildBody(isDark)),
         ],
       ),
-      body: _buildBody(isDark),
+    );
+  }
+
+  Widget _buildSearchBar(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: TextField(
+        controller: _searchController,
+        style: TextStyle(
+          color: isDark ? Colors.white : Colors.black87,
+          fontSize: 16,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Search groups by subject, class, or section...',
+          hintStyle: TextStyle(
+            color: isDark ? Colors.white38 : Colors.black38,
+            fontSize: 15,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: isDark ? Colors.white54 : Colors.black54,
+          ),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: Icon(
+                    Icons.clear_rounded,
+                    color: isDark ? Colors.white54 : Colors.black54,
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: isDark ? const Color(0xFF1E1A2F) : Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+        ),
+      ),
     );
   }
 
@@ -427,8 +495,42 @@ class _TeacherMessageGroupsScreenState
       );
     }
 
+    final displayGroups = _isSearching ? _filteredGroups : _groups;
+
     if (_groups.isEmpty) {
       return _buildEmptyState(isDark);
+    }
+
+    if (_isSearching && _filteredGroups.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: 64,
+              color: isDark ? Colors.white24 : Colors.black26,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No groups found',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try searching with different keywords',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white38 : Colors.black38,
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     return RefreshIndicator(
@@ -436,12 +538,12 @@ class _TeacherMessageGroupsScreenState
       color: const Color(0xFF6A4FF7),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _groups.length,
+        itemCount: displayGroups.length,
         itemBuilder: (context, index) {
           return MessageGroupTile(
-            group: _groups[index],
+            group: displayGroups[index],
             isDark: isDark,
-            onTap: () => _openGroupChat(_groups[index]),
+            onTap: () => _openGroupChat(displayGroups[index]),
           );
         },
       ),
