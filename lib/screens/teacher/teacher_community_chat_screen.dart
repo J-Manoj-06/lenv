@@ -22,7 +22,6 @@ class _TeacherCommunityChatScreenState
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final CommunityService _communityService = CommunityService();
-  bool _isSending = false;
   String? _teacherName;
   String? _teacherId;
 
@@ -74,11 +73,7 @@ class _TeacherCommunityChatScreenState
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty ||
-        _isSending ||
-        _teacherId == null ||
-        _teacherName == null)
-      return;
+    if (text.isEmpty || _teacherId == null || _teacherName == null) return;
 
     // Check for links if not allowed
     if (!widget.community.allowLinks && _containsUrl(text)) {
@@ -91,7 +86,7 @@ class _TeacherCommunityChatScreenState
       return;
     }
 
-    setState(() => _isSending = true);
+    _messageController.clear();
 
     try {
       await _communityService.sendMessage(
@@ -102,7 +97,6 @@ class _TeacherCommunityChatScreenState
         content: text,
       );
 
-      _messageController.clear();
       // Don't auto-scroll - let user stay where they are
     } catch (e) {
       if (mounted) {
@@ -112,10 +106,6 @@ class _TeacherCommunityChatScreenState
             backgroundColor: Colors.red,
           ),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSending = false);
       }
     }
   }
@@ -527,33 +517,17 @@ class _TeacherCommunityChatScreenState
             ),
             const SizedBox(width: 12),
             GestureDetector(
-              onTap: _isSending ? null : _sendMessage,
+              onTap: _sendMessage,
               child: Container(
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  gradient: _isSending
-                      ? null
-                      : const LinearGradient(
-                          colors: [Color(0xFF6A4FF7), Color(0xFF8B6FFF)],
-                        ),
-                  color: _isSending ? const Color(0xFF262A30) : null,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6A4FF7), Color(0xFF8B6FFF)],
+                  ),
                   shape: BoxShape.circle,
                 ),
-                child: _isSending
-                    ? const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        ),
-                      )
-                    : const Icon(Icons.send, color: Colors.white, size: 20),
+                child: const Icon(Icons.send, color: Colors.white, size: 20),
               ),
             ),
           ],
