@@ -363,21 +363,6 @@ class _TeacherMessageGroupsScreenState
       backgroundColor: isDark
           ? const Color(0xFF130F23)
           : const Color(0xFFF6F5F8),
-      appBar: AppBar(
-        backgroundColor: isDark
-            ? const Color(0xFF130F23)
-            : const Color(0xFFF6F5F8),
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text(
-          'Messages',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 24,
-            letterSpacing: -0.5,
-          ),
-        ),
-      ),
       body: Column(
         children: [
           _buildSearchBar(isDark),
