@@ -14,10 +14,14 @@ class TeacherCommunitiesScreen extends StatefulWidget {
       _TeacherCommunitiesScreenState();
 }
 
-class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen> {
+class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
+    with AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
   bool _isLoading = true;
   List<CommunityModel> _myCommunities = [];
+
+  @override
+  bool get wantKeepAlive => true; // ✅ Preserve state when switching tabs
 
   @override
   void initState() {
@@ -43,6 +47,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ✅ Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       backgroundColor: const Color(0xFF16171A),
       body: _isLoading

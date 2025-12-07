@@ -253,8 +253,8 @@ class TeacherMessageGroupsScreen extends StatefulWidget {
       _TeacherMessageGroupsScreenState();
 }
 
-class _TeacherMessageGroupsScreenState
-    extends State<TeacherMessageGroupsScreen> {
+class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
+    with AutomaticKeepAliveClientMixin {
   final MessageGroupsService _service = MessageGroupsService();
   List<MessageGroup> _groups = [];
   List<MessageGroup> _filteredGroups = [];
@@ -262,6 +262,9 @@ class _TeacherMessageGroupsScreenState
   String? _errorMessage;
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
+
+  @override
+  bool get wantKeepAlive => true; // ✅ Preserve state when switching tabs
 
   @override
   void initState() {
@@ -357,6 +360,7 @@ class _TeacherMessageGroupsScreenState
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ✅ Required for AutomaticKeepAliveClientMixin
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
