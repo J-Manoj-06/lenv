@@ -35,8 +35,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final GroupMessagingService _messagingService = GroupMessagingService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
-  bool _isSending = false;
 
   @override
   void initState() {
@@ -69,6 +69,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _messageFocusNode.dispose();
     super.dispose();
   }
 
@@ -84,6 +85,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Future<void> _sendMessage({String? imageUrl}) async {
+    print('📤 _sendMessage called');
     final text = _messageController.text.trim();
     if (text.isEmpty && imageUrl == null) return;
 
@@ -92,8 +94,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     if (currentUser == null) return;
 
-    setState(() => _isSending = true);
+    print('🧹 Clearing text field');
     _messageController.clear();
+
+    print('⌨️ Requesting focus to keep keyboard open');
+    _messageFocusNode.requestFocus();
 
     try {
       final message = GroupChatMessage(
@@ -105,21 +110,22 @@ class _GroupChatPageState extends State<GroupChatPage> {
         timestamp: DateTime.now().millisecondsSinceEpoch,
       );
 
+      print('📨 Sending message to Firestore');
       await _messagingService.sendGroupMessage(
         widget.classId,
         widget.subjectId,
         message,
       );
+      print('✅ Message sent successfully');
 
       // Don't auto-scroll - let user stay where they are
     } catch (e) {
+      print('❌ Error sending message: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
       }
-    } finally {
-      setState(() => _isSending = false);
     }
   }
 
@@ -133,8 +139,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
       );
 
       if (image == null) return;
-
-      setState(() => _isSending = true);
 
       // Upload to Firebase Storage
       final storageRef = FirebaseStorage.instance
@@ -153,8 +157,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
       }
-    } finally {
-      setState(() => _isSending = false);
     }
   }
 
@@ -279,7 +281,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
             // Image Button
             IconButton(
               icon: const Icon(Icons.image, color: Color(0xFFFF8800)),
-              onPressed: _isSending ? null : _pickAndSendImage,
+              onPressed: _pickAndSendImage,
             ),
             const SizedBox(width: 8),
 
@@ -293,6 +295,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 ),
                 child: TextField(
                   controller: _messageController,
+                  focusNode: _messageFocusNode,
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     hintText: 'Type a message...',
@@ -301,7 +304,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   ),
                   maxLines: null,
                   textCapitalization: TextCapitalization.sentences,
-                  enabled: !_isSending,
+                  textInputAction: TextInputAction.send,
+                  // Don't disable TextField - it causes keyboard to close!
+                  // enabled: !_isSending,
+                  onSubmitted: (_) {
+                    print('⌨️ onSubmitted triggered - keyboard send pressed');
+                    _sendMessage();
+                    // Keep keyboard open by requesting focus again
+                    Future.delayed(const Duration(milliseconds: 50), () {
+                      print(
+                        '⌨️ onSubmitted - requesting focus after 50ms delay',
+                      );
+                      _messageFocusNode.requestFocus();
+                    });
+                  },
                 ),
               ),
             ),
@@ -316,17 +332,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: _isSending
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(Icons.send, color: Colors.white),
-                onPressed: _isSending ? null : () => _sendMessage(),
+                icon: const Icon(Icons.send, color: Colors.white),
+                onPressed: () => _sendMessage(),
               ),
             ),
           ],

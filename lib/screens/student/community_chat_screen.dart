@@ -18,6 +18,7 @@ class CommunityChatScreen extends StatefulWidget {
 class _CommunityChatScreenState extends State<CommunityChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _messageFocusNode = FocusNode();
   final CommunityService _communityService = CommunityService();
 
   @override
@@ -32,6 +33,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _messageFocusNode.dispose();
     super.dispose();
   }
 
@@ -67,6 +69,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
     // Clear input immediately for instant feedback
     _messageController.clear();
+
+    // Keep keyboard open after clearing text
+    _messageFocusNode.requestFocus();
 
     try {
       // Send without blocking UI
@@ -463,6 +468,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
             Expanded(
               child: TextField(
                 controller: _messageController,
+                focusNode: _messageFocusNode,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: const InputDecoration(
                   hintText: 'Type a message...',
@@ -471,8 +477,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                   contentPadding: EdgeInsets.symmetric(horizontal: 8),
                 ),
                 maxLines: null,
-                textInputAction: TextInputAction.newline,
-                onSubmitted: (_) => _sendMessage(),
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) {
+                  _sendMessage();
+                  // Keep keyboard open by requesting focus again
+                  Future.delayed(const Duration(milliseconds: 50), () {
+                    _messageFocusNode.requestFocus();
+                  });
+                },
               ),
             ),
             IconButton(

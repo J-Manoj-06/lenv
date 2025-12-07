@@ -27,6 +27,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final GroupMessagingService _messagingService = GroupMessagingService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
@@ -42,6 +43,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _messageFocusNode.dispose();
     super.dispose();
   }
 
@@ -67,6 +69,9 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
     // Clear input immediately for instant feedback
     _messageController.clear();
+
+    // Keep keyboard open after clearing text
+    _messageFocusNode.requestFocus();
 
     try {
       final message = GroupChatMessage(
@@ -252,6 +257,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                 ),
                 child: TextField(
                   controller: _messageController,
+                  focusNode: _messageFocusNode,
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     hintText: 'Type a message...',
@@ -260,7 +266,15 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   ),
                   maxLines: null,
                   textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.send,
                   enabled: true,
+                  onSubmitted: (_) {
+                    _sendMessage();
+                    // Keep keyboard open by requesting focus again
+                    Future.delayed(const Duration(milliseconds: 50), () {
+                      _messageFocusNode.requestFocus();
+                    });
+                  },
                 ),
               ),
             ),
