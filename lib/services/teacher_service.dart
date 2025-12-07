@@ -183,6 +183,91 @@ class TeacherService {
     }
   }
 
+  /// ✅ OPTIMIZED: Fetch attendance records once for entire class
+  /// This reduces Firebase reads from N (per student) to 1 (per class)
+  Future<List<Map<String, dynamic>>> getAttendanceRecordsForClass(
+    String schoolCode,
+    String grade,
+    String section,
+  ) async {
+    try {
+      final attendanceDocs = await _firestore
+          .collection('attendance')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('standard', isEqualTo: grade)
+          .where('section', isEqualTo: section)
+          .limit(120) // Last ~4 months of school days
+          .get();
+
+      return attendanceDocs.docs
+          .map((doc) => {'id': doc.id, ...doc.data()})
+          .toList();
+    } catch (e) {
+      print('Error fetching attendance records: $e');
+      return [];
+    }
+  }
+
+  /// Calculate attendance percentage for a specific student
+  /// ⚠️ DEPRECATED: Use getAttendanceRecordsForClass() for better performance
+  Future<int> calculateAttendancePercentage(
+    String schoolCode,
+    String studentId,
+    String className,
+    String section,
+  ) async {
+    try {
+      // Parse grade from className (e.g., "Grade 10" -> "10")
+      final gradeMatch = RegExp(r'Grade\s+(\d+)').firstMatch(className);
+      final grade = gradeMatch?.group(1);
+
+      if (grade == null) {
+        print('⚠️ Could not parse grade from className: $className');
+        return 0;
+      }
+
+      // Query attendance records for this student
+      final attendanceDocs = await _firestore
+          .collection('attendance')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('standard', isEqualTo: grade)
+          .where('section', isEqualTo: section)
+          .limit(120) // Last ~4 months of school days
+          .get();
+
+      if (attendanceDocs.docs.isEmpty) {
+        return 0; // No attendance records yet
+      }
+
+      int totalDays = 0;
+      int presentDays = 0;
+
+      for (final doc in attendanceDocs.docs) {
+        final students = doc.data()['students'] as Map<String, dynamic>?;
+        if (students == null) continue;
+
+        // Check if this student was marked (by auth UID)
+        final studentInfo = students[studentId] as Map<String, dynamic>?;
+        if (studentInfo == null) continue;
+
+        totalDays++;
+        final status =
+            studentInfo['status']?.toString().toLowerCase() ?? 'present';
+        if (status == 'present') {
+          presentDays++;
+        }
+      }
+
+      if (totalDays == 0) return 0;
+
+      final percentage = ((presentDays / totalDays) * 100).round();
+      return percentage.clamp(0, 100);
+    } catch (e) {
+      print('Error calculating attendance: $e');
+      return 0;
+    }
+  }
+
   /// Get subject-specific students (for subject teachers)
   /// subjectsHandled format: ["English"]
   Future<List<Map<String, dynamic>>> getStudentsBySubject(

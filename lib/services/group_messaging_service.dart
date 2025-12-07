@@ -64,10 +64,8 @@ class GroupMessagingService {
           .collection('subjects')
           .doc(subjectId)
           .set({
-        'lastReadBy': {
-          teacherId: now,
-        },
-      }, SetOptions(merge: true));
+            'lastReadBy': {teacherId: now},
+          }, SetOptions(merge: true));
     } catch (e) {
       print('Error marking group as read: $e');
     }
@@ -86,12 +84,12 @@ class GroupMessagingService {
           .collection('subjects')
           .doc(subjectId)
           .get();
-      
+
       if (!doc.exists || doc.data() == null) return null;
-      
+
       final lastReadBy = doc.data()?['lastReadBy'] as Map<String, dynamic>?;
       if (lastReadBy == null) return null;
-      
+
       return lastReadBy[teacherId] as int?;
     } catch (e) {
       print('Error getting last read timestamp: $e');

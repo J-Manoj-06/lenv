@@ -19,6 +19,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
   bool _isLoading = true;
   String? _error;
   List<Map<String, dynamic>> _students = [];
+  Map<String, int> _attendanceCache = {}; // Cache for calculated attendance
 
   // Teacher brand + dark palette (UI only; no logic changes)
   static const Color _teacherPrimary = Color(0xFF8B5CF6);
@@ -81,11 +82,72 @@ class _StudentListScreenState extends State<StudentListScreen> {
         _students = students;
         _isLoading = false;
       });
+
+      // Calculate attendance for each student in the background
+      _calculateAttendanceForStudents(schoolId);
     } catch (e) {
       setState(() {
         _error = 'Failed to load students: $e';
         _isLoading = false;
       });
+    }
+  }
+
+  /// Calculate attendance percentage for all students efficiently
+  Future<void> _calculateAttendanceForStudents(String schoolCode) async {
+    try {
+      // Parse grade from className
+      final gradeMatch = RegExp(
+        r'Grade\s+(\d+)',
+      ).firstMatch(_classNameForQuery);
+      final grade = gradeMatch?.group(1);
+      if (grade == null) return;
+
+      // ✅ OPTIMIZED: Fetch attendance records ONCE for entire class
+      final attendanceDocs = await _teacherService.getAttendanceRecordsForClass(
+        schoolCode,
+        grade,
+        _sectionForQuery,
+      );
+
+      // Calculate attendance for each student from the same data set
+      for (final student in _students) {
+        // ✅ Use auth UID (not document ID) for lookup
+        final studentUid = student['uid']?.toString();
+        final studentDocId = student['id']?.toString();
+        if (studentUid == null || studentDocId == null) continue;
+
+        int totalDays = 0;
+        int presentDays = 0;
+
+        for (final doc in attendanceDocs) {
+          final studentsData = doc['students'] as Map<String, dynamic>?;
+          if (studentsData == null) continue;
+
+          final studentInfo = studentsData[studentUid] as Map<String, dynamic>?;
+          if (studentInfo == null) continue;
+
+          totalDays++;
+          final status =
+              studentInfo['status']?.toString().toLowerCase() ?? 'present';
+          if (status == 'present') {
+            presentDays++;
+          }
+        }
+
+        final percentage = totalDays > 0
+            ? ((presentDays / totalDays) * 100).round().clamp(0, 100)
+            : 0;
+
+        // Update cache with document ID as key (for UI lookup)
+        if (mounted) {
+          setState(() {
+            _attendanceCache[studentDocId] = percentage;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error calculating attendance: $e');
     }
   }
 
@@ -335,6 +397,14 @@ class _StudentListScreenState extends State<StudentListScreen> {
   }
 
   int _getAttendancePercentage(Map<String, dynamic> s) {
+    final studentId = s['id']?.toString();
+
+    // First check calculated attendance cache
+    if (studentId != null && _attendanceCache.containsKey(studentId)) {
+      return _attendanceCache[studentId]!;
+    }
+
+    // Fallback to static field (will be 0 if not calculated yet)
     final attendance =
         s['attendance'] ??
         s['attendancePercentage'] ??

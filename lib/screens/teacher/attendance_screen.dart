@@ -303,6 +303,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             studentsMap, // schema: { authUid: { name, rollNo, status } }
       });
 
+      // ✅ Update attendance percentage in each student's document
+      await _updateStudentAttendancePercentages(
+        schoolCode,
+        selectedStandard,
+        selectedSection,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -322,6 +329,83 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
         setState(() => _isSaving = false);
       }
+    }
+  }
+
+  /// ✅ OPTIMIZED: Calculate and update attendance percentage for all students in the class
+  /// Reuses TeacherService method to reduce code duplication
+  Future<void> _updateStudentAttendancePercentages(
+    String schoolCode,
+    String grade,
+    String section,
+  ) async {
+    try {
+      // ✅ Use shared service method to fetch attendance records once
+      final attendanceDocs = await TeacherService()
+          .getAttendanceRecordsForClass(schoolCode, grade, section);
+
+      if (attendanceDocs.isEmpty) return;
+
+      // Calculate attendance for each student
+      final Map<String, Map<String, int>> studentAttendance = {};
+
+      for (final doc in attendanceDocs) {
+        final students = doc['students'] as Map<String, dynamic>?;
+        if (students == null) continue;
+
+        for (final entry in students.entries) {
+          final studentId = entry.key;
+          final info = entry.value as Map<String, dynamic>;
+          final status = info['status']?.toString().toLowerCase() ?? 'present';
+
+          if (!studentAttendance.containsKey(studentId)) {
+            studentAttendance[studentId] = {'total': 0, 'present': 0};
+          }
+
+          studentAttendance[studentId]!['total'] =
+              (studentAttendance[studentId]!['total'] ?? 0) + 1;
+
+          if (status == 'present') {
+            studentAttendance[studentId]!['present'] =
+                (studentAttendance[studentId]!['present'] ?? 0) + 1;
+          }
+        }
+      }
+
+      // Update each student document with calculated percentage
+      final batch = FirebaseFirestore.instance.batch();
+      int updateCount = 0;
+
+      for (final entry in studentAttendance.entries) {
+        final studentId = entry.key;
+        final total = entry.value['total'] ?? 0;
+        final present = entry.value['present'] ?? 0;
+
+        if (total > 0) {
+          final percentage = ((present / total) * 100).round().clamp(0, 100);
+
+          // Update student document
+          final studentRef = FirebaseFirestore.instance
+              .collection('students')
+              .doc(studentId);
+
+          batch.update(studentRef, {
+            'attendance': percentage,
+            'attendancePercentage': percentage,
+            'attendanceLastUpdated': FieldValue.serverTimestamp(),
+          });
+
+          updateCount++;
+        }
+      }
+
+      if (updateCount > 0) {
+        await batch.commit();
+        print('✅ Updated attendance for $updateCount students');
+      }
+    } catch (e) {
+      print('⚠️ Error updating student attendance percentages: $e');
+      // Don't throw - this is a background update, shouldn't block main flow
     }
   }
 
