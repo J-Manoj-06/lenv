@@ -50,6 +50,107 @@ class GroupMessagingService {
         });
   }
 
+  /// Mark a group as read by storing the last read timestamp for a teacher
+  Future<void> markGroupAsRead(
+    String classId,
+    String subjectId,
+    String teacherId,
+  ) async {
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await _firestore
+          .collection('classes')
+          .doc(classId)
+          .collection('subjects')
+          .doc(subjectId)
+          .set({
+        'lastReadBy': {
+          teacherId: now,
+        },
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('Error marking group as read: $e');
+    }
+  }
+
+  /// Get the last read timestamp for a teacher in a specific group
+  Future<int?> getLastReadTimestamp(
+    String classId,
+    String subjectId,
+    String teacherId,
+  ) async {
+    try {
+      final doc = await _firestore
+          .collection('classes')
+          .doc(classId)
+          .collection('subjects')
+          .doc(subjectId)
+          .get();
+      
+      if (!doc.exists || doc.data() == null) return null;
+      
+      final lastReadBy = doc.data()?['lastReadBy'] as Map<String, dynamic>?;
+      if (lastReadBy == null) return null;
+      
+      return lastReadBy[teacherId] as int?;
+    } catch (e) {
+      print('Error getting last read timestamp: $e');
+      return null;
+    }
+  }
+
+  /// Get unread count for a teacher in a specific group
+  Future<int> getUnreadCount(
+    String classId,
+    String subjectId,
+    String teacherId,
+  ) async {
+    try {
+      final lastReadTimestamp = await getLastReadTimestamp(
+        classId,
+        subjectId,
+        teacherId,
+      );
+
+      final messagesSnapshot = await _firestore
+          .collection('classes')
+          .doc(classId)
+          .collection('subjects')
+          .doc(subjectId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .limit(300)
+          .get();
+
+      if (messagesSnapshot.docs.isEmpty) return 0;
+
+      int unreadCount = 0;
+      for (var doc in messagesSnapshot.docs) {
+        final msg = doc.data();
+        final senderId = msg['senderId'] as String?;
+        final timestamp = msg['timestamp'] as int?;
+
+        // Skip teacher's own messages
+        if (senderId == null || senderId == teacherId) continue;
+
+        // If we have a last read timestamp, only count messages after it
+        if (lastReadTimestamp != null) {
+          if (timestamp != null && timestamp > lastReadTimestamp) {
+            unreadCount++;
+          }
+        } else {
+          // If no last read timestamp, count all student messages
+          unreadCount++;
+        }
+      }
+
+      return unreadCount;
+    } catch (e) {
+      print('Error getting unread count: $e');
+      return 0;
+    }
+  }
+
   /// Get subjects for a specific class
   Future<List<GroupSubject>> getClassSubjects(String classId) async {
     try {

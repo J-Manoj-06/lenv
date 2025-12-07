@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../../../providers/auth_provider.dart';
 import '../../messages/group_chat_page.dart';
+import '../../../services/group_messaging_service.dart';
 
 /// Models
 class TeachingContext {
@@ -66,7 +66,6 @@ class MessageGroupsService {
   // ✅ NEW: Cache for message groups (5 minute TTL)
   Map<String, MessageGroup> _groupCache = {};
   DateTime? _cacheTimestamp;
-  static const Duration _cacheDuration = Duration(minutes: 5);
 
   // ✅ NEW: Cache check method
   bool _isCacheValid() {
@@ -152,7 +151,7 @@ class MessageGroupsService {
     int unreadCount = 0;
 
     try {
-      // ✅ OPTIMIZATION: Use single combined query for both last message and unread
+      // ✅ Get last message
       final messagesSnapshot = await _firestore
           .collection('classes')
           .doc(context.classId)
@@ -160,7 +159,7 @@ class MessageGroupsService {
           .doc(subjectId)
           .collection('messages')
           .orderBy('timestamp', descending: true)
-          .limit(300) // Get more messages at once
+          .limit(1) // Only need the last message
           .get();
 
       if (messagesSnapshot.docs.isNotEmpty) {
@@ -172,17 +171,15 @@ class MessageGroupsService {
         if (timestamp != null) {
           lastMessageTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
         }
-
-        // ✅ OPTIMIZATION: Count unread in memory instead of extra query
-        unreadCount = 0;
-        for (var doc in messagesSnapshot.docs) {
-          final msg = doc.data();
-          final senderId = msg['senderId'] as String?;
-          if (senderId != null && senderId != context.teacherId) {
-            unreadCount++;
-          }
-        }
       }
+
+      // ✅ NEW: Use persistent unread count from GroupMessagingService
+      final messagingService = GroupMessagingService();
+      unreadCount = await messagingService.getUnreadCount(
+        context.classId,
+        subjectId,
+        context.teacherId,
+      );
     } catch (e) {
       // Group chat may not exist yet
       print(
@@ -514,9 +511,21 @@ class _TeacherMessageGroupsScreenState
     );
   }
 
-  void _openGroupChat(MessageGroup group) {
-    // ✅ Mark group as read and update UI immediately
+  void _openGroupChat(MessageGroup group) async {
+    // ✅ Mark group as read in cache
     _service.markGroupAsRead(group.groupId);
+
+    // ✅ Mark group as read in Firestore for persistence
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser != null) {
+      final messagingService = GroupMessagingService();
+      await messagingService.markGroupAsRead(
+        group.classId,
+        group.subjectId,
+        currentUser.uid,
+      );
+    }
 
     // ✅ Update UI immediately to clear badge
     setState(() {

@@ -39,6 +39,29 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _isSending = false;
 
   @override
+  void initState() {
+    super.initState();
+    // ✅ Mark as read when entering chat
+    _markAsRead();
+  }
+
+  Future<void> _markAsRead() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser != null) {
+        await _messagingService.markGroupAsRead(
+          widget.classId,
+          widget.subjectId,
+          currentUser.uid,
+        );
+      }
+    } catch (e) {
+      print('Error marking as read: $e');
+    }
+  }
+
+  @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
