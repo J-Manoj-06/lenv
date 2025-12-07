@@ -69,6 +69,46 @@ class CommunityService {
     }
   }
 
+  /// Get communities eligible for teachers (shows all, including joined)
+  Future<List<CommunityModel>> getExploreCommunitiesForTeacher({
+    required String schoolCode,
+  }) async {
+    try {
+      // Get all active, public communities for teachers
+      final query = await _firestore
+          .collection('communities')
+          .where('isActive', isEqualTo: true)
+          .where('visibility', isEqualTo: 'public')
+          .where('audienceRoles', arrayContains: 'teacher')
+          .get();
+
+      // Filter by school scope
+      final communities = query.docs
+          .map((doc) => CommunityModel.fromFirestore(doc))
+          .where((community) {
+            // Check school scope
+            final schoolMatch =
+                community.scope == 'global' ||
+                (community.scope == 'school' &&
+                    community.schoolCode == schoolCode);
+
+            return schoolMatch;
+          })
+          .toList();
+
+      // Sort by member count (most popular first)
+      communities.sort((a, b) => b.memberCount.compareTo(a.memberCount));
+
+      debugPrint(
+        '✅ Found ${communities.length} explore communities for teacher',
+      );
+      return communities;
+    } catch (e) {
+      debugPrint('❌ Error getting teacher explore communities: $e');
+      return [];
+    }
+  }
+
   /// Get communities user has joined
   Future<List<CommunityModel>> getMyComm(String userId) async {
     try {
@@ -167,7 +207,7 @@ class CommunityService {
     }
   }
 
-  /// Join a community
+  /// Join a community (for students)
   Future<bool> joinCommunity(String communityId, StudentModel student) async {
     try {
       final batch = _firestore.batch();
@@ -214,6 +254,61 @@ class CommunityService {
       return true;
     } catch (e) {
       debugPrint('❌ Error joining community: $e');
+      return false;
+    }
+  }
+
+  /// Join a community (for teachers)
+  Future<bool> joinCommunityAsTeacher({
+    required String communityId,
+    required String teacherId,
+    required String teacherName,
+    required String teacherEmail,
+    required String schoolCode,
+  }) async {
+    try {
+      final batch = _firestore.batch();
+
+      // Add teacher to members subcollection
+      final memberRef = _firestore
+          .collection('communities')
+          .doc(communityId)
+          .collection('members')
+          .doc(teacherId);
+
+      batch.set(memberRef, {
+        'userId': teacherId,
+        'userName': teacherName,
+        'userEmail': teacherEmail,
+        'userRole': 'teacher',
+        'userGrade': '', // Not applicable for teachers
+        'userSection': '',
+        'schoolCode': schoolCode,
+        'avatarUrl': '',
+        'joinedAt': FieldValue.serverTimestamp(),
+        'status': 'active',
+        'isModerator': false,
+        'lastReadAt': FieldValue.serverTimestamp(),
+        'unreadCount': 0,
+        'messageCount': 0,
+        'muteNotifications': false,
+        'favorited': false,
+      });
+
+      // Update community member count
+      final communityRef = _firestore
+          .collection('communities')
+          .doc(communityId);
+      batch.update(communityRef, {
+        'memberCount': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
+      debugPrint('✅ Teacher successfully joined community: $communityId');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error teacher joining community: $e');
       return false;
     }
   }
