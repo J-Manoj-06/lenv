@@ -495,170 +495,252 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   Widget _buildSectionGroupCard() {
-    final theme = Theme.of(context);
     final parsed = _parseClassSection(selectedClass);
     final classLabel = parsed != null
         ? '${parsed['className'] ?? ''}${(parsed['section'] ?? '').isNotEmpty ? ' - ${parsed['section']}' : ''}'
         : 'Class - Section';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.6)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap:
+          _sectionGroup == null ||
+              _isLoadingSectionGroup ||
+              _sectionGroupError != null
+          ? null
+          : () {
+              Navigator.pushNamed(
+                context,
+                '/parent/section-group-chat',
+                arguments: {
+                  'groupId': _sectionGroup!.id,
+                  'groupName': _sectionGroup!.name,
+                  'className': _sectionGroup!.className,
+                  'section': _sectionGroup!.section,
+                  'schoolCode': _sectionGroup!.schoolCode,
+                  'childName': '',
+                  'childId': '',
+                  'senderRole': 'teacher',
+                },
+              );
+            },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF6366F1).withOpacity(0.12),
-                ),
-                child: const Icon(
-                  Icons.forum_outlined,
-                  color: Color(0xFF6366F1),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _sectionGroup?.name.isNotEmpty == true
-                          ? _sectionGroup!.name
-                          : '$classLabel Parents & Teachers',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: theme.textTheme.bodyLarge?.color,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Message parents of $classLabel',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: theme.textTheme.bodyMedium?.color,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: theme.iconTheme.color),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_isLoadingSectionGroup)
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6366F1).withOpacity(0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
-              children: const [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 10),
-                Text('Preparing group…'),
-              ],
-            )
-          else if (_sectionGroupError != null)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.error_outline, color: Colors.redAccent),
-                const SizedBox(width: 8),
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.groups_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Could not load section group',
-                        style: TextStyle(
-                          color: theme.textTheme.bodyLarge?.color,
-                          fontWeight: FontWeight.w600,
+                        _sectionGroup?.name.isNotEmpty == true
+                            ? _sectionGroup!.name
+                            : '$classLabel Parents & Teachers',
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        _sectionGroupError!,
-                        style: TextStyle(
-                          color: theme.textTheme.bodyMedium?.color,
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.people_outline,
+                            color: Colors.white70,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Connect with parents',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.white70,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+            if (_isLoadingSectionGroup)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Row(
+                  children: const [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Preparing group…',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              )
+            else if (_sectionGroupError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Unable to load group',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _loadSectionGroupForSelection,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
                       ),
-                      TextButton.icon(
-                        onPressed: _loadSectionGroupForSelection,
-                        icon: const Icon(
-                          Icons.refresh,
-                          color: Color(0xFF6366F1),
-                        ),
-                        label: const Text(
-                          'Retry',
-                          style: TextStyle(color: Color(0xFF6366F1)),
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+            else if (_sectionGroup?.lastMessage.isNotEmpty ?? false)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _sectionGroup!.lastMessage,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            )
-          else
-            InkWell(
-              onTap: _sectionGroup == null
-                  ? null
-                  : () {
-                      Navigator.pushNamed(
-                        context,
-                        '/parent/section-group-chat',
-                        arguments: {
-                          'groupId': _sectionGroup!.id,
-                          'groupName': _sectionGroup!.name,
-                          'className': _sectionGroup!.className,
-                          'section': _sectionGroup!.section,
-                          'schoolCode': _sectionGroup!.schoolCode,
-                          'childName': '',
-                          'childId': '',
-                          'senderRole': 'teacher',
-                        },
-                      );
-                    },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.brightness == Brightness.dark
-                      ? Colors.white.withOpacity(0.05)
-                      : const Color(0xFFF7F9FB),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  (_sectionGroup?.lastMessage.isNotEmpty ?? false)
-                      ? _sectionGroup!.lastMessage
-                      : 'Start a conversation with parents of $classLabel',
-                  style: TextStyle(color: theme.textTheme.bodyMedium?.color),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Start a conversation with parents',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
