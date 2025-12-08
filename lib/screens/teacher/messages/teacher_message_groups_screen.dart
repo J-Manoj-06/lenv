@@ -800,31 +800,25 @@ class _MessageGroupTileState extends State<MessageGroupTile>
           onTapCancel: () => setState(() => _isPressed = false),
           child: Container(
             decoration: BoxDecoration(
-              color: widget.isDark
-                  ? const Color(0xFF1E1E2E).withOpacity(0.6)
-                  : Colors.white,
-              borderRadius: BorderRadius.circular(20),
+              color: widget.isDark ? const Color(0xFF222222) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: const Color(0xFF6A4FF7).withOpacity(0.2),
-                width: 1.5,
+                color: widget.isDark
+                    ? Colors.white.withOpacity(0.12)
+                    : Colors.grey[200]!,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.isDark
-                      ? Colors.black.withOpacity(0.2)
-                      : Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
                 onTap: widget.onTap,
-                borderRadius: BorderRadius.circular(20),
-                splashColor: const Color(0xFF6A4FF7).withOpacity(0.1),
-                highlightColor: const Color(0xFF6A4FF7).withOpacity(0.05),
+                borderRadius: BorderRadius.circular(16),
+                splashColor: widget.isDark
+                    ? Colors.white.withOpacity(0.05)
+                    : Colors.grey.withOpacity(0.05),
+                highlightColor: widget.isDark
+                    ? Colors.white.withOpacity(0.03)
+                    : Colors.grey.withOpacity(0.03),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -838,21 +832,8 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                             width: 56,
                             height: 56,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF6A4FF7), Color(0xFF8F66FF)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
+                              color: const Color(0xFF6A4FF7).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFF6A4FF7,
-                                  ).withOpacity(0.3),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
                             ),
                             child: Center(
                               child: Text(
@@ -862,7 +843,7 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                                 style: const TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                                  color: Color(0xFF6A4FF7),
                                 ),
                               ),
                             ),
@@ -897,12 +878,7 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                                           vertical: 4,
                                         ),
                                         decoration: BoxDecoration(
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFF6A4FF7),
-                                              Color(0xFF8F66FF),
-                                            ],
-                                          ),
+                                          color: Colors.red[600],
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
@@ -927,36 +903,45 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                                     vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF6A4FF7,
-                                    ).withOpacity(0.15),
+                                    color: widget.isDark
+                                        ? Colors.white.withOpacity(0.08)
+                                        : Colors.grey.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: const Color(
-                                        0xFF6A4FF7,
-                                      ).withOpacity(0.3),
-                                      width: 1,
-                                    ),
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.class_rounded,
-                                        size: 13,
-                                        color: const Color(0xFF6A4FF7),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Grade ${widget.group.className} • Section ${widget.group.sectionName}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF6A4FF7),
-                                          letterSpacing: 0.3,
-                                        ),
-                                      ),
-                                    ],
+                                  child: Builder(
+                                    builder: (context) {
+                                      // Extract grade number from className (e.g., "Grade 10" -> "10")
+                                      final gradeMatch = RegExp(
+                                        r'\d+',
+                                      ).firstMatch(widget.group.className);
+                                      final grade =
+                                          gradeMatch?.group(0) ??
+                                          widget.group.className;
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.class_rounded,
+                                            size: 13,
+                                            color: widget.isDark
+                                                ? Colors.white60
+                                                : Colors.grey[600],
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Grade $grade • Section ${widget.group.sectionName}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: widget.isDark
+                                                  ? Colors.white70
+                                                  : Colors.grey[700],
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   ),
                                 ),
                               ],

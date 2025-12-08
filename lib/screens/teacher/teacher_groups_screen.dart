@@ -227,18 +227,12 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6366F1).withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? Colors.white12 : Colors.grey[200]!,
                 ),
-              ],
+              ),
             ),
             child: SafeArea(
               bottom: false,
@@ -247,27 +241,20 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.groups,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                      Icon(
+                        Icons.groups,
+                        color: isDark ? Colors.white70 : Colors.grey[700],
+                        size: 28,
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Subject Groups',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: isDark ? Colors.white : Colors.black87,
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -275,8 +262,10 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
                             const SizedBox(height: 4),
                             Text(
                               '${_teacherGroups.length} Group${_teacherGroups.length != 1 ? 's' : ''}',
-                              style: const TextStyle(
-                                color: Colors.white70,
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.white60
+                                    : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -317,22 +306,17 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
     final classId = group['classId'] as String;
 
     final icon = _getSubjectIcon(subject);
-    final color = _getSubjectColor(subject);
+
+    // Extract grade number from className (e.g., "Grade 10" -> "10")
+    final gradeMatch = RegExp(r'\d+').firstMatch(className);
+    final grade = gradeMatch?.group(0) ?? className;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF222222) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withOpacity(0.3)
-                : Colors.grey.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: isDark ? Colors.white12 : Colors.grey[200]!),
       ),
       child: Material(
         color: Colors.transparent,
@@ -363,15 +347,17 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [color, color.withOpacity(0.7)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: const Color(0xFF6A4FF7).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Center(
-                    child: Text(icon, style: const TextStyle(fontSize: 28)),
+                    child: Text(
+                      icon,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        color: Color(0xFF6A4FF7),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -401,7 +387,7 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              '$className - Section $section',
+                              'Grade $grade • Section $section',
                               style: TextStyle(
                                 color: isDark
                                     ? Colors.white60
@@ -418,13 +404,10 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
                 ),
 
                 // Arrow Icon
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.arrow_forward_ios, size: 16, color: color),
+                Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: isDark ? Colors.white30 : Colors.grey[400],
                 ),
               ],
             ),
@@ -448,18 +431,5 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
     if (s.contains('history')) return '📜';
     if (s.contains('physical') || s.contains('education')) return '⚽';
     return '📕';
-  }
-
-  Color _getSubjectColor(String subject) {
-    final s = subject.toLowerCase();
-    if (s.contains('math')) return const Color(0xFF4A90E2);
-    if (s.contains('science')) return const Color(0xFF50C878);
-    if (s.contains('social')) return const Color(0xFFE67E22);
-    if (s.contains('english')) return const Color(0xFF9B59B6);
-    if (s.contains('hindi')) return const Color(0xFFE74C3C);
-    if (s.contains('computer')) return const Color(0xFF3498DB);
-    if (s.contains('physical') || s.contains('education'))
-      return const Color(0xFF2ECC71);
-    return const Color(0xFF6366F1);
   }
 }
