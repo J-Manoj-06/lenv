@@ -30,6 +30,7 @@ import '../screens/student/student_profile_screen.dart';
 import '../screens/student/student_groups_screen.dart';
 import '../screens/teacher/teacher_groups_screen.dart';
 import '../screens/teacher/profile_screen.dart';
+import '../screens/parent/parent_section_group_chat_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -221,6 +222,30 @@ class AppRouter {
             parentName: args['parentName'] as String,
             parentPhotoUrl: args['parentPhotoUrl'] as String?,
             studentName: args['studentName'] as String,
+          ),
+        );
+
+      case '/parent/section-group-chat':
+        final args = settings.arguments as Map<String, dynamic>?;
+        final groupId = args?['groupId'] as String?;
+        final groupName = args?['groupName'] as String?;
+        if (groupId == null || groupName == null) {
+          return MaterialPageRoute(
+            builder: (_) => const Scaffold(
+              body: Center(child: Text('Missing section group data')),
+            ),
+          );
+        }
+
+        return MaterialPageRoute(
+          builder: (_) => ParentSectionGroupChatScreen(
+            groupId: groupId,
+            groupName: groupName,
+            className: args?['className'] as String?,
+            section: args?['section'] as String?,
+            childName: (args?['childName'] as String?) ?? '',
+            childId: (args?['childId'] as String?) ?? '',
+            schoolCode: args?['schoolCode'] as String?,
           ),
         );
 

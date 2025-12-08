@@ -159,6 +159,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             parentProvider.attendance,
                           ),
 
+                          // Parent-Teacher Section Group Card
+                          _buildSectionGroupCard(isDark, parentProvider),
+
                           // Reward Requests
                           _buildRewardRequests(isDark, parentProvider),
 
@@ -176,6 +179,196 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSectionGroupCard(bool isDark, ParentProvider parentProvider) {
+    final group = parentProvider.sectionGroup;
+    final isLoading = parentProvider.isLoadingSectionGroup;
+    final error = parentProvider.sectionGroupError;
+    final child = parentProvider.selectedChild;
+
+    if (child == null) return const SizedBox.shrink();
+
+    final fallbackTitle =
+        '${child.className ?? 'Class'} ${child.section ?? ''} Parents & Teachers'
+            .trim();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? Colors.white.withOpacity(0.08) : Colors.transparent,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0 : 0.03),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: (group == null || isLoading || error != null)
+              ? null
+              : () {
+                  Navigator.pushNamed(
+                    context,
+                    '/parent/section-group-chat',
+                    arguments: {
+                      'groupId': group.id,
+                      'groupName': group.name.isNotEmpty
+                          ? group.name
+                          : fallbackTitle,
+                      'className': group.className,
+                      'section': group.section,
+                      'schoolCode': group.schoolCode,
+                      'childName': child.name,
+                      'childId': child.uid,
+                    },
+                  );
+                },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: parentGreen.withOpacity(0.15),
+                      ),
+                      child: const Icon(
+                        Icons.forum_outlined,
+                        color: parentGreen,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            group?.name.isNotEmpty == true
+                                ? group!.name
+                                : fallbackTitle,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : textPrimary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Chat with teachers and parents of this section',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: parentGreen),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (isLoading)
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            parentGreen,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Preparing your section group…',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : textPrimary,
+                        ),
+                      ),
+                    ],
+                  )
+                else if (error != null)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red[400]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Could not load section group',
+                              style: TextStyle(
+                                color: isDark ? Colors.white : textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              error,
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[700],
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: () =>
+                                  parentProvider.loadSectionGroup(child),
+                              icon: const Icon(
+                                Icons.refresh,
+                                color: parentGreen,
+                              ),
+                              label: const Text(
+                                'Retry',
+                                style: TextStyle(color: parentGreen),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Text(
+                    (group != null && group.lastMessage.isNotEmpty)
+                        ? group.lastMessage
+                        : 'Say hello to teachers and fellow parents of ${child.className ?? ''}${child.section != null ? ' - ${child.section}' : ''}',
+                    style: TextStyle(
+                      color: isDark ? Colors.grey[300] : Colors.grey[800],
+                      fontSize: 14,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

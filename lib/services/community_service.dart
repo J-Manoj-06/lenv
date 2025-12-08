@@ -110,7 +110,59 @@ class CommunityService {
   }
 
   /// Get communities user has joined
+  /// ✅ OPTIMIZED: Uses user_communities collection (1 read instead of 3000+)
   Future<List<CommunityModel>> getMyComm(String userId) async {
+    try {
+      // ✅ OPTIMIZATION: Read from user_communities index
+      final indexDoc = await _firestore
+          .collection('user_communities')
+          .doc(userId)
+          .get();
+
+      if (!indexDoc.exists || indexDoc.data() == null) {
+        debugPrint(
+          '⚠️ user_communities document not found, falling back to collectionGroup',
+        );
+        return _getMyCommFallback(userId);
+      }
+
+      final indexData = indexDoc.data()!;
+      final communityIds =
+          (indexData['communityIds'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList() ??
+          [];
+
+      if (communityIds.isEmpty) {
+        return [];
+      }
+
+      // Fetch community details (N reads where N = number of joined communities)
+      final communities = <CommunityModel>[];
+      for (final id in communityIds) {
+        final doc = await _firestore.collection('communities').doc(id).get();
+        if (doc.exists) {
+          communities.add(CommunityModel.fromFirestore(doc));
+        }
+      }
+
+      // Sort by last message time (most recent first)
+      communities.sort((a, b) {
+        final aTime = a.lastMessageAt ?? a.createdAt;
+        final bTime = b.lastMessageAt ?? b.createdAt;
+        return bTime.compareTo(aTime);
+      });
+
+      debugPrint('✅ Found ${communities.length} joined communities via index');
+      return communities;
+    } catch (e) {
+      debugPrint('❌ Error getting my communities: $e');
+      return [];
+    }
+  }
+
+  /// Fallback method using collectionGroup (legacy)
+  Future<List<CommunityModel>> _getMyCommFallback(String userId) async {
     try {
       // Query members subcollection across all communities
       final memberQuery = await _firestore
@@ -145,28 +197,35 @@ class CommunityService {
         return bTime.compareTo(aTime);
       });
 
-      debugPrint('✅ Found ${communities.length} joined communities');
+      debugPrint('✅ Found ${communities.length} joined communities (fallback)');
       return communities;
     } catch (e) {
-      debugPrint('❌ Error getting my communities: $e');
+      debugPrint('❌ Error in fallback: $e');
       return [];
     }
   }
 
   /// Get stream of joined communities (real-time updates)
+  /// ✅ OPTIMIZED: Uses user_communities index
   Stream<List<CommunityModel>> getMyCommunitiesStream(String userId) {
     return _firestore
-        .collectionGroup('members')
-        .where('userId', isEqualTo: userId)
-        .where('status', isEqualTo: 'active')
+        .collection('user_communities')
+        .doc(userId)
         .snapshots()
-        .asyncMap((snapshot) async {
-          if (snapshot.docs.isEmpty) return <CommunityModel>[];
+        .asyncMap((indexDoc) async {
+          if (!indexDoc.exists || indexDoc.data() == null) {
+            debugPrint('⚠️ user_communities not found, using fallback');
+            return _getMyCommStreamFallback(userId);
+          }
 
-          final communityIds = snapshot.docs
-              .map((doc) => doc.reference.parent.parent!.id)
-              .toSet()
-              .toList();
+          final indexData = indexDoc.data()!;
+          final communityIds =
+              (indexData['communityIds'] as List<dynamic>?)
+                  ?.whereType<String>()
+                  .toList() ??
+              [];
+
+          if (communityIds.isEmpty) return <CommunityModel>[];
 
           final communities = <CommunityModel>[];
           for (final id in communityIds) {
@@ -189,8 +248,8 @@ class CommunityService {
         });
   }
 
-  /// Helper: Get list of community IDs user has joined
-  Future<Set<String>> _getJoinedCommunityIds(String userId) async {
+  /// Fallback stream using collectionGroup (legacy)
+  Future<List<CommunityModel>> _getMyCommStreamFallback(String userId) async {
     try {
       final memberQuery = await _firestore
           .collectionGroup('members')
@@ -198,12 +257,31 @@ class CommunityService {
           .where('status', isEqualTo: 'active')
           .get();
 
-      return memberQuery.docs
+      if (memberQuery.docs.isEmpty) return <CommunityModel>[];
+
+      final communityIds = memberQuery.docs
           .map((doc) => doc.reference.parent.parent!.id)
-          .toSet();
+          .toSet()
+          .toList();
+
+      final communities = <CommunityModel>[];
+      for (final id in communityIds) {
+        final doc = await _firestore.collection('communities').doc(id).get();
+        if (doc.exists) {
+          communities.add(CommunityModel.fromFirestore(doc));
+        }
+      }
+
+      communities.sort((a, b) {
+        final aTime = a.lastMessageAt ?? a.createdAt;
+        final bTime = b.lastMessageAt ?? b.createdAt;
+        return bTime.compareTo(aTime);
+      });
+
+      return communities;
     } catch (e) {
-      debugPrint('❌ Error getting joined community IDs: $e');
-      return {};
+      debugPrint('❌ Error in stream fallback: $e');
+      return [];
     }
   }
 
@@ -447,6 +525,7 @@ class CommunityService {
   // ==================== MESSAGE OPERATIONS ====================
 
   /// Send a message to community
+  /// ✅ OPTIMIZATION: Updates user_communities index for all members
   Future<bool> sendMessage({
     required String communityId,
     required String senderId,
@@ -502,6 +581,15 @@ class CommunityService {
 
       await batch.commit();
       debugPrint('✅ Message sent to community: $communityId');
+
+      // ✅ OPTIMIZATION: Update user_communities for all members (async, non-blocking)
+      _updateUserCommunitiesAfterMessage(
+        communityId,
+        senderId,
+        senderName,
+        content,
+      );
+
       return true;
     } catch (e) {
       debugPrint('❌ Error sending message: $e');
@@ -509,13 +597,85 @@ class CommunityService {
     }
   }
 
+  /// ✅ OPTIMIZATION: Update user_communities for all community members
+  /// Increments unread count for everyone except sender
+  Future<void> _updateUserCommunitiesAfterMessage(
+    String communityId,
+    String senderId,
+    String senderName,
+    String content,
+  ) async {
+    try {
+      // Get all active members of the community
+      final membersSnapshot = await _firestore
+          .collection('communities')
+          .doc(communityId)
+          .collection('members')
+          .where('status', isEqualTo: 'active')
+          .get();
+
+      final batch = _firestore.batch();
+      int batchCount = 0;
+
+      for (final memberDoc in membersSnapshot.docs) {
+        final memberData = memberDoc.data();
+        final userId = memberData['userId'] as String?;
+
+        if (userId == null || userId == senderId) continue; // Skip sender
+
+        // Update user_communities for this member
+        final userCommRef = _firestore
+            .collection('user_communities')
+            .doc(userId);
+
+        batch.set(userCommRef, {
+          'communities': {
+            communityId: {
+              'unreadCount': FieldValue.increment(1),
+              'lastMessage': content.length > 50
+                  ? '${content.substring(0, 50)}...'
+                  : content,
+              'lastMessageAt': FieldValue.serverTimestamp(),
+              'lastMessageBy': senderName,
+            },
+          },
+          'lastUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        batchCount++;
+
+        // Firestore batch limit is 500 operations
+        if (batchCount >= 450) {
+          await batch.commit();
+          batchCount = 0;
+        }
+      }
+
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+
+      debugPrint(
+        '✅ Updated user_communities for ${membersSnapshot.docs.length} members',
+      );
+    } catch (e) {
+      // Don't throw - message was already sent successfully
+      debugPrint('⚠️ Failed to update user_communities: $e');
+    }
+  }
+
   /// Get messages stream for real-time updates
-  Stream<List<CommunityMessageModel>> getMessagesStream(String communityId) {
+  /// ✅ OPTIMIZED: Default limit of 50 messages
+  Stream<List<CommunityMessageModel>> getMessagesStream(
+    String communityId, {
+    int limit = 50,
+  }) {
     return _firestore
         .collection('communities')
         .doc(communityId)
         .collection('messages')
         .orderBy('createdAt', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs

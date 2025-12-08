@@ -4,10 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
 import '../models/reward_request_model.dart';
+import '../models/parent_teacher_group.dart';
 import '../services/parent_service.dart';
+import '../services/parent_teacher_group_service.dart';
 
 class ParentProvider with ChangeNotifier {
   final ParentService _parentService = ParentService();
+  final ParentTeacherGroupService _ptGroupService = ParentTeacherGroupService();
 
   // SharedPreferences key for persisting selected child
   static const String _selectedChildKey = 'parent_selected_child_uid';
@@ -54,6 +57,9 @@ class ParentProvider with ChangeNotifier {
   String? _announcementsError;
   String? _conversationsError;
   String? _performanceError;
+  ParentTeacherGroup? _sectionGroup;
+  bool _isLoadingSectionGroup = false;
+  String? _sectionGroupError;
 
   // Getters
   String? get parentEmail => _parentEmail;
@@ -92,6 +98,9 @@ class ParentProvider with ChangeNotifier {
   StreamSubscription<List<Map<String, dynamic>>>? _announcementsSub;
   String? get conversationsError => _conversationsError;
   String? get performanceError => _performanceError;
+  ParentTeacherGroup? get sectionGroup => _sectionGroup;
+  bool get isLoadingSectionGroup => _isLoadingSectionGroup;
+  String? get sectionGroupError => _sectionGroupError;
 
   /// Initialize parent provider with parent email
   Future<void> initialize(String parentEmail, {String? parentId}) async {
@@ -203,11 +212,29 @@ class ParentProvider with ChangeNotifier {
       loadUpcomingTests(child.uid),
       loadRewardHistory(child.uid),
       loadAttendance(child.uid),
+      loadSectionGroup(child),
     ]);
 
     // Load conversations if parent ID is available
     if (_parentId != null) {
       await loadConversations(_parentId!);
+    }
+  }
+
+  /// Load parent-teacher section group for the current child
+  Future<void> loadSectionGroup(StudentModel child) async {
+    _isLoadingSectionGroup = true;
+    _sectionGroupError = null;
+    notifyListeners();
+
+    try {
+      _sectionGroup = await _ptGroupService.ensureGroupForChild(child: child);
+    } catch (e) {
+      _sectionGroupError = 'Failed to load parent-teacher group: $e';
+      print('❌ ParentProvider: $_sectionGroupError');
+    } finally {
+      _isLoadingSectionGroup = false;
+      notifyListeners();
     }
   }
 

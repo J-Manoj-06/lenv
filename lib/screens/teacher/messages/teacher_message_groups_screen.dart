@@ -100,9 +100,68 @@ class MessageGroupsService {
     }
   }
 
+  /// ✅ OPTIMIZED: Use teacher_groups collection (1 read instead of 50+)
   Future<List<TeachingContext>> getTeacherTeachingContexts(
     String teacherId,
   ) async {
+    try {
+      // ✅ OPTIMIZATION: Read from teacher_groups index (1 Firestore read)
+      final teacherGroupsDoc = await _firestore
+          .collection('teacher_groups')
+          .doc(teacherId)
+          .get();
+
+      if (!teacherGroupsDoc.exists || teacherGroupsDoc.data() == null) {
+        print('⚠️ teacher_groups not found, falling back to classes scan');
+        return _getTeachingContextsFallback(teacherId);
+      }
+
+      final data = teacherGroupsDoc.data()!;
+
+      // ✅ NEW: Handle both data structures (array or map-based)
+      List<dynamic> classesData = [];
+
+      if (data['classes'] is List) {
+        // New structure: classes as array
+        classesData = data['classes'] as List<dynamic>;
+      } else if (data['groups'] is Map) {
+        // Alternative structure: groups as map
+        final groupsMap = data['groups'] as Map<String, dynamic>;
+        classesData = groupsMap.values.toList();
+      }
+
+      List<TeachingContext> contexts = [];
+
+      // Convert each class/group to TeachingContext
+      for (final classItem in classesData) {
+        if (classItem is Map<String, dynamic>) {
+          contexts.add(
+            TeachingContext(
+              classId: classItem['classId'] ?? '',
+              className: classItem['className'] ?? 'Unknown',
+              section: classItem['section'] ?? '',
+              subject: classItem['subject'] ?? '',
+              teacherId: teacherId,
+              teacherName: data['teacherName'] ?? 'Teacher',
+              schoolCode: data['schoolCode'] ?? '',
+            ),
+          );
+        }
+      }
+
+      print('✅ Found ${contexts.length} teaching contexts from teacher_groups');
+      return contexts;
+    } catch (e) {
+      print('❌ Error reading teacher_groups: $e');
+      return _getTeachingContextsFallback(teacherId);
+    }
+  }
+
+  /// Fallback: Scan all classes (legacy method)
+  Future<List<TeachingContext>> _getTeachingContextsFallback(
+    String teacherId,
+  ) async {
+    print('📊 Using fallback: scanning all classes...');
     final classesSnapshot = await _firestore.collection('classes').get();
     List<TeachingContext> contexts = [];
 
@@ -638,6 +697,9 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       }
     });
 
+    // ✅ OPTIMIZATION: Mark group as read in teacher_groups index
+    _markGroupAsReadInFirestore(group);
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -655,6 +717,32 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     );
     // ✅ REMOVED forceRefresh to prevent 3-4 second loading delay
     // Cache will naturally expire after 5 minutes
+  }
+
+  /// ✅ OPTIMIZATION: Mark group as read in teacher_groups Firestore collection
+  Future<void> _markGroupAsReadInFirestore(MessageGroup group) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) return;
+
+      final groupId = group.groupId;
+      await FirebaseFirestore.instance
+          .collection('teacher_groups')
+          .doc(currentUser.uid)
+          .set({
+            'groups': {
+              groupId: {
+                'unreadCount': 0,
+                'lastReadAt': FieldValue.serverTimestamp(),
+              },
+            },
+          }, SetOptions(merge: true));
+
+      print('✅ Marked group $groupId as read in Firestore');
+    } catch (e) {
+      print('⚠️ Failed to mark group as read: $e');
+    }
   }
 
   // ✅ Helper method to get subject icon

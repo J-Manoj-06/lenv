@@ -5,7 +5,7 @@ class MessagingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Fetch parent data for a given student ID
-  /// Optional fallbacks: parentPhone to match by phone; if still not found, scans a small subset client-side.
+  /// ✅ OPTIMIZED: Uses student.parentId field (2 reads instead of 100+)
   /// Returns: {parentId, parentName, parentEmail, parentPhotoUrl, parentAuthUid}
   Future<Map<String, dynamic>?> fetchParentForStudent(
     String studentId, {
@@ -14,12 +14,86 @@ class MessagingService {
   }) async {
     try {
       print('🔍 Looking for parent of student: $studentId');
-      print('   Phone hint: ${parentPhone ?? "none"}');
-      print('   Email hint: ${studentEmail ?? "none"}');
 
-      // Strategy 1: Client-side scan of linkedStudents (most reliable)
-      // This approach handles various data structures and field names
-      print('📋 Strategy 1: Scanning parent linkedStudents arrays...');
+      // ✅ OPTIMIZATION: Strategy 1 - Direct lookup via student.parentId
+      print('📋 Strategy 1: Reading parent from student document...');
+      final studentDoc = await _firestore
+          .collection('students')
+          .doc(studentId)
+          .get();
+
+      if (studentDoc.exists && studentDoc.data() != null) {
+        final studentData = studentDoc.data()!;
+        final parentId = studentData['parentId'] as String?;
+        final parentAuthUid = studentData['parentAuthUid'] as String?;
+        final parentName = studentData['parentName'] as String?;
+        final parentEmail = studentData['parentEmail'] as String?;
+        final parentPhone = studentData['parentPhone'] as String?;
+
+        if (parentId != null && parentId.isNotEmpty) {
+          print('✅ Found parent via student.parentId: $parentId');
+
+          // If we have parentAuthUid, return immediately (1 read total)
+          if (parentAuthUid != null && parentAuthUid.isNotEmpty) {
+            print('✅ Using cached parentAuthUid from student doc');
+            return {
+              'parentId': parentId,
+              'parentAuthUid': parentAuthUid,
+              'parentName': parentName ?? 'Parent',
+              'parentEmail': parentEmail ?? '',
+              'parentPhotoUrl': null,
+              'phoneNumber': parentPhone ?? '',
+            };
+          }
+
+          // Otherwise, fetch parent document for photoUrl (2 reads total)
+          final parentDoc = await _firestore
+              .collection('parents')
+              .doc(parentId)
+              .get();
+
+          if (parentDoc.exists && parentDoc.data() != null) {
+            final parentData = parentDoc.data()!;
+            print('✅ Fetched parent document for additional details');
+
+            return {
+              'parentId': parentId,
+              'parentAuthUid': parentAuthUid ?? '',
+              'parentName':
+                  parentName ??
+                  parentData['parentName'] ??
+                  parentData['name'] ??
+                  'Parent',
+              'parentEmail': parentEmail ?? parentData['email'] ?? '',
+              'parentPhotoUrl': parentData['photoUrl']?.toString(),
+              'phoneNumber':
+                  parentPhone ??
+                  parentData['phoneNumber'] ??
+                  parentData['phone'] ??
+                  '',
+            };
+          }
+
+          // Parent doc doesn't exist, use student data
+          return {
+            'parentId': parentId,
+            'parentAuthUid': parentAuthUid ?? '',
+            'parentName': parentName ?? 'Parent',
+            'parentEmail': parentEmail ?? '',
+            'parentPhotoUrl': null,
+            'phoneNumber': parentPhone ?? '',
+          };
+        }
+      }
+
+      print(
+        '⚠️ Student document has no parentId field, falling back to legacy scan',
+      );
+
+      // ✅ FALLBACK: Legacy method - scan parents (only if parentId not set)
+      print(
+        '📋 Strategy 2 (Fallback): Scanning parent linkedStudents arrays...',
+      );
       final allParents = await _firestore
           .collection('parents')
           .limit(100)
@@ -31,7 +105,6 @@ class MessagingService {
 
         for (final entry in linked) {
           if (entry is Map) {
-            // Check multiple possible field names for student ID
             final entryId =
                 (entry['id'] ??
                         entry['studentId'] ??
@@ -42,7 +115,6 @@ class MessagingService {
 
             if (entryId == studentId) {
               print('✅ Found parent via linkedStudents: ${doc.id}');
-              // Try to resolve parent's Auth UID from users collection by email
               final parentEmail = (data['email'] ?? '').toString();
               String? parentAuthUid;
               if (parentEmail.isNotEmpty) {
@@ -58,13 +130,12 @@ class MessagingService {
                       (uData['uid']?.toString().trim().isNotEmpty ?? false)
                       ? uData['uid']?.toString()
                       : u.id;
-                  print('✅ Resolved parent auth UID via users: $parentAuthUid');
                 }
               }
 
               return {
-                'parentId': doc.id, // Firestore parents document ID (legacy)
-                'parentAuthUid': parentAuthUid, // Firebase Auth UID (preferred)
+                'parentId': doc.id,
+                'parentAuthUid': parentAuthUid,
                 'parentName': (data['parentName'] ?? data['name'] ?? 'Parent')
                     .toString(),
                 'parentEmail': parentEmail,
@@ -77,11 +148,10 @@ class MessagingService {
         }
       }
 
-      // Strategy 2: Match by phone number if available
+      // Strategy 3: Match by phone number if available
       if (parentPhone != null && parentPhone.isNotEmpty) {
-        print('📱 Strategy 2: Matching by phone: $parentPhone');
+        print('📱 Strategy 3: Matching by phone: $parentPhone');
 
-        // Try multiple possible phone field names
         for (final phoneField in ['phoneNumber', 'phone', 'parent_contact']) {
           final byPhone = await _firestore
               .collection('parents')
@@ -93,7 +163,6 @@ class MessagingService {
             final parentDoc = byPhone.docs.first;
             final parentData = parentDoc.data();
             print('✅ Found parent via phone ($phoneField): ${parentDoc.id}');
-            // Resolve parent auth UID
             final parentEmail = (parentData['email'] ?? '').toString();
             String? parentAuthUid;
             if (parentEmail.isNotEmpty) {
@@ -109,7 +178,6 @@ class MessagingService {
                     (uData['uid']?.toString().trim().isNotEmpty ?? false)
                     ? uData['uid']?.toString()
                     : u.id;
-                print('✅ Resolved parent auth UID via users: $parentAuthUid');
               }
             }
 
@@ -129,11 +197,9 @@ class MessagingService {
         }
       }
 
-      // Strategy 3: Match by email pattern (if student email suggests parent email)
+      // Strategy 4: Match by email pattern (if student email suggests parent email)
       if (studentEmail != null && studentEmail.isNotEmpty) {
-        print('📧 Strategy 3: Attempting email pattern match...');
-        // Some schools use patterns like student@school.com and parent@school.com
-        // Or studentname.parent@school.com
+        print('📧 Strategy 4: Attempting email pattern match...');
         final emailParts = studentEmail.split('@');
         if (emailParts.length == 2) {
           final possibleParentEmails = [

@@ -11,13 +11,14 @@ class GroupMessagingService {
   // ====================================================
 
   /// Send a message to a class subject group
+  /// ✅ OPTIMIZATION: Updates teacher_groups index for real-time unread counts
   Future<void> sendGroupMessage(
     String classId,
     String subjectId,
     GroupChatMessage message,
   ) async {
     try {
-      // Use the format: classes/{classId}/subjects/{subjectId}/messages
+      // 1. Add message to Firestore
       await _firestore
           .collection('classes')
           .doc(classId)
@@ -25,16 +26,85 @@ class GroupMessagingService {
           .doc(subjectId)
           .collection('messages')
           .add(message.toFirestore());
+
+      // 2. ✅ OPTIMIZATION: Update teacher_groups index for this class-subject combo
+      // This updates the teacher's unread count in real-time without scanning messages
+      await _updateTeacherGroupsAfterMessage(classId, subjectId, message);
     } catch (e) {
       throw Exception('Failed to send group message: $e');
     }
   }
 
-  /// Get real-time stream of group messages
-  Stream<List<GroupChatMessage>> getGroupMessages(
+  /// ✅ OPTIMIZATION: Update teacher_groups collection when message sent
+  /// Increments unread count for teacher, updates lastMessage/lastMessageAt
+  Future<void> _updateTeacherGroupsAfterMessage(
     String classId,
     String subjectId,
-  ) {
+    GroupChatMessage message,
+  ) async {
+    try {
+      // Get class document to find the teacher for this subject
+      final classDoc = await _firestore
+          .collection('classes')
+          .doc(classId)
+          .get();
+
+      if (!classDoc.exists) return;
+
+      final classData = classDoc.data();
+      if (classData == null) return;
+
+      final subjectTeachers =
+          classData['subjectTeachers'] as Map<String, dynamic>?;
+      if (subjectTeachers == null) return;
+
+      // Find the teacher assigned to this subject
+      final subjectData = subjectTeachers[subjectId] as Map<String, dynamic>?;
+      if (subjectData == null) return;
+
+      final teacherId = subjectData['teacherId'] as String?;
+      if (teacherId == null) return;
+
+      // Don't increment unread if message is from teacher themselves
+      if (message.senderId == teacherId) return;
+
+      // Update teacher_groups document
+      final groupId = '${classId}_$subjectId';
+      await _firestore.collection('teacher_groups').doc(teacherId).set({
+        'groups': {
+          groupId: {
+            'unreadCount': FieldValue.increment(1),
+            'lastMessage': message.message.length > 50
+                ? '${message.message.substring(0, 50)}...'
+                : message.message,
+            'lastMessageAt': FieldValue.serverTimestamp(),
+            'lastMessageBy': message.senderName,
+            'classId': classId,
+            'subjectId': subjectId,
+            'className': classData['className'] ?? '',
+            'section': classData['section'] ?? '',
+            'subject': subjectId,
+            'teacherName': subjectData['teacherName'] ?? '',
+            'schoolCode': classData['schoolCode'] ?? '',
+          },
+        },
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      print('✅ Updated teacher_groups for $teacherId, group $groupId');
+    } catch (e) {
+      // Don't throw - message was already sent successfully
+      print('⚠️ Failed to update teacher_groups: $e');
+    }
+  }
+
+  /// Get real-time stream of group messages
+  /// ✅ OPTIMIZED: Added .limit(50) for pagination
+  Stream<List<GroupChatMessage>> getGroupMessages(
+    String classId,
+    String subjectId, {
+    int limit = 50, // ✅ Default 50 messages
+  }) {
     return _firestore
         .collection('classes')
         .doc(classId)
@@ -42,6 +112,7 @@ class GroupMessagingService {
         .doc(subjectId)
         .collection('messages')
         .orderBy('timestamp', descending: true)
+        .limit(limit) // ✅ OPTIMIZATION: Limit messages loaded
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
