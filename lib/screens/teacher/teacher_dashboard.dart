@@ -331,11 +331,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildSectionGroupCard(),
-                        const SizedBox(height: 16),
                         _buildGradientStatsBanner(),
                         const SizedBox(height: 24),
                         _buildClassroomHighlights(),
+                        const SizedBox(height: 24),
+                        _buildSectionGroupCard(),
                         const SizedBox(height: 24),
                         _buildClassSummary(),
                         const SizedBox(height: 24),
@@ -525,11 +525,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 height: 46,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF14A670).withOpacity(0.12),
+                  color: const Color(0xFF6366F1).withOpacity(0.12),
                 ),
                 child: const Icon(
                   Icons.forum_outlined,
-                  color: Color(0xFF14A670),
+                  color: Color(0xFF6366F1),
                 ),
               ),
               const SizedBox(width: 12),
@@ -604,11 +604,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         onPressed: _loadSectionGroupForSelection,
                         icon: const Icon(
                           Icons.refresh,
-                          color: Color(0xFF14A670),
+                          color: Color(0xFF6366F1),
                         ),
                         label: const Text(
                           'Retry',
-                          style: TextStyle(color: Color(0xFF14A670)),
+                          style: TextStyle(color: Color(0xFF6366F1)),
                         ),
                       ),
                     ],

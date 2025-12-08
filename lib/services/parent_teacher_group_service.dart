@@ -173,6 +173,7 @@ class ParentTeacherGroupService {
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
+              .where((doc) => doc.data()['createdAt'] != null)
               .map((doc) => CommunityMessageModel.fromFirestore(doc))
               .toList(),
         );

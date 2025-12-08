@@ -35,13 +35,13 @@ class ParentSectionGroupChatScreen extends StatefulWidget {
 class _ParentSectionGroupChatScreenState
     extends State<ParentSectionGroupChatScreen> {
   static const Color parentGreen = Color(0xFF14A670);
+  static const Color teacherViolet = Color(0xFF6366F1);
   static const Color backgroundDark = Color(0xFF101214);
   static const Color bubbleDark = Color(0xFF1A1C20);
 
   final ParentTeacherGroupService _service = ParentTeacherGroupService();
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  bool _sending = false;
 
   @override
   void dispose() {
@@ -63,7 +63,9 @@ class _ParentSectionGroupChatScreenState
     final senderId = user?.uid ?? '';
     final senderName = user?.name ?? 'Parent';
 
-    setState(() => _sending = true);
+    // Clear immediately like WhatsApp (no loading state)
+    _controller.clear();
+
     try {
       await _service.sendMessage(
         groupId: widget.groupId,
@@ -72,7 +74,6 @@ class _ParentSectionGroupChatScreenState
         senderRole: widget.senderRole,
         content: text,
       );
-      _controller.clear();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -81,8 +82,6 @@ class _ParentSectionGroupChatScreenState
           backgroundColor: Colors.red[400],
         ),
       );
-    } finally {
-      if (mounted) setState(() => _sending = false);
     }
   }
 
@@ -92,6 +91,9 @@ class _ParentSectionGroupChatScreenState
     final currentUserId =
         Provider.of<AuthProvider>(context, listen: false).currentUser?.uid ??
         '';
+    final primaryColor = widget.senderRole == 'teacher'
+        ? teacherViolet
+        : parentGreen;
 
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : const Color(0xFFF6F7F8),
@@ -131,8 +133,8 @@ class _ParentSectionGroupChatScreenState
               stream: _service.getMessagesStream(widget.groupId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: parentGreen),
+                  return Center(
+                    child: CircularProgressIndicator(color: primaryColor),
                   );
                 }
 
@@ -196,20 +198,22 @@ class _ParentSectionGroupChatScreenState
                     final msg = messages[index];
                     final isCurrentUser = msg.senderId == currentUserId;
                     final bubbleColor = isCurrentUser
-                        ? parentGreen
+                        ? primaryColor
                         : (isDark ? bubbleDark : Colors.grey[200]);
                     final textColor = isCurrentUser
                         ? Colors.white
                         : (isDark ? Colors.white : Colors.black87);
 
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: Align(
                         alignment: isCurrentUser
                             ? Alignment.centerRight
                             : Alignment.centerLeft,
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 340),
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.7,
+                          ),
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               color: bubbleColor,
@@ -224,22 +228,24 @@ class _ParentSectionGroupChatScreenState
                             ),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
+                                horizontal: 12,
+                                vertical: 8,
                               ),
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment: isCurrentUser
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (!isCurrentUser)
                                     Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
+                                      padding: const EdgeInsets.only(bottom: 3),
                                       child: Text(
                                         msg.senderName,
                                         style: TextStyle(
                                           color: isDark
-                                              ? Colors.white
-                                              : Colors.grey[800],
+                                              ? primaryColor
+                                              : primaryColor.withOpacity(0.8),
                                           fontWeight: FontWeight.w600,
                                           fontSize: 12,
                                         ),
@@ -247,17 +253,17 @@ class _ParentSectionGroupChatScreenState
                                     ),
                                   Text(
                                     msg.content,
-                                    style: TextStyle(color: textColor),
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 15,
+                                    ),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Align(
-                                    alignment: Alignment.bottomRight,
-                                    child: Text(
-                                      _formatTime(msg.createdAt),
-                                      style: TextStyle(
-                                        color: textColor.withOpacity(0.8),
-                                        fontSize: 11,
-                                      ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatTime(msg.createdAt),
+                                    style: TextStyle(
+                                      color: textColor.withOpacity(0.7),
+                                      fontSize: 10,
                                     ),
                                   ),
                                 ],
@@ -279,6 +285,9 @@ class _ParentSectionGroupChatScreenState
   }
 
   Widget _buildMessageInput(bool isDark) {
+    final primaryColor = widget.senderRole == 'teacher'
+        ? teacherViolet
+        : parentGreen;
     return SafeArea(
       top: false,
       child: Container(
@@ -324,32 +333,22 @@ class _ParentSectionGroupChatScreenState
             ),
             const SizedBox(width: 10),
             GestureDetector(
-              onTap: _sending ? null : _sendMessage,
+              onTap: _sendMessage,
               child: Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _sending ? parentGreen.withOpacity(0.6) : parentGreen,
+                  color: primaryColor,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: parentGreen.withOpacity(0.25),
+                      color: primaryColor.withOpacity(0.25),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: _sending
-                    ? const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
-                      )
-                    : const Icon(Icons.send_rounded, color: Colors.white),
+                child: const Icon(Icons.send_rounded, color: Colors.white),
               ),
             ),
           ],
