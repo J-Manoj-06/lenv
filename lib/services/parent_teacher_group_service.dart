@@ -11,16 +11,36 @@ class ParentTeacherGroupService {
     required String className,
     required String section,
   }) {
+    final normalizedClass = _normalizeClassName(className);
+    final normalizedSection = section.trim();
     final safeSchool = (schoolCode.isNotEmpty ? schoolCode : 'SCHOOL')
         .replaceAll(' ', '_')
         .toLowerCase();
-    final safeClass = (className.isNotEmpty ? className : 'class')
+    final safeClass = (normalizedClass.isNotEmpty ? normalizedClass : 'class')
         .replaceAll(' ', '_')
         .toLowerCase();
-    final safeSection = (section.isNotEmpty ? section : 'section')
-        .replaceAll(' ', '_')
-        .toLowerCase();
+    final safeSection =
+        (normalizedSection.isNotEmpty ? normalizedSection : 'section')
+            .replaceAll(' ', '_')
+            .toLowerCase();
     return '${safeSchool}_${safeClass}_${safeSection}_parents_teachers';
+  }
+
+  String _normalizeClassName(String className) {
+    final trimmed = className.trim();
+    if (trimmed.isEmpty) return '';
+
+    // Prefer numeric grade if present (handles "Grade 10", "10th", "10")
+    final digitMatch = RegExp(r'\d+').firstMatch(trimmed);
+    if (digitMatch != null) {
+      return digitMatch.group(0)!;
+    }
+
+    // Fallback: strip common prefixes
+    return trimmed
+        .replaceAll(RegExp(r'(?i)grade\s+'), '')
+        .replaceAll(RegExp(r'(?i)class\s+'), '')
+        .trim();
   }
 
   /// Ensure parent-teacher section group exists and return its metadata
@@ -30,20 +50,54 @@ class ParentTeacherGroupService {
     final className = child.className ?? '';
     final section = child.section ?? '';
     final schoolCode = child.schoolCode ?? '';
-    final groupId = buildGroupId(
+    return ensureGroupForClassSection(
+      schoolCode: schoolCode,
+      className: className,
+      section: section,
+    );
+  }
+
+  /// Ensure group for a class-section pair (shared by teachers and parents)
+  Future<ParentTeacherGroup> ensureGroupForClassSection({
+    required String schoolCode,
+    required String className,
+    required String section,
+  }) async {
+    final normalizedId = buildGroupId(
       schoolCode: schoolCode,
       className: className,
       section: section,
     );
 
-    final groupRef = _firestore
-        .collection('parent_teacher_groups')
-        .doc(groupId);
-    final snap = await groupRef.get();
+    final legacyId = _buildLegacyGroupId(
+      schoolCode: schoolCode,
+      className: className,
+      section: section,
+    );
 
-    if (!snap.exists) {
+    // Prefer normalized doc; fall back to legacy if it already exists
+    final normalizedRef = _firestore
+        .collection('parent_teacher_groups')
+        .doc(normalizedId);
+    final normalizedSnap = await normalizedRef.get();
+
+    DocumentReference<Map<String, dynamic>> targetRef = normalizedRef;
+    DocumentSnapshot<Map<String, dynamic>>? targetSnap = normalizedSnap;
+
+    if (!normalizedSnap.exists && legacyId != normalizedId) {
+      final legacyRef = _firestore
+          .collection('parent_teacher_groups')
+          .doc(legacyId);
+      final legacySnap = await legacyRef.get();
+      if (legacySnap.exists) {
+        targetRef = legacyRef;
+        targetSnap = legacySnap;
+      }
+    }
+
+    if (targetSnap.exists != true) {
       final groupName = _buildGroupName(className: className, section: section);
-      await groupRef.set({
+      await targetRef.set({
         'name': groupName,
         'className': className,
         'section': section,
@@ -56,7 +110,7 @@ class ParentTeacherGroupService {
       });
 
       return ParentTeacherGroup.empty(
-        id: groupId,
+        id: targetRef.id,
         name: groupName,
         className: className,
         section: section,
@@ -64,9 +118,9 @@ class ParentTeacherGroupService {
       );
     }
 
-    final data = snap.data() as Map<String, dynamic>;
+    final data = targetSnap.data() as Map<String, dynamic>;
     return ParentTeacherGroup(
-      id: groupId,
+      id: targetRef.id,
       name:
           (data['name'] as String?) ??
           _buildGroupName(className: className, section: section),
@@ -79,6 +133,24 @@ class ParentTeacherGroupService {
           : null,
       memberCount: data['memberCount'] ?? 0,
     );
+  }
+
+  // Legacy build (without class normalization) to re-use existing docs
+  String _buildLegacyGroupId({
+    required String schoolCode,
+    required String className,
+    required String section,
+  }) {
+    final safeSchool = (schoolCode.isNotEmpty ? schoolCode : 'SCHOOL')
+        .replaceAll(' ', '_')
+        .toLowerCase();
+    final safeClass = (className.isNotEmpty ? className : 'class')
+        .replaceAll(' ', '_')
+        .toLowerCase();
+    final safeSection = (section.isNotEmpty ? section : 'section')
+        .replaceAll(' ', '_')
+        .toLowerCase();
+    return '${safeSchool}_${safeClass}_${safeSection}_parents_teachers';
   }
 
   String _buildGroupName({required String className, required String section}) {

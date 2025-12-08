@@ -13,6 +13,7 @@ class ParentSectionGroupChatScreen extends StatefulWidget {
   final String childName;
   final String childId;
   final String? schoolCode;
+  final String senderRole;
 
   const ParentSectionGroupChatScreen({
     super.key,
@@ -23,6 +24,7 @@ class ParentSectionGroupChatScreen extends StatefulWidget {
     this.className,
     this.section,
     this.schoolCode,
+    this.senderRole = 'parent',
   });
 
   @override
@@ -67,7 +69,7 @@ class _ParentSectionGroupChatScreenState
         groupId: widget.groupId,
         senderId: senderId,
         senderName: senderName,
-        senderRole: 'parent',
+        senderRole: widget.senderRole,
         content: text,
       );
       _controller.clear();

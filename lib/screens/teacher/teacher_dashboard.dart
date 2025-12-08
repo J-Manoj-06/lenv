@@ -10,6 +10,8 @@ import '../../widgets/teacher_bottom_nav.dart';
 import '../../services/teacher_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/status_model.dart';
+import '../../services/parent_teacher_group_service.dart';
+import '../../models/parent_teacher_group.dart';
 import 'status_view_screen.dart';
 import 'attendance_screen.dart';
 
@@ -31,6 +33,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Map<String, int> _classStudentCounts = {};
   // Maps "<Grade> - <Section>" to list of subjects handled
   Map<String, List<String>> _classSubjectMap = <String, List<String>>{};
+  final ParentTeacherGroupService _ptGroupService = ParentTeacherGroupService();
+  ParentTeacherGroup? _sectionGroup;
+  bool _isLoadingSectionGroup = false;
+  String? _sectionGroupError;
   bool _isLoading = true;
   String? _error;
 
@@ -185,6 +191,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         }
       });
 
+      // Load section group for initial selection
+      await _loadSectionGroupForSelection();
+
       // Fetch students in background after UI is shown
       _fetchStudentsInBackground(user, teacherData, sections, classes);
     } catch (e) {
@@ -322,6 +331,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        _buildSectionGroupCard(),
+                        const SizedBox(height: 16),
                         _buildGradientStatsBanner(),
                         const SizedBox(height: 24),
                         _buildClassroomHighlights(),
@@ -409,6 +420,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       setState(() {
                         selectedClass = newValue;
                       });
+                      _loadSectionGroupForSelection();
                     }
                   },
                 ),
@@ -480,6 +492,232 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       }
     }
     return items;
+  }
+
+  Widget _buildSectionGroupCard() {
+    final theme = Theme.of(context);
+    final parsed = _parseClassSection(selectedClass);
+    final classLabel = parsed != null
+        ? '${parsed['className'] ?? ''}${(parsed['section'] ?? '').isNotEmpty ? ' - ${parsed['section']}' : ''}'
+        : 'Class - Section';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF14A670).withOpacity(0.12),
+                ),
+                child: const Icon(
+                  Icons.forum_outlined,
+                  color: Color(0xFF14A670),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _sectionGroup?.name.isNotEmpty == true
+                          ? _sectionGroup!.name
+                          : '$classLabel Parents & Teachers',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Message parents of $classLabel',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.textTheme.bodyMedium?.color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: theme.iconTheme.color),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_isLoadingSectionGroup)
+            Row(
+              children: const [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 10),
+                Text('Preparing group…'),
+              ],
+            )
+          else if (_sectionGroupError != null)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.redAccent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Could not load section group',
+                        style: TextStyle(
+                          color: theme.textTheme.bodyLarge?.color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _sectionGroupError!,
+                        style: TextStyle(
+                          color: theme.textTheme.bodyMedium?.color,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _loadSectionGroupForSelection,
+                        icon: const Icon(
+                          Icons.refresh,
+                          color: Color(0xFF14A670),
+                        ),
+                        label: const Text(
+                          'Retry',
+                          style: TextStyle(color: Color(0xFF14A670)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          else
+            InkWell(
+              onTap: _sectionGroup == null
+                  ? null
+                  : () {
+                      Navigator.pushNamed(
+                        context,
+                        '/parent/section-group-chat',
+                        arguments: {
+                          'groupId': _sectionGroup!.id,
+                          'groupName': _sectionGroup!.name,
+                          'className': _sectionGroup!.className,
+                          'section': _sectionGroup!.section,
+                          'schoolCode': _sectionGroup!.schoolCode,
+                          'childName': '',
+                          'childId': '',
+                          'senderRole': 'teacher',
+                        },
+                      );
+                    },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.brightness == Brightness.dark
+                      ? Colors.white.withOpacity(0.05)
+                      : const Color(0xFFF7F9FB),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  (_sectionGroup?.lastMessage.isNotEmpty ?? false)
+                      ? _sectionGroup!.lastMessage
+                      : 'Start a conversation with parents of $classLabel',
+                  style: TextStyle(color: theme.textTheme.bodyMedium?.color),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, String>? _parseClassSection(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final base = value.split('::').first;
+    final parts = base.split(' - ');
+    if (parts.isEmpty) return null;
+    final cls = parts[0].trim();
+    final sec = parts.length > 1 ? parts[1].trim() : '';
+    if (cls.isEmpty) return null;
+    return {'className': cls, 'section': sec};
+  }
+
+  Future<void> _loadSectionGroupForSelection() async {
+    final parsed = _parseClassSection(selectedClass);
+    if (parsed == null) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final schoolCode =
+        authProvider.currentUser?.instituteId ??
+        _teacherData?['schoolCode'] ??
+        '';
+    if (schoolCode.isEmpty) {
+      setState(() {
+        _sectionGroup = null;
+        _sectionGroupError = 'Missing school code';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingSectionGroup = true;
+      _sectionGroupError = null;
+    });
+
+    try {
+      final group = await _ptGroupService.ensureGroupForClassSection(
+        schoolCode: schoolCode,
+        className: parsed['className'] ?? '',
+        section: parsed['section'] ?? '',
+      );
+      if (!mounted) return;
+      setState(() {
+        _sectionGroup = group;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _sectionGroupError = 'Failed to load section group: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingSectionGroup = false;
+        });
+      }
+    }
   }
 
   // (Announcements removed) — merged into Classroom Highlights as 24h status

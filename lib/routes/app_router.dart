@@ -246,6 +246,7 @@ class AppRouter {
             childName: (args?['childName'] as String?) ?? '',
             childId: (args?['childId'] as String?) ?? '',
             schoolCode: args?['schoolCode'] as String?,
+            senderRole: (args?['senderRole'] as String?) ?? 'parent',
           ),
         );
 
