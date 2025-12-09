@@ -16,6 +16,7 @@ import '../screens/parent/child_profile_screen.dart';
 import '../widgets/parent_main_navigation.dart';
 import '../screens/parent/parent_dashboard_screen.dart';
 import '../screens/institute/institute_login_screen.dart';
+import '../widgets/institute_main_navigation.dart';
 import '../screens/dev/dev_tools_screen.dart';
 import '../screens/student/student_test_result_screen.dart';
 import '../screens/rewards/search_rewards_screen.dart';
@@ -64,9 +65,7 @@ class AppRouter {
 
       case '/institute-dashboard':
         return MaterialPageRoute(
-          builder: (_) => const Scaffold(
-            body: Center(child: Text('Institute Dashboard - Coming Soon')),
-          ),
+          builder: (_) => const InstituteMainNavigation(),
         );
 
       case '/student-dashboard':
@@ -259,9 +258,6 @@ class AppRouter {
 
       case '/teacher-groups':
         return MaterialPageRoute(builder: (_) => const TeacherGroupsScreen());
-
-      case '/test-media-upload':
-        return MaterialPageRoute(builder: (_) => const TestMediaUploadScreen());
 
       // YouTube feature removed
 
