@@ -12,6 +12,7 @@ import 'providers/student_provider.dart';
 import 'providers/daily_challenge_provider.dart';
 import 'providers/parent_provider.dart';
 import 'routes/app_router.dart';
+import 'services/local_cache_service.dart';
 
 // Initial route is always '/' (Splash) which will resolve and redirect.
 
@@ -24,6 +25,10 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print('✅ Firebase initialized successfully');
+
+    // Initialize Local Cache Service for media messaging
+    await LocalCacheService().initialize();
+    print('✅ Local cache service initialized');
 
     // Enable offline persistence for Firestore
     FirebaseFirestore.instance.settings = const Settings(

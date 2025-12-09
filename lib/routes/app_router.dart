@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:new_reward/screens/test_media_upload_screen.dart';
 import '../screens/common/splash_screen.dart';
 import '../screens/common/role_selection_screen.dart';
 import '../screens/teacher/teacher_login_screen.dart';
@@ -151,6 +152,9 @@ class AppRouter {
           ),
         );
 
+      case '/test-media-upload':
+        return MaterialPageRoute(builder: (_) => const TestMediaUploadScreen());
+
       case '/tests':
         return MaterialPageRoute(
           builder: (_) => const TeacherMainNavigation(initialIndex: 2),
@@ -255,6 +259,9 @@ class AppRouter {
 
       case '/teacher-groups':
         return MaterialPageRoute(builder: (_) => const TeacherGroupsScreen());
+
+      case '/test-media-upload':
+        return MaterialPageRoute(builder: (_) => const TestMediaUploadScreen());
 
       // YouTube feature removed
 

@@ -309,3 +309,7 @@ exports.onScheduledTestCreate = functions
     }
   });
 
+// Import Cloud Function for R2 file uploads
+const { uploadFileToR2 } = require('./uploadFileToR2');
+exports.uploadFileToR2 = uploadFileToR2;
+

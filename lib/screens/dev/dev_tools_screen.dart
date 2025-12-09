@@ -309,6 +309,21 @@ class _DevToolsScreenState extends State<DevToolsScreen> {
                 child: Center(child: CircularProgressIndicator()),
               ),
 
+            const SizedBox(height: 16),
+
+            // Test Media Upload Button
+            ElevatedButton.icon(
+              onPressed: () =>
+                  Navigator.of(context).pushNamed('/test-media-upload'),
+              icon: const Icon(Icons.image),
+              label: const Text('🎥 Test Media Upload'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.all(16),
+              ),
+            ),
+
             const Spacer(),
 
             // Info Card
