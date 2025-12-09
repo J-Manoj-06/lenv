@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../screens/institute/institute_dashboard_screen.dart';
 import '../screens/institute/institute_staff_screen.dart';
 import '../screens/institute/institute_messages_screen.dart';
+import '../screens/institute/institute_insights_screen.dart';
+import '../screens/institute/institute_profile_screen.dart';
 
 class InstituteMainNavigation extends StatefulWidget {
   const InstituteMainNavigation({super.key, this.initialIndex = 0});
@@ -29,8 +31,8 @@ class _InstituteMainNavigationState extends State<InstituteMainNavigation> {
       const InstituteDashboardScreen(),
       const InstituteStaffScreen(),
       const InstituteMessagesScreen(),
-      const _PlaceholderScreen(title: 'Insights coming soon'),
-      const _PlaceholderScreen(title: 'Profile coming soon'),
+      const InstituteInsightsScreen(),
+      const InstituteProfileScreen(),
     ];
   }
 
@@ -193,25 +195,6 @@ class _NavItem extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F1416),
-      body: Center(
-        child: Text(
-          title,
-          style: const TextStyle(color: Colors.white70, fontSize: 16),
         ),
       ),
     );
