@@ -25,8 +25,6 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
 
   // Teacher brand colors
   static const Color teacherPurple = Color(0xFF7E57C2);
-  static const Color teacherPurpleDark = Color(0xFF5E35B1);
-  static const Color teacherPurpleLight = Color(0xFFA78BFA);
   static const Color brandBrownDark = Color(0xFF1C140D);
   static const Color brandBrownLight = Color(0xFF9C7349);
   static const Color brandOffWhite = Color(0xFFFCFAF8);

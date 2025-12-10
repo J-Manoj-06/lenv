@@ -33,24 +33,6 @@ class StudentStats {
 class LeaderboardService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Sum of pointsEarned from student_rewards for a student
-  Future<int> _sumStudentRewards(String uid) async {
-    try {
-      final snap = await _db
-          .collection('student_rewards')
-          .where('studentId', isEqualTo: uid)
-          .get();
-      int total = 0;
-      for (final d in snap.docs) {
-        final data = d.data();
-        total += (data['pointsEarned'] as num?)?.toInt() ?? 0;
-      }
-      return total;
-    } catch (_) {
-      return 0;
-    }
-  }
-
   // Helper: get student doc (students collection) for uid or email
   Future<Map<String, dynamic>?> _getStudentDocByUidOrEmail({
     required String uid,

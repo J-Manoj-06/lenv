@@ -136,7 +136,7 @@ class ChatService {
 
     final batch = _db.batch();
     for (final d in q.docs) {
-      final data = d.data() as Map<String, dynamic>;
+      final data = d.data();
       // Only update if not already delivered
       if (data[deliveredField] != true) {
         batch.update(d.reference, {deliveredField: true});

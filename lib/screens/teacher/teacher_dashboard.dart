@@ -152,7 +152,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         Future.value(null),
       ]);
 
-      final teacherData = results[0] as Map<String, dynamic>?;
+      final teacherData = results[0];
 
       if (teacherData == null) {
         setState(() {

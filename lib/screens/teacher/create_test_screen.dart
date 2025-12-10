@@ -5,7 +5,6 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/teacher_service.dart';
-import '../../widgets/teacher_bottom_nav.dart';
 import '../../widgets/test_schedule_picker.dart';
 import 'tests_screen.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // no longer needed: assignment computed server-side
@@ -1125,70 +1124,6 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _showPublishDialog() {
-    // Dismiss keyboard before showing dialog
-    FocusScope.of(context).unfocus();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Publish Test'),
-        content: const Text(
-          'Are you sure you want to publish and assign this test to students?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              // Show loading dialog
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (BuildContext context) {
-                  return const Center(
-                    child: Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(20.0),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Color(0xFF6366F1),
-                              ),
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Publishing test...',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              );
-              await _saveTest(publish: true, schedule: false);
-              if (mounted) {
-                Navigator.pop(context); // Close loading dialog
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            ),
-            child: const Text('Publish'),
-          ),
-        ],
       ),
     );
   }

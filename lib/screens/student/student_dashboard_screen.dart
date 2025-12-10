@@ -365,7 +365,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             }
 
             final combinedDocs = announcementSnapshot.data ?? [];
-            final announcements = <dynamic>[];
+            final announcements = <Map<String, dynamic>>[];
 
             // Process teacher announcements
             for (final doc in combinedDocs) {
@@ -1062,11 +1062,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
   }
 
-  Future<int> _calculateStreakDays(String studentId) async {
-    // Placeholder - implement actual streak calculation
-    return 4;
-  }
-
   // Daily Challenge Card
   Widget _buildDailyChallengeCard(StudentModel student) {
     return Consumer2<DailyChallengeProvider, StudentProvider>(
@@ -1397,20 +1392,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     final period = date.hour >= 12 ? 'PM' : 'AM';
     final minute = date.minute.toString().padLeft(2, '0');
     return '$hour:$minute $period';
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final testDate = DateTime(date.year, date.month, date.day);
-
-    if (testDate == today) {
-      return 'Today, ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (testDate == today.add(const Duration(days: 1))) {
-      return 'Tomorrow';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
-    }
   }
 
   // Performance Section

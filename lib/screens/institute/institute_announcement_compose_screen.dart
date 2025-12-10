@@ -104,7 +104,7 @@ class _InstituteAnnouncementComposeScreenState
       final announcement = InstituteAnnouncementModel(
         id: '',
         principalId: currentUser.uid,
-        principalName: currentUser.name ?? 'Principal',
+        principalName: currentUser.name,
         principalEmail: currentUser.email,
         instituteId: currentUser.instituteId ?? '',
         text: messageText,

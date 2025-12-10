@@ -524,19 +524,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
   }
 
-  Widget _avatarPlaceholder() {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: _teacherPrimary.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.center,
-      child: const Icon(Icons.person, color: _teacherPrimary),
-    );
-  }
-
   void _viewStudentDetails(Map<String, dynamic> student) {
     Navigator.pushNamed(
       context,

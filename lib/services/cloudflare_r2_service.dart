@@ -69,10 +69,11 @@ class CloudflareR2Service {
       );
 
       // URL format: https://{accountId}.r2.cloudflarestorage.com/{bucketName}/{key}?params
+      // IMPORTANT: Query parameters in the URL must match the canonical request exactly
       final uploadUrl =
           '$_endpoint/$bucketName/$key'
           '?X-Amz-Algorithm=${credential['algorithm']}'
-          '&X-Amz-Credential=${Uri.encodeComponent(credential['credential']!)}'
+          '&X-Amz-Credential=${credential['credential']}'
           '&X-Amz-Date=${credential['date']}'
           '&X-Amz-Expires=${credential['expires']}'
           '&X-Amz-SignedHeaders=${credential['signedHeaders']}'
@@ -160,12 +161,18 @@ class CloudflareR2Service {
     required String expiresAt,
     required String uploadHostname,
   }) async {
-    final date = DateTime.now();
+    final date = DateTime.now().toUtc();
     final dateStr = _formatAmzDate(date);
     final shortDate = dateStr.substring(0, 8);
 
-    print('🕐 Signature date: $dateStr (device time)');
-    print('🕐 Device timezone: UTC+5:30 (IST)');
+    print('🕐 Device local time: ${DateTime.now()}');
+    print('🕐 UTC time used for signature: $dateStr');
+    print(
+      '⚠️ If you see 403 RequestTimeTooSkewed, your device clock is out of sync',
+    );
+    print(
+      '⚠️ FIX: Settings → Date & Time → Turn OFF "Set automatically", wait 5s, turn it back ON',
+    );
 
     // AWS Signature V4 process
     final credentialScope = '$shortDate/auto/s3/aws4_request';
@@ -173,11 +180,26 @@ class CloudflareR2Service {
 
     // Create canonical request using account-level endpoint
     // Path includes bucket name: /{bucketName}/{key}
+    // AWS Signature V4 format requires exact structure:
+    // For presigned URLs, query parameters MUST be in sorted order
+    // and credentials must use RFC 3986 encoding (%XX format)
+    final encodedCredential = Uri.encodeComponent(credential);
+    final canonicalQueryString =
+        'X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=$encodedCredential&X-Amz-Date=$dateStr&X-Amz-Expires=$expiresAt&X-Amz-SignedHeaders=host';
+    final canonicalHeaders = 'host:$uploadHostname';
+    final signedHeaders = 'host';
+    final hashedPayload = 'UNSIGNED-PAYLOAD'; // For pre-signed URLs
+
     final canonicalRequest =
-        '''$method
-/$bucketName/$key
-X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${Uri.encodeComponent(credential)}&X-Amz-Date=$dateStr&X-Amz-Expires=$expiresAt&X-Amz-SignedHeaders=host
-host:$uploadHostname''';
+        '$method\n/$bucketName/$key\n$canonicalQueryString\n$canonicalHeaders\n\n$signedHeaders\n$hashedPayload';
+
+    // Debug: Log canonical request for troubleshooting
+    print('🔐 Debug - Canonical Request (escaped):');
+    print('---');
+    print(canonicalRequest.replaceAll('\n', '\\n'));
+    print('---');
+    print('🔐 Debug - uploadHostname: $uploadHostname');
+    print('🔐 Debug - bucketName: $bucketName');
 
     // Create string to sign
     final hashedRequest = sha256
@@ -186,16 +208,23 @@ host:$uploadHostname''';
     final stringToSign =
         'AWS4-HMAC-SHA256\n$dateStr\n$credentialScope\n$hashedRequest';
 
-    // Calculate signature
-    final kDate = _hmacSha256('AWS4$secretAccessKey', shortDate);
-    final kRegion = _hmacSha256(kDate, 'auto');
-    final kService = _hmacSha256(kRegion, 's3');
-    final kSigning = _hmacSha256(kService, 'aws4_request');
-    final signature = _hmacSha256(kSigning, stringToSign);
+    // Calculate signature using proper AWS Signature V4 key derivation
+    // Each step uses the previous result as the key
+    final kDate = _hmacSha256Bytes(
+      utf8.encode('AWS4$secretAccessKey'),
+      shortDate,
+    );
+    final kRegion = _hmacSha256Bytes(kDate, 'auto');
+    final kService = _hmacSha256Bytes(kRegion, 's3');
+    final kSigning = _hmacSha256Bytes(kService, 'aws4_request');
+    final signatureBytes = _hmacSha256Bytes(kSigning, stringToSign);
+    final signature = signatureBytes
+        .map((e) => e.toRadixString(16).padLeft(2, '0'))
+        .join();
 
     return {
       'algorithm': 'AWS4-HMAC-SHA256',
-      'credential': credential,
+      'credential': encodedCredential,
       'date': dateStr,
       'expires': expiresAt,
       'signedHeaders': 'host',
@@ -214,15 +243,9 @@ host:$uploadHostname''';
     return '${year}${month}${day}T${hour}${minute}${second}Z';
   }
 
-  /// HMAC-SHA256 helper
-  String _hmacSha256(dynamic key, String message) {
-    if (key is String) {
-      key = utf8.encode(key);
-    }
-    return Hmac(
-      sha256,
-      key as List<int>,
-    ).convert(utf8.encode(message)).toString();
+  /// HMAC-SHA256 helper - returns List<int> for chaining
+  List<int> _hmacSha256Bytes(List<int> key, String message) {
+    return Hmac(sha256, key).convert(utf8.encode(message)).bytes;
   }
 
   /// Delete file from R2

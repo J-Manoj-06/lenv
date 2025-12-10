@@ -11,7 +11,6 @@ class PathEchoProvider with ChangeNotifier {
   Set<Point<int>> _visitedCells = {};
 
   int _currentLevel = 1;
-  int _displayIndex = 0;
   int _highestLevel = 1;
 
   GameState _gameState = GameState.idle;
@@ -108,7 +107,6 @@ class PathEchoProvider with ChangeNotifier {
     await Future.delayed(const Duration(milliseconds: 500));
 
     for (int i = 0; i < _path.length; i++) {
-      _displayIndex = i;
       _currentHighlight = _path[i];
       notifyListeners();
 

@@ -24,7 +24,6 @@ class _TeacherCommunityExploreScreenState
   bool _isLoading = true;
   Set<String> _joiningCommunities = {};
   Set<String> _joinedCommunities = {};
-  String? _teacherSchoolCode;
 
   final List<String> _categories = [
     'All',
@@ -66,7 +65,6 @@ class _TeacherCommunityExploreScreenState
     String schoolCode = '';
     if (teacherDoc.docs.isNotEmpty) {
       schoolCode = teacherDoc.docs.first.data()['schoolCode'] ?? '';
-      _teacherSchoolCode = schoolCode;
     }
 
     final communities = await _communityService.getExploreCommunitiesForTeacher(
@@ -164,7 +162,7 @@ class _TeacherCommunityExploreScreenState
       communityId: community.id,
       teacherId: currentUser.uid,
       teacherName: teacherData['name'] ?? '',
-      teacherEmail: currentUser.email ?? '',
+      teacherEmail: currentUser.email,
       schoolCode: teacherData['schoolCode'] ?? '',
     );
 

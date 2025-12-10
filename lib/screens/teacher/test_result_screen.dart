@@ -32,7 +32,6 @@ class _TestResultScreenState extends State<TestResultScreen> {
   double _averageScore = 0.0;
   double _highestScore = 0.0;
   double _lowestScore = 0.0;
-  int _totalQuestions = 0;
   List<Map<String, dynamic>> _questions = [];
 
   @override
@@ -106,9 +105,6 @@ class _TestResultScreenState extends State<TestResultScreen> {
             print('Correct: ${_questions[i]['correctAnswer']}');
           }
         }
-
-        _totalQuestions =
-            (testData['questionCount'] ?? _questions.length ?? 0) as int;
       }
 
       // Calculate statistics from completed results

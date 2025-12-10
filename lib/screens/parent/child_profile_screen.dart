@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
-import '../../models/test_result_model.dart';
 
 class ChildProfileScreen extends StatelessWidget {
   const ChildProfileScreen({super.key});

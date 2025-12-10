@@ -22,8 +22,6 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
   // Parent brand color
   static const Color parentGreen = Color(0xFF14A670);
-  static const Color parentGreenDark = Color(0xFF0F8A5A);
-  static const Color parentGreenLight = Color(0xFFD4F4E8);
   static const Color brandBrownDark = Color(0xFF1C140D);
   static const Color brandBrownLight = Color(0xFF9C7349);
   static const Color brandOffWhite = Color(0xFFFCFAF8);

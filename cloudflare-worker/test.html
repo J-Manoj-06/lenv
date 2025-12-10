@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cloudflare Worker Test</title>
+  <style>
+    body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+    .test-button { padding: 10px 20px; margin: 5px; cursor: pointer; border: 1px solid #007bff; background: #007bff; color: white; border-radius: 4px; }
+    .result { background: #f8f9fa; padding: 10px; margin-top: 10px; border-left: 4px solid #007bff; font-family: monospace; white-space: pre-wrap; }
+    .error { border-left-color: #dc3545; }
+    .success { border-left-color: #28a745; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Cloudflare Worker API Tester</h1>
+    
+    <h2>Configuration</h2>
+    <p>
+      Worker URL: <input id="workerUrl" type="text" value="http://127.0.0.1:8787" style="width: 300px; padding: 5px;">
+      <br/>
+      API Key: <input id="apiKey" type="text" value="dev-school-api-key-12345-change-this" style="width: 300px; padding: 5px;">
+    </p>
+
+    <h2>Tests</h2>
+    <button class="test-button" onclick="testStatus()">Test /status (No Auth)</button>
+    <button class="test-button" onclick="testAnnouncement()">Test /announcement</button>
+    <button class="test-button" onclick="testGroupMessage()">Test /groupMessage</button>
+    <button class="test-button" onclick="testScheduleTest()">Test /scheduleTest</button>
+
+    <h2>Results</h2>
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const resultsDiv = document.getElementById('results');
+
+    function addResult(title, response, isError = false) {
+      const div = document.createElement('div');
+      div.className = `result ${isError ? 'error' : 'success'}`;
+      div.innerHTML = `<strong>${title}</strong>\n` + JSON.stringify(response, null, 2);
+      resultsDiv.appendChild(div);
+    }
+
+    async function testStatus() {
+      try {
+        const response = await fetch(`${document.getElementById('workerUrl').value}/status`);
+        const data = await response.json();
+        addResult('✅ /status', data, !response.ok);
+      } catch (e) {
+        addResult('❌ /status Error', { error: e.message }, true);
+      }
+    }
+
+    async function testAnnouncement() {
+      try {
+        const response = await fetch(`${document.getElementById('workerUrl').value}/announcement`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${document.getElementById('apiKey').value}`
+          },
+          body: JSON.stringify({
+            title: 'Test Announcement',
+            message: 'This is a test announcement',
+            targetAudience: 'whole_school'
+          })
+        });
+        const data = await response.json();
+        addResult('✅ /announcement', data, !response.ok);
+      } catch (e) {
+        addResult('❌ /announcement Error', { error: e.message }, true);
+      }
+    }
+
+    async function testGroupMessage() {
+      try {
+        const response = await fetch(`${document.getElementById('workerUrl').value}/groupMessage`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${document.getElementById('apiKey').value}`
+          },
+          body: JSON.stringify({
+            groupId: 'class-10a',
+            senderId: 'teacher-123',
+            messageText: 'Test message'
+          })
+        });
+        const data = await response.json();
+        addResult('✅ /groupMessage', data, !response.ok);
+      } catch (e) {
+        addResult('❌ /groupMessage Error', { error: e.message }, true);
+      }
+    }
+
+    async function testScheduleTest() {
+      try {
+        const response = await fetch(`${document.getElementById('workerUrl').value}/scheduleTest`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${document.getElementById('apiKey').value}`
+          },
+          body: JSON.stringify({
+            classId: 'class-10a',
+            subject: 'Mathematics',
+            date: '2024-12-15',
+            time: '10:00',
+            createdBy: 'teacher-123'
+          })
+        });
+        const data = await response.json();
+        addResult('✅ /scheduleTest', data, !response.ok);
+      } catch (e) {
+        addResult('❌ /scheduleTest Error', { error: e.message }, true);
+      }
+    }
+  </script>
+</body>
+</html>

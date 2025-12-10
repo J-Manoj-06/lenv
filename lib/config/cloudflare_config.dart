@@ -20,13 +20,13 @@ class CloudflareConfig {
 
   /// API Token Access Key ID
   /// Created in: R2 Settings → API Tokens → Create Token
-  static const String accessKeyId = 'e5606eba19c4cc21cb9493128afc1f01';
+  static const String accessKeyId = '986dbaee695efe7655ae25759adc40b6';
 
   /// API Token Secret Access Key
   /// Created in: R2 Settings → API Tokens → Create Token
   /// ⚠️ Only shown once during creation - save securely
   static const String secretAccessKey =
-      'e060ff4595dd7d3e420eebaa76a5eb9b2d360bb7e078e5b039121dcac6e65e7e';
+      '4f0ad48f2941b9a2cb4f524f05707ed136e1826674fe78f3333fb33b66f0f53d';
 
   /// Public domain for accessing files
   /// Options:

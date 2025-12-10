@@ -159,8 +159,9 @@ class PerformanceInsightBubble extends StatelessWidget {
     // Cap percentages at 100% for display - handle both int and double
     final cappedData = <String, double>{};
     data.forEach((key, value) {
-      final doubleValue = (value is int) ? value.toDouble() : (value as double);
-      cappedData[key] = doubleValue.clamp(0.0, 100.0);
+      // Safely normalize any numeric type and clamp to display range
+      final doubleValue = (value is num) ? value.toDouble() : 0.0;
+      cappedData[key] = doubleValue.clamp(0.0, 100.0).toDouble();
     });
 
     return Column(
@@ -176,19 +177,17 @@ class PerformanceInsightBubble extends StatelessWidget {
                 enabled: true,
                 touchTooltipData: BarTouchTooltipData(
                   getTooltipColor: (group) => const Color(0xFF1A1A1A),
-                  tooltipRoundedRadius: 8,
                   tooltipPadding: const EdgeInsets.all(8),
                   tooltipMargin: 8,
-                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                    return BarTooltipItem(
-                      '${subjects[groupIndex]}\n${rod.toY.toStringAsFixed(1)}%',
-                      const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) =>
+                      BarTooltipItem(
+                        '${subjects[groupIndex]}\n${rod.toY.toStringAsFixed(1)}%',
+                        const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
-                    );
-                  },
                 ),
               ),
               titlesData: FlTitlesData(

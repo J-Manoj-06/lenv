@@ -256,11 +256,11 @@ class MediaUploadService {
       await _firestore
           .collection('conversations')
           .doc(media.conversationId)
-          .update({
+          .set({
             'lastMessage': '[Media: ${media.fileName}]',
             'lastMessageAt': FieldValue.serverTimestamp(),
             'lastMediaType': media.fileType,
-          });
+          }, SetOptions(merge: true));
     } catch (e) {
       print('❌ Failed to save metadata to Firestore: $e');
       rethrow;
@@ -348,8 +348,7 @@ class MediaUploadService {
           .limit(limit);
 
       if (startAfter != null) {
-        query =
-            query.startAfterDocument(startAfter) as Query<Map<String, dynamic>>;
+        query = query.startAfterDocument(startAfter);
       }
 
       final snapshot = await query.get();

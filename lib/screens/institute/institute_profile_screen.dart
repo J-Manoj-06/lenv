@@ -6,7 +6,6 @@ import '../../utils/session_manager.dart';
 
 const Color _bgDark = Color(0xFF111F21);
 const Color _cardDark = Color(0xFF1A2A2D);
-const Color _teal = Color(0xFF146D7A);
 
 class InstituteProfileScreen extends StatefulWidget {
   const InstituteProfileScreen({super.key});

@@ -911,7 +911,9 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                 Theme.of(context).cardColor,
           ),
           child: DropdownButtonFormField<String>(
-            initialValue: (value != null && items.contains(value)) ? value : null,
+            initialValue: (value != null && items.contains(value))
+                ? value
+                : null,
             isExpanded: true,
             dropdownColor: Theme.of(context).cardColor,
             style: TextStyle(
@@ -939,37 +941,6 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildGenerateButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: ElevatedButton(
-        onPressed: isGenerating ? null : _generateQuestions,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF6366F1),
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 2,
-        ),
-        child: isGenerating
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : const Text(
-                'Generate',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-      ),
     );
   }
 

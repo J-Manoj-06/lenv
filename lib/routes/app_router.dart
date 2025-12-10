@@ -14,7 +14,6 @@ import '../screens/student/student_login_screen.dart';
 import '../screens/parent/parent_login_screen.dart';
 import '../screens/parent/child_profile_screen.dart';
 import '../widgets/parent_main_navigation.dart';
-import '../screens/parent/parent_dashboard_screen.dart';
 import '../screens/institute/institute_login_screen.dart';
 import '../widgets/institute_main_navigation.dart';
 import '../screens/dev/dev_tools_screen.dart';

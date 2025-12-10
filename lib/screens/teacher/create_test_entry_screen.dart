@@ -18,18 +18,6 @@ class CreateTestEntryScreen extends StatelessWidget {
               ? Colors.white.withOpacity(0.05)
               : Colors.black.withOpacity(0.05));
 
-    TextStyle titleStyle(bool primary) => TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.bold,
-      color: primary ? Colors.white : (isDark ? Colors.white : Colors.black87),
-    );
-    TextStyle subtitleStyle(bool primary) => TextStyle(
-      fontSize: 13,
-      color: primary
-          ? Colors.white.withOpacity(0.6)
-          : (isDark ? Colors.white70 : Colors.black54),
-    );
-
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
@@ -129,7 +117,6 @@ class _OptionCard extends StatelessWidget {
   final bool glowPrimary;
 
   const _OptionCard({
-    super.key,
     required this.icon,
     required this.iconBg,
     required this.iconColor,

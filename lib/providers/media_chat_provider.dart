@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/media_message.dart';
-import '../models/chat_message.dart';
 import '../services/media_upload_service.dart';
 import '../services/cloudflare_r2_service.dart';
 import '../services/cloud_function_upload_service.dart';

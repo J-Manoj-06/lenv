@@ -257,67 +257,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
-  Widget _buildClassAndSectionInfo(ThemeData theme) {
-    if (_studentData?.className == null) {
-      return const SizedBox.shrink();
-    }
-
-    // Parse standard and section from className (e.g., "10 - A - math")
-    String standard = '';
-    String section = _studentData?.section ?? '';
-
-    if (_studentData!.className?.isNotEmpty ?? false) {
-      final parts = _studentData!.className!.split(' - ');
-      if (parts.isNotEmpty) {
-        standard = 'Grade ${parts[0].trim()}';
-        if (parts.length > 1 && section.isEmpty) {
-          section = parts[1].trim();
-        }
-      }
-    }
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (standard.isNotEmpty) ...[
-          Text(
-            standard,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          if (section.isNotEmpty) ...[
-            Text(
-              ' - ',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF97316).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: const Color(0xFFF97316).withOpacity(0.3),
-                ),
-              ),
-              child: Text(
-                'Section $section',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFFF97316),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ],
-    );
-  }
-
   Widget _buildClassAndSectionBadges(ThemeData theme) {
     if (_studentData?.className == null) return const SizedBox.shrink();
     String standard = '';
@@ -411,42 +350,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildStatCard(Map<String, String> stat) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    // Two cards per row with spacing
-    final cardWidth = (screenWidth - 48) / 2;
-
-    return Container(
-      width: cardWidth,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(stat['label']!, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          Text(
-            stat['value']!,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
     );
   }
 

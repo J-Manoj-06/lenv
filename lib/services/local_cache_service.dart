@@ -240,7 +240,7 @@ class LocalCacheService {
           ? 0
           : _messagesBox.values.fold(
               0,
-              (sum, val) => sum + (val.toString().length ?? 0),
+              (sum, val) => sum + val.toString().length,
             ),
     };
   }
