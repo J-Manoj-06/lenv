@@ -6,6 +6,7 @@ import '../../providers/daily_challenge_provider.dart';
 import '../../models/test_model.dart';
 import '../../models/test_result_model.dart';
 import '../../models/status_model.dart';
+import '../../models/institute_announcement_model.dart';
 import '../../models/student_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
@@ -355,34 +356,45 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         final userStandard = snapshot.data!['standard'] ?? '';
         final userSection = snapshot.data!['section'] ?? '';
 
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('class_highlights')
-              .where('instituteId', isEqualTo: schoolIdentifier)
-              .where('expiresAt', isGreaterThan: Timestamp.now())
-              .orderBy('expiresAt', descending: false)
-              .orderBy('createdAt', descending: true)
-              .limit(10)
-              .snapshots(),
+        return StreamBuilder<List<Map<String, dynamic>>>(
+          stream: _combineAnnouncementStreams(schoolIdentifier),
           builder: (context, announcementSnapshot) {
             if (announcementSnapshot.connectionState ==
                 ConnectionState.waiting) {
               return const SizedBox.shrink();
             }
 
-            final announcements = announcementSnapshot.hasData
-                ? announcementSnapshot.data!.docs
-                      .map((doc) => StatusModel.fromFirestore(doc))
-                      .where(
-                        (a) =>
-                            a.teacherId.isNotEmpty &&
-                            a.isVisibleTo(
-                              userStandard: userStandard,
-                              userSection: userSection,
-                            ),
-                      )
-                      .toList()
-                : <StatusModel>[];
+            final combinedDocs = announcementSnapshot.data ?? [];
+            final announcements = <dynamic>[];
+
+            // Process teacher announcements
+            for (final doc in combinedDocs) {
+              if (doc['type'] == 'teacher') {
+                final status = StatusModel.fromFirestore(
+                  doc['snapshot'] as DocumentSnapshot,
+                );
+                if (status.teacherId.isNotEmpty &&
+                    status.isVisibleTo(
+                      userStandard: userStandard,
+                      userSection: userSection,
+                    )) {
+                  announcements.add({'type': 'teacher', 'data': status});
+                }
+              } else if (doc['type'] == 'principal') {
+                final announcement = InstituteAnnouncementModel.fromFirestore(
+                  doc['snapshot'] as DocumentSnapshot,
+                );
+                // Only show school-wide or matching standard announcements
+                if (announcement.audienceType == 'school' ||
+                    (announcement.audienceType == 'standard' &&
+                        announcement.standards.contains(userStandard))) {
+                  announcements.add({
+                    'type': 'principal',
+                    'data': announcement,
+                  });
+                }
+              }
+            }
 
             if (announcements.isEmpty) return const SizedBox.shrink();
 
@@ -394,25 +406,48 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 
   Widget _buildAnnouncementsRow(
-    List<StatusModel> announcements,
+    List<Map<String, dynamic>> announcements,
     String currentUserId,
   ) {
-    final Map<String, List<StatusModel>> groupedByTeacher = {};
+    // Group announcements by creator
+    final Map<String, List<Map<String, dynamic>>> groupedByCreator = {};
     for (final announcement in announcements) {
-      groupedByTeacher
-          .putIfAbsent(announcement.teacherId, () => [])
-          .add(announcement);
+      final type = announcement['type'];
+      final data = announcement['data'];
+      final creatorId = type == 'teacher'
+          ? (data as StatusModel).teacherId
+          : (data as InstituteAnnouncementModel).principalId;
+
+      groupedByCreator.putIfAbsent(creatorId, () => []).add(announcement);
     }
 
-    final teacherGroups = groupedByTeacher.entries.map((entry) {
+    final creatorGroups = groupedByCreator.entries.map((entry) {
       final list = entry.value;
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      list.sort((a, b) {
+        final aData = a['data'];
+        final bData = b['data'];
+        final aTime = a['type'] == 'teacher'
+            ? (aData as StatusModel).createdAt
+            : (aData as InstituteAnnouncementModel).createdAt;
+        final bTime = b['type'] == 'teacher'
+            ? (bData as StatusModel).createdAt
+            : (bData as InstituteAnnouncementModel).createdAt;
+        return bTime.compareTo(aTime);
+      });
       return list;
     }).toList();
 
-    teacherGroups.sort(
-      (a, b) => b.first.createdAt.compareTo(a.first.createdAt),
-    );
+    creatorGroups.sort((a, b) {
+      final aData = a.first['data'];
+      final bData = b.first['data'];
+      final aTime = a.first['type'] == 'teacher'
+          ? (aData as StatusModel).createdAt
+          : (aData as InstituteAnnouncementModel).createdAt;
+      final bTime = b.first['type'] == 'teacher'
+          ? (bData as StatusModel).createdAt
+          : (bData as InstituteAnnouncementModel).createdAt;
+      return bTime.compareTo(aTime);
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -439,21 +474,46 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           child: ListView.separated(
             padding: const EdgeInsets.only(bottom: 8),
             scrollDirection: Axis.horizontal,
-            itemCount: teacherGroups.length,
+            itemCount: creatorGroups.length,
             separatorBuilder: (_, __) => const SizedBox(width: 16),
             itemBuilder: (context, index) {
-              final teacherAnnouncements = teacherGroups[index];
-              final latest = teacherAnnouncements.first;
-              final hasUnread = teacherAnnouncements.any(
-                (a) => !a.viewedBy.contains(currentUserId),
-              );
+              final creatorAnnouncements = creatorGroups[index];
+              final latest = creatorAnnouncements.first;
+              final latestData = latest['data'];
+              final latestType = latest['type'];
 
-              return _buildAnnouncementAvatar(
-                latest,
-                hasUnread,
-                () => _openAnnouncementViewer(teacherAnnouncements, 0),
-                count: teacherAnnouncements.length,
-              );
+              bool hasUnread = false;
+              if (latestType == 'teacher') {
+                hasUnread = creatorAnnouncements.any(
+                  (a) => !(a['data'] as StatusModel).viewedBy.contains(
+                    currentUserId,
+                  ),
+                );
+              } else {
+                // For principal announcements, always show as unread for now
+                hasUnread = true;
+              }
+
+              final name = latestType == 'teacher'
+                  ? (latestData as StatusModel).teacherName
+                  : 'Principal';
+
+              return _buildAnnouncementAvatar(name, hasUnread, () {
+                if (latestType == 'teacher') {
+                  final statusList = creatorAnnouncements
+                      .where((a) => a['type'] == 'teacher')
+                      .map((a) => a['data'] as StatusModel)
+                      .toList();
+                  _openAnnouncementViewer(statusList, 0);
+                } else {
+                  // Show principal announcement
+                  final principalAnnouncements = creatorAnnouncements
+                      .where((a) => a['type'] == 'principal')
+                      .map((a) => a['data'] as InstituteAnnouncementModel)
+                      .toList();
+                  _showPrincipalAnnouncement(principalAnnouncements.first);
+                }
+              }, count: creatorAnnouncements.length);
             },
           ),
         ),
@@ -462,7 +522,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 
   Widget _buildAnnouncementAvatar(
-    StatusModel announcement,
+    String name,
     bool isUnread,
     VoidCallback onTap, {
     int count = 1,
@@ -500,9 +560,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     radius: 26,
                     backgroundColor: const Color(0xFFFFF5EB),
                     child: Text(
-                      announcement.teacherName.isNotEmpty
-                          ? announcement.teacherName[0].toUpperCase()
-                          : 'T',
+                      name.isNotEmpty ? name[0].toUpperCase() : 'A',
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -547,9 +605,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           SizedBox(
             width: 64,
             child: Text(
-              announcement.teacherName.isNotEmpty
-                  ? announcement.teacherName.split(' ').first
-                  : 'Teacher',
+              name.isNotEmpty ? name.split(' ').first : 'Announcement',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
@@ -582,6 +638,159 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         ),
       ),
     );
+  }
+
+  void _showPrincipalAnnouncement(InstituteAnnouncementModel announcement) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Color(0xFF146D7A),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.campaign, color: Colors.white, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Principal Announcement',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          announcement.principalName,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            // Content
+            Container(
+              constraints: const BoxConstraints(maxHeight: 500),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (announcement.hasImage)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          announcement.imageUrl!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        ),
+                      ),
+                    if (announcement.hasImage && announcement.hasText)
+                      const SizedBox(height: 16),
+                    if (announcement.hasText)
+                      Text(
+                        announcement.text,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          color: Colors.white54,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatAnnouncementTime(announcement.createdAt),
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatAnnouncementTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
+  }
+
+  // Combine announcements from both teachers and principals
+  Stream<List<Map<String, dynamic>>> _combineAnnouncementStreams(
+    String instituteId,
+  ) async* {
+    await for (final teacherSnapshot
+        in FirebaseFirestore.instance
+            .collection('class_highlights')
+            .where('instituteId', isEqualTo: instituteId)
+            .where('expiresAt', isGreaterThan: Timestamp.now())
+            .snapshots()) {
+      // Get principal announcements as a one-time fetch
+      final principalSnapshot = await FirebaseFirestore.instance
+          .collection('institute_announcements')
+          .where('instituteId', isEqualTo: instituteId)
+          .get();
+
+      final combined = <Map<String, dynamic>>[];
+
+      // Add teacher announcements
+      for (final doc in teacherSnapshot.docs) {
+        combined.add({'type': 'teacher', 'snapshot': doc});
+      }
+
+      // Add principal announcements
+      for (final doc in principalSnapshot.docs) {
+        combined.add({'type': 'principal', 'snapshot': doc});
+      }
+
+      yield combined;
+    }
   }
 
   Future<Map<String, String>> _parseStudentInfo(StudentModel student) async {

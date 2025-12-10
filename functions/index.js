@@ -313,3 +313,7 @@ exports.onScheduledTestCreate = functions
 const { uploadFileToR2 } = require('./uploadFileToR2');
 exports.uploadFileToR2 = uploadFileToR2;
 
+// Import Cloud Functions for announcement cleanup (cost optimization)
+const { deleteExpiredAnnouncements, manualDeleteExpiredAnnouncements } = require('./deleteExpiredAnnouncements');
+exports.deleteExpiredAnnouncements = deleteExpiredAnnouncements;
+exports.manualDeleteExpiredAnnouncements = manualDeleteExpiredAnnouncements;

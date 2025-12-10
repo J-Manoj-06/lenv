@@ -1,17 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import './institute_announcement_target_screen.dart';
+import '../../providers/auth_provider.dart';
+import '../../models/institute_announcement_model.dart';
 
 const Color _backgroundDark = Color(0xFF0F172A); // slate-900
 const Color _cardColor = Color(0xFF1E293B); // slate-800
 const Color _teal = Color(0xFF146D7A); // custom teal
 const Color _slate400 = Color(0xFF94A3B8);
 
-class InstituteDashboardScreen extends StatelessWidget {
+class InstituteDashboardScreen extends StatefulWidget {
   const InstituteDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final stories = _buildStories();
+  State<InstituteDashboardScreen> createState() =>
+      _InstituteDashboardScreenState();
+}
 
+class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _backgroundDark,
       body: SafeArea(
@@ -22,33 +36,7 @@ class InstituteDashboardScreen extends StatelessWidget {
             children: [
               _TopBar(teal: _teal),
               const _SectionHeader(title: 'Announcements'),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: SizedBox(
-                  height: 110,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    itemBuilder: (context, index) {
-                      final item = stories[index];
-                      if (item.isAddButton) {
-                        return const _AddStoryButton();
-                      }
-                      return _StoryAvatar(
-                        name: item.title,
-                        imageUrl: item.imageUrl,
-                        teal: _teal,
-                        labelColor: _slate400,
-                      );
-                    },
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemCount: stories.length,
-                  ),
-                ),
-              ),
+              _buildAnnouncementsSection(),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -89,35 +77,423 @@ class InstituteDashboardScreen extends StatelessWidget {
     );
   }
 
-  List<_StoryItem> _buildStories() {
-    return const [
-      _StoryItem(isAddButton: true),
-      _StoryItem(
-        title: 'Mr. Smith',
-        imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuAxYMuOwpb1DLblA9biHKSJw_DnR0jgUcdOHHs1MTclYl1mAxPIvZB4OhuavM3fbAIAVlRr-xUROUhpB8cT4EQ3kGwqtqh2TxPUImWGgyzQ21btC-c1Hy1g4SYt_VQOEYXILABA8LvS2xR6_ziihVp92FCWzWaK36uijGu_PWjqASbCSRTXJEHNKu-ery0UvupF7U7Zf6J5gihogANYY8wvbNr7OVrlNFygnjcZDqy6TsTQae5ZtwbWQuhmq2O41tIcOuXsdqxUlAi6',
+  // Build announcements section with real Firestore data
+  Widget _buildAnnouncementsSection() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    final currentUserId = currentUser?.uid;
+    final instituteId = currentUser?.instituteId ?? '';
+
+    if (instituteId.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Text(
+          'Unable to load announcements. Please check your connection.',
+          style: TextStyle(color: _slate400),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 110,
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('institute_announcements')
+            .where('instituteId', isEqualTo: instituteId)
+            .snapshots(),
+        builder: (context, snapshot) {
+          // Loading state
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              scrollDirection: Axis.horizontal,
+              itemCount: 5,
+              itemBuilder: (_, __) => _buildShimmerCircle(),
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+            );
+          }
+
+          // Error state
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Error loading announcements',
+                  style: TextStyle(color: _slate400),
+                ),
+              ),
+            );
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+
+          // Convert docs to InstituteAnnouncementModel and filter valid ones
+          final allAnnouncements =
+              docs
+                  .map((d) => InstituteAnnouncementModel.fromFirestore(d))
+                  .where((a) => a.instituteId == instituteId)
+                  .toList()
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+          // Segregate: My announcements vs Other Principals
+          final myAnnouncements = allAnnouncements
+              .where((a) => a.principalId == currentUserId)
+              .toList();
+
+          // Group other principals' announcements by principalId
+          final otherPrincipalsMap =
+              <String, List<InstituteAnnouncementModel>>{};
+          for (final announcement in allAnnouncements) {
+            if (announcement.principalId != currentUserId) {
+              otherPrincipalsMap
+                  .putIfAbsent(announcement.principalId, () => [])
+                  .add(announcement);
+            }
+          }
+
+          // Sort each principal's announcements by timestamp
+          otherPrincipalsMap.forEach((key, value) {
+            value.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          });
+
+          // Create list of other principals (sorted by latest post)
+          final otherPrincipals = otherPrincipalsMap.entries.toList()
+            ..sort(
+              (a, b) =>
+                  b.value.first.createdAt.compareTo(a.value.first.createdAt),
+            );
+
+          // Build horizontal list: My Announcement + Other Principals
+          return ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: 1 + otherPrincipals.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                // My Announcement (always first)
+                return _buildMyAnnouncementAvatar(myAnnouncements, currentUser);
+              } else {
+                // Other Principals
+                final principalEntry = otherPrincipals[index - 1];
+                final announcements = principalEntry.value;
+                final latestAnnouncement = announcements.first;
+                return _buildOtherPrincipalAvatar(
+                  latestAnnouncement,
+                  announcements,
+                );
+              }
+            },
+          );
+        },
       ),
-      _StoryItem(
-        title: 'Ms. Jones',
-        imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuAxYMuOwpb1DLblA9biHKSJw_DnR0jgUcdOHHs1MTclYl1mAxPIvZB4OhuavM3fbAIAVlRr-xUROUhpB8cT4EQ3kGwqtqh2TxPUImWGgyzQ21btC-c1Hy1g4SYt_VQOEYXILABA8LvS2xR6_ziihVp92FCWzWaK36uijGu_PWjqASbCSRTXJEHNKu-ery0UvupF7U7Zf6J5gihogANYY8wvbNr7OVrlNFygnjcZDqy6TsTQae5ZtwbWQuhmq2O41tIcOuXsdqxUlAi6',
+    );
+  }
+
+  // Shimmer loading circle
+  Widget _buildShimmerCircle() {
+    return Column(
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _cardColor.withOpacity(0.5),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: 40,
+          height: 10,
+          decoration: BoxDecoration(
+            color: _cardColor.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // My Announcement Avatar (First item with + button)
+  Widget _buildMyAnnouncementAvatar(
+    List<InstituteAnnouncementModel> myAnnouncements,
+    dynamic currentUser,
+  ) {
+    final hasAnnouncement = myAnnouncements.isNotEmpty;
+    final latestAnnouncement = hasAnnouncement ? myAnnouncements.first : null;
+
+    return GestureDetector(
+      onTap: () {
+        if (hasAnnouncement) {
+          // TODO: Open announcement viewer
+        } else {
+          _openAnnouncementTargetSelection();
+        }
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Main Avatar Circle
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: hasAnnouncement
+                      ? const LinearGradient(
+                          colors: [Color(0xFF146D7A), Color(0xFF1E9BA8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  border: !hasAnnouncement
+                      ? Border.all(color: _teal, width: 2)
+                      : null,
+                  color: !hasAnnouncement ? _cardColor : null,
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: hasAnnouncement
+                        ? (latestAnnouncement!.hasImage
+                              ? Colors.transparent
+                              : _teal)
+                        : _cardColor,
+                  ),
+                  child: ClipOval(
+                    child: hasAnnouncement && latestAnnouncement!.hasImage
+                        ? Image.network(
+                            latestAnnouncement.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _buildDefaultAvatar(
+                              currentUser?.name ?? 'Principal',
+                            ),
+                          )
+                        : _buildDefaultAvatar(currentUser?.name ?? 'Principal'),
+                  ),
+                ),
+              ),
+
+              // Add (+) Icon Overlay (Small, bottom-right)
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: GestureDetector(
+                  onTap: _openAnnouncementTargetSelection,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF146D7A), Color(0xFF1E9BA8)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      border: Border.all(color: _backgroundDark, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _teal.withOpacity(0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Label
+          SizedBox(
+            width: 70,
+            child: Text(
+              'Add',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _slate400,
+              ),
+            ),
+          ),
+        ],
       ),
-      _StoryItem(
-        title: 'Event',
-        imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuAxYMuOwpb1DLblA9biHKSJw_DnR0jgUcdOHHs1MTclYl1mAxPIvZB4OhuavM3fbAIAVlRr-xUROUhpB8cT4EQ3kGwqtqh2TxPUImWGgyzQ21btC-c1Hy1g4SYt_VQOEYXILABA8LvS2xR6_ziihVp92FCWzWaK36uijGu_PWjqASbCSRTXJEHNKu-ery0UvupF7U7Zf6J5gihogANYY8wvbNr7OVrlNFygnjcZDqy6TsTQae5ZtwbWQuhmq2O41tIcOuXsdqxUlAi6',
+    );
+  }
+
+  Widget _buildDefaultAvatar(String name) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'P',
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+        ),
       ),
-      _StoryItem(
-        title: 'Team',
-        imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuAxYMuOwpb1DLblA9biHKSJw_DnR0jgUcdOHHs1MTclYl1mAxPIvZB4OhuavM3fbAIAVlRr-xUROUhpB8cT4EQ3kGwqtqh2TxPUImWGgyzQ21btC-c1Hy1g4SYt_VQOEYXILABA8LvS2xR6_ziihVp92FCWzWaK36uijGu_PWjqASbCSRTXJEHNKu-ery0UvupF7U7Zf6J5gihogANYY8wvbNr7OVrlNFygnjcZDqy6TsTQae5ZtwbWQuhmq2O41tIcOuXsdqxUlAi6',
+    );
+  }
+
+  // Other Principal Avatar
+  Widget _buildOtherPrincipalAvatar(
+    InstituteAnnouncementModel latestAnnouncement,
+    List<InstituteAnnouncementModel> allAnnouncements,
+  ) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUserId = authProvider.currentUser?.uid ?? '';
+
+    // Check if any of this principal's announcements are unviewed
+    final hasUnviewed = allAnnouncements.any(
+      (a) => !_hasBeenViewedSync(a.id, currentUserId),
+    );
+
+    return GestureDetector(
+      onTap: () {
+        // TODO: Open announcement viewer
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Avatar with gradient border
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: hasUnviewed
+                  ? const LinearGradient(
+                      colors: [Color(0xFFF27F0D), Color(0xFFFF9F40)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : LinearGradient(
+                      colors: [
+                        Colors.grey.withOpacity(0.4),
+                        Colors.grey.withOpacity(0.3),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+              boxShadow: hasUnviewed
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFF27F0D).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: latestAnnouncement.hasImage ? Colors.transparent : _teal,
+              ),
+              child: ClipOval(
+                child: latestAnnouncement.hasImage
+                    ? ColorFiltered(
+                        colorFilter: hasUnviewed
+                            ? const ColorFilter.mode(
+                                Colors.transparent,
+                                BlendMode.multiply,
+                              )
+                            : ColorFilter.mode(
+                                Colors.grey.withOpacity(0.5),
+                                BlendMode.saturation,
+                              ),
+                        child: Image.network(
+                          latestAnnouncement.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildPrincipalInitial(
+                            latestAnnouncement.principalName,
+                          ),
+                        ),
+                      )
+                    : _buildPrincipalInitial(latestAnnouncement.principalName),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Principal Name
+          SizedBox(
+            width: 70,
+            child: Text(
+              latestAnnouncement.principalName.split(' ').first,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _slate400,
+              ),
+            ),
+          ),
+        ],
       ),
-      _StoryItem(
-        title: 'General',
-        imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuAxYMuOwpb1DLblA9biHKSJw_DnR0jgUcdOHHs1MTclYl1mAxPIvZB4OhuavM3fbAIAVlRr-xUROUhpB8cT4EQ3kGwqtqh2TxPUImWGgyzQ21btC-c1Hy1g4SYt_VQOEYXILABA8LvS2xR6_ziihVp92FCWzWaK36uijGu_PWjqASbCSRTXJEHNKu-ery0UvupF7U7Zf6J5gihogANYY8wvbNr7OVrlNFygnjcZDqy6TsTQae5ZtwbWQuhmq2O41tIcOuXsdqxUlAi6',
+    );
+  }
+
+  Widget _buildPrincipalInitial(String name) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'P',
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+        ),
       ),
-    ];
+    );
+  }
+
+  // Synchronous check for viewed status (simplified for now)
+  bool _hasBeenViewedSync(String announcementId, String userId) {
+    // For simplicity, assume unviewed for now
+    // In production, you'd cache this data or use a different approach
+    return false;
+  }
+
+  void _openAnnouncementTargetSelection() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const InstituteAnnouncementTargetScreen(),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }
 
@@ -168,113 +544,6 @@ class _TopBar extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _StoryItem {
-  const _StoryItem({
-    this.title = '',
-    this.imageUrl = '',
-    this.isAddButton = false,
-  });
-
-  final String title;
-  final String imageUrl;
-  final bool isAddButton;
-}
-
-class _AddStoryButton extends StatelessWidget {
-  const _AddStoryButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-            ),
-            Positioned(
-              bottom: -4,
-              right: -4,
-              child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: _teal,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.add, size: 16, color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        const Text('Add New', style: TextStyle(color: _slate400, fontSize: 13)),
-      ],
-    );
-  }
-}
-
-class _StoryAvatar extends StatelessWidget {
-  const _StoryAvatar({
-    required this.name,
-    required this.imageUrl,
-    required this.teal,
-    required this.labelColor,
-  });
-
-  final String name;
-  final String imageUrl;
-  final Color teal;
-  final Color labelColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: teal, width: 2),
-          ),
-          child: ClipOval(child: Image.network(imageUrl, fit: BoxFit.cover)),
-        ),
-        const SizedBox(height: 6),
-        Text(name, style: TextStyle(color: labelColor, fontSize: 13)),
-      ],
     );
   }
 }

@@ -31,6 +31,43 @@
         { "fieldPath": "studentId", "order": "ASCENDING" },
         { "fieldPath": "completedAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "institute_announcements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "instituteId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "institute_announcements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "instituteId", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "institute_announcements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "instituteId", "order": "ASCENDING" },
+        { "fieldPath": "audienceType", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "institute_announcements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "instituteId", "order": "ASCENDING" },
+        { "fieldPath": "audienceType", "order": "ASCENDING" },
+        { "fieldPath": "standards", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

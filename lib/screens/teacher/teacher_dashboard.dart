@@ -10,6 +10,7 @@ import '../../widgets/teacher_bottom_nav.dart';
 import '../../services/teacher_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/status_model.dart';
+import '../../models/institute_announcement_model.dart';
 import '../../services/parent_teacher_group_service.dart';
 import '../../models/parent_teacher_group.dart';
 import 'status_view_screen.dart';
@@ -927,11 +928,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         // Single Horizontal List (WhatsApp-style)
         SizedBox(
           height: 100,
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('class_highlights')
-                .where('instituteId', isEqualTo: instituteId)
-                .snapshots(),
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _combineAnnouncementStreams(instituteId),
             builder: (context, snapshot) {
               // Loading state
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -959,67 +957,112 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 );
               }
 
-              final docs = snapshot.data?.docs ?? [];
+              final combinedDocs = snapshot.data ?? [];
 
-              // Convert docs to StatusModel and filter valid ones
-              final allStatuses =
-                  docs
-                      .map((d) => StatusModel.fromFirestore(d))
-                      .where((s) => s.isValid && s.instituteId == instituteId)
-                      .toList()
-                    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+              // Convert to unified announcement objects
+              final allAnnouncements = <_AnnouncementItem>[];
 
-              // Segregate: My announcements vs Other Teachers
-              final myStatuses = allStatuses
-                  .where((s) => s.teacherId == currentUserId)
-                  .toList();
-
-              // Group other teachers' announcements by teacherId
-              final otherTeachersMap = <String, List<StatusModel>>{};
-              for (final status in allStatuses) {
-                if (status.teacherId != currentUserId) {
-                  otherTeachersMap
-                      .putIfAbsent(status.teacherId, () => [])
-                      .add(status);
+              for (final doc in combinedDocs) {
+                if (doc['type'] == 'teacher') {
+                  // Teacher announcement (StatusModel)
+                  final status = StatusModel.fromFirestore(
+                    doc['snapshot'] as DocumentSnapshot,
+                  );
+                  if (status.isValid && status.instituteId == instituteId) {
+                    allAnnouncements.add(
+                      _AnnouncementItem(
+                        id: status.id,
+                        creatorId: status.teacherId,
+                        creatorName: status.teacherName,
+                        createdAt: status.createdAt,
+                        hasImage: status.hasImage,
+                        imageUrl: status.imageUrl,
+                        type: 'teacher',
+                        data: status,
+                      ),
+                    );
+                  }
+                } else if (doc['type'] == 'principal') {
+                  // Principal announcement (InstituteAnnouncementModel)
+                  final announcement = InstituteAnnouncementModel.fromFirestore(
+                    doc['snapshot'] as DocumentSnapshot,
+                  );
+                  if (announcement.instituteId == instituteId) {
+                    allAnnouncements.add(
+                      _AnnouncementItem(
+                        id: announcement.id,
+                        creatorId: announcement.principalId,
+                        creatorName: announcement.principalName,
+                        createdAt: announcement.createdAt,
+                        hasImage: announcement.hasImage,
+                        imageUrl: announcement.imageUrl,
+                        type: 'principal',
+                        data: announcement,
+                      ),
+                    );
+                  }
                 }
               }
 
-              // Sort each teacher's announcements by timestamp
-              otherTeachersMap.forEach((key, value) {
+              // Sort by timestamp
+              allAnnouncements.sort(
+                (a, b) => b.createdAt.compareTo(a.createdAt),
+              );
+
+              // Segregate: My announcements vs Others
+              final myAnnouncements = allAnnouncements
+                  .where(
+                    (a) => a.creatorId == currentUserId && a.type == 'teacher',
+                  )
+                  .toList();
+
+              // Group others by creatorId
+              final othersMap = <String, List<_AnnouncementItem>>{};
+              for (final announcement in allAnnouncements) {
+                if (announcement.creatorId != currentUserId ||
+                    announcement.type != 'teacher') {
+                  othersMap
+                      .putIfAbsent(announcement.creatorId, () => [])
+                      .add(announcement);
+                }
+              }
+
+              // Sort each creator's announcements by timestamp
+              othersMap.forEach((key, value) {
                 value.sort((a, b) => b.createdAt.compareTo(a.createdAt));
               });
 
-              // Create list of other teachers (sorted by latest post)
-              final otherTeachers = otherTeachersMap.entries.toList()
+              // Create list of others (sorted by latest post)
+              final others = othersMap.entries.toList()
                 ..sort(
                   (a, b) => b.value.first.createdAt.compareTo(
                     a.value.first.createdAt,
                   ),
                 );
 
-              // Build single horizontal list: My Announcement + Other Teachers
+              // Build single horizontal list: My Announcement + Others
               return ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
-                itemCount: 1 + otherTeachers.length, // 1 for "My Announcement"
+                itemCount: 1 + others.length, // 1 for "My Announcement"
                 separatorBuilder: (_, __) => const SizedBox(width: 16),
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     // My Announcement (always first)
                     return _buildMyAnnouncementAvatar(
                       theme,
-                      myStatuses,
+                      myAnnouncements,
                       currentUser,
                     );
                   } else {
-                    // Other Teachers
-                    final teacherEntry = otherTeachers[index - 1];
-                    final statuses = teacherEntry.value;
-                    final latestStatus = statuses.first;
-                    return _buildOtherTeacherAvatar(
+                    // Others (Teachers + Principals)
+                    final creatorEntry = others[index - 1];
+                    final announcements = creatorEntry.value;
+                    final latestAnnouncement = announcements.first;
+                    return _buildOtherAnnouncementAvatar(
                       theme,
-                      latestStatus,
-                      statuses,
+                      latestAnnouncement,
+                      announcements,
                     );
                   }
                 },
@@ -1034,16 +1077,23 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   // My Announcement Avatar (First item in horizontal list)
   Widget _buildMyAnnouncementAvatar(
     ThemeData theme,
-    List<StatusModel> myStatuses,
+    List<_AnnouncementItem> myAnnouncements,
     dynamic currentUser,
   ) {
-    final hasAnnouncement = myStatuses.isNotEmpty;
-    final latestStatus = hasAnnouncement ? myStatuses.first : null;
+    final hasAnnouncement = myAnnouncements.isNotEmpty;
+    final latestAnnouncement = hasAnnouncement ? myAnnouncements.first : null;
 
     return GestureDetector(
       onTap: () {
         if (hasAnnouncement) {
-          _openStatusViewer(myStatuses, 0);
+          // Convert to StatusModel list for viewer
+          final statusList = myAnnouncements
+              .where((a) => a.type == 'teacher')
+              .map((a) => a.data as StatusModel)
+              .toList();
+          if (statusList.isNotEmpty) {
+            _openStatusViewer(statusList, 0);
+          }
         } else {
           _showCreateHighlightSheet();
         }
@@ -1080,15 +1130,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: hasAnnouncement
-                        ? (latestStatus!.hasImage
+                        ? (latestAnnouncement!.hasImage
                               ? Colors.transparent
                               : const Color(0xFF7E57C2))
                         : theme.cardColor,
                   ),
                   child: ClipOval(
-                    child: hasAnnouncement && latestStatus!.hasImage
+                    child: hasAnnouncement && latestAnnouncement!.hasImage
                         ? Image.network(
-                            latestStatus.imageUrl!,
+                            latestAnnouncement.imageUrl!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => _buildDefaultAvatar(
                               currentUser?.name ?? 'Teacher',
@@ -1173,22 +1223,49 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
-  // Other Teacher Avatar (Subsequent items in horizontal list)
-  Widget _buildOtherTeacherAvatar(
+  // Other Announcement Avatar (Teachers + Principals)
+  Widget _buildOtherAnnouncementAvatar(
     ThemeData theme,
-    StatusModel latestStatus,
-    List<StatusModel> allStatuses,
+    _AnnouncementItem latestAnnouncement,
+    List<_AnnouncementItem> allAnnouncements,
   ) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUserId = authProvider.currentUser?.uid ?? '';
 
-    // Check if any of this teacher's announcements are unviewed
-    final hasUnviewed = allStatuses.any(
-      (s) => !s.hasBeenViewedBy(currentUserId),
-    );
+    // Check if any announcements are unviewed
+    bool hasUnviewed = false;
+    if (latestAnnouncement.type == 'teacher') {
+      hasUnviewed = allAnnouncements.any(
+        (a) =>
+            a.type == 'teacher' &&
+            !(a.data as StatusModel).hasBeenViewedBy(currentUserId),
+      );
+    } else {
+      // For principal announcements, assume unviewed for now (simplified)
+      hasUnviewed = true;
+    }
 
     return GestureDetector(
-      onTap: () => _openStatusViewer(allStatuses, 0),
+      onTap: () {
+        if (latestAnnouncement.type == 'teacher') {
+          final statusList = allAnnouncements
+              .where((a) => a.type == 'teacher')
+              .map((a) => a.data as StatusModel)
+              .toList();
+          if (statusList.isNotEmpty) {
+            _openStatusViewer(statusList, 0);
+          }
+        } else {
+          // Show principal announcement
+          final principalAnnouncements = allAnnouncements
+              .where((a) => a.type == 'principal')
+              .map((a) => a.data as InstituteAnnouncementModel)
+              .toList();
+          if (principalAnnouncements.isNotEmpty) {
+            _showPrincipalAnnouncement(principalAnnouncements.first);
+          }
+        }
+      },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1226,12 +1303,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: latestStatus.hasImage
+                color: latestAnnouncement.hasImage
                     ? Colors.transparent
                     : const Color(0xFF7E57C2),
               ),
               child: ClipOval(
-                child: latestStatus.hasImage
+                child: latestAnnouncement.hasImage
                     ? ColorFiltered(
                         colorFilter: hasUnviewed
                             ? const ColorFilter.mode(
@@ -1243,34 +1320,32 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                 BlendMode.saturation,
                               ),
                         child: Image.network(
-                          latestStatus.imageUrl!,
+                          latestAnnouncement.imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _buildTeacherInitial(latestStatus.teacherName),
+                          errorBuilder: (_, __, ___) => _buildTeacherInitial(
+                            latestAnnouncement.creatorName,
+                          ),
                         ),
                       )
-                    : Opacity(
-                        opacity: hasUnviewed ? 1.0 : 0.5,
-                        child: _buildTeacherInitial(latestStatus.teacherName),
-                      ),
+                    : _buildTeacherInitial(latestAnnouncement.creatorName),
               ),
             ),
           ),
           const SizedBox(height: 6),
-          // Teacher Name
+          // Name label
           SizedBox(
             width: 70,
             child: Text(
-              latestStatus.teacherName.split(' ').first,
+              latestAnnouncement.type == 'principal'
+                  ? 'Principal'
+                  : latestAnnouncement.creatorName.split(' ').first,
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: hasUnviewed ? FontWeight.w600 : FontWeight.w500,
-                color: hasUnviewed
-                    ? theme.textTheme.bodyMedium?.color
-                    : theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: theme.textTheme.bodyMedium?.color,
               ),
             ),
           ),
@@ -1311,6 +1386,132 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         ),
       ),
     );
+  }
+
+  void _showPrincipalAnnouncement(InstituteAnnouncementModel announcement) {
+    final theme = Theme.of(context);
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: theme.cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF146D7A),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.campaign, color: Colors.white, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Principal Announcement',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          announcement.principalName,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            // Content
+            Container(
+              constraints: const BoxConstraints(maxHeight: 500),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (announcement.hasImage)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          announcement.imageUrl!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        ),
+                      ),
+                    if (announcement.hasImage && announcement.hasText)
+                      const SizedBox(height: 16),
+                    if (announcement.hasText)
+                      Text(
+                        announcement.text,
+                        style: TextStyle(
+                          color: theme.textTheme.bodyLarge?.color,
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          color: theme.textTheme.bodyMedium?.color?.withOpacity(
+                            0.6,
+                          ),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatAnnouncementTime(announcement.createdAt),
+                          style: TextStyle(
+                            color: theme.textTheme.bodyMedium?.color
+                                ?.withOpacity(0.6),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatAnnouncementTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
   }
 
   Future<void> _showCreateHighlightSheet() async {
@@ -2887,4 +3088,59 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   // _buildNavItem removed in favor of shared TeacherBottomNav
+
+  // Combine announcements from both teachers and principals
+  Stream<List<Map<String, dynamic>>> _combineAnnouncementStreams(
+    String instituteId,
+  ) async* {
+    await for (final teacherSnapshot
+        in FirebaseFirestore.instance
+            .collection('class_highlights')
+            .where('instituteId', isEqualTo: instituteId)
+            .snapshots()) {
+      // Get principal announcements as a one-time fetch
+      final principalSnapshot = await FirebaseFirestore.instance
+          .collection('institute_announcements')
+          .where('instituteId', isEqualTo: instituteId)
+          .where('audienceType', isEqualTo: 'school')
+          .get();
+
+      final combined = <Map<String, dynamic>>[];
+
+      // Add teacher announcements
+      for (final doc in teacherSnapshot.docs) {
+        combined.add({'type': 'teacher', 'snapshot': doc});
+      }
+
+      // Add principal announcements
+      for (final doc in principalSnapshot.docs) {
+        combined.add({'type': 'principal', 'snapshot': doc});
+      }
+
+      yield combined;
+    }
+  }
+}
+
+// Helper class to unify teacher and principal announcements
+class _AnnouncementItem {
+  final String id;
+  final String creatorId;
+  final String creatorName;
+  final DateTime createdAt;
+  final bool hasImage;
+  final String? imageUrl;
+  final String type; // 'teacher' or 'principal'
+  final dynamic data; // StatusModel or InstituteAnnouncementModel
+
+  _AnnouncementItem({
+    required this.id,
+    required this.creatorId,
+    required this.creatorName,
+    required this.createdAt,
+    required this.hasImage,
+    this.imageUrl,
+    required this.type,
+    required this.data,
+  });
 }
