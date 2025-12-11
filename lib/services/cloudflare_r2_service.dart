@@ -49,7 +49,9 @@ class CloudflareR2Service {
 
       // Generate unique key with timestamp to prevent collisions
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final key = 'media/$timestamp/$fileName';
+      // Encode only the file name portion so spaces/special chars sign correctly
+      final encodedFileName = Uri.encodeComponent(fileName);
+      final key = 'media/$timestamp/$encodedFileName';
 
       final expiresAt = DateTime.now().add(expiryDuration);
       // X-Amz-Expires is the DURATION in seconds, not Unix timestamp
