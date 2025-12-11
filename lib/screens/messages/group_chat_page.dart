@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
@@ -305,19 +304,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
           );
         }
       } else {
-        // Start recording
-        final status = await Permission.microphone.request();
-        if (status != PermissionStatus.granted) {
+        // Start recording - use record package's built-in permission check
+        final hasPermission = await _audioRecorder.hasPermission();
+        if (!hasPermission) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Microphone permission denied')),
+              const SnackBar(
+                content: Text('Microphone permission denied. Please enable it in Settings.'),
+              ),
             );
           }
           return;
         }
-
-        final hasPermission = await _audioRecorder.hasPermission();
-        if (!hasPermission) return;
 
         final tempDir = await getTemporaryDirectory();
         final path =
