@@ -7,12 +7,15 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../models/group_chat_message.dart';
+import '../../models/media_metadata.dart';
 import '../../services/group_messaging_service.dart';
 import '../../services/media_upload_service.dart';
+import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/chat_image_widget.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String classId;
@@ -45,6 +48,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
+  late final WhatsAppMediaUploadService _whatsappMediaUpload;
 
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
@@ -66,6 +70,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
       r2Service: r2Service,
       firestore: FirebaseFirestore.instance,
       cacheService: LocalCacheService(),
+    );
+
+    // Initialize WhatsApp media upload service
+    _whatsappMediaUpload = WhatsAppMediaUploadService(
+      workerBaseUrl:
+          'https://whatsapp-media-worker.giridharannj.workers.dev', // TODO: Update with actual worker URL
     );
 
     // Mark as read when entering chat
@@ -112,10 +122,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
     });
   }
 
-  Future<void> _sendMessage({String? imageUrl}) async {
+  Future<void> _sendMessage({
+    String? imageUrl,
+    MediaMetadata? mediaMetadata,
+  }) async {
     print('📤 _sendMessage called');
     final text = _messageController.text.trim();
-    if (text.isEmpty && imageUrl == null) return;
+    if (text.isEmpty && imageUrl == null && mediaMetadata == null) return;
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
@@ -135,6 +148,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         senderName: currentUser.name,
         message: text,
         imageUrl: imageUrl,
+        mediaMetadata: mediaMetadata,
         timestamp: DateTime.now().millisecondsSinceEpoch,
       );
 
@@ -161,9 +175,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
       );
 
       if (image == null) return;
@@ -177,24 +188,28 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       setState(() => _isUploading = true);
 
-      // Upload to Cloudflare R2 using MediaUploadService
+      // WhatsApp-style upload: compression + thumbnails + temporary storage
       final conversationId = '${widget.classId}_${widget.subjectId}';
+      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
 
-      final mediaMessage = await _mediaUploadService.uploadMedia(
-        file: File(image.path),
+      final result = await _whatsappMediaUpload.uploadImage(
+        imageFile: File(image.path),
+        messageId: messageId,
         conversationId: conversationId,
         senderId: currentUserId,
-        senderRole: 'student', // Assuming student role for group messages
-        mediaType: 'message', // Permanent storage for group messages
         onProgress: (progress) {
-          print('Upload progress: $progress%');
+          print('Upload progress: ${(progress * 100).toInt()}%');
         },
       );
 
       setState(() => _isUploading = false);
 
-      // Send message with R2 URL
-      await _sendMessage(imageUrl: mediaMessage.r2Url);
+      if (result.success && result.metadata != null) {
+        // Send message with media metadata (no imageUrl for WhatsApp-style)
+        await _sendMessage(mediaMetadata: result.metadata);
+      } else {
+        throw Exception(result.error?.message ?? 'Upload failed');
+      }
     } catch (e) {
       setState(() => _isUploading = false);
       if (mounted) {
@@ -719,7 +734,14 @@ class _MessageBubble extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (message.imageUrl != null) ...[
+                      // WhatsApp-style media with metadata
+                      if (message.mediaMetadata != null) ...[
+                        ChatImageWidget(metadata: message.mediaMetadata!),
+                        if (message.message.isNotEmpty)
+                          const SizedBox(height: 8),
+                      ]
+                      // Legacy imageUrl support (backward compatibility)
+                      else if (message.imageUrl != null) ...[
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.network(

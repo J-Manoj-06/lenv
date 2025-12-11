@@ -1,15 +1,21 @@
 {
-  "name": "school-management-worker",
-  "main": "dist/index.js",
-  "compatibility_date": "2024-12-10",
-  "r2_buckets": [
-    {
-      "binding": "R2_BUCKET",
-      "bucket_name": "lenv-storage",
-      "preview_bucket_name": "lenv-storage"
-    }
-  ],
-  "vars": {
-    "ENVIRONMENT": "production"
-  }
+	"name": "school-management-worker",
+	"main": "dist/index.js",
+	"compatibility_date": "2024-12-10",
+	"r2_buckets": [
+		{
+			"binding": "R2_BUCKET",
+			"bucket_name": "lenv-storage",
+			"preview_bucket_name": "lenv-storage"
+		}
+	],
+	"vars": {
+		"ENVIRONMENT": "production"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "MEDIA_METADATA",
+			"id": "5e911e375d4f43c0874e40f70223edff"
+		}
+	]
 }

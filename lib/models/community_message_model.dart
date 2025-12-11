@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'media_metadata.dart';
 
 class CommunityMessageModel {
   final String messageId;
@@ -12,6 +13,7 @@ class CommunityMessageModel {
   final String imageUrl;
   final String fileUrl;
   final String fileName;
+  final MediaMetadata? mediaMetadata; // WhatsApp-style media metadata
   final DateTime createdAt;
   final DateTime? updatedAt;
   final bool isEdited;
@@ -35,6 +37,7 @@ class CommunityMessageModel {
     required this.imageUrl,
     required this.fileUrl,
     required this.fileName,
+    this.mediaMetadata,
     required this.createdAt,
     this.updatedAt,
     required this.isEdited,
@@ -71,6 +74,9 @@ class CommunityMessageModel {
       imageUrl: data['imageUrl'] ?? '',
       fileUrl: data['fileUrl'] ?? '',
       fileName: data['fileName'] ?? '',
+      mediaMetadata: data['mediaMetadata'] != null
+          ? MediaMetadata.fromFirestore(data['mediaMetadata'])
+          : null,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: data['updatedAt'] != null
           ? (data['updatedAt'] as Timestamp).toDate()
@@ -99,6 +105,7 @@ class CommunityMessageModel {
       'imageUrl': imageUrl,
       'fileUrl': fileUrl,
       'fileName': fileName,
+      'mediaMetadata': mediaMetadata?.toFirestore(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'isEdited': isEdited,

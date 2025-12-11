@@ -4,6 +4,7 @@ import '../models/community_model.dart';
 import '../models/community_member_model.dart';
 import '../models/community_message_model.dart';
 import '../models/student_model.dart';
+import '../models/media_metadata.dart';
 
 class CommunityService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -537,6 +538,7 @@ class CommunityService {
     String? fileUrl,
     String? fileName,
     String? mediaType, // 'image', 'pdf', 'audio'
+    MediaMetadata? mediaMetadata, // WhatsApp-style media metadata
   }) async {
     try {
       final batch = _firestore.batch();
@@ -566,6 +568,7 @@ class CommunityService {
         'imageUrl': imageUrl ?? '',
         'fileUrl': fileUrl ?? '',
         'fileName': fileName ?? '',
+        'mediaMetadata': mediaMetadata?.toFirestore(),
         'createdAt': FieldValue.serverTimestamp(),
         'editedAt': null,
         'deletedAt': null,

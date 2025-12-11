@@ -11,9 +11,11 @@ import '../../models/community_message_model.dart';
 import '../../providers/student_provider.dart';
 import '../../services/community_service.dart';
 import '../../services/media_upload_service.dart';
+import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
+import '../../widgets/chat_image_widget.dart';
 import 'package:path_provider/path_provider.dart';
 
 class CommunityChatScreen extends StatefulWidget {
@@ -32,6 +34,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   final CommunityService _communityService = CommunityService();
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
+  late final WhatsAppMediaUploadService _whatsappMediaUpload;
 
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
@@ -54,6 +57,12 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       r2Service: r2Service,
       firestore: FirebaseFirestore.instance,
       cacheService: LocalCacheService(),
+    );
+
+    // Initialize WhatsApp media upload service
+    _whatsappMediaUpload = WhatsAppMediaUploadService(
+      workerBaseUrl:
+          'https://whatsapp-media-worker.giridharannj.workers.dev', // TODO: Update with actual worker URL
     );
 
     WidgetsBinding.instance.addPostFrameCallback(
@@ -93,9 +102,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
       );
 
       if (image == null) return;
@@ -108,38 +114,44 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
       setState(() => _isUploading = true);
 
-      // Upload to Cloudflare R2 using MediaUploadService
-      final mediaMessage = await _mediaUploadService.uploadMedia(
-        file: File(image.path),
+      // WhatsApp-style upload: compression + thumbnails + temporary storage
+      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      final result = await _whatsappMediaUpload.uploadImage(
+        imageFile: File(image.path),
+        messageId: messageId,
         conversationId: widget.community.id,
         senderId: student.uid,
-        senderRole: 'Student',
-        mediaType: 'community', // Permanent storage for community messages
         onProgress: (progress) {
-          print('Upload progress: $progress%');
+          print('Upload progress: ${(progress * 100).toInt()}%');
         },
       );
 
       setState(() => _isUploading = false);
 
-      // Send message with R2 URL
-      await _communityService.sendMessage(
-        communityId: widget.community.id,
-        senderId: student.uid,
-        senderName: student.name,
-        senderRole: 'Student',
-        content: '', // Empty content for image-only messages
-        imageUrl: mediaMessage.r2Url,
-        mediaType: 'image',
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Image sent successfully'),
-            backgroundColor: Colors.green,
-          ),
+      if (result.success && result.metadata != null) {
+        // Send message with media metadata
+        await _communityService.sendMessage(
+          communityId: widget.community.id,
+          senderId: student.uid,
+          senderName: student.name,
+          senderRole: 'Student',
+          content: '', // Empty content for image-only messages
+          imageUrl: '', // Keep empty, using mediaMetadata instead
+          mediaType: 'image',
+          mediaMetadata: result.metadata,
         );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Image sent successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        throw Exception(result.error?.message ?? 'Upload failed');
       }
     } catch (e) {
       setState(() => _isUploading = false);
@@ -654,15 +666,28 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                           bottomRight: Radius.circular(isCurrentUser ? 4 : 12),
                         ),
                       ),
-                      child: Text(
-                        message.content,
-                        style: TextStyle(
-                          color: isCurrentUser
-                              ? Colors.white
-                              : const Color(0xFFCCCCCC),
-                          fontSize: 14,
-                          height: 1.4,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // WhatsApp-style media with metadata
+                          if (message.mediaMetadata != null) ...[
+                            ChatImageWidget(metadata: message.mediaMetadata!),
+                            if (message.content.isNotEmpty)
+                              const SizedBox(height: 8),
+                          ],
+                          // Text content
+                          if (message.content.isNotEmpty)
+                            Text(
+                              message.content,
+                              style: TextStyle(
+                                color: isCurrentUser
+                                    ? Colors.white
+                                    : const Color(0xFFCCCCCC),
+                                fontSize: 14,
+                                height: 1.4,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     if (!isCurrentUser && message.senderRole == 'Teacher')

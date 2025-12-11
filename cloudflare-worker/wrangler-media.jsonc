@@ -1,0 +1,32 @@
+{
+  "name": "whatsapp-media-worker",
+  "main": "src/whatsapp-media-worker.ts",
+  "compatibility_date": "2024-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "lenv-storage"
+    }
+  ],
+  
+  "kv_namespaces": [
+    {
+      "binding": "MEDIA_METADATA",
+      "id": "5e911e375d4f43c0874e40f70223edff"
+    }
+  ],
+  
+  "triggers": {
+    "crons": ["0 2 * * *"]
+  },
+  
+  "vars": {
+    "EXPIRY_DAYS": "30"
+  },
+  
+  "build": {
+    "command": "npm run build"
+  }
+}
