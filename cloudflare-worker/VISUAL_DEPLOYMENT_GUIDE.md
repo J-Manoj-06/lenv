@@ -27,7 +27,7 @@
 │  media_messages/{id}                                           │
 │  ├─ mediaType: "announcement"                                  │
 │  ├─ createdAt: 2024-12-11T10:00:00Z                          │
-│  ├─ r2Url: "https://pub-xxx.r2.dev/media/..."                │
+│  ├─ r2Url: "https://files.lenv1.tech/media/..."               │
 │  └─ deletedAt: null                                            │
 └────────────────────┬────────────────────────────────────────────┘
                      │

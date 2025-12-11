@@ -1,275 +1,292 @@
 /**
- * WhatsApp-Style Media Worker
- * Handles image upload, fetch, and expiry with R2
+ * Single media Worker: uploads (optional), public fetch via R2 binding (free egress), KV-backed expiry.
+ * All downloads flow through this Worker domain: https://files.lenv1.tech/media/{key}
+ * Bindings required: MEDIA_BUCKET (R2), MEDIA_METADATA (KV)
  */
 
 export interface Env {
   MEDIA_BUCKET: R2Bucket;
   MEDIA_METADATA: KVNamespace;
+  ADMIN_TOKEN?: string; // optional bearer token for admin routes
 }
 
-const EXPIRY_DAYS = 30;
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const DEFAULT_EXPIRY_DAYS = 30;
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB cap to keep PUT costs small
+const META_PREFIX = 'meta:';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    // CORS headers
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    };
-
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
 
     try {
-      // Route: Upload image
-      if (url.pathname === '/upload' && request.method === 'POST') {
-        return await handleUpload(request, env, corsHeaders);
+      // Public download – always via Worker to keep egress free
+      if (request.method === 'GET' && url.pathname.startsWith('/media/')) {
+        return await handleFetch(url, env);
       }
 
-      // Route: Fetch image
-      if (url.pathname.startsWith('/media/') && request.method === 'GET') {
-        return await handleFetch(url, env, corsHeaders);
+      // Test endpoint to list R2 objects
+      if (request.method === 'GET' && url.pathname === '/test-r2') {
+        try {
+          const list = await env.MEDIA_BUCKET.list({ prefix: 'media/17654788', limit: 10 });
+          return jsonResponse({ 
+            success: true, 
+            objects: list.objects.map(o => ({ key: o.key, size: o.size })),
+            truncated: list.truncated 
+          });
+        } catch (error) {
+          return jsonResponse({ error: String(error) }, 500);
+        }
+      }
+
+      // Debug endpoint to see URL parsing
+      if (request.method === 'GET' && url.pathname.startsWith('/debug/')) {
+        const raw = url.pathname.slice(1);
+        const decoded = decodeURIComponent(raw);
+        return jsonResponse({
+          pathname: url.pathname,
+          raw,
+          decoded,
+          search: url.search,
+        });
+      }
+
+      // Test fetching a specific key
+      if (request.method === 'GET' && url.pathname === '/test-fetch') {
+        const testKey = url.searchParams.get('key') || 'media/1765478885338/20ITPC502 -BIG DATA ESSENTIALS  QB CO DISTRIBUTION.doc.pdf';
+        const object = await env.MEDIA_BUCKET.get(testKey);
+        return jsonResponse({
+          key: testKey,
+          found: !!object,
+          size: object?.size || null,
+          contentType: object?.httpMetadata?.contentType || null,
+        });
+      }
+
+      // Direct upload (optional) – still keeps public URL on Worker domain
+      if (request.method === 'POST' && url.pathname === '/upload') {
+        return await handleUpload(request, env, url);
+      }
+
+      // Admin cleanup trigger
+      if (request.method === 'POST' && url.pathname === '/admin/cleanup') {
+        if (!env.ADMIN_TOKEN) {
+          return jsonResponse({ error: 'ADMIN_TOKEN not set' }, 500);
+        }
+        const auth = request.headers.get('Authorization');
+        if (auth !== `Bearer ${env.ADMIN_TOKEN}`) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        const deleted = await cleanupExpiredMedia(env, 500);
+        return jsonResponse({ ok: true, deleted });
       }
 
       return new Response('Not Found', { status: 404, headers: corsHeaders });
     } catch (error) {
       console.error('Worker error:', error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          errorCode: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return jsonResponse({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
     }
   },
 
-  // Scheduled cleanup for expired media
-  async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
-    console.log('Running scheduled media cleanup...');
-    await cleanupExpiredMedia(env);
+  // Scheduled cleanup keeps bucket lean without scanning whole R2
+  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
+    await cleanupExpiredMedia(env, 1000);
   },
 };
 
-/**
- * Handle image upload
- */
-async function handleUpload(
-  request: Request,
-  env: Env,
-  corsHeaders: Record<string, string>
-): Promise<Response> {
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+function buildKey(
+  fileName: string,
+  schoolId?: string,
+  communityId?: string,
+  groupId?: string,
+  messageId?: string,
+): string {
+  // Encode filename to handle spaces and special characters
+  const encodedFileName = encodeURIComponent(fileName);
+
+  // Build path with optional context
+  const pathParts = ['media'];
+  if (schoolId) pathParts.push(`schools/${schoolId}`);
+  if (communityId) pathParts.push(`communities/${communityId}`);
+  if (groupId) pathParts.push(`groups/${groupId}`);
+  if (messageId) pathParts.push(`messages/${messageId}`);
+
+  // Add timestamp and filename
+  const timestamp = Date.now();
+  return `${pathParts.join('/')}/${timestamp}/${encodedFileName}`;
+}
+
+async function handleUpload(request: Request, env: Env, url: URL): Promise<Response> {
+  const formData = await request.formData();
+  const file = (formData.get('file') || formData.get('image')) as File | null;
+
+  if (!file) {
+    return jsonResponse({ error: 'Missing file' }, 400);
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return jsonResponse({ error: `File exceeds 20MB cap. Got ${(file.size / 1024 / 1024).toFixed(2)}MB` }, 413);
+  }
+
+  // Optional context for organizing uploads
+  const schoolId = (formData.get('schoolId') as string) || undefined;
+  const communityId = (formData.get('communityId') as string) || undefined;
+  const groupId = (formData.get('groupId') as string) || undefined;
+  const messageId = (formData.get('messageId') as string) || undefined;
+  const expiryDays = parseInt((formData.get('expiryDays') as string) || '') || DEFAULT_EXPIRY_DAYS;
+
+  // Build key with optional path structure
+  const key = buildKey(file.name, schoolId, communityId, groupId, messageId);
+  const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
+
   try {
-    const formData = await request.formData();
-    const imageFile = formData.get('image') as unknown as File;
-    const messageId = formData.get('messageId') as string;
-    const conversationId = formData.get('conversationId') as string;
-    const senderId = formData.get('senderId') as string;
-    const expiryDays = parseInt(formData.get('expiryDays') as string) || EXPIRY_DAYS;
-
-    // Validate
-    if (!imageFile || !messageId || !conversationId || !senderId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          errorCode: 'MISSING_FIELDS',
-          message: 'Missing required fields',
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // Check file size
-    if (imageFile.size > MAX_FILE_SIZE) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          errorCode: 'FILE_TOO_LARGE',
-          message: 'File exceeds 10 MB limit',
-        }),
-        {
-          status: 413,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // Generate R2 key
-    const timestamp = Date.now();
-    const r2Key = `chat_images/${conversationId}/${messageId}_${timestamp}.jpg`;
-
     // Upload to R2
-    const imageBytes = await imageFile.arrayBuffer();
-    const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
-
-    await env.MEDIA_BUCKET.put(r2Key, imageBytes, {
+    await env.MEDIA_BUCKET.put(key, await file.arrayBuffer(), {
       httpMetadata: {
-        contentType: 'image/jpeg',
+        contentType: file.type || 'application/octet-stream',
       },
       customMetadata: {
-        messageId,
-        conversationId,
-        senderId,
         uploadedAt: new Date().toISOString(),
         expiresAt: expiresAt.toISOString(),
+        originalName: file.name,
       },
     });
 
-    // Store metadata in KV
-    const metadata = {
-      key: r2Key,
-      messageId,
-      conversationId,
-      senderId,
+    // Store metadata in KV for expiry tracking
+    const meta = {
+      key,
+      fileName: file.name,
       uploadedAt: new Date().toISOString(),
       expiresAt: expiresAt.toISOString(),
-      fileSize: imageFile.size,
+      contentType: file.type || 'application/octet-stream',
+      size: file.size,
+      schoolId,
+      communityId,
+      groupId,
+      messageId,
     };
-    await env.MEDIA_METADATA.put(messageId, JSON.stringify(metadata), {
+
+    await env.MEDIA_METADATA.put(`${META_PREFIX}${key}`, JSON.stringify(meta), {
       expirationTtl: expiryDays * 24 * 60 * 60,
     });
 
-    // Generate public URL
-    const publicUrl = `${new URL(request.url).origin}/media/${r2Key}`;
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        key: r2Key,
-        publicUrl,
-        expiresAt: expiresAt.toISOString(),
-        fileSize: imageFile.size,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    // Return public URL via worker domain (for free egress)
+    const publicUrl = `${url.origin}/media/${key}`;
+    return jsonResponse({
+      success: true,
+      key,
+      publicUrl,
+      fileName: file.name,
+      fileSize: file.size,
+      expiresAt: expiresAt.toISOString(),
+    });
   } catch (error) {
-    console.error('Upload error:', error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        errorCode: 'UPLOAD_FAILED',
-        message: error instanceof Error ? error.message : 'Upload failed',
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    console.error('Upload failed:', error);
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Upload failed' }, 500);
   }
 }
 
-/**
- * Handle image fetch with proper HTTP codes
- */
-async function handleFetch(
-  url: URL,
-  env: Env,
-  corsHeaders: Record<string, string>
-): Promise<Response> {
-  try {
-    const path = url.pathname.replace('/media/', '');
-    
-    // Check if exists in R2
-    const object = await env.MEDIA_BUCKET.get(path);
+async function handleFetch(url: URL, env: Env): Promise<Response> {
+  // Extract key from URL: /media/1234/file.jpg → media/1234/file.jpg
+  // The R2 key includes the 'media/' prefix
+  const raw = url.pathname.slice(1); // Remove leading '/' to get 'media/...'
+  const key = decodeURIComponent(raw || '').trim();
 
-    if (!object) {
-      // Check metadata to determine if expired vs missing
-      const messageId = path.split('/').pop()?.split('_')[0];
-      if (messageId) {
-        const metadata = await env.MEDIA_METADATA.get(messageId);
-        if (metadata) {
-          // Had metadata but file is gone = expired/deleted
-          return new Response('Gone - File expired or deleted', {
-            status: 410,
-            headers: corsHeaders,
-          });
-        }
-      }
-      // No metadata = never existed
-      return new Response('Not Found', {
-        status: 404,
-        headers: corsHeaders,
-      });
-    }
+  console.log('[handleFetch] URL pathname:', url.pathname);
+  console.log('[handleFetch] Raw key:', raw);
+  console.log('[handleFetch] Decoded key:', key);
 
-    // Check expiry from metadata
-    const customMetadata = object.customMetadata;
-    if (customMetadata?.expiresAt) {
-      const expiresAt = new Date(customMetadata.expiresAt);
-      if (new Date() > expiresAt) {
-        // Expired - return 410 and delete
-        await env.MEDIA_BUCKET.delete(path);
-        return new Response('Gone - File expired', {
-          status: 410,
-          headers: corsHeaders,
-        });
-      }
-    }
+  if (!key || !key.startsWith('media/')) {
+    console.log('[handleFetch] Invalid key, returning 400');
+    return jsonResponse({ error: 'Invalid media key' }, 400);
+  }
 
-    // Return image
-    const headers = {
-      ...corsHeaders,
-      'Content-Type': object.httpMetadata?.contentType || 'image/jpeg',
-      'Cache-Control': 'public, max-age=86400', // Cache for 1 day
-      'ETag': object.httpEtag || '',
-    };
+  const metaKey = `${META_PREFIX}${key}`;
+  const meta = await env.MEDIA_METADATA.get(metaKey, { type: 'json' }) as
+    | { expiresAt?: string; contentType?: string }
+    | null;
 
-    return new Response(object.body, {
-      status: 200,
-      headers,
-    });
-  } catch (error) {
-    console.error('Fetch error:', error);
-    return new Response('Internal Server Error', {
-      status: 500,
-      headers: corsHeaders,
+  console.log('[handleFetch] Checking metadata for key:', metaKey);
+  console.log('[handleFetch] Metadata found:', !!meta);
+
+  if (meta?.expiresAt && Date.now() > Date.parse(meta.expiresAt)) {
+    console.log('[handleFetch] File expired, returning 410');
+    await env.MEDIA_BUCKET.delete(key).catch(() => {});
+    await env.MEDIA_METADATA.delete(metaKey).catch(() => {});
+    return new Response('Gone', { status: 410, headers: corsHeaders });
+  }
+
+  console.log('[handleFetch] Fetching from R2, key:', key);
+  const object = await env.MEDIA_BUCKET.get(key);
+  console.log('[handleFetch] R2 object found:', !!object);
+
+  if (!object) {
+    // If metadata existed, treat as expired/deleted; else 404
+    const status = meta ? 410 : 404;
+    console.log(`[handleFetch] Object not found, returning ${status}`);
+    return new Response(status === 410 ? 'Gone' : `Not Found: ${key}`, {
+      status,
+      headers: { ...corsHeaders, 'X-Debug-Key': key },
     });
   }
+
+  const headers: Record<string, string> = {
+    ...corsHeaders,
+    'Content-Type': meta?.contentType || object.httpMetadata?.contentType || 'application/octet-stream',
+    'Cache-Control': 'public, max-age=31536000', // 365d CDN cache
+    'X-Debug-Key': key, // Debug: shows what key was looked up
+  };
+
+  if (object.httpEtag) headers['ETag'] = object.httpEtag;
+  headers['Accept-Ranges'] = 'bytes';
+
+  return new Response(object.body, { status: 200, headers });
 }
 
-/**
- * Cleanup expired media (cron job)
- */
-async function cleanupExpiredMedia(env: Env): Promise<void> {
-  try {
-    const now = new Date();
-    let deletedCount = 0;
+async function cleanupExpiredMedia(env: Env, pageSize: number): Promise<number> {
+  let cursor: string | undefined = undefined;
+  let deleted = 0;
+  const now = Date.now();
 
-    // List all objects in bucket
-    const listed = await env.MEDIA_BUCKET.list({
-      prefix: 'chat_images/',
-    });
+  do {
+    const list = (await env.MEDIA_METADATA.list<{ expiresAt?: string; key?: string }>({
+      prefix: META_PREFIX,
+      limit: pageSize,
+      cursor,
+    })) as KVNamespaceListResult<{ expiresAt?: string; key?: string }> & { cursor?: string };
+    cursor = list.cursor;
 
-    for (const object of listed.objects) {
-      const metadata = object.customMetadata;
-      if (metadata?.expiresAt) {
-        const expiresAt = new Date(metadata.expiresAt);
-        if (now > expiresAt) {
-          await env.MEDIA_BUCKET.delete(object.key);
-          deletedCount++;
-          console.log(`Deleted expired media: ${object.key}`);
-        }
+    for (const entry of list.keys) {
+      const meta = (await env.MEDIA_METADATA.get(entry.name, { type: 'json' })) as
+        | { expiresAt?: string; key?: string }
+        | null;
+      const expiresAt = meta?.expiresAt;
+      const targetKey = meta?.key || entry.name.replace(META_PREFIX, '');
+
+      if (expiresAt && now > Date.parse(expiresAt) && targetKey) {
+        await env.MEDIA_BUCKET.delete(targetKey).catch(() => {});
+        await env.MEDIA_METADATA.delete(entry.name).catch(() => {});
+        deleted++;
       }
     }
+  } while (cursor);
 
-    console.log(`Cleanup complete: ${deletedCount} files deleted`);
-  } catch (error) {
-    console.error('Cleanup error:', error);
-  }
+  if (deleted) console.log(`Cleanup removed ${deleted} expired objects`);
+  return deleted;
 }

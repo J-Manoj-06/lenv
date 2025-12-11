@@ -127,11 +127,8 @@ class MediaUploadService {
       // Save metadata to Firestore
       await _saveMediaMetadataToFirestore(mediaMessage);
 
-      // Cache locally
-      await _cacheService.cacheMediaMetadata(
-        mediaId: mediaMessage.id,
-        metadata: mediaMessage.toFirestore(),
-      );
+      // Note: Hive caching removed - new WhatsApp media system handles local storage
+      // and Hive doesn't support Firestore Timestamp serialization
 
       onProgress?.call(100);
 

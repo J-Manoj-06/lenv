@@ -1,16 +1,13 @@
 {
-  "name": "school-management-worker",
+  "name": "whatsapp-media-worker",
   "version": "1.0.0",
-  "description": "Ultra-optimized Cloudflare Worker for school management app",
-  "main": "src/index.ts",
+  "description": "Single Cloudflare Worker for media upload/fetch with free egress",
+  "main": "src/whatsapp-media-worker.ts",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "deploy:media-cleanup": "wrangler deploy --config wrangler-delete-media.jsonc",
-    "dev:media-cleanup": "wrangler dev --config wrangler-delete-media.jsonc",
+    "dev": "wrangler dev --config wrangler-media.jsonc",
+    "deploy": "wrangler deploy --config wrangler-media.jsonc",
     "build": "tsc",
-    "tail": "wrangler tail",
-    "tail:media-cleanup": "wrangler tail delete-expired-media-worker"
+    "tail": "wrangler tail whatsapp-media-worker"
   },
   "keywords": [
     "cloudflare-workers",

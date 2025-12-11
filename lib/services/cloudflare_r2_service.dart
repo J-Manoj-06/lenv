@@ -96,7 +96,7 @@ class CloudflareR2Service {
         'key': key,
         'expiresAt': expiresAt.toIso8601String(),
         'r2PublicUrl':
-            'https://$r2Domain/$key', // Custom domain already points to bucket root
+            'https://$r2Domain/$key', // Worker domain serves /media/* for free egress
       };
     } catch (e) {
       throw Exception('Failed to generate signed URL: $e');

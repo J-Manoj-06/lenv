@@ -177,7 +177,10 @@ class _HistoryCardState extends State<HistoryCard>
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final rotationAngle = (_dragPosition.dx / screenWidth) * 0.20;
-    final opacity = 1.0 - (_dragPosition.dx.abs() / screenWidth * 0.5);
+    final opacity = (1.0 - (_dragPosition.dx.abs() / screenWidth * 0.6)).clamp(
+      0.0,
+      1.0,
+    );
     final scale = _isDragging ? 1.03 : 1.0;
 
     Widget? swipeOverlay;

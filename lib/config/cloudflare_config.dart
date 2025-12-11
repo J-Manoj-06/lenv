@@ -102,7 +102,7 @@ class CloudflareConfigEnv {
       case 'staging':
         return 'cdn-staging.yourdomain.com';
       default:
-        return 'localhost:8000'; // for testing
+        return 'files.lenv1.tech'; // Worker domain for free-egress media
     }
   }
 }

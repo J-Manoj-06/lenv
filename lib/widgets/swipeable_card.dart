@@ -108,7 +108,10 @@ class _SwipeableCardState extends State<SwipeableCard>
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final rotationAngle = (_dragPosition.dx / screenWidth) * 0.15;
-    final opacity = 1.0 - (_dragPosition.dx.abs() / screenWidth * 0.6);
+    final opacity = (1.0 - (_dragPosition.dx.abs() / screenWidth * 0.6)).clamp(
+      0.0,
+      1.0,
+    );
     final scale = _isDragging ? 1.02 : 1.0;
 
     // Swipe indicator

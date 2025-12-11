@@ -143,7 +143,8 @@ exports.uploadFileToR2 = functions
       console.log(`📦 File size: ${fileSizeKb}KB, type: ${fileType}`);
 
       // ============ STEP 4: Build R2 Upload Path ============
-      const r2Path = `schools/${schoolId}/communities/${communityId}/groups/${groupId}/messages/${messageId}/${fileName}`;
+      // Add 'media/' prefix so files are stored at media/schools/... to match worker route /media/*
+      const r2Path = `media/schools/${schoolId}/communities/${communityId}/groups/${groupId}/messages/${messageId}/${fileName}`;
       const r2FullPath = `/${CF_CONFIG.bucketName}/${r2Path}`;
 
       console.log(`🗂️  R2 path: ${r2Path}`);
@@ -183,6 +184,8 @@ exports.uploadFileToR2 = functions
       console.log(`✅ File uploaded to R2: ${r2Path}`);
 
       // ============ STEP 7: Generate Public URL ============
+      // Public downloads must go through the Worker domain to keep egress free
+      // r2Path already includes 'media/' prefix, so don't duplicate it
       const publicUrl = `https://${CF_CONFIG.r2Domain}/${r2Path}`;
 
       console.log(`📎 Public URL: ${publicUrl}`);

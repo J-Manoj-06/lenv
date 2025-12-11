@@ -124,12 +124,12 @@ exports.deleteExpiredMediaAnnouncements = functions
 
 /**
  * Delete file from Cloudflare R2
- * @param {string} r2Url - Full R2 URL (e.g., https://pub-xxx.r2.dev/media/file.jpg)
+ * @param {string} r2Url - Worker URL (e.g., https://files.lenv1.tech/media/file.jpg)
  */
 async function deleteFromR2(r2Url) {
   try {
     // Extract object key from URL
-    // URL format: https://pub-xxx.r2.dev/media/file.jpg -> media/file.jpg
+    // URL format: https://files.lenv1.tech/media/file.jpg -> media/file.jpg
     const url = new URL(r2Url);
     const objectKey = url.pathname.substring(1); // Remove leading /
 

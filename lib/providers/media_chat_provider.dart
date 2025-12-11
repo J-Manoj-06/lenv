@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/media_message.dart';
 import '../services/media_upload_service.dart';
 import '../services/cloudflare_r2_service.dart';
-import '../services/cloud_function_upload_service.dart';
+import '../services/cloudflare_worker_upload_service.dart';
 import '../services/local_cache_service.dart';
 import '../config/cloudflare_config.dart';
 
@@ -23,7 +23,7 @@ class MediaChatProvider extends ChangeNotifier {
   final ImagePicker _imagePicker = ImagePicker();
 
   late MediaUploadService _mediaService;
-  late CloudFunctionUploadService _cloudFunctionService;
+  late CloudflareWorkerUploadService _workerUploadService;
   late LocalCacheService _cacheService;
 
   // State
@@ -54,12 +54,9 @@ class MediaChatProvider extends ChangeNotifier {
       cacheService: _cacheService,
     );
 
-    // Initialize Cloud Function upload service
-    // Replace with your actual Cloud Function URL
-    const cloudFunctionUrl =
-        'https://us-central1-new-reward-prod.cloudfunctions.net/uploadFileToR2';
-    _cloudFunctionService = CloudFunctionUploadService(
-      functionUrl: cloudFunctionUrl,
+    // Initialize Cloudflare Worker upload service (no Firebase dependency needed)
+    _workerUploadService = CloudflareWorkerUploadService(
+      workerUrl: 'https://whatsapp-media-worker.giridharannj.workers.dev',
       auth: _auth,
     );
   }
@@ -182,12 +179,12 @@ class MediaChatProvider extends ChangeNotifier {
       // Get file name
       final fileName = file.path.split('/').last;
 
-      print('📤 Starting Cloud Function upload');
+      print('📤 Starting Cloudflare Worker upload');
       print('   File: $fileName');
       print('   Message ID: $messageId');
 
-      // Upload via Cloud Function
-      final result = await _cloudFunctionService.uploadFile(
+      // Upload via Cloudflare Worker (no Firebase dependency)
+      final result = await _workerUploadService.uploadFile(
         file: file,
         fileName: fileName,
         schoolId: schoolId,
@@ -200,16 +197,19 @@ class MediaChatProvider extends ChangeNotifier {
         },
       );
 
-      print('✅ Cloud Function upload complete');
+      print('✅ Cloudflare Worker upload complete');
       print('   Public URL: ${result['publicUrl']}');
 
       // Create MediaMessage with the returned URL
       final media = MediaMessage(
         id: messageId,
         fileName: result['fileName'] as String,
-        fileType: result['fileType'] as String,
+        fileType: result['key']
+            .toString()
+            .split('.')
+            .last, // Extract extension from key
         r2Url: result['publicUrl'] as String,
-        fileSize: (result['fileSizeKb'] as double).toInt() * 1024,
+        fileSize: result['fileSize'] as int,
         thumbnailUrl: null,
         senderId: currentUser.uid,
         senderRole: 'teacher',
