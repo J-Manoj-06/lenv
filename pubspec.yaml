@@ -68,6 +68,9 @@ dependencies:
   mime: ^2.0.0
   flutter_cache_manager: ^3.3.1
   cached_network_image: ^3.3.0
+  file_picker: ^8.0.0
+  record: ^6.1.2
+  permission_handler: ^11.3.0
 
 dev_dependencies:
   flutter_test:

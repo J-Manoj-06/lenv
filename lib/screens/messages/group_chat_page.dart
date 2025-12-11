@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
+import '../../services/media_upload_service.dart';
+import '../../services/cloudflare_r2_service.dart';
+import '../../services/local_cache_service.dart';
+import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
 
 class GroupChatPage extends StatefulWidget {
@@ -37,11 +45,31 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+
+  late final MediaUploadService _mediaUploadService;
+  bool _isUploading = false;
+  bool _isRecording = false;
 
   @override
   void initState() {
     super.initState();
-    // ✅ Mark as read when entering chat
+    // Initialize MediaUploadService with CloudflareConfig
+    final r2Service = CloudflareR2Service(
+      accountId: CloudflareConfig.accountId,
+      bucketName: CloudflareConfig.bucketName,
+      accessKeyId: CloudflareConfig.accessKeyId,
+      secretAccessKey: CloudflareConfig.secretAccessKey,
+      r2Domain: CloudflareConfig.r2Domain,
+    );
+
+    _mediaUploadService = MediaUploadService(
+      r2Service: r2Service,
+      firestore: FirebaseFirestore.instance,
+      cacheService: LocalCacheService(),
+    );
+
+    // Mark as read when entering chat
     _markAsRead();
     // Scroll to bottom on initial load
     WidgetsBinding.instance.addPostFrameCallback(
@@ -70,6 +98,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -140,22 +169,185 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       if (image == null) return;
 
-      // Upload to Firebase Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('group_messages')
-          .child('${widget.classId}_${widget.subjectId}')
-          .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
 
-      await storageRef.putFile(File(image.path));
-      final imageUrl = await storageRef.getDownloadURL();
+      if (currentUserId == null) {
+        throw Exception('User not authenticated');
+      }
 
-      await _sendMessage(imageUrl: imageUrl);
+      setState(() => _isUploading = true);
+
+      // Upload to Cloudflare R2 using MediaUploadService
+      final conversationId = '${widget.classId}_${widget.subjectId}';
+
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: File(image.path),
+        conversationId: conversationId,
+        senderId: currentUserId,
+        senderRole: 'student', // Assuming student role for group messages
+        mediaType: 'message', // Permanent storage for group messages
+        onProgress: (progress) {
+          print('Upload progress: $progress%');
+        },
+      );
+
+      setState(() => _isUploading = false);
+
+      // Send message with R2 URL
+      await _sendMessage(imageUrl: mediaMessage.r2Url);
     } catch (e) {
+      setState(() => _isUploading = false);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickAndSendPDF() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
+
+      if (currentUserId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      setState(() => _isUploading = true);
+
+      // Upload to Cloudflare R2 using MediaUploadService
+      final conversationId = '${widget.classId}_${widget.subjectId}';
+
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: conversationId,
+        senderId: currentUserId,
+        senderRole: 'student',
+        mediaType: 'message', // Permanent storage for group messages
+        onProgress: (progress) {
+          print('Upload progress: $progress%');
+        },
+      );
+
+      setState(() => _isUploading = false);
+
+      // Send message with R2 URL (using imageUrl field for simplicity)
+      await _sendMessage(imageUrl: mediaMessage.r2Url);
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('PDF sent successfully')));
+      }
+    } catch (e) {
+      setState(() => _isUploading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send PDF: $e')));
+      }
+    }
+  }
+
+  Future<void> _recordAndSendAudio() async {
+    try {
+      if (_isRecording) {
+        // Stop recording
+        final path = await _audioRecorder.stop();
+        setState(() {
+          _isRecording = false;
+        });
+
+        if (path == null) return;
+
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final currentUserId = authProvider.currentUser?.uid;
+
+        if (currentUserId == null) {
+          throw Exception('User not authenticated');
+        }
+
+        setState(() => _isUploading = true);
+
+        // Upload to Cloudflare R2 using MediaUploadService
+        final conversationId = '${widget.classId}_${widget.subjectId}';
+
+        final mediaMessage = await _mediaUploadService.uploadMedia(
+          file: File(path),
+          conversationId: conversationId,
+          senderId: currentUserId,
+          senderRole: 'student',
+          mediaType: 'message', // Permanent storage for group messages
+          onProgress: (progress) {
+            print('Upload progress: $progress%');
+          },
+        );
+
+        setState(() => _isUploading = false);
+
+        // Send message with R2 URL
+        await _sendMessage(imageUrl: mediaMessage.r2Url);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Audio sent successfully')),
+          );
+        }
+      } else {
+        // Start recording
+        final status = await Permission.microphone.request();
+        if (status != PermissionStatus.granted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Microphone permission denied')),
+            );
+          }
+          return;
+        }
+
+        final hasPermission = await _audioRecorder.hasPermission();
+        if (!hasPermission) return;
+
+        final tempDir = await getTemporaryDirectory();
+        final path =
+            '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+        await _audioRecorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc),
+          path: path,
+        );
+
+        setState(() => _isRecording = true);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Recording... Tap again to stop'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+        _isUploading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to record audio: $e')));
       }
     }
   }
@@ -278,10 +470,27 @@ class _GroupChatPageState extends State<GroupChatPage> {
       child: SafeArea(
         child: Row(
           children: [
-            // Image Button
             IconButton(
-              icon: const Icon(Icons.image, color: Color(0xFFFF8800)),
-              onPressed: _pickAndSendImage,
+              icon: _isUploading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFFFF8800),
+                        ),
+                      ),
+                    )
+                  : Icon(
+                      _isRecording ? Icons.stop : Icons.attach_file,
+                      color: _isRecording
+                          ? Colors.red
+                          : const Color(0xFFFF8800),
+                    ),
+              onPressed: _isUploading
+                  ? null
+                  : (_isRecording ? _recordAndSendAudio : _showMediaOptions),
             ),
             const SizedBox(width: 8),
 
@@ -334,6 +543,102 @@ class _GroupChatPageState extends State<GroupChatPage> {
               child: IconButton(
                 icon: const Icon(Icons.send, color: Colors.white),
                 onPressed: () => _sendMessage(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMediaOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1C20),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Send Media',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildMediaOption(
+                  icon: Icons.image,
+                  label: 'Image',
+                  color: const Color(0xFF4CAF50),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickAndSendImage();
+                  },
+                ),
+                _buildMediaOption(
+                  icon: Icons.picture_as_pdf,
+                  label: 'PDF',
+                  color: const Color(0xFFF44336),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickAndSendPDF();
+                  },
+                ),
+                _buildMediaOption(
+                  icon: Icons.mic,
+                  label: 'Audio',
+                  color: const Color(0xFF2196F3),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _recordAndSendAudio();
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 80,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.5)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],

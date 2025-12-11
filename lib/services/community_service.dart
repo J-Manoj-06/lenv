@@ -533,6 +533,10 @@ class CommunityService {
     required String senderRole,
     required String content,
     String? replyToId,
+    String? imageUrl,
+    String? fileUrl,
+    String? fileName,
+    String? mediaType, // 'image', 'pdf', 'audio'
   }) async {
     try {
       final batch = _firestore.batch();
@@ -544,13 +548,24 @@ class CommunityService {
           .collection('messages')
           .doc();
 
+      // Determine message type based on media
+      String messageType = 'text';
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        messageType = 'image';
+      } else if (fileUrl != null && fileUrl.isNotEmpty) {
+        messageType = mediaType ?? 'file'; // Use specific type if provided
+      }
+
       final messageData = {
         'id': messageRef.id,
         'senderId': senderId,
         'senderName': senderName,
         'senderRole': senderRole,
         'content': content,
-        'type': 'text',
+        'type': messageType,
+        'imageUrl': imageUrl ?? '',
+        'fileUrl': fileUrl ?? '',
+        'fileName': fileName ?? '',
         'createdAt': FieldValue.serverTimestamp(),
         'editedAt': null,
         'deletedAt': null,
@@ -565,15 +580,25 @@ class CommunityService {
 
       batch.set(messageRef, messageData);
 
+      // Create preview text for different message types
+      String preview = content;
+      if (messageType == 'image') {
+        preview = '📷 Image';
+      } else if (messageType == 'pdf' || messageType == 'file') {
+        preview = '📄 ${fileName ?? 'File'}';
+      } else if (messageType == 'audio') {
+        preview = '🎵 Audio';
+      }
+
       // Update community with last message info
       final communityRef = _firestore
           .collection('communities')
           .doc(communityId);
       batch.update(communityRef, {
         'lastMessageAt': FieldValue.serverTimestamp(),
-        'lastMessagePreview': content.length > 100
-            ? '${content.substring(0, 100)}...'
-            : content,
+        'lastMessagePreview': preview.length > 100
+            ? '${preview.substring(0, 100)}...'
+            : preview,
         'lastMessageSender': senderName,
         'messageCount': FieldValue.increment(1),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -587,7 +612,7 @@ class CommunityService {
         communityId,
         senderId,
         senderName,
-        content,
+        preview,
       );
 
       return true;

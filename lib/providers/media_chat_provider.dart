@@ -133,12 +133,13 @@ class MediaChatProvider extends ChangeNotifier {
       _uploadProgress[mediaId] = 0;
       notifyListeners();
 
-      // Upload
+      // Upload with mediaType (permanent for messages/communities)
       final media = await _mediaService.uploadMedia(
         file: file,
         conversationId: conversationId,
         senderId: currentUser.uid,
         senderRole: userRole,
+        mediaType: 'message', // Permanent storage for regular chat messages
         onProgress: (progress) {
           _uploadProgress[mediaId] = progress;
           notifyListeners();

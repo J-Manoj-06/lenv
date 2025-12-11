@@ -14,6 +14,8 @@ class MediaMessage {
   final int fileSize; // in bytes
   final String r2Url; // URL from Cloudflare R2
   final String? thumbnailUrl; // Only for images, base64 or R2 URL
+  final String
+  mediaType; // 'announcement', 'message', 'community' - determines deletion policy
 
   final DateTime createdAt;
   final DateTime? deletedAt; // Soft delete
@@ -42,6 +44,7 @@ class MediaMessage {
     required this.fileSize,
     required this.r2Url,
     this.thumbnailUrl,
+    this.mediaType = 'message', // Default: permanent
     required this.createdAt,
     this.deletedAt,
     this.readByTeacher = false,
@@ -81,6 +84,7 @@ class MediaMessage {
       fileSize: data['fileSize'] ?? 0,
       r2Url: data['r2Url'] ?? '',
       thumbnailUrl: data['thumbnailUrl'],
+      mediaType: data['mediaType'] ?? 'message',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       deletedAt: (data['deletedAt'] as Timestamp?)?.toDate(),
       readByTeacher: data['readByTeacher'] ?? false,
@@ -105,6 +109,7 @@ class MediaMessage {
       'fileSize': fileSize,
       'r2Url': r2Url,
       'thumbnailUrl': thumbnailUrl,
+      'mediaType': mediaType,
       'createdAt': Timestamp.fromDate(createdAt),
       'deletedAt': deletedAt != null ? Timestamp.fromDate(deletedAt!) : null,
       'readByTeacher': readByTeacher,

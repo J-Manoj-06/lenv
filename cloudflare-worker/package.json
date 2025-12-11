@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:media-cleanup": "wrangler deploy --config wrangler-delete-media.jsonc",
+    "dev:media-cleanup": "wrangler dev --config wrangler-delete-media.jsonc",
     "build": "tsc",
-    "tail": "wrangler tail"
+    "tail": "wrangler tail",
+    "tail:media-cleanup": "wrangler tail delete-expired-media-worker"
   },
   "keywords": [
     "cloudflare-workers",

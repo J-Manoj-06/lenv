@@ -46,6 +46,8 @@ class MediaUploadService {
     required String conversationId,
     required String senderId,
     required String senderRole,
+    String mediaType =
+        'message', // 'announcement' = 24h auto-delete, 'message'/'community' = permanent
     Function(int)? onProgress, // 0-100
   }) async {
     try {
@@ -116,6 +118,7 @@ class MediaUploadService {
         fileSize: uploadBytes.length,
         r2Url: r2Url,
         thumbnailUrl: thumbnailUrl,
+        mediaType: mediaType, // Pass through mediaType
         createdAt: DateTime.now(),
         width: imageWidth,
         height: imageHeight,

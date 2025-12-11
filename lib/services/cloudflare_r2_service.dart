@@ -93,7 +93,8 @@ class CloudflareR2Service {
         'url': uploadUrl,
         'key': key,
         'expiresAt': expiresAt.toIso8601String(),
-        'r2PublicUrl': 'https://$r2Domain/$bucketName/$key',
+        'r2PublicUrl':
+            'https://$r2Domain/$key', // Custom domain already points to bucket root
       };
     } catch (e) {
       throw Exception('Failed to generate signed URL: $e');
@@ -136,7 +137,15 @@ class CloudflareR2Service {
         // Extract public URL from signed URL
         final uri = Uri.parse(signedUrl);
         final pathWithoutQuery = uri.path;
-        final publicUrl = 'https://$r2Domain$pathWithoutQuery';
+
+        // Remove bucket name from path since custom domain points to bucket root
+        // Path format: /lenv-storage/media/... → /media/...
+        final pathWithoutBucket = pathWithoutQuery.replaceFirst(
+          '/$bucketName/',
+          '/',
+        );
+
+        final publicUrl = 'https://$r2Domain$pathWithoutBucket';
         print('✅ R2 Upload: Success! URL: $publicUrl');
         return publicUrl;
       } else {

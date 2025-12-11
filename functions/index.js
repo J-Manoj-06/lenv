@@ -317,3 +317,8 @@ exports.uploadFileToR2 = uploadFileToR2;
 const { deleteExpiredAnnouncements, manualDeleteExpiredAnnouncements } = require('./deleteExpiredAnnouncements');
 exports.deleteExpiredAnnouncements = deleteExpiredAnnouncements;
 exports.manualDeleteExpiredAnnouncements = manualDeleteExpiredAnnouncements;
+
+// Import Cloud Functions for media announcement auto-deletion (24 hour ephemeral media)
+const { deleteExpiredMediaAnnouncements, hardDeleteOldMediaMessages } = require('./deleteExpiredMediaAnnouncements');
+exports.deleteExpiredMediaAnnouncements = deleteExpiredMediaAnnouncements;
+exports.hardDeleteOldMediaMessages = hardDeleteOldMediaMessages;

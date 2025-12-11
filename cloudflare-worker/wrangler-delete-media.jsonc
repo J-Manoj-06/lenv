@@ -1,0 +1,21 @@
+{
+  "name": "delete-expired-media-worker",
+  "main": "src/delete-expired-media.ts",
+  "compatibility_date": "2024-12-10",
+  
+  "r2_buckets": [
+    {
+      "binding": "R2_BUCKET",
+      "bucket_name": "lenv-storage",
+      "preview_bucket_name": "lenv-storage"
+    }
+  ],
+  
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+  
+  "triggers": {
+    "crons": ["0 * * * *"]
+  }
+}
