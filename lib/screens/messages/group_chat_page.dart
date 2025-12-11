@@ -310,7 +310,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Microphone permission denied. Please enable it in Settings.'),
+                content: Text(
+                  'Microphone permission denied. Please enable it in Settings.',
+                ),
               ),
             );
           }

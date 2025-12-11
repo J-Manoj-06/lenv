@@ -281,7 +281,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Microphone permission denied. Please enable it in Settings.'),
+                content: Text(
+                  'Microphone permission denied. Please enable it in Settings.',
+                ),
                 backgroundColor: Colors.red,
               ),
             );
