@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/student_provider.dart';
@@ -39,10 +40,12 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
   bool _isRecording = false;
+  bool _showEmojiPicker = false;
 
   @override
   void initState() {
     super.initState();
+    _messageController.addListener(() => setState(() {}));
 
     // Initialize MediaUploadService with CloudflareConfig
     final r2Service = CloudflareR2Service(
@@ -77,6 +80,17 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
     super.dispose();
+  }
+
+  void _onEmojiSelected(Emoji emoji) {
+    _messageController.text += emoji.emoji;
+  }
+
+  void _onBackspacePressed() {
+    final text = _messageController.text;
+    if (text.isNotEmpty) {
+      _messageController.text = text.substring(0, text.length - 1);
+    }
   }
 
   void _scrollToBottom({bool force = false}) {
@@ -567,6 +581,31 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
             ),
           ),
           _buildMessageInput(),
+          if (_showEmojiPicker)
+            SizedBox(
+              height: 250,
+              child: EmojiPicker(
+                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                onBackspacePressed: _onBackspacePressed,
+                config: Config(
+                  height: 256,
+                  checkPlatformCompatibility: false,
+                  emojiViewConfig: EmojiViewConfig(
+                    backgroundColor: const Color(0xFF1A1C20),
+                    columns: 7,
+                    emojiSizeMax: 28,
+                  ),
+                  categoryViewConfig: CategoryViewConfig(
+                    backgroundColor: const Color(0xFF1A1C20),
+                    iconColorSelected: const Color(0xFFFFA929),
+                    indicatorColor: const Color(0xFFFFA929),
+                  ),
+                  bottomActionBarConfig: BottomActionBarConfig(
+                    backgroundColor: const Color(0xFF1A1C20),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -818,13 +857,16 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.emoji_emotions_outlined),
+              icon: Icon(
+                _showEmojiPicker
+                    ? Icons.keyboard
+                    : Icons.emoji_emotions_outlined,
+              ),
               color: const Color(0xFF9E9E9E),
               onPressed: () {
-                // TODO: Implement emoji picker
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Emoji picker coming soon!')),
-                );
+                setState(() {
+                  _showEmojiPicker = !_showEmojiPicker;
+                });
               },
             ),
             Expanded(

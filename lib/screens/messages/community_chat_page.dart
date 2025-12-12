@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
 import '../../providers/auth_provider.dart';
@@ -30,10 +31,12 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
+  bool _showEmojiPicker = false;
 
   @override
   void initState() {
     super.initState();
+    _messageController.addListener(() => setState(() {}));
     // Scroll to bottom on initial load only
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom(force: true);
@@ -46,6 +49,17 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     _scrollController.dispose();
     _messageFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onEmojiSelected(Emoji emoji) {
+    _messageController.text += emoji.emoji;
+  }
+
+  void _onBackspacePressed() {
+    final text = _messageController.text;
+    if (text.isNotEmpty) {
+      _messageController.text = text.substring(0, text.length - 1);
+    }
   }
 
   void _scrollToBottom({bool force = false}) {
@@ -220,6 +234,31 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
           // Input Bar
           _buildInputBar(),
+          if (_showEmojiPicker)
+            SizedBox(
+              height: 250,
+              child: EmojiPicker(
+                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                onBackspacePressed: _onBackspacePressed,
+                config: Config(
+                  height: 256,
+                  checkPlatformCompatibility: false,
+                  emojiViewConfig: EmojiViewConfig(
+                    backgroundColor: const Color(0xFF222222),
+                    columns: 7,
+                    emojiSizeMax: 28,
+                  ),
+                  categoryViewConfig: CategoryViewConfig(
+                    backgroundColor: const Color(0xFF222222),
+                    iconColorSelected: const Color(0xFF00A884),
+                    indicatorColor: const Color(0xFF00A884),
+                  ),
+                  bottomActionBarConfig: BottomActionBarConfig(
+                    backgroundColor: const Color(0xFF222222),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -252,13 +291,19 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(
-                        Icons.sentiment_satisfied_outlined,
-                        color: Color(0xFF8696A0),
+                      icon: Icon(
+                        _showEmojiPicker
+                            ? Icons.keyboard
+                            : Icons.sentiment_satisfied_outlined,
+                        color: const Color(0xFF8696A0),
                         size: 26,
                       ),
                       padding: const EdgeInsets.all(8),
-                      onPressed: () {},
+                      onPressed: () {
+                        setState(() {
+                          _showEmojiPicker = !_showEmojiPicker;
+                        });
+                      },
                     ),
                     Expanded(
                       child: TextField(

@@ -5,6 +5,7 @@ import 'package:record/record.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../../models/chat_message.dart';
 import '../../../services/messaging_service.dart';
 import '../../../providers/auth_provider.dart';
@@ -45,6 +46,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isRecording = false;
   bool _isUploading = false;
   double _uploadProgress = 0;
+  bool _showEmojiPicker = false;
 
   @override
   void initState() {
@@ -53,6 +55,17 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.addListener(() => setState(() {}));
     _loadCurrentUser();
     _markAsRead();
+  }
+
+  void _onEmojiSelected(Emoji emoji) {
+    _messageController.text += emoji.emoji;
+  }
+
+  void _onBackspacePressed() {
+    final text = _messageController.text;
+    if (text.isNotEmpty) {
+      _messageController.text = text.substring(0, text.length - 1);
+    }
   }
 
   void _initMediaService() {
@@ -274,6 +287,31 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(child: _buildMessageList()),
           _buildComposer(theme, isDark),
+          if (_showEmojiPicker)
+            SizedBox(
+              height: 250,
+              child: EmojiPicker(
+                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                onBackspacePressed: _onBackspacePressed,
+                config: Config(
+                  height: 256,
+                  checkPlatformCompatibility: false,
+                  emojiViewConfig: EmojiViewConfig(
+                    backgroundColor: const Color(0xFF0B141A),
+                    columns: 7,
+                    emojiSizeMax: 28,
+                  ),
+                  categoryViewConfig: CategoryViewConfig(
+                    backgroundColor: const Color(0xFF0B141A),
+                    iconColorSelected: const Color(0xFF00A884),
+                    indicatorColor: const Color(0xFF00A884),
+                  ),
+                  bottomActionBarConfig: BottomActionBarConfig(
+                    backgroundColor: const Color(0xFF0B141A),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

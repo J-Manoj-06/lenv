@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
@@ -24,10 +25,12 @@ class _TeacherCommunityChatScreenState
   final CommunityService _communityService = CommunityService();
   String? _teacherName;
   String? _teacherId;
+  bool _showEmojiPicker = false;
 
   @override
   void initState() {
     super.initState();
+    _messageController.addListener(() => setState(() {}));
     _loadTeacherData();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToBottom(force: true),
@@ -39,6 +42,17 @@ class _TeacherCommunityChatScreenState
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onEmojiSelected(Emoji emoji) {
+    _messageController.text += emoji.emoji;
+  }
+
+  void _onBackspacePressed() {
+    final text = _messageController.text;
+    if (text.isNotEmpty) {
+      _messageController.text = text.substring(0, text.length - 1);
+    }
   }
 
   Future<void> _loadTeacherData() async {
@@ -238,6 +252,31 @@ class _TeacherCommunityChatScreenState
             ),
           ),
           _buildMessageInput(),
+          if (_showEmojiPicker)
+            SizedBox(
+              height: 250,
+              child: EmojiPicker(
+                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                onBackspacePressed: _onBackspacePressed,
+                config: Config(
+                  height: 256,
+                  checkPlatformCompatibility: false,
+                  emojiViewConfig: EmojiViewConfig(
+                    backgroundColor: const Color(0xFF0B141A),
+                    columns: 7,
+                    emojiSizeMax: 28,
+                  ),
+                  categoryViewConfig: CategoryViewConfig(
+                    backgroundColor: const Color(0xFF0B141A),
+                    iconColorSelected: const Color(0xFF6A4FF7),
+                    indicatorColor: const Color(0xFF6A4FF7),
+                  ),
+                  bottomActionBarConfig: BottomActionBarConfig(
+                    backgroundColor: const Color(0xFF0B141A),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -503,13 +542,19 @@ class _TeacherCommunityChatScreenState
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(
-                        Icons.sentiment_satisfied_outlined,
-                        color: Color(0xFF8696A0),
+                      icon: Icon(
+                        _showEmojiPicker
+                            ? Icons.keyboard
+                            : Icons.sentiment_satisfied_outlined,
+                        color: const Color(0xFF8696A0),
                         size: 26,
                       ),
                       padding: const EdgeInsets.all(8),
-                      onPressed: () {},
+                      onPressed: () {
+                        setState(() {
+                          _showEmojiPicker = !_showEmojiPicker;
+                        });
+                      },
                     ),
                     Expanded(
                       child: TextField(

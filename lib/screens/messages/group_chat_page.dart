@@ -6,6 +6,7 @@ import 'package:record/record.dart';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/group_chat_message.dart';
 import '../../models/media_metadata.dart';
 import '../../services/group_messaging_service.dart';
@@ -53,6 +54,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
   bool _isRecording = false;
+  bool _showEmojiPicker = false;
 
   // Extract R2 key from full URL
   // https://files.lenv1.tech/media/1234567/file.pdf → media/1234567/file.pdf
@@ -67,6 +69,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   @override
   void initState() {
     super.initState();
+    _messageController.addListener(() => setState(() {}));
     // Initialize MediaUploadService with CloudflareConfig
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -119,6 +122,17 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
     super.dispose();
+  }
+
+  void _onEmojiSelected(Emoji emoji) {
+    _messageController.text += emoji.emoji;
+  }
+
+  void _onBackspacePressed() {
+    final text = _messageController.text;
+    if (text.isNotEmpty) {
+      _messageController.text = text.substring(0, text.length - 1);
+    }
   }
 
   void _scrollToBottom({bool force = false}) {
@@ -587,6 +601,31 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
           // Input Bar
           _buildInputBar(),
+          if (_showEmojiPicker)
+            SizedBox(
+              height: 250,
+              child: EmojiPicker(
+                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                onBackspacePressed: _onBackspacePressed,
+                config: Config(
+                  height: 256,
+                  checkPlatformCompatibility: false,
+                  emojiViewConfig: EmojiViewConfig(
+                    backgroundColor: const Color(0xFF1A1A1A),
+                    columns: 7,
+                    emojiSizeMax: 28,
+                  ),
+                  categoryViewConfig: CategoryViewConfig(
+                    backgroundColor: const Color(0xFF1A1A1A),
+                    iconColorSelected: const Color(0xFF00A884),
+                    indicatorColor: const Color(0xFF00A884),
+                  ),
+                  bottomActionBarConfig: BottomActionBarConfig(
+                    backgroundColor: const Color(0xFF1A1A1A),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -619,13 +658,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(
-                        Icons.sentiment_satisfied_outlined,
-                        color: Color(0xFF8696A0),
+                      icon: Icon(
+                        _showEmojiPicker
+                            ? Icons.keyboard
+                            : Icons.sentiment_satisfied_outlined,
+                        color: const Color(0xFF8696A0),
                         size: 26,
                       ),
                       padding: const EdgeInsets.all(8),
-                      onPressed: () {},
+                      onPressed: () {
+                        setState(() {
+                          _showEmojiPicker = !_showEmojiPicker;
+                        });
+                      },
                     ),
                     Expanded(
                       child: TextField(
