@@ -55,6 +55,13 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     final downloaded = await _repository.isDownloaded(widget.r2Key);
     final path = await _repository.getLocalFilePath(widget.r2Key);
 
+    print('📋 Check status for: ${widget.r2Key}');
+    print('   Downloaded: $downloaded');
+    print('   Local path: $path');
+    print(
+      '   File size: ${widget.fileSize} bytes (${_formatSize(widget.fileSize)})',
+    );
+
     if (mounted) {
       setState(() {
         _isDownloaded = downloaded;
@@ -198,6 +205,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   String _formatSize(int bytes) {
+    if (bytes == 0) return 'Unknown size';
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';

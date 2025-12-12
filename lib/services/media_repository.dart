@@ -136,21 +136,27 @@ class MediaRepository {
 
       // Write to file
       await file.writeAsBytes(bytes);
+      final actualFileSize = await file.length();
       debugPrint('💾 Saved to: $localPath');
+      debugPrint(
+        '📦 File size: $actualFileSize bytes (${_formatBytes(actualFileSize)})',
+      );
+      debugPrint('📂 File exists: ${await file.exists()}');
 
-      // Save metadata
+      // Save metadata with actual file size
       final media = DownloadedMedia(
         key: r2Key,
         localPath: localPath,
         fileName: fileName,
         mimeType: mimeType,
-        fileSize: bytes.length,
+        fileSize: actualFileSize,
         downloadedAt: DateTime.now(),
         thumbnailBase64: thumbnailBase64,
       );
 
       await _storageHelper.saveMediaMetadata(media);
       debugPrint('✅ Download complete: $fileName (${media.formattedSize})');
+      debugPrint('🔑 Saved with key: $r2Key');
 
       return DownloadResult(
         success: true,
@@ -198,6 +204,15 @@ class MediaRepository {
   /// Clear all downloads
   Future<void> clearAllDownloads() async {
     await _storageHelper.clearAllMedia();
+  }
+
+  /// Format bytes for logging
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 }
 

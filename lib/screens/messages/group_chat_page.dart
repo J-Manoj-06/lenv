@@ -779,11 +779,16 @@ class _MessageBubble extends StatelessWidget {
   ) {
     // Use optimized MediaPreviewCard for ALL media types
     // This prevents auto-downloads and provides on-demand loading
+    final fileSize = metadata.fileSize ?? 0;
+    print(
+      '📦 Building attachment: ${metadata.r2Key} with size: $fileSize bytes',
+    );
+
     return MediaPreviewCard(
       r2Key: metadata.r2Key,
       fileName: _fileNameFromMetadata(metadata),
       mimeType: metadata.mimeType ?? 'application/octet-stream',
-      fileSize: metadata.fileSize ?? 0,
+      fileSize: fileSize,
       thumbnailBase64: metadata.thumbnail,
       isMe: isMe,
     );

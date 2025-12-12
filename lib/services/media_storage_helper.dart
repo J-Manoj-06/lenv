@@ -11,13 +11,27 @@ class MediaStorageHelper {
   static const String _mediaFolderName = 'media';
 
   /// Get the base directory for storing media files
-  /// Creates /app_documents/media/ folder structure
+  /// Creates /storage/emulated/0/Android/data/com.lenv.reward/files/media/ folder structure
+  /// This ensures files are actually saved to device storage
   Future<Directory> getMediaDirectory() async {
-    final Directory appDocDir = await getApplicationDocumentsDirectory();
+    // Use external storage so files are actually saved to device
+    Directory? appDocDir;
+    try {
+      appDocDir = await getExternalStorageDirectory();
+    } catch (e) {
+      print('⚠️ External storage not available, using internal: $e');
+      appDocDir = await getApplicationDocumentsDirectory();
+    }
+
+    if (appDocDir == null) {
+      throw Exception('Unable to get storage directory');
+    }
+
     final Directory mediaDir = Directory('${appDocDir.path}/$_mediaFolderName');
 
     if (!await mediaDir.exists()) {
       await mediaDir.create(recursive: true);
+      print('📁 Created media directory: ${mediaDir.path}');
     }
 
     return mediaDir;
