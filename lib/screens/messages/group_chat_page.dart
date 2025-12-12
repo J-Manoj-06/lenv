@@ -15,8 +15,7 @@ import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/chat_image_widget.dart';
-import '../../widgets/chat_attachment_tile.dart';
+import '../../widgets/media_preview_card.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String classId;
@@ -778,57 +777,46 @@ class _MessageBubble extends StatelessWidget {
     BuildContext context,
     MediaMetadata metadata,
   ) {
-    if (_isImageMime(metadata.mimeType)) {
-      return ChatImageWidget(metadata: metadata, isMe: isMe);
-    }
-
-    return ChatAttachmentTile(
+    // Use optimized MediaPreviewCard for ALL media types
+    // This prevents auto-downloads and provides on-demand loading
+    return MediaPreviewCard(
+      r2Key: metadata.r2Key,
       fileName: _fileNameFromMetadata(metadata),
-      url: metadata.publicUrl,
-      mimeType: metadata.mimeType,
+      mimeType: metadata.mimeType ?? 'application/octet-stream',
+      fileSize: metadata.fileSize ?? 0,
+      thumbnailBase64: metadata.thumbnail,
       isMe: isMe,
     );
   }
 
   Widget _buildLegacyAttachment(BuildContext context, String url) {
-    if (_looksLikePdf(url)) {
-      return ChatAttachmentTile(
-        fileName: _fileNameFromUrl(url),
-        url: url,
-        mimeType: 'application/pdf',
-        isMe: isMe,
-      );
-    }
+    // Extract R2 key from URL for legacy messages
+    // URL format: https://files.lenv1.tech/media/timestamp/filename.ext
+    final uri = Uri.tryParse(url);
+    if (uri == null) return const SizedBox();
 
-    if (_looksLikeAudio(url)) {
-      return ChatAttachmentTile(
-        fileName: _fileNameFromUrl(url),
-        url: url,
-        mimeType: 'audio/mpeg',
-        isMe: isMe,
-      );
-    }
+    final r2Key = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.network(url, width: 200, fit: BoxFit.cover),
+    final fileName = _fileNameFromUrl(url);
+    final mimeType = _guessMimeType(fileName);
+
+    return MediaPreviewCard(
+      r2Key: r2Key,
+      fileName: fileName,
+      mimeType: mimeType,
+      fileSize: 0, // Unknown for legacy
+      isMe: isMe,
     );
   }
 
-  bool _isImageMime(String? mime) {
-    return mime?.toLowerCase().startsWith('image/') ?? false;
-  }
-
-  bool _looksLikePdf(String url) {
-    return url.toLowerCase().contains('.pdf');
-  }
-
-  bool _looksLikeAudio(String url) {
-    final lower = url.toLowerCase();
-    return lower.contains('.m4a') ||
-        lower.contains('.mp3') ||
-        lower.contains('.wav') ||
-        lower.contains('.aac');
+  String _guessMimeType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.m4a') || lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    return 'application/octet-stream';
   }
 
   String _fileNameFromMetadata(MediaMetadata metadata) {
