@@ -233,6 +233,71 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     }
   }
 
+  Future<void> _pickAndSendAudio() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['mp3', 'm4a', 'wav', 'aac', 'ogg'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+      final fileName = result.files.single.name;
+
+      final student = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      ).currentStudent;
+      if (student == null) return;
+
+      setState(() => _isUploading = true);
+
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: widget.community.id,
+        senderId: student.uid,
+        senderRole: 'Student',
+        mediaType: 'community',
+        onProgress: (progress) {
+          print('Upload progress: $progress%');
+        },
+      );
+
+      setState(() => _isUploading = false);
+
+      await _communityService.sendMessage(
+        communityId: widget.community.id,
+        senderId: student.uid,
+        senderName: student.name,
+        senderRole: 'Student',
+        content: '',
+        fileUrl: mediaMessage.r2Url,
+        fileName: fileName,
+        mediaType: 'audio',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Audio sent successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isUploading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _recordAndSendAudio() async {
     try {
       if (_isRecording) {
@@ -784,38 +849,49 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                 },
               ),
             ),
-            if (_isUploading)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Color(0xFFFFA929),
-                    ),
-                  ),
-                ),
-              )
-            else
-              IconButton(
-                icon: Icon(
-                  _isRecording ? Icons.stop : Icons.attach_file,
-                  color: _isRecording ? Colors.red : const Color(0xFF9E9E9E),
-                ),
-                onPressed: _isRecording
-                    ? _recordAndSendAudio
-                    : _showMediaOptions,
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(
+                Icons.attach_file,
+                color: Color(0xFF9E9E9E),
+                size: 26,
               ),
+              padding: const EdgeInsets.all(8),
+              onPressed: _isUploading ? null : _showMediaOptions,
+            ),
+            const SizedBox(width: 8),
             Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFA929),
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: _isRecording
+                    ? Colors.redAccent
+                    : const Color(0xFF00A884),
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.black),
-                onPressed: _sendMessage,
+                icon: Icon(
+                  _isRecording
+                      ? Icons.stop
+                      : (_messageController.text.trim().isNotEmpty
+                            ? Icons.send_rounded
+                            : Icons.mic),
+                  color: Colors.white,
+                  size: 24,
+                ),
+                padding: EdgeInsets.zero,
+                onPressed: _isUploading
+                    ? null
+                    : () {
+                        if (_isRecording) {
+                          _recordAndSendAudio();
+                        } else if (_messageController.text.trim().isNotEmpty) {
+                          _sendMessage();
+                        } else {
+                          // Start recording
+                          _recordAndSendAudio();
+                        }
+                      },
               ),
             ),
           ],
@@ -869,12 +945,12 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                   enabled: true,
                 ),
                 _buildMediaOption(
-                  icon: Icons.mic,
+                  icon: Icons.audiotrack,
                   label: 'Audio',
                   color: const Color(0xFF2196F3),
                   onTap: () {
                     Navigator.pop(context);
-                    _recordAndSendAudio();
+                    _pickAndSendAudio();
                   },
                   enabled: true,
                 ),

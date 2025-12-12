@@ -241,57 +241,87 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       child: SafeArea(
         child: Row(
           children: [
-            // Image Button
-            IconButton(
-              icon: const Icon(Icons.image, color: Color(0xFFFF8800)),
-              onPressed: _pickAndSendImage,
-            ),
-            const SizedBox(width: 8),
-
             // Text Input
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
+                  color: const Color(0xFF1F2C34),
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: TextField(
-                  controller: _messageController,
-                  focusNode: _messageFocusNode,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    hintText: 'Type a message...',
-                    hintStyle: TextStyle(color: Colors.white38),
-                    border: InputBorder.none,
-                  ),
-                  maxLines: null,
-                  textCapitalization: TextCapitalization.sentences,
-                  textInputAction: TextInputAction.send,
-                  enabled: true,
-                  onSubmitted: (_) {
-                    _sendMessage();
-                    // Keep keyboard open by requesting focus again
-                    Future.delayed(const Duration(milliseconds: 50), () {
-                      _messageFocusNode.requestFocus();
-                    });
-                  },
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.sentiment_satisfied_outlined,
+                        color: Color(0xFF8696A0),
+                        size: 26,
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      onPressed: () {},
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        focusNode: _messageFocusNode,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Message',
+                          hintStyle: TextStyle(color: Color(0xFF8696A0)),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        maxLines: null,
+                        textCapitalization: TextCapitalization.sentences,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) {
+                          _sendMessage();
+                          Future.delayed(const Duration(milliseconds: 50), () {
+                            _messageFocusNode.requestFocus();
+                          });
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
+            const SizedBox(width: 6),
+            IconButton(
+              icon: const Icon(
+                Icons.attach_file,
+                color: Color(0xFF8696A0),
+                size: 26,
+              ),
+              padding: const EdgeInsets.all(8),
+              onPressed: _pickAndSendImage,
+            ),
             const SizedBox(width: 8),
-
-            // Send Button
+            // Mic/Send Button
             Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF8800), Color(0xFFFF9E2A)],
-                ),
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                color: Color(0xFF00A884),
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.white),
-                onPressed: () => _sendMessage(),
+                icon: Icon(
+                  _messageController.text.trim().isNotEmpty
+                      ? Icons.send_rounded
+                      : Icons.mic,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                padding: EdgeInsets.zero,
+                onPressed: _messageController.text.trim().isNotEmpty
+                    ? () => _sendMessage()
+                    : () {
+                        // Handle mic recording
+                      },
               ),
             ),
           ],

@@ -308,6 +308,71 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
   }
 
+  Future<void> _pickAndSendAudio() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['mp3', 'm4a', 'wav', 'aac', 'ogg'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+      final fileName = result.files.single.name;
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
+
+      if (currentUserId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      setState(() => _isUploading = true);
+
+      final conversationId = '${widget.classId}_${widget.subjectId}';
+
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: conversationId,
+        senderId: currentUserId,
+        senderRole: 'student',
+        mediaType: 'message',
+        onProgress: (progress) {
+          print('Upload progress: $progress%');
+        },
+      );
+
+      setState(() => _isUploading = false);
+
+      final r2Key = _extractR2Key(mediaMessage.r2Url);
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+      );
+
+      await _sendMessage(mediaMetadata: metadata);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Audio sent successfully')),
+        );
+      }
+    } catch (e) {
+      setState(() => _isUploading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send audio: $e')));
+      }
+    }
+  }
+
   Future<void> _recordAndSendAudio() async {
     try {
       if (_isRecording) {
@@ -543,79 +608,98 @@ class _GroupChatPageState extends State<GroupChatPage> {
       child: SafeArea(
         child: Row(
           children: [
-            IconButton(
-              icon: _isUploading
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFFFF8800),
-                        ),
-                      ),
-                    )
-                  : Icon(
-                      _isRecording ? Icons.stop : Icons.attach_file,
-                      color: _isRecording
-                          ? Colors.red
-                          : const Color(0xFFFF8800),
-                    ),
-              onPressed: _isUploading
-                  ? null
-                  : (_isRecording ? _recordAndSendAudio : _showMediaOptions),
-            ),
-            const SizedBox(width: 8),
-
             // Text Input
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
+                  color: const Color(0xFF1F2C34),
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: TextField(
-                  controller: _messageController,
-                  focusNode: _messageFocusNode,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    hintText: 'Type a message...',
-                    hintStyle: TextStyle(color: Colors.white38),
-                    border: InputBorder.none,
-                  ),
-                  maxLines: null,
-                  textCapitalization: TextCapitalization.sentences,
-                  textInputAction: TextInputAction.send,
-                  // Don't disable TextField - it causes keyboard to close!
-                  // enabled: !_isSending,
-                  onSubmitted: (_) {
-                    print('⌨️ onSubmitted triggered - keyboard send pressed');
-                    _sendMessage();
-                    // Keep keyboard open by requesting focus again
-                    Future.delayed(const Duration(milliseconds: 50), () {
-                      print(
-                        '⌨️ onSubmitted - requesting focus after 50ms delay',
-                      );
-                      _messageFocusNode.requestFocus();
-                    });
-                  },
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.sentiment_satisfied_outlined,
+                        color: Color(0xFF8696A0),
+                        size: 26,
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      onPressed: () {},
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        focusNode: _messageFocusNode,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Message',
+                          hintStyle: TextStyle(color: Color(0xFF8696A0)),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        maxLines: null,
+                        textCapitalization: TextCapitalization.sentences,
+                        textInputAction: TextInputAction.send,
+                        enabled: !_isRecording && !_isUploading,
+                        onSubmitted: (_) {
+                          _sendMessage();
+                          Future.delayed(const Duration(milliseconds: 50), () {
+                            _messageFocusNode.requestFocus();
+                          });
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
             const SizedBox(width: 8),
-
-            // Send Button
+            IconButton(
+              icon: const Icon(
+                Icons.attach_file,
+                color: Color(0xFF8696A0),
+                size: 26,
+              ),
+              padding: const EdgeInsets.all(8),
+              onPressed: _isUploading ? null : _showMediaOptions,
+            ),
+            const SizedBox(width: 8),
+            // Mic/Send Button
             Container(
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF8800), Color(0xFFFF9E2A)],
-                ),
+                color: _isRecording
+                    ? Colors.redAccent
+                    : const Color(0xFF00A884),
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.white),
-                onPressed: () => _sendMessage(),
+                icon: Icon(
+                  _isRecording
+                      ? Icons.stop
+                      : (_messageController.text.trim().isNotEmpty
+                            ? Icons.send_rounded
+                            : Icons.mic),
+                  color: Colors.white,
+                  size: 24,
+                ),
+                padding: EdgeInsets.zero,
+                onPressed: _isUploading
+                    ? null
+                    : () {
+                        if (_isRecording) {
+                          _recordAndSendAudio();
+                        } else if (_messageController.text.trim().isNotEmpty) {
+                          _sendMessage();
+                        } else {
+                          _recordAndSendAudio();
+                        }
+                      },
               ),
             ),
           ],
@@ -667,12 +751,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   },
                 ),
                 _buildMediaOption(
-                  icon: Icons.mic,
+                  icon: Icons.audiotrack,
                   label: 'Audio',
                   color: const Color(0xFF2196F3),
                   onTap: () {
                     Navigator.pop(context);
-                    _recordAndSendAudio();
+                    _pickAndSendAudio();
                   },
                 ),
               ],

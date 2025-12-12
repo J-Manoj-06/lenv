@@ -482,52 +482,84 @@ class _TeacherCommunityChatScreenState
   }
 
   Widget _buildMessageInput() {
+    final hasText = _messageController.text.trim().isNotEmpty;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
       decoration: const BoxDecoration(
-        color: Color(0xFF1A1C20),
-        border: Border(top: BorderSide(color: Color(0xFF262A30), width: 1)),
+        color: Color(0xFF0B141A),
+        border: Border(top: BorderSide(color: Color(0xFF131C21))),
       ),
       child: SafeArea(
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
               child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF262A30),
+                  color: const Color(0xFF1F2C34),
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: TextField(
-                  controller: _messageController,
-                  style: const TextStyle(color: Colors.white),
-                  maxLines: null,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    hintText: 'Type a message...',
-                    hintStyle: TextStyle(color: Color(0xFF6E7278)),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.sentiment_satisfied_outlined,
+                        color: Color(0xFF8696A0),
+                        size: 26,
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      onPressed: () {},
                     ),
-                  ),
-                  onSubmitted: (_) => _sendMessage(),
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                        maxLines: null,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          hintText: 'Message',
+                          hintStyle: TextStyle(color: Color(0xFF8696A0)),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onSubmitted: (_) => _sendMessage(),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: _sendMessage,
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6A4FF7), Color(0xFF8B6FFF)],
-                  ),
-                  shape: BoxShape.circle,
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(
+                Icons.attach_file,
+                color: Color(0xFF8696A0),
+                size: 26,
+              ),
+              padding: const EdgeInsets.all(8),
+              onPressed: () {},
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                color: Color(0xFF00A884),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: Icon(
+                  hasText ? Icons.send_rounded : Icons.mic,
+                  color: Colors.white,
+                  size: 24,
                 ),
-                child: const Icon(Icons.send, color: Colors.white, size: 20),
+                padding: EdgeInsets.zero,
+                onPressed: hasText ? _sendMessage : () {},
               ),
             ),
           ],

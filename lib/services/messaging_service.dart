@@ -4,6 +4,8 @@ import '../models/chat_message.dart';
 class MessagingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  FirebaseFirestore get firestore => _firestore;
+
   /// Fetch parent data for a given student ID
   /// ✅ OPTIMIZED: Uses student.parentId field (2 reads instead of 100+)
   /// Returns: {parentId, parentName, parentEmail, parentPhotoUrl, parentAuthUid}
