@@ -1,8 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/downloaded_media.dart';
+import 'package:media_store_plus/media_store_plus.dart';
+import 'package:mime/mime.dart';
 
 /// Helper class for managing local media file storage
 /// Handles file paths, directories, and metadata persistence
@@ -67,19 +71,92 @@ class MediaStorageHelper {
     }
   }
 
+  /// Save raw bytes into a public, user-visible collection using Android MediaStore.
+  /// - PDFs go to Downloads
+  /// - Images go to Pictures
+  /// - Audio goes to Music
+  /// Falls back to app directories on non-Android platforms.
+  Future<String> saveToPublicStorage({
+    required Uint8List bytes,
+    required String fileName,
+    String? mimeType,
+  }) async {
+    final resolvedMime =
+        mimeType ?? lookupMimeType(fileName) ?? 'application/octet-stream';
+
+    if (Platform.isAndroid) {
+      final mediaStore = MediaStore();
+      try {
+        // Initialize once for MediaStore
+        await MediaStore.ensureInitialized();
+        MediaStore.appFolder = 'NewReward';
+
+        // Write to a temporary file then let MediaStore move it
+        final tmpDir = await getTemporaryDirectory();
+        final tmpPath = p.join(tmpDir.path, fileName);
+        final tmpFile = File(tmpPath);
+        await tmpFile.writeAsBytes(bytes, flush: true);
+
+        // Choose correct collection
+        DirType dirType = DirType.download;
+        DirName dirName = DirName.download;
+        if (resolvedMime.startsWith('image/')) {
+          dirType = DirType.photo;
+          dirName = DirName.pictures;
+        } else if (resolvedMime.startsWith('audio/')) {
+          dirType = DirType.audio;
+          dirName = DirName.music;
+        } else if (resolvedMime.startsWith('video/')) {
+          dirType = DirType.video;
+          dirName = DirName.movies;
+        }
+
+        final saveInfo = await mediaStore.saveFile(
+          tempFilePath: tmpPath,
+          dirType: dirType,
+          dirName: dirName,
+        );
+
+        if (saveInfo != null) {
+          // Try to resolve real file path from returned URI
+          final uri = saveInfo.uri.toString();
+          final resolvedPath = await mediaStore.getFilePathFromUri(
+            uriString: uri,
+          );
+          final finalPath = resolvedPath ?? uri;
+          print('✅ Saved to public storage: $finalPath');
+          return finalPath;
+        }
+
+        print('⚠️ MediaStore save returned null, falling back to app storage');
+      } catch (e) {
+        print('❌ MediaStore save failed, falling back: $e');
+        // Fall through to non-Android path
+      }
+    }
+
+    // Non-Android or fallback: save to app-visible media directory
+    final dir = await getMediaDirectory();
+    final outPath = p.join(dir.path, fileName);
+    final file = File(outPath);
+    await file.writeAsBytes(bytes, flush: true);
+    print('✅ Saved to app storage: $outPath');
+    return outPath;
+  }
+
   /// Generate local file path for a given R2 key
   /// Example: "media/1234567/file.pdf" -> "/storage/emulated/0/Downloads/NewReward_Media/media_1234567_file.pdf"
   Future<String> getLocalFilePath(String r2Key) async {
     final mediaDir = await getMediaDirectory();
+    // Preserve extension so the file is visible to file managers (e.g., .pdf)
+    // and flatten nested paths into a single filename for uniqueness.
+    final segments = r2Key.split('/');
+    final baseName = segments.isNotEmpty ? segments.removeLast() : r2Key;
+    final prefix = segments.isNotEmpty ? '${segments.join('_')}_' : '';
+    final sanitizedBase = baseName.replaceAll(' ', '_');
+    final fileName = '$prefix$sanitizedBase';
 
-    // Sanitize the key to create a safe filename
-    // Replace slashes with underscores to flatten the structure
-    final sanitizedKey = r2Key
-        .replaceAll('/', '_')
-        .replaceAll(' ', '_')
-        .replaceAll('.', '_');
-
-    final fullPath = '${mediaDir.path}/$sanitizedKey';
+    final fullPath = p.join(mediaDir.path, fileName);
     print('📝 Generated local path for $r2Key: $fullPath');
     return fullPath;
   }

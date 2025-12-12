@@ -22,6 +22,7 @@ class MediaPreviewCard extends StatefulWidget {
   final String mimeType;
   final int fileSize;
   final String? thumbnailBase64; // For images
+  final String? localPath; // Already saved path (for WhatsApp uploads)
   final bool isMe;
 
   const MediaPreviewCard({
@@ -31,6 +32,7 @@ class MediaPreviewCard extends StatefulWidget {
     required this.mimeType,
     required this.fileSize,
     this.thumbnailBase64,
+    this.localPath,
     this.isMe = false,
   });
 
@@ -52,6 +54,24 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   Future<void> _checkDownloadStatus() async {
+    // If localPath provided (WhatsApp upload), use it directly
+    if (widget.localPath != null && widget.localPath!.isNotEmpty) {
+      final file = File(widget.localPath!);
+      final exists = await file.exists();
+
+      print('📋 Using provided localPath: ${widget.localPath}');
+      print('   File exists: $exists');
+
+      if (mounted) {
+        setState(() {
+          _isDownloaded = exists;
+          _localPath = exists ? widget.localPath : null;
+        });
+      }
+      return;
+    }
+
+    // Otherwise check repository
     final downloaded = await _repository.isDownloaded(widget.r2Key);
     final path = await _repository.getLocalFilePath(widget.r2Key);
 
@@ -213,6 +233,12 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
   @override
   Widget build(BuildContext context) {
+    // For IMAGES: Show WhatsApp-style preview (image with tap to expand)
+    if (_isImage) {
+      return _buildImagePreview();
+    }
+
+    // For PDFs, Audio, etc: Show file card with download button
     return InkWell(
       onTap: _isDownloaded ? _open : null,
       onLongPress: _isDownloaded ? _delete : null,
@@ -264,20 +290,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             ),
             const SizedBox(height: 10),
 
-            // Thumbnail for images (if available)
-            if (_isImage && widget.thumbnailBase64 != null) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.memory(
-                  base64Decode(widget.thumbnailBase64!),
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-
             // Action button (Download/Open/Progress)
             if (_isDownloading)
               Column(
@@ -299,22 +311,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: _open,
-                  icon: Icon(
-                    _isPdf
-                        ? Icons.open_in_new
-                        : _isAudio
-                        ? Icons.play_arrow
-                        : Icons.open_in_new,
-                  ),
-                  label: Text(
-                    _isPdf
-                        ? 'View PDF'
-                        : _isAudio
-                        ? 'Play Audio'
-                        : _isImage
-                        ? 'View Image'
-                        : 'Open',
-                  ),
+                  icon: Icon(_isPdf ? Icons.open_in_new : Icons.play_arrow),
+                  label: Text(_isPdf ? 'View PDF' : 'Play Audio'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _accentColor,
                     foregroundColor: Colors.white,
@@ -343,6 +341,161 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Build WhatsApp-style image preview
+  Widget _buildImagePreview() {
+    return GestureDetector(
+      onTap: () {
+        // If downloaded, open full screen
+        if (_isDownloaded && _localPath != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => _FullImageViewer(
+                imagePath: _localPath!,
+                fileName: widget.fileName,
+              ),
+            ),
+          );
+        }
+        // If has thumbnail, show thumbnail in full screen
+        else if (widget.thumbnailBase64 != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => _ThumbnailViewer(
+                thumbnailBase64: widget.thumbnailBase64!,
+                fileName: widget.fileName,
+                onDownload: _download,
+              ),
+            ),
+          );
+        }
+      },
+      onLongPress: _isDownloaded ? _delete : null,
+      child: Container(
+        width: 260,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            children: [
+              // Show downloaded image or thumbnail
+              if (_isDownloaded && _localPath != null)
+                Image.file(
+                  File(_localPath!),
+                  height: 260,
+                  width: 260,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    print('❌ Error loading image from: $_localPath');
+                    return _buildThumbnailFallback();
+                  },
+                )
+              else if (widget.thumbnailBase64 != null)
+                _buildThumbnailFallback()
+              else
+                Container(
+                  height: 260,
+                  width: 260,
+                  color: Colors.grey[800],
+                  child: const Icon(
+                    Icons.image,
+                    size: 64,
+                    color: Colors.white54,
+                  ),
+                ),
+
+              // Download overlay if not downloaded
+              if (!_isDownloaded && !_isDownloading)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.8),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.download,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Tap to download',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Download progress overlay
+              if (_isDownloading)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.7),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            value: _downloadProgress,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${(_downloadProgress * 100).toInt()}%',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThumbnailFallback() {
+    return Image.memory(
+      base64Decode(widget.thumbnailBase64!),
+      height: 260,
+      width: 260,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        print('❌ Error loading thumbnail');
+        return Container(
+          height: 260,
+          width: 260,
+          color: Colors.grey[800],
+          child: const Icon(
+            Icons.broken_image,
+            size: 64,
+            color: Colors.white54,
+          ),
+        );
+      },
     );
   }
 }
@@ -375,6 +528,82 @@ class _FullImageViewer extends StatelessWidget {
         minScale: PhotoViewComputedScale.contained,
         maxScale: PhotoViewComputedScale.covered * 2,
         backgroundDecoration: const BoxDecoration(color: Colors.black),
+      ),
+    );
+  }
+}
+
+/// Thumbnail viewer with download option
+class _ThumbnailViewer extends StatelessWidget {
+  final String thumbnailBase64;
+  final String fileName;
+  final VoidCallback onDownload;
+
+  const _ThumbnailViewer({
+    required this.thumbnailBase64,
+    required this.fileName,
+    required this.onDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black87,
+        title: Text(
+          fileName,
+          style: const TextStyle(fontSize: 16, color: Colors.white),
+          overflow: TextOverflow.ellipsis,
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download, color: Colors.white),
+            onPressed: () {
+              Navigator.pop(context);
+              onDownload();
+            },
+            tooltip: 'Download full quality',
+          ),
+        ],
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: PhotoView(
+                imageProvider: MemoryImage(base64Decode(thumbnailBase64)),
+                minScale: PhotoViewComputedScale.contained,
+                maxScale: PhotoViewComputedScale.covered * 2,
+                backgroundDecoration: const BoxDecoration(color: Colors.black),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.black87,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: Colors.white70,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'This is a preview. Tap download for full quality.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

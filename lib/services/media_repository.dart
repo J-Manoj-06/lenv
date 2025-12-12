@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../models/downloaded_media.dart';
@@ -115,18 +116,7 @@ class MediaRepository {
       final contentLength = streamedResponse.contentLength ?? 0;
       debugPrint('📦 Content length: ${_formatBytes(contentLength)}');
 
-      // Prepare local file path
-      debugPrint('📁 Getting local file path for: $r2Key');
-      final localPath = await _storageHelper.getLocalFilePath(r2Key);
-      debugPrint('📍 Local path: $localPath');
-      final file = File(localPath);
-
-      // Ensure parent directory exists
-      debugPrint('📂 Creating parent directory...');
-      await file.parent.create(recursive: true);
-      debugPrint('✅ Parent directory exists: ${await file.parent.exists()}');
-
-      // Download with progress tracking
+      // Collect bytes with progress tracking
       debugPrint('⬇️ Starting download...');
       final bytes = <int>[];
       int downloadedBytes = 0;
@@ -139,7 +129,6 @@ class MediaRepository {
           final progress = downloadedBytes / contentLength;
           onProgress(progress);
           if (downloadedBytes % (1024 * 100) == 0) {
-            // Log every 100KB
             debugPrint(
               '  ⬇️ Progress: ${(progress * 100).toInt()}% (${_formatBytes(downloadedBytes)}/${_formatBytes(contentLength)})',
             );
@@ -147,28 +136,37 @@ class MediaRepository {
         }
       }
 
-      // Write to file
-      debugPrint('💾 Writing ${_formatBytes(bytes.length)} to disk...');
+      // Determine target file name from key
+      final segmentsForName = r2Key.split('/');
+      final baseName = segmentsForName.isNotEmpty
+          ? segmentsForName.last
+          : fileName;
+      final targetFileName = baseName;
+
+      // Save to public storage (Android MediaStore) or fallback app storage
+      debugPrint(
+        '💾 Saving ${_formatBytes(bytes.length)} to public storage...',
+      );
+      String savedPath;
       try {
-        await file.writeAsBytes(bytes);
-        debugPrint('✅ Bytes written successfully');
+        savedPath = await _storageHelper.saveToPublicStorage(
+          bytes: Uint8List.fromList(bytes),
+          fileName: targetFileName,
+          mimeType: mimeType,
+        );
       } catch (e) {
-        debugPrint('❌ Error writing bytes: $e');
+        debugPrint('❌ Error saving to public storage: $e');
         return DownloadResult(
           success: false,
-          message: 'Failed to write file: $e',
+          message: 'Failed to save file: $e',
         );
       }
 
-      final actualFileSize = await file.length();
-      debugPrint('💾 Saved to: $localPath');
-      debugPrint(
-        '📦 File size: $actualFileSize bytes (${_formatBytes(actualFileSize)})',
-      );
-      debugPrint('📂 File exists: ${await file.exists()}');
+      final actualFileSize = await File(savedPath).length();
+      debugPrint('💾 Saved to: $savedPath');
+      debugPrint('📂 File exists: ${await File(savedPath).exists()}');
 
-      // Verify file was actually created
-      if (!await file.exists()) {
+      if (!await File(savedPath).exists()) {
         debugPrint('❌ ERROR: File was written but does not exist!');
         return DownloadResult(
           success: false,
@@ -176,10 +174,10 @@ class MediaRepository {
         );
       }
 
-      // Save metadata with actual file size
+      // Save metadata
       final media = DownloadedMedia(
         key: r2Key,
-        localPath: localPath,
+        localPath: savedPath,
         fileName: fileName,
         mimeType: mimeType,
         fileSize: actualFileSize,
@@ -193,7 +191,7 @@ class MediaRepository {
 
       return DownloadResult(
         success: true,
-        localPath: localPath,
+        localPath: savedPath,
         message: 'Downloaded successfully',
       );
     } catch (e) {
@@ -207,8 +205,6 @@ class MediaRepository {
     try {
       final metadata = await _storageHelper.getMediaMetadata(r2Key);
       if (metadata == null) return false;
-
-      // Delete file
       await _storageHelper.deleteFile(metadata.localPath);
 
       // Remove metadata

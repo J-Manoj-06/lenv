@@ -848,6 +848,7 @@ class _MessageBubble extends StatelessWidget {
       mimeType: metadata.mimeType ?? 'application/octet-stream',
       fileSize: fileSize,
       thumbnailBase64: metadata.thumbnail,
+      localPath: metadata.localPath, // Use already-saved path
       isMe: isMe,
     );
   }
