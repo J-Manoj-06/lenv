@@ -16,6 +16,7 @@ import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/chat_image_widget.dart';
+import '../../widgets/chat_attachment_tile.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String classId;
@@ -734,22 +735,18 @@ class _MessageBubble extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // WhatsApp-style media with metadata
+                      // Media handling
                       if (message.mediaMetadata != null) ...[
-                        ChatImageWidget(metadata: message.mediaMetadata!),
+                        _buildMetadataAttachment(
+                          context,
+                          message.mediaMetadata!,
+                        ),
                         if (message.message.isNotEmpty)
                           const SizedBox(height: 8),
                       ]
-                      // Legacy imageUrl support (backward compatibility)
+                      // Legacy URL support (images/PDFs)
                       else if (message.imageUrl != null) ...[
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            message.imageUrl!,
-                            width: 200,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
+                        _buildLegacyAttachment(context, message.imageUrl!),
                         if (message.message.isNotEmpty)
                           const SizedBox(height: 8),
                       ],
@@ -775,6 +772,77 @@ class _MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildMetadataAttachment(
+    BuildContext context,
+    MediaMetadata metadata,
+  ) {
+    if (_isImageMime(metadata.mimeType)) {
+      return ChatImageWidget(metadata: metadata, isMe: isMe);
+    }
+
+    return ChatAttachmentTile(
+      fileName: _fileNameFromMetadata(metadata),
+      url: metadata.publicUrl,
+      mimeType: metadata.mimeType,
+      isMe: isMe,
+    );
+  }
+
+  Widget _buildLegacyAttachment(BuildContext context, String url) {
+    if (_looksLikePdf(url)) {
+      return ChatAttachmentTile(
+        fileName: _fileNameFromUrl(url),
+        url: url,
+        mimeType: 'application/pdf',
+        isMe: isMe,
+      );
+    }
+
+    if (_looksLikeAudio(url)) {
+      return ChatAttachmentTile(
+        fileName: _fileNameFromUrl(url),
+        url: url,
+        mimeType: 'audio/mpeg',
+        isMe: isMe,
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.network(url, width: 200, fit: BoxFit.cover),
+    );
+  }
+
+  bool _isImageMime(String? mime) {
+    return mime?.toLowerCase().startsWith('image/') ?? false;
+  }
+
+  bool _looksLikePdf(String url) {
+    return url.toLowerCase().contains('.pdf');
+  }
+
+  bool _looksLikeAudio(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('.m4a') ||
+        lower.contains('.mp3') ||
+        lower.contains('.wav') ||
+        lower.contains('.aac');
+  }
+
+  String _fileNameFromMetadata(MediaMetadata metadata) {
+    final parts = metadata.r2Key.split('/').where((p) => p.isNotEmpty).toList();
+    if (parts.isNotEmpty) return parts.last;
+    return _fileNameFromUrl(metadata.publicUrl);
+  }
+
+  String _fileNameFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.last;
+    }
+    return 'file';
   }
 
   String _formatTime(int timestamp) {

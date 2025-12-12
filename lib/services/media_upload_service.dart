@@ -29,6 +29,7 @@ class MediaUploadService {
   // File size limits
   static const int MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 50MB
   static const int MAX_PDF_SIZE = 100 * 1024 * 1024; // 100MB
+  static const int MAX_AUDIO_SIZE = 50 * 1024 * 1024; // 50MB
 
   MediaUploadService({
     required CloudflareR2Service r2Service,
@@ -72,6 +73,7 @@ class MediaUploadService {
         // Generate thumbnail
         compressedThumbnail = _generateThumbnail(fileBytes);
       }
+      // Audio files are uploaded as-is without compression
 
       onProgress?.call(10);
 
@@ -150,10 +152,19 @@ class MediaUploadService {
     if (mimeType == 'application/pdf' && fileBytes.length > MAX_PDF_SIZE) {
       throw Exception('PDF too large. Max: ${MAX_PDF_SIZE ~/ (1024 * 1024)}MB');
     }
+    if (mimeType.startsWith('audio/') && fileBytes.length > MAX_AUDIO_SIZE) {
+      throw Exception(
+        'Audio too large. Max: ${MAX_AUDIO_SIZE ~/ (1024 * 1024)}MB',
+      );
+    }
 
-    // Check file type
-    if (!mimeType.startsWith('image/') && mimeType != 'application/pdf') {
-      throw Exception('Only images and PDFs are supported');
+    // Check file type (images, PDFs, or audio)
+    final isImage = mimeType.startsWith('image/');
+    final isPdf = mimeType == 'application/pdf';
+    final isAudio = mimeType.startsWith('audio/');
+
+    if (!isImage && !isPdf && !isAudio) {
+      throw Exception('Only images, PDFs, and audio files are supported');
     }
 
     // Check file name

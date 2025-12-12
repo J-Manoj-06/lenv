@@ -6,6 +6,7 @@ import 'dart:io';
 import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/chat_attachment_tile.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -372,14 +373,7 @@ class _MessageBubble extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (message.imageUrl != null) ...[
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            message.imageUrl!,
-                            width: 200,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
+                        _buildAttachment(context, message.imageUrl!),
                         if (message.message.isNotEmpty)
                           const SizedBox(height: 8),
                       ],
@@ -405,6 +399,51 @@ class _MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildAttachment(BuildContext context, String url) {
+    if (_looksLikePdf(url)) {
+      return ChatAttachmentTile(
+        fileName: _fileNameFromUrl(url),
+        url: url,
+        mimeType: 'application/pdf',
+        isMe: isMe,
+      );
+    }
+
+    if (_looksLikeAudio(url)) {
+      return ChatAttachmentTile(
+        fileName: _fileNameFromUrl(url),
+        url: url,
+        mimeType: 'audio/mpeg',
+        isMe: isMe,
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.network(url, width: 200, fit: BoxFit.cover),
+    );
+  }
+
+  bool _looksLikePdf(String url) {
+    return url.toLowerCase().contains('.pdf');
+  }
+
+  bool _looksLikeAudio(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('.m4a') ||
+        lower.contains('.mp3') ||
+        lower.contains('.wav') ||
+        lower.contains('.aac');
+  }
+
+  String _fileNameFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.last;
+    }
+    return 'file';
   }
 
   String _formatTime(int timestamp) {
