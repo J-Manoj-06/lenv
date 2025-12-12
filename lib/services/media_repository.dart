@@ -99,10 +99,12 @@ class MediaRepository {
       debugPrint('🔗 Download URL: $url');
 
       // Make HTTP request
+      debugPrint('🌐 Making HTTP request to: $url');
       final request = http.Request('GET', Uri.parse(url));
       final streamedResponse = await request.send();
 
       if (streamedResponse.statusCode != 200) {
+        debugPrint('❌ HTTP Error: ${streamedResponse.statusCode}');
         return DownloadResult(
           success: false,
           message: 'Download failed: HTTP ${streamedResponse.statusCode}',
@@ -111,16 +113,21 @@ class MediaRepository {
 
       // Get content length for progress tracking
       final contentLength = streamedResponse.contentLength ?? 0;
-      debugPrint('📦 Content length: ${contentLength} bytes');
+      debugPrint('📦 Content length: ${_formatBytes(contentLength)}');
 
       // Prepare local file path
+      debugPrint('📁 Getting local file path for: $r2Key');
       final localPath = await _storageHelper.getLocalFilePath(r2Key);
+      debugPrint('📍 Local path: $localPath');
       final file = File(localPath);
 
       // Ensure parent directory exists
+      debugPrint('📂 Creating parent directory...');
       await file.parent.create(recursive: true);
+      debugPrint('✅ Parent directory exists: ${await file.parent.exists()}');
 
       // Download with progress tracking
+      debugPrint('⬇️ Starting download...');
       final bytes = <int>[];
       int downloadedBytes = 0;
 
@@ -131,17 +138,43 @@ class MediaRepository {
         if (contentLength > 0 && onProgress != null) {
           final progress = downloadedBytes / contentLength;
           onProgress(progress);
+          if (downloadedBytes % (1024 * 100) == 0) {
+            // Log every 100KB
+            debugPrint(
+              '  ⬇️ Progress: ${(progress * 100).toInt()}% (${_formatBytes(downloadedBytes)}/${_formatBytes(contentLength)})',
+            );
+          }
         }
       }
 
       // Write to file
-      await file.writeAsBytes(bytes);
+      debugPrint('💾 Writing ${_formatBytes(bytes.length)} to disk...');
+      try {
+        await file.writeAsBytes(bytes);
+        debugPrint('✅ Bytes written successfully');
+      } catch (e) {
+        debugPrint('❌ Error writing bytes: $e');
+        return DownloadResult(
+          success: false,
+          message: 'Failed to write file: $e',
+        );
+      }
+
       final actualFileSize = await file.length();
       debugPrint('💾 Saved to: $localPath');
       debugPrint(
         '📦 File size: $actualFileSize bytes (${_formatBytes(actualFileSize)})',
       );
       debugPrint('📂 File exists: ${await file.exists()}');
+
+      // Verify file was actually created
+      if (!await file.exists()) {
+        debugPrint('❌ ERROR: File was written but does not exist!');
+        return DownloadResult(
+          success: false,
+          message: 'File was not saved properly',
+        );
+      }
 
       // Save metadata with actual file size
       final media = DownloadedMedia(

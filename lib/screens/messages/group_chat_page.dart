@@ -54,6 +54,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _isUploading = false;
   bool _isRecording = false;
 
+  // Extract R2 key from full URL
+  // https://files.lenv1.tech/media/1234567/file.pdf → media/1234567/file.pdf
+  String _extractR2Key(String url) {
+    final uri = Uri.parse(url);
+    // Remove leading slash if present
+    final path = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+    print('📝 Extracted R2 key from $url: $path');
+    return path;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -256,8 +266,32 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       setState(() => _isUploading = false);
 
-      // Send message with R2 URL (using imageUrl field for simplicity)
-      await _sendMessage(imageUrl: mediaMessage.r2Url);
+      print('📦 PDF Upload complete:');
+      print('   File size: ${mediaMessage.fileSize} bytes');
+      print('   File type: ${mediaMessage.fileType}');
+      print('   R2 URL: ${mediaMessage.r2Url}');
+      print('   File name: ${mediaMessage.fileName}');
+
+      // Create MediaMetadata with file size for proper display
+      final r2Key = _extractR2Key(mediaMessage.r2Url);
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '', // No thumbnail for PDF
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+      );
+
+      print('📝 Creating metadata:');
+      print('   R2 Key: ${metadata.r2Key}');
+      print('   File Size: ${metadata.fileSize} bytes');
+      print('   MIME Type: ${metadata.mimeType}');
+
+      // Send message with metadata (not just URL)
+      await _sendMessage(mediaMetadata: metadata);
 
       if (mounted) {
         ScaffoldMessenger.of(
@@ -310,8 +344,32 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
         setState(() => _isUploading = false);
 
-        // Send message with R2 URL
-        await _sendMessage(imageUrl: mediaMessage.r2Url);
+        print('🎵 Audio Upload complete:');
+        print('   File size: ${mediaMessage.fileSize} bytes');
+        print('   File type: ${mediaMessage.fileType}');
+        print('   R2 URL: ${mediaMessage.r2Url}');
+        print('   File name: ${mediaMessage.fileName}');
+
+        // Create MediaMetadata with file size for proper display
+        final r2Key = _extractR2Key(mediaMessage.r2Url);
+        final metadata = MediaMetadata(
+          messageId: mediaMessage.id,
+          r2Key: r2Key,
+          publicUrl: mediaMessage.r2Url,
+          thumbnail: '', // No thumbnail for audio
+          expiresAt: DateTime.now().add(const Duration(days: 365)),
+          uploadedAt: DateTime.now(),
+          fileSize: mediaMessage.fileSize,
+          mimeType: mediaMessage.fileType,
+        );
+
+        print('📝 Creating metadata:');
+        print('   R2 Key: ${metadata.r2Key}');
+        print('   File Size: ${metadata.fileSize} bytes');
+        print('   MIME Type: ${metadata.mimeType}');
+
+        // Send message with metadata (not just URL)
+        await _sendMessage(mediaMetadata: metadata);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

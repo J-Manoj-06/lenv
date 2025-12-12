@@ -11,58 +11,98 @@ class MediaStorageHelper {
   static const String _mediaFolderName = 'media';
 
   /// Get the base directory for storing media files
-  /// Creates /storage/emulated/0/Android/data/com.lenv.reward/files/media/ folder structure
-  /// This ensures files are actually saved to device storage
+  /// Uses Downloads directory: /storage/emulated/0/Downloads/NewReward_Media/
+  /// This is the most reliable and accessible location
   Future<Directory> getMediaDirectory() async {
-    // Use external storage so files are actually saved to device
-    Directory? appDocDir;
     try {
-      appDocDir = await getExternalStorageDirectory();
+      // Try to use Downloads directory (most accessible)
+      final Directory? downloadsDir = await getDownloadsDirectory();
+
+      if (downloadsDir != null) {
+        final Directory mediaDir = Directory(
+          '${downloadsDir.path}/NewReward_Media',
+        );
+        if (!await mediaDir.exists()) {
+          await mediaDir.create(recursive: true);
+          print('✅ Created media directory: ${mediaDir.path}');
+        }
+        print('📁 Using Downloads: ${mediaDir.path}');
+        return mediaDir;
+      }
     } catch (e) {
-      print('⚠️ External storage not available, using internal: $e');
-      appDocDir = await getApplicationDocumentsDirectory();
+      print('⚠️ Downloads directory not available: $e');
     }
 
-    if (appDocDir == null) {
-      throw Exception('Unable to get storage directory');
+    // Fallback 1: External storage
+    try {
+      final Directory? appDocDir = await getExternalStorageDirectory();
+      if (appDocDir != null) {
+        final Directory mediaDir = Directory(
+          '${appDocDir.path}/$_mediaFolderName',
+        );
+        if (!await mediaDir.exists()) {
+          await mediaDir.create(recursive: true);
+        }
+        print('📁 Using external storage: ${mediaDir.path}');
+        return mediaDir;
+      }
+    } catch (e) {
+      print('⚠️ External storage not available: $e');
     }
 
-    final Directory mediaDir = Directory('${appDocDir.path}/$_mediaFolderName');
-
-    if (!await mediaDir.exists()) {
-      await mediaDir.create(recursive: true);
-      print('📁 Created media directory: ${mediaDir.path}');
+    // Fallback 2: App documents
+    try {
+      final Directory appDocDir = await getApplicationDocumentsDirectory();
+      final Directory mediaDir = Directory(
+        '${appDocDir.path}/$_mediaFolderName',
+      );
+      if (!await mediaDir.exists()) {
+        await mediaDir.create(recursive: true);
+      }
+      print('📁 Using app documents: ${mediaDir.path}');
+      return mediaDir;
+    } catch (e) {
+      print('❌ All storage options failed: $e');
+      throw Exception('Unable to get storage directory: $e');
     }
-
-    return mediaDir;
   }
 
   /// Generate local file path for a given R2 key
-  /// Example: "media/1234567/file.pdf" -> "/app_documents/media/1234567_file.pdf"
+  /// Example: "media/1234567/file.pdf" -> "/storage/emulated/0/Downloads/NewReward_Media/media_1234567_file.pdf"
   Future<String> getLocalFilePath(String r2Key) async {
     final mediaDir = await getMediaDirectory();
 
     // Sanitize the key to create a safe filename
     // Replace slashes with underscores to flatten the structure
-    final sanitizedKey = r2Key.replaceAll('/', '_').replaceAll(' ', '_');
+    final sanitizedKey = r2Key
+        .replaceAll('/', '_')
+        .replaceAll(' ', '_')
+        .replaceAll('.', '_');
 
-    return '${mediaDir.path}/$sanitizedKey';
+    final fullPath = '${mediaDir.path}/$sanitizedKey';
+    print('📝 Generated local path for $r2Key: $fullPath');
+    return fullPath;
   }
 
   /// Check if a file exists locally
   Future<bool> fileExists(String localPath) async {
     final file = File(localPath);
-    return await file.exists();
+    final exists = await file.exists();
+    print('${exists ? '✅' : '❌'} File exists check: $localPath = $exists');
+    return exists;
   }
 
   /// Delete a local file
   Future<bool> deleteFile(String localPath) async {
     try {
       final file = File(localPath);
+      print('🗑️ Attempting to delete: $localPath');
       if (await file.exists()) {
         await file.delete();
+        print('✅ File deleted: $localPath');
         return true;
       }
+      print('⚠️ File not found: $localPath');
       return false;
     } catch (e) {
       print('❌ Error deleting file: $e');
