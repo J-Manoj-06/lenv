@@ -3,6 +3,7 @@ import '../services/media_repository.dart';
 import '../screens/pdf_viewer_screen.dart';
 import '../screens/audio_player_screen.dart';
 import 'package:photo_view/photo_view.dart';
+import 'dart:ui';
 import 'dart:convert';
 import 'dart:io';
 
@@ -348,7 +349,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   Widget _buildImagePreview() {
     return GestureDetector(
       onTap: () {
-        // If downloaded, open full screen
         if (_isDownloaded && _localPath != null) {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -358,18 +358,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               ),
             ),
           );
-        }
-        // If has thumbnail, show thumbnail in full screen
-        else if (widget.thumbnailBase64 != null) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => _ThumbnailViewer(
-                thumbnailBase64: widget.thumbnailBase64!,
-                fileName: widget.fileName,
-                onDownload: _download,
-              ),
-            ),
-          );
+        } else {
+          // Block viewing until download; start download instead
+          _download();
         }
       },
       onLongPress: _isDownloaded ? _delete : null,
@@ -396,7 +387,16 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   },
                 )
               else if (widget.thumbnailBase64 != null)
-                _buildThumbnailFallback()
+                ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: ColorFiltered(
+                    colorFilter: const ColorFilter.mode(
+                      Colors.black38,
+                      BlendMode.darken,
+                    ),
+                    child: _buildThumbnailFallback(),
+                  ),
+                )
               else
                 Container(
                   height: 260,
@@ -411,38 +411,46 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
               // Download overlay if not downloaded
               if (!_isDownloaded && !_isDownloading)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
+                Positioned.fill(
                   child: Container(
-                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.8),
-                          Colors.transparent,
+                      color: Colors.black.withOpacity(0.35),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.25),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.download,
+                              color: Colors.black,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Download to view',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.download,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Tap to download',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ),
