@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../screens/pdf_viewer_screen.dart';
+import '../screens/audio_player_screen.dart';
 
 /// Compact attachment pill for non-image media (e.g., PDFs)
 class ChatAttachmentTile extends StatelessWidget {
@@ -104,6 +105,15 @@ class ChatAttachmentTile extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => PDFViewerScreen(path: url, title: fileName),
+        ),
+      );
+      return;
+    }
+
+    if (_isAudio) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AudioPlayerScreen(audioUrl: url, fileName: fileName),
         ),
       );
       return;
