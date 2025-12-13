@@ -815,7 +815,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     }
 
     // For multiple announcements, combine streams manually
-    return Stream.periodic(const Duration(milliseconds: 500)).asyncMap((_) async {
+    return Stream.periodic(const Duration(milliseconds: 500)).asyncMap((
+      _,
+    ) async {
       final results = <bool>[];
       for (final announcement in announcements) {
         final doc = await FirebaseFirestore.instance
