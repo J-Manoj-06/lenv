@@ -515,7 +515,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   ),
                   builder: (context, snapshot) {
                     final viewStatuses = snapshot.data ?? [];
-                    final hasUnread = viewStatuses.isEmpty ||
+                    final hasUnread =
+                        viewStatuses.isEmpty ||
                         viewStatuses.any((isViewed) => !isViewed);
 
                     return _buildAnnouncementAvatar('Principal', hasUnread, () {
@@ -797,32 +798,36 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Stream<List<bool>> _streamPrincipalAnnouncementsViewStatus(
     List<InstituteAnnouncementModel> announcements,
     String userId,
-  ) async* {
+  ) {
     if (announcements.isEmpty) {
-      yield [];
-      return;
+      return Stream.value([]);
     }
 
-    // Create streams for each announcement's view status
-    final streams = announcements.map((announcement) {
+    // For single announcement, simple stream
+    if (announcements.length == 1) {
       return FirebaseFirestore.instance
           .collection('institute_announcements')
-          .doc(announcement.id)
+          .doc(announcements.first.id)
           .collection('views')
           .doc(userId)
           .snapshots()
-          .map((doc) => doc.exists);
-    }).toList();
-
-    // Combine all streams
-    await for (final _ in streams.first) {
-      final results = <bool>[];
-      for (final stream in streams) {
-        final snapshot = await stream.first;
-        results.add(snapshot);
-      }
-      yield results;
+          .map((doc) => [doc.exists]);
     }
+
+    // For multiple announcements, combine streams manually
+    return Stream.periodic(const Duration(milliseconds: 500)).asyncMap((_) async {
+      final results = <bool>[];
+      for (final announcement in announcements) {
+        final doc = await FirebaseFirestore.instance
+            .collection('institute_announcements')
+            .doc(announcement.id)
+            .collection('views')
+            .doc(userId)
+            .get();
+        results.add(doc.exists);
+      }
+      return results;
+    });
   }
 
   /// Check if ANY principal announcement in the group has NOT been viewed
