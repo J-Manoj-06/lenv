@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
@@ -55,6 +56,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _isUploading = false;
   bool _isRecording = false;
   bool _showEmojiPicker = false;
+  String? _recordingPath;
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  late Timer _recordingTimer;
+  double _slideOffsetX = 0;
+  bool _isCancelled = false;
 
   // Extract R2 key from full URL
   // https://files.lenv1.tech/media/1234567/file.pdf → media/1234567/file.pdf
@@ -126,6 +132,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _scrollController.dispose();
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
+    _recordingTimer.cancel();
     super.dispose();
   }
 
@@ -337,7 +344,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
       if (result == null || result.files.isEmpty) return;
 
       final file = File(result.files.single.path!);
-      final fileName = result.files.single.name;
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
@@ -394,119 +400,226 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   Future<void> _recordAndSendAudio() async {
     try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
+
+      if (currentUserId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Stop recording FIRST
       if (_isRecording) {
-        // Stop recording
-        final path = await _audioRecorder.stop();
-        setState(() {
-          _isRecording = false;
-        });
-
-        if (path == null) return;
-
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final currentUserId = authProvider.currentUser?.uid;
-
-        if (currentUserId == null) {
-          throw Exception('User not authenticated');
+        try {
+          await _audioRecorder.stop();
+        } catch (e) {
+          print('Error stopping recorder: $e');
         }
 
-        setState(() => _isUploading = true);
-
-        // Upload to Cloudflare R2 using MediaUploadService
-        final conversationId = '${widget.classId}_${widget.subjectId}';
-
-        final mediaMessage = await _mediaUploadService.uploadMedia(
-          file: File(path),
-          conversationId: conversationId,
-          senderId: currentUserId,
-          senderRole: 'student',
-          mediaType: 'message', // Permanent storage for group messages
-          onProgress: (progress) {
-            print('Upload progress: $progress%');
-          },
-        );
-
-        setState(() => _isUploading = false);
-
-        print('🎵 Audio Upload complete:');
-        print('   File size: ${mediaMessage.fileSize} bytes');
-        print('   File type: ${mediaMessage.fileType}');
-        print('   R2 URL: ${mediaMessage.r2Url}');
-        print('   File name: ${mediaMessage.fileName}');
-
-        // Create MediaMetadata with file size for proper display
-        final r2Key = _extractR2Key(mediaMessage.r2Url);
-        final metadata = MediaMetadata(
-          messageId: mediaMessage.id,
-          r2Key: r2Key,
-          publicUrl: mediaMessage.r2Url,
-          thumbnail: '', // No thumbnail for audio
-          expiresAt: DateTime.now().add(const Duration(days: 365)),
-          uploadedAt: DateTime.now(),
-          fileSize: mediaMessage.fileSize,
-          mimeType: mediaMessage.fileType,
-        );
-
-        print('📝 Creating metadata:');
-        print('   R2 Key: ${metadata.r2Key}');
-        print('   File Size: ${metadata.fileSize} bytes');
-        print('   MIME Type: ${metadata.mimeType}');
-
-        // Send message with metadata (not just URL)
-        await _sendMessage(mediaMetadata: metadata);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Audio sent successfully')),
-          );
-        }
-      } else {
-        // Start recording - use record package's built-in permission check
-        final hasPermission = await _audioRecorder.hasPermission();
-        if (!hasPermission) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Microphone permission denied. Please enable it in Settings.',
-                ),
-              ),
-            );
-          }
-          return;
-        }
-
-        final tempDir = await getTemporaryDirectory();
-        final path =
-            '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-        await _audioRecorder.start(
-          const RecordConfig(encoder: AudioEncoder.aacLc),
-          path: path,
-        );
-
-        setState(() => _isRecording = true);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Recording... Tap again to stop'),
-              duration: Duration(seconds: 2),
-            ),
-          );
+        try {
+          _recordingTimer.cancel();
+        } catch (e) {
+          print('Timer cancel error: $e');
         }
       }
-    } catch (e) {
+
+      // IMMEDIATELY update UI
       setState(() {
         _isRecording = false;
-        _isUploading = false;
+        _isUploading = true;
       });
+
+      // Upload to Cloudflare R2 using MediaUploadService
+      final conversationId = '${widget.classId}_${widget.subjectId}';
+
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: File(_recordingPath!),
+        conversationId: conversationId,
+        senderId: currentUserId,
+        senderRole: 'student',
+        mediaType: 'message',
+        onProgress: (progress) {
+          print('Upload progress: $progress%');
+        },
+      );
+
+      final r2Key = _extractR2Key(mediaMessage.r2Url);
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+      );
+
+      await _sendMessage(mediaMetadata: metadata);
+
+      // Delete temp file
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        print('Error deleting temp file: $e');
+      }
+
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to record audio: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Audio sent successfully'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _recordingPath = null;
+          _recordingDuration.value = 0;
+          _slideOffsetX = 0;
+          _isCancelled = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _isRecording = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
+  }
+
+  Future<void> _deleteRecording() async {
+    // Stop recording if active
+    if (_isRecording) {
+      await _audioRecorder.stop();
+      try {
+        _recordingTimer.cancel();
+      } catch (e) {
+        print('Timer cancel error: $e');
+      }
+    }
+
+    // Delete the file
+    if (_recordingPath != null) {
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        print('Error deleting recording: $e');
+      }
+    }
+
+    // Clear state
+    setState(() {
+      _isRecording = false;
+      _recordingPath = null;
+      _recordingDuration.value = 0;
+      _slideOffsetX = 0;
+      _isCancelled = false;
+    });
+  }
+
+  Widget _buildRecordingOverlay() {
+    if (_recordingPath == null && !_isUploading) return const SizedBox();
+
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        color: const Color(0xFF2A2A2A),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        child: SafeArea(
+          top: false,
+          child: _isUploading
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFF00A884),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Sending audio...',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: _deleteRecording,
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: ValueListenableBuilder<int>(
+                          valueListenable: _recordingDuration,
+                          builder: (context, duration, child) {
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (_isRecording)
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    margin: const EdgeInsets.only(right: 8),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                Text(
+                                  _formatDuration(duration),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Color(0xFF00A884)),
+                      onPressed: _recordAndSendAudio,
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -514,122 +627,132 @@ class _GroupChatPageState extends State<GroupChatPage> {
     final authProvider = Provider.of<AuthProvider>(context);
     final currentUserId = authProvider.currentUser?.uid;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF141414),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            Text(widget.icon, style: const TextStyle(fontSize: 24)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.subjectName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    widget.className != null && widget.section != null
-                        ? '${widget.className} - Section ${widget.section}'
-                        : widget.teacherName,
-                    style: const TextStyle(color: Colors.white60, fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: const Color(0xFF1A1A1A),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF141414),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+              onPressed: () => Navigator.pop(context),
             ),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          // Messages List
-          Expanded(
-            child: StreamBuilder<List<GroupChatMessage>>(
-              stream: _messagingService.getGroupMessages(
-                widget.classId,
-                widget.subjectId,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error loading messages',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  );
-                }
-
-                if (!snapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFF8800)),
-                  );
-                }
-
-                final messages = snapshot.data!;
-
-                if (messages.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No messages yet.\nBe the first to say hello! 👋',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white54),
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe = message.senderId == currentUserId;
-
-                    return _MessageBubble(message: message, isMe: isMe);
-                  },
-                );
-              },
+            title: Row(
+              children: [
+                Text(widget.icon, style: const TextStyle(fontSize: 24)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.subjectName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        widget.className != null && widget.section != null
+                            ? '${widget.className} - Section ${widget.section}'
+                            : widget.teacherName,
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 12,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
+          body: Column(
+            children: [
+              // Messages List
+              Expanded(
+                child: StreamBuilder<List<GroupChatMessage>>(
+                  stream: _messagingService.getGroupMessages(
+                    widget.classId,
+                    widget.subjectId,
+                  ),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          'Error loading messages',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      );
+                    }
 
-          // Input Bar
-          _buildInputBar(),
-          if (_showEmojiPicker)
-            EmojiPicker(
-              onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-              onBackspacePressed: _onBackspacePressed,
-              config: Config(
-                height: 300,
-                checkPlatformCompatibility: false,
-                emojiViewConfig: EmojiViewConfig(
-                  backgroundColor: const Color(0xFF1A1A1A),
-                  columns: 7,
-                  emojiSizeMax: 28,
-                ),
-                categoryViewConfig: CategoryViewConfig(
-                  backgroundColor: const Color(0xFF1A1A1A),
-                  iconColorSelected: const Color(0xFF00A884),
-                  indicatorColor: const Color(0xFF00A884),
-                ),
-                bottomActionBarConfig: BottomActionBarConfig(
-                  backgroundColor: const Color(0xFF1A1A1A),
+                    if (!snapshot.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFFF8800),
+                        ),
+                      );
+                    }
+
+                    final messages = snapshot.data!;
+
+                    if (messages.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'No messages yet.\nBe the first to say hello! 👋',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final message = messages[index];
+                        final isMe = message.senderId == currentUserId;
+
+                        return _MessageBubble(message: message, isMe: isMe);
+                      },
+                    );
+                  },
                 ),
               ),
-            ),
-        ],
-      ),
+
+              // Input Bar
+              _buildInputBar(),
+              if (_showEmojiPicker)
+                EmojiPicker(
+                  onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                  onBackspacePressed: _onBackspacePressed,
+                  config: Config(
+                    height: 300,
+                    checkPlatformCompatibility: false,
+                    emojiViewConfig: EmojiViewConfig(
+                      backgroundColor: const Color(0xFF1A1A1A),
+                      columns: 7,
+                      emojiSizeMax: 28,
+                    ),
+                    categoryViewConfig: CategoryViewConfig(
+                      backgroundColor: const Color(0xFF1A1A1A),
+                      iconColorSelected: const Color(0xFF00A884),
+                      indicatorColor: const Color(0xFF00A884),
+                    ),
+                    bottomActionBarConfig: BottomActionBarConfig(
+                      backgroundColor: const Color(0xFF1A1A1A),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        _buildRecordingOverlay(),
+      ],
     );
   }
 
@@ -723,37 +846,84 @@ class _GroupChatPageState extends State<GroupChatPage> {
             ),
             const SizedBox(width: 8),
             // Mic/Send Button
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: _isRecording
-                    ? Colors.redAccent
-                    : const Color(0xFF00A884),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: Icon(
+            GestureDetector(
+              onTap: () async {
+                if (_messageController.text.trim().isNotEmpty &&
+                    !_isUploading) {
+                  _sendMessage();
+                } else if (!_isRecording &&
+                    _messageController.text.trim().isEmpty &&
+                    !_isUploading) {
+                  // Single tap to start recording
+                  final hasPermission = await _audioRecorder.hasPermission();
+                  if (!hasPermission) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Microphone permission denied. Please enable it in Settings.',
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  final tempDir = await getTemporaryDirectory();
+                  final path =
+                      '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                  await _audioRecorder.start(
+                    const RecordConfig(encoder: AudioEncoder.aacLc),
+                    path: path,
+                  );
+                  setState(() {
+                    _isRecording = true;
+                    _recordingPath = path;
+                    _recordingDuration.value = 0;
+                    _slideOffsetX = 0;
+                    _isCancelled = false;
+                  });
+                  _recordingTimer = Timer.periodic(const Duration(seconds: 1), (
+                    _,
+                  ) {
+                    _recordingDuration.value++;
+                  });
+                }
+              },
+              onHorizontalDragUpdate: (details) {
+                if (!_isRecording) return;
+                setState(() {
+                  _slideOffsetX += details.delta.dx;
+                  _isCancelled = _slideOffsetX < -80;
+                });
+              },
+              onHorizontalDragEnd: (details) {
+                if (!_isRecording) return;
+                if (_isCancelled) {
+                  _deleteRecording();
+                }
+                setState(() {
+                  _slideOffsetX = 0;
+                  _isCancelled = false;
+                });
+              },
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _isRecording
+                      ? Colors.redAccent
+                      : const Color(0xFF00A884),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
                   _isRecording
-                      ? Icons.stop
+                      ? Icons.mic
                       : (_messageController.text.trim().isNotEmpty
                             ? Icons.send_rounded
                             : Icons.mic),
                   color: Colors.white,
                   size: 24,
                 ),
-                padding: EdgeInsets.zero,
-                onPressed: _isUploading
-                    ? null
-                    : () {
-                        if (_isRecording) {
-                          _recordAndSendAudio();
-                        } else if (_messageController.text.trim().isNotEmpty) {
-                          _sendMessage();
-                        } else {
-                          _recordAndSendAudio();
-                        }
-                      },
               ),
             ),
           ],

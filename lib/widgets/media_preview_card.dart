@@ -292,7 +292,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             const SizedBox(height: 10),
 
             // Action button (Download/Open/Progress)
-            if (_isDownloading)
+            // For sender (isMe), only show Open button if downloaded, otherwise show nothing
+            if (_isDownloading && !widget.isMe)
               Column(
                 children: [
                   LinearProgressIndicator(
@@ -323,7 +324,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   ),
                 ),
               )
-            else
+            else if (!widget.isMe) // Only show download button for receiver
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(

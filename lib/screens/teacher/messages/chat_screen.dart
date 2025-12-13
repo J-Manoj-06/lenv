@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
@@ -48,6 +49,11 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isUploading = false;
   double _uploadProgress = 0;
   bool _showEmojiPicker = false;
+  String? _recordingPath;
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  double _slideOffsetX = 0;
+  bool _isCancelled = false;
+  late Timer _recordingTimer;
 
   @override
   void initState() {
@@ -142,6 +148,190 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool get _hasText => _messageController.text.trim().isNotEmpty;
 
+  Future<void> _recordAndSendAudio() async {
+    try {
+      if (_recordingPath == null) return;
+
+      // Stop recording FIRST
+      if (_isRecording) {
+        try {
+          await _recorder.stop();
+        } catch (e) {
+          print('Error stopping recorder: $e');
+        }
+
+        try {
+          _recordingTimer.cancel();
+        } catch (e) {
+          print('Timer cancel error: $e');
+        }
+      }
+
+      // IMMEDIATELY update UI
+      setState(() {
+        _isRecording = false;
+        _isUploading = true;
+      });
+
+      await _uploadFile(File(_recordingPath!));
+
+      // Delete temp file
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        print('Error deleting temp file: $e');
+      }
+
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _recordingPath = null;
+          _recordingDuration.value = 0;
+          _slideOffsetX = 0;
+          _isCancelled = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _isRecording = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteRecording() async {
+    // Stop recording if active
+    if (_isRecording) {
+      await _recorder.stop();
+      try {
+        _recordingTimer.cancel();
+      } catch (e) {
+        print('Timer cancel error: $e');
+      }
+    }
+
+    // Delete the file
+    if (_recordingPath != null) {
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        print('Error deleting recording: $e');
+      }
+    }
+
+    // Clear state
+    setState(() {
+      _isRecording = false;
+      _recordingPath = null;
+      _recordingDuration.value = 0;
+      _slideOffsetX = 0;
+      _isCancelled = false;
+    });
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildRecordingOverlay() {
+    if (_recordingPath == null && !_isUploading) return const SizedBox();
+
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        color: const Color(0xFF0B141A),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        child: SafeArea(
+          top: false,
+          child: _isUploading
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFF00A884),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Sending audio...',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: _deleteRecording,
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: ValueListenableBuilder<int>(
+                          valueListenable: _recordingDuration,
+                          builder: (context, duration, child) {
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (_isRecording)
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    margin: const EdgeInsets.only(right: 8),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                Text(
+                                  _formatDuration(duration),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Color(0xFF00A884)),
+                      onPressed: _recordAndSendAudio,
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _startRecording() async {
     if (_isRecording) return;
     if (!await _recorder.hasPermission()) {
@@ -165,15 +355,17 @@ class _ChatScreenState extends State<ChatScreen> {
       path: path,
     );
 
-    setState(() => _isRecording = true);
-  }
+    setState(() {
+      _isRecording = true;
+      _recordingPath = path;
+      _recordingDuration.value = 0;
+      _slideOffsetX = 0;
+      _isCancelled = false;
+    });
 
-  Future<void> _stopRecordingAndSend() async {
-    if (!_isRecording) return;
-    final path = await _recorder.stop();
-    setState(() => _isRecording = false);
-    if (path == null) return;
-    await _uploadFile(File(path));
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _recordingDuration.value++;
+    });
   }
 
   Future<void> _pickAttachmentSheet() async {
@@ -285,39 +477,44 @@ class _ChatScreenState extends State<ChatScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF130F23)
-          : const Color(0xFFF6F5F8),
-      appBar: _buildAppBar(theme, isDark),
-      body: Column(
-        children: [
-          Expanded(child: _buildMessageList()),
-          _buildComposer(theme, isDark),
-          if (_showEmojiPicker)
-            EmojiPicker(
-              onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-              onBackspacePressed: _onBackspacePressed,
-              config: Config(
-                height: 250,
-                checkPlatformCompatibility: false,
-                emojiViewConfig: EmojiViewConfig(
-                  backgroundColor: const Color(0xFF0B141A),
-                  columns: 7,
-                  emojiSizeMax: 28,
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: isDark
+              ? const Color(0xFF130F23)
+              : const Color(0xFFF6F5F8),
+          appBar: _buildAppBar(theme, isDark),
+          body: Column(
+            children: [
+              Expanded(child: _buildMessageList()),
+              _buildComposer(theme, isDark),
+              if (_showEmojiPicker)
+                EmojiPicker(
+                  onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                  onBackspacePressed: _onBackspacePressed,
+                  config: Config(
+                    height: 250,
+                    checkPlatformCompatibility: false,
+                    emojiViewConfig: EmojiViewConfig(
+                      backgroundColor: const Color(0xFF0B141A),
+                      columns: 7,
+                      emojiSizeMax: 28,
+                    ),
+                    categoryViewConfig: CategoryViewConfig(
+                      backgroundColor: const Color(0xFF0B141A),
+                      iconColorSelected: const Color(0xFF00A884),
+                      indicatorColor: const Color(0xFF00A884),
+                    ),
+                    bottomActionBarConfig: BottomActionBarConfig(
+                      backgroundColor: const Color(0xFF0B141A),
+                    ),
+                  ),
                 ),
-                categoryViewConfig: CategoryViewConfig(
-                  backgroundColor: const Color(0xFF0B141A),
-                  iconColorSelected: const Color(0xFF00A884),
-                  indicatorColor: const Color(0xFF00A884),
-                ),
-                bottomActionBarConfig: BottomActionBarConfig(
-                  backgroundColor: const Color(0xFF0B141A),
-                ),
-              ),
-            ),
-        ],
-      ),
+            ],
+          ),
+        ),
+        _buildRecordingOverlay(),
+      ],
     );
   }
 
@@ -682,33 +879,49 @@ class _ChatScreenState extends State<ChatScreen> {
                   onPressed: _isUploading ? null : _pickAttachmentSheet,
                 ),
                 const SizedBox(width: 8),
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: _isRecording ? Colors.redAccent : accentColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(
+                GestureDetector(
+                  onTap: () async {
+                    if (_messageController.text.trim().isNotEmpty &&
+                        !_isUploading) {
+                      _sendMessage();
+                    } else if (!_isRecording &&
+                        _messageController.text.trim().isEmpty &&
+                        !_isUploading) {
+                      // Single tap to start recording
+                      await _startRecording();
+                    }
+                  },
+                  onHorizontalDragUpdate: (details) {
+                    if (!_isRecording) return;
+                    setState(() {
+                      _slideOffsetX += details.delta.dx;
+                      _isCancelled = _slideOffsetX < -80;
+                    });
+                  },
+                  onHorizontalDragEnd: (details) {
+                    if (!_isRecording) return;
+                    if (_isCancelled) {
+                      _deleteRecording();
+                    }
+                    setState(() {
+                      _slideOffsetX = 0;
+                      _isCancelled = false;
+                    });
+                  },
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _isRecording ? Colors.redAccent : accentColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
                       _isRecording
-                          ? Icons.stop
+                          ? Icons.mic
                           : (_hasText ? Icons.send_rounded : Icons.mic),
                       color: Colors.white,
                       size: 24,
                     ),
-                    padding: EdgeInsets.zero,
-                    onPressed: _isUploading
-                        ? null
-                        : () {
-                            if (_isRecording) {
-                              _stopRecordingAndSend();
-                            } else if (_hasText) {
-                              _sendMessage();
-                            } else {
-                              _startRecording();
-                            }
-                          },
                   ),
                 ),
               ],

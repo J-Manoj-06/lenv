@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/community_model.dart';
@@ -41,6 +42,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   bool _isUploading = false;
   bool _isRecording = false;
   bool _showEmojiPicker = false;
+  String? _recordingPath;
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  late Timer _recordingTimer;
+  double _slideOffsetX = 0;
+  bool _isCancelled = false;
 
   @override
   void initState() {
@@ -106,6 +112,246 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         _scrollController.jumpTo(0);
       }
     }
+  }
+
+  void _showMediaOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1C20),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Send Media',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildMediaOption(
+                  icon: Icons.image,
+                  label: 'Image',
+                  color: const Color(0xFF4CAF50),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickAndSendImage();
+                  },
+                  enabled: widget.community.allowImages,
+                ),
+                _buildMediaOption(
+                  icon: Icons.picture_as_pdf,
+                  label: 'PDF',
+                  color: const Color(0xFFF44336),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickAndSendPDF();
+                  },
+                  enabled: true,
+                ),
+                _buildMediaOption(
+                  icon: Icons.audiotrack,
+                  label: 'Audio',
+                  color: const Color(0xFF2196F3),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickAndSendAudio();
+                  },
+                  enabled: true,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    required bool enabled,
+  }) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 80,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: enabled
+              ? color.withValues(alpha: 0.2)
+              : Colors.grey.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: enabled
+                ? color.withValues(alpha: 0.5)
+                : Colors.grey.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 32, color: enabled ? color : Colors.grey),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: enabled ? Colors.white : Colors.grey,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCommunityInfo() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1C20),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFFA726), Color(0xFFFFB26B)],
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.community.getCategoryIcon(),
+                      style: const TextStyle(fontSize: 28),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.community.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${widget.community.memberCount} members',
+                        style: const TextStyle(
+                          color: Color(0xFF9E9E9E),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            if (widget.community.description.isNotEmpty) ...[
+              const Text(
+                'Description',
+                style: TextStyle(
+                  color: Color(0xFFFFA929),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.community.description,
+                style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+            ],
+            const Text(
+              'Community Rules',
+              style: TextStyle(
+                color: Color(0xFFFFA929),
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildRuleChip(
+              'Links ${widget.community.allowLinks ? 'Allowed' : 'Not Allowed'}',
+              widget.community.allowLinks,
+            ),
+            const SizedBox(height: 8),
+            _buildRuleChip(
+              'Images ${widget.community.allowImages ? 'Allowed' : 'Not Allowed'}',
+              widget.community.allowImages,
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRuleChip(String text, bool isAllowed) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isAllowed
+            ? const Color(0xFF1F2228)
+            : Colors.red.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isAllowed
+              ? const Color(0xFF2E3239)
+              : Colors.red.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isAllowed ? Icons.check_circle : Icons.cancel,
+            size: 16,
+            color: isAllowed ? const Color(0xFF4CAF50) : Colors.red,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              color: isAllowed ? const Color(0xFFCCCCCC) : Colors.red.shade300,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickAndSendImage() async {
@@ -318,101 +564,145 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     }
   }
 
-  Future<void> _recordAndSendAudio() async {
-    try {
-      if (_isRecording) {
-        // Stop recording
-        final path = await _audioRecorder.stop();
-        setState(() {
-          _isRecording = false;
-        });
-
-        if (path == null) return;
-
-        final student = Provider.of<StudentProvider>(
-          context,
-          listen: false,
-        ).currentStudent;
-        if (student == null) return;
-
-        setState(() => _isUploading = true);
-
-        // Upload to Cloudflare R2 using MediaUploadService
-        final mediaMessage = await _mediaUploadService.uploadMedia(
-          file: File(path),
-          conversationId: widget.community.id,
-          senderId: student.uid,
-          senderRole: 'Student',
-          mediaType: 'community', // Permanent storage for community messages
-          onProgress: (progress) {
-            print('Upload progress: $progress%');
-          },
-        );
-
-        setState(() => _isUploading = false);
-
-        // Send message with R2 URL
-        await _communityService.sendMessage(
-          communityId: widget.community.id,
-          senderId: student.uid,
-          senderName: student.name,
-          senderRole: 'Student',
-          content: '', // Empty content for audio-only messages
-          fileUrl: mediaMessage.r2Url,
-          fileName: 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a',
-          mediaType: 'audio',
-        );
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Audio sent successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        // Start recording - use record package's built-in permission check
-        final hasPermission = await _audioRecorder.hasPermission();
-        if (!hasPermission) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Microphone permission denied. Please enable it in Settings.',
-                ),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return;
-        }
-
-        final tempDir = await getTemporaryDirectory();
-        final path =
-            '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-        await _audioRecorder.start(
-          const RecordConfig(encoder: AudioEncoder.aacLc),
-          path: path,
-        );
-
-        setState(() => _isRecording = true);
+  Future<void> _deleteRecording() async {
+    // Stop recording if active
+    if (_isRecording) {
+      await _audioRecorder.stop();
+      try {
+        _recordingTimer.cancel();
+      } catch (e) {
+        // Timer might not be initialized
+        print('Timer cancel error: $e');
       }
-    } catch (e) {
-      setState(() {
-        _isRecording = false;
-        _isUploading = false;
-      });
+    }
+
+    // Delete the file
+    if (_recordingPath != null) {
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        print('Error deleting recording: $e');
+      }
+    }
+
+    // Clear state
+    setState(() {
+      _isRecording = false;
+      _recordingPath = null;
+      _recordingDuration.value = 0;
+      _slideOffsetX = 0;
+      _isCancelled = false;
+    });
+  }
+
+  Future<void> _sendRecording() async {
+    if (_recordingPath == null) return;
+
+    final student = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    ).currentStudent;
+    if (student == null) return;
+
+    // Stop recording FIRST - this is critical
+    if (_isRecording) {
+      try {
+        await _audioRecorder.stop();
+      } catch (e) {
+        print('Error stopping recorder: $e');
+      }
+
+      try {
+        _recordingTimer.cancel();
+      } catch (e) {
+        print('Timer cancel error: $e');
+      }
+    }
+
+    // IMMEDIATELY update UI to show we're not recording anymore
+    setState(() {
+      _isRecording = false;
+      _isUploading = true;
+    });
+
+    try {
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: File(_recordingPath!),
+        conversationId: widget.community.id,
+        senderId: student.uid,
+        senderRole: 'Student',
+        mediaType: 'community',
+        onProgress: (progress) {
+          print('Upload progress: $progress%');
+        },
+      );
+
+      await _communityService.sendMessage(
+        communityId: widget.community.id,
+        senderId: student.uid,
+        senderName: student.name,
+        senderRole: 'Student',
+        content: '',
+        fileUrl: mediaMessage.r2Url,
+        fileName: 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a',
+        mediaType: 'audio',
+      );
+
+      // Delete the temporary file
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        print('Error deleting temp file: $e');
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Audio sent successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // Clear all recording state
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _recordingPath = null;
+          _recordingDuration.value = 0;
+          _slideOffsetX = 0;
+          _isCancelled = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _isRecording = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to record audio: $e'),
+            content: Text('Failed to send audio: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
     }
+  }
+
+  bool _containsUrl(String text) {
+    final urlPattern = RegExp(
+      r'(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)',
+      caseSensitive: false,
+    );
+    return urlPattern.hasMatch(text);
   }
 
   Future<void> _sendMessage() async {
@@ -464,14 +754,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     }
   }
 
-  bool _containsUrl(String text) {
-    final urlPattern = RegExp(
-      r'(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)',
-      caseSensitive: false,
-    );
-    return urlPattern.hasMatch(text);
-  }
-
   String _formatTime(DateTime dateTime) {
     return DateFormat('h:mm a').format(dateTime);
   }
@@ -489,129 +771,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     } else {
       return DateFormat('MMM dd, yyyy').format(dateTime);
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final student = Provider.of<StudentProvider>(context).currentStudent;
-    if (student == null) {
-      return const Scaffold(body: Center(child: Text('No student data')));
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF101214),
-      appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<List<CommunityMessageModel>>(
-              stream: _communityService.getMessagesStream(widget.community.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFFA929)),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  );
-                }
-
-                final messages = snapshot.data ?? [];
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 64,
-                          color: Colors.white.withValues(alpha: 0.3),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No messages yet',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Be the first to say hello!',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isCurrentUser = message.senderId == student.uid;
-                    final showDateDivider =
-                        index == messages.length - 1 ||
-                        _formatDate(message.createdAt) !=
-                            _formatDate(messages[index + 1].createdAt);
-
-                    return Column(
-                      children: [
-                        if (message.type == 'announcement')
-                          _buildAnnouncement(message)
-                        else
-                          _buildMessageBubble(
-                            message,
-                            isCurrentUser,
-                            student.name,
-                          ),
-                        if (showDateDivider)
-                          _buildDateDivider(message.createdAt),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          _buildMessageInput(),
-          if (_showEmojiPicker)
-            EmojiPicker(
-              onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-              onBackspacePressed: _onBackspacePressed,
-              config: Config(
-                height: 250,
-                checkPlatformCompatibility: false,
-                emojiViewConfig: EmojiViewConfig(
-                  backgroundColor: const Color(0xFF1A1C20),
-                  columns: 7,
-                  emojiSizeMax: 28,
-                ),
-                categoryViewConfig: CategoryViewConfig(
-                  backgroundColor: const Color(0xFF1A1C20),
-                  iconColorSelected: const Color(0xFFFFA929),
-                  indicatorColor: const Color(0xFFFFA929),
-                ),
-                bottomActionBarConfig: BottomActionBarConfig(
-                  backgroundColor: const Color(0xFF1A1C20),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 
   PreferredSizeWidget _buildAppBar() {
@@ -913,40 +1072,86 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                 onPressed: _isUploading ? null : _showMediaOptions,
               ),
               const SizedBox(width: 8),
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _isRecording
-                      ? Colors.redAccent
-                      : const Color(0xFF00A884),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: Icon(
+              GestureDetector(
+                onTap: () async {
+                  if (_messageController.text.trim().isNotEmpty &&
+                      !_isUploading) {
+                    _sendMessage();
+                  } else if (!_isRecording &&
+                      _messageController.text.trim().isEmpty &&
+                      !_isUploading) {
+                    // Single tap to start recording
+                    final hasPermission = await _audioRecorder.hasPermission();
+                    if (!hasPermission) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Microphone permission denied. Please enable it in Settings.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                    final tempDir = await getTemporaryDirectory();
+                    final path =
+                        '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                    await _audioRecorder.start(
+                      const RecordConfig(encoder: AudioEncoder.aacLc),
+                      path: path,
+                    );
+                    setState(() {
+                      _isRecording = true;
+                      _recordingPath = path;
+                      _recordingDuration.value = 0;
+                      _slideOffsetX = 0;
+                      _isCancelled = false;
+                    });
+                    _recordingTimer = Timer.periodic(
+                      const Duration(seconds: 1),
+                      (_) {
+                        _recordingDuration.value++;
+                      },
+                    );
+                  }
+                },
+                onHorizontalDragUpdate: (details) {
+                  if (!_isRecording) return;
+                  setState(() {
+                    _slideOffsetX += details.delta.dx;
+                    _isCancelled = _slideOffsetX < -80;
+                  });
+                },
+                onHorizontalDragEnd: (details) {
+                  if (!_isRecording) return;
+                  if (_isCancelled) {
+                    _deleteRecording();
+                  }
+                  setState(() {
+                    _slideOffsetX = 0;
+                    _isCancelled = false;
+                  });
+                },
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: _isRecording
+                        ? Colors.redAccent
+                        : const Color(0xFF00A884),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
                     _isRecording
-                        ? Icons.stop
+                        ? Icons.mic
                         : (_messageController.text.trim().isNotEmpty
                               ? Icons.send_rounded
                               : Icons.mic),
                     color: Colors.white,
                     size: 24,
                   ),
-                  padding: EdgeInsets.zero,
-                  onPressed: _isUploading
-                      ? null
-                      : () {
-                          if (_isRecording) {
-                            _recordAndSendAudio();
-                          } else if (_messageController.text
-                              .trim()
-                              .isNotEmpty) {
-                            _sendMessage();
-                          } else {
-                            // Start recording
-                            _recordAndSendAudio();
-                          }
-                        },
                 ),
               ),
             ],
@@ -956,243 +1161,227 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     );
   }
 
-  void _showMediaOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1A1C20),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Send Media',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildMediaOption(
-                  icon: Icons.image,
-                  label: 'Image',
-                  color: const Color(0xFF4CAF50),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickAndSendImage();
-                  },
-                  enabled: widget.community.allowImages,
-                ),
-                _buildMediaOption(
-                  icon: Icons.picture_as_pdf,
-                  label: 'PDF',
-                  color: const Color(0xFFF44336),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickAndSendPDF();
-                  },
-                  enabled: true,
-                ),
-                _buildMediaOption(
-                  icon: Icons.audiotrack,
-                  label: 'Audio',
-                  color: const Color(0xFF2196F3),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickAndSendAudio();
-                  },
-                  enabled: true,
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
-  Widget _buildMediaOption({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-    required bool enabled,
-  }) {
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(12),
+  Widget _buildRecordingOverlay() {
+    if (_recordingPath == null && !_isUploading) return const SizedBox();
+
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
       child: Container(
-        width: 80,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: enabled
-              ? color.withValues(alpha: 0.2)
-              : Colors.grey.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: enabled
-                ? color.withValues(alpha: 0.5)
-                : Colors.grey.withValues(alpha: 0.5),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 32, color: enabled ? color : Colors.grey),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: enabled ? Colors.white : Colors.grey,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+        color: const Color(0xFF2A2A2A),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        child: SafeArea(
+          top: false,
+          child: _isUploading
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFF00A884),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Sending audio...',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    // Delete button
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: _isRecording ? _deleteRecording : null,
+                    ),
+                    // Recording duration
+                    Expanded(
+                      child: Center(
+                        child: ValueListenableBuilder<int>(
+                          valueListenable: _recordingDuration,
+                          builder: (context, duration, child) {
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (_isRecording)
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    margin: const EdgeInsets.only(right: 8),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                Text(
+                                  _formatDuration(duration),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    // Send button
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Color(0xFF00A884)),
+                      onPressed: _sendRecording,
+                    ),
+                  ],
+                ),
         ),
       ),
     );
   }
 
-  void _showCommunityInfo() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1A1C20),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFFA726), Color(0xFFFFB26B)],
-                    ),
+  @override
+  Widget build(BuildContext context) {
+    final student = Provider.of<StudentProvider>(context).currentStudent;
+    if (student == null) {
+      return const Scaffold(body: Center(child: Text('No student data')));
+    }
+
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: const Color(0xFF101214),
+          appBar: _buildAppBar(),
+          body: Column(
+            children: [
+              Expanded(
+                child: StreamBuilder<List<CommunityMessageModel>>(
+                  stream: _communityService.getMessagesStream(
+                    widget.community.id,
                   ),
-                  child: Center(
-                    child: Text(
-                      widget.community.getCategoryIcon(),
-                      style: const TextStyle(fontSize: 28),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.community.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFFFA929),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${widget.community.memberCount} members',
-                        style: const TextStyle(
-                          color: Color(0xFF9E9E9E),
-                          fontSize: 14,
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          'Error: ${snapshot.error}',
+                          style: const TextStyle(color: Colors.red),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            if (widget.community.description.isNotEmpty) ...[
-              const Text(
-                'Description',
-                style: TextStyle(
-                  color: Color(0xFFFFA929),
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                      );
+                    }
+
+                    final messages = snapshot.data ?? [];
+                    if (messages.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline,
+                              size: 64,
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No messages yet',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.5),
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Be the first to say hello!',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final message = messages[index];
+                        final isCurrentUser = message.senderId == student.uid;
+                        final showDateDivider =
+                            index == messages.length - 1 ||
+                            _formatDate(message.createdAt) !=
+                                _formatDate(messages[index + 1].createdAt);
+
+                        return Column(
+                          children: [
+                            if (message.type == 'announcement')
+                              _buildAnnouncement(message)
+                            else
+                              _buildMessageBubble(
+                                message,
+                                isCurrentUser,
+                                student.name,
+                              ),
+                            if (showDateDivider)
+                              _buildDateDivider(message.createdAt),
+                          ],
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                widget.community.description,
-                style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 14),
-              ),
-              const SizedBox(height: 20),
+              _buildMessageInput(),
+              if (_showEmojiPicker)
+                EmojiPicker(
+                  onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                  onBackspacePressed: _onBackspacePressed,
+                  config: Config(
+                    height: 250,
+                    checkPlatformCompatibility: false,
+                    emojiViewConfig: EmojiViewConfig(
+                      backgroundColor: const Color(0xFF1A1C20),
+                      columns: 7,
+                      emojiSizeMax: 28,
+                    ),
+                    categoryViewConfig: CategoryViewConfig(
+                      backgroundColor: const Color(0xFF1A1C20),
+                      iconColorSelected: const Color(0xFFFFA929),
+                      indicatorColor: const Color(0xFFFFA929),
+                    ),
+                    bottomActionBarConfig: BottomActionBarConfig(
+                      backgroundColor: const Color(0xFF1A1C20),
+                    ),
+                  ),
+                ),
             ],
-            const Text(
-              'Community Rules',
-              style: TextStyle(
-                color: Color(0xFFFFA929),
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildRuleChip(
-              'Links ${widget.community.allowLinks ? 'Allowed' : 'Not Allowed'}',
-              widget.community.allowLinks,
-            ),
-            const SizedBox(height: 8),
-            _buildRuleChip(
-              'Images ${widget.community.allowImages ? 'Allowed' : 'Not Allowed'}',
-              widget.community.allowImages,
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRuleChip(String text, bool isAllowed) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: isAllowed
-            ? const Color(0xFF1F2228)
-            : Colors.red.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isAllowed
-              ? const Color(0xFF2E3239)
-              : Colors.red.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isAllowed ? Icons.check_circle : Icons.cancel,
-            size: 16,
-            color: isAllowed ? const Color(0xFF4CAF50) : Colors.red,
           ),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: TextStyle(
-              color: isAllowed ? const Color(0xFFCCCCCC) : Colors.red.shade300,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
+        ),
+        if (_recordingPath != null) _buildRecordingOverlay(),
+      ],
     );
   }
 }
