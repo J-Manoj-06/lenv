@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
+import 'dart:io';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/community_model.dart';
@@ -8,6 +13,14 @@ import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
 import '../common/announcement_pageview_screen.dart';
+import '../../services/media_upload_service.dart';
+import '../../services/whatsapp_media_upload_service.dart';
+import '../../services/cloudflare_r2_service.dart';
+import '../../services/local_cache_service.dart';
+import '../../config/cloudflare_config.dart';
+import '../../widgets/chat_image_widget.dart';
+import 'package:path_provider/path_provider.dart';
+import '../../widgets/modern_attachment_sheet.dart';
 
 class TeacherCommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -25,9 +38,20 @@ class _TeacherCommunityChatScreenState
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   final CommunityService _communityService = CommunityService();
+  final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  late final MediaUploadService _mediaUploadService;
+  late final WhatsAppMediaUploadService _whatsappMediaUpload;
   String? _teacherName;
   String? _teacherId;
   bool _showEmojiPicker = false;
+  bool _isUploading = false;
+  bool _isRecording = false;
+  String? _recordingPath;
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  late Timer _recordingTimer;
+  double _slideOffsetX = 0;
+  bool _isCancelled = false;
 
   @override
   void initState() {
@@ -38,6 +62,26 @@ class _TeacherCommunityChatScreenState
         setState(() => _showEmojiPicker = false);
       }
     });
+
+    // Initialize MediaUploadService with CloudflareConfig
+    final r2Service = CloudflareR2Service(
+      accountId: CloudflareConfig.accountId,
+      bucketName: CloudflareConfig.bucketName,
+      accessKeyId: CloudflareConfig.accessKeyId,
+      secretAccessKey: CloudflareConfig.secretAccessKey,
+      r2Domain: CloudflareConfig.r2Domain,
+    );
+
+    _mediaUploadService = MediaUploadService(
+      r2Service: r2Service,
+      firestore: FirebaseFirestore.instance,
+      cacheService: LocalCacheService(),
+    );
+
+    _whatsappMediaUpload = WhatsAppMediaUploadService(
+      workerBaseUrl: 'https://whatsapp-media-worker.giridharannj.workers.dev',
+    );
+
     _loadTeacherData();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToBottom(force: true),
@@ -49,6 +93,7 @@ class _TeacherCommunityChatScreenState
     _messageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -138,6 +183,201 @@ class _TeacherCommunityChatScreenState
       caseSensitive: false,
     );
     return urlPattern.hasMatch(text);
+  }
+
+  void _showMediaOptions() {
+    showModernAttachmentSheet(
+      context,
+      onImageTap: _pickAndSendImage,
+      onPdfTap: _pickAndSendPDF,
+      onAudioTap: _pickAndSendAudio,
+      imageEnabled: widget.community.allowImages,
+    );
+  }
+
+  Future<void> _pickAndSendImage() async {
+    if (_teacherId == null || _teacherName == null) return;
+
+    try {
+      final pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+      );
+
+      if (pickedFile == null) return;
+
+      final file = File(pickedFile.path);
+
+      setState(() => _isUploading = true);
+
+      // WhatsApp-style upload: compression + thumbnails + temporary storage
+      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      final result = await _whatsappMediaUpload.uploadImage(
+        imageFile: file,
+        messageId: messageId,
+        conversationId: widget.community.id,
+        senderId: _teacherId!,
+        onProgress: (progress) {
+          debugPrint('Upload progress: ${(progress * 100).toInt()}%');
+        },
+      );
+
+      setState(() => _isUploading = false);
+
+      if (result.success && result.metadata != null) {
+        await _communityService.sendMessage(
+          communityId: widget.community.id,
+          senderId: _teacherId!,
+          senderName: _teacherName!,
+          senderRole: 'Teacher',
+          content: '',
+          imageUrl: '',
+          mediaType: 'image',
+          mediaMetadata: result.metadata,
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Image sent successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        throw Exception(result.error?.message ?? 'Upload failed');
+      }
+    } catch (e) {
+      setState(() => _isUploading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickAndSendPDF() async {
+    if (_teacherId == null || _teacherName == null) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+      final fileName = result.files.single.name;
+
+      setState(() => _isUploading = true);
+
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: widget.community.id,
+        senderId: _teacherId!,
+        senderRole: 'Teacher',
+        mediaType: 'community',
+        onProgress: (progress) {
+          debugPrint('Upload progress: $progress%');
+        },
+      );
+
+      setState(() => _isUploading = false);
+
+      await _communityService.sendMessage(
+        communityId: widget.community.id,
+        senderId: _teacherId!,
+        senderName: _teacherName!,
+        senderRole: 'Teacher',
+        content: '',
+        fileUrl: mediaMessage.r2Url,
+        fileName: fileName,
+        mediaType: 'pdf',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF sent successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isUploading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickAndSendAudio() async {
+    if (_teacherId == null || _teacherName == null) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+      final fileName = result.files.single.name;
+
+      setState(() => _isUploading = true);
+
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: widget.community.id,
+        senderId: _teacherId!,
+        senderRole: 'Teacher',
+        mediaType: 'community',
+        onProgress: (progress) {
+          debugPrint('Upload progress: $progress%');
+        },
+      );
+
+      setState(() => _isUploading = false);
+
+      await _communityService.sendMessage(
+        communityId: widget.community.id,
+        senderId: _teacherId!,
+        senderName: _teacherName!,
+        senderRole: 'Teacher',
+        content: '',
+        fileUrl: mediaMessage.r2Url,
+        fileName: fileName,
+        mediaType: 'audio',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Audio sent successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isUploading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   String _formatTime(DateTime dateTime) {
@@ -505,14 +745,22 @@ class _TeacherCommunityChatScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        message.content,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          height: 1.4,
+                      // WhatsApp-style media with metadata
+                      if (message.mediaMetadata != null) ...[
+                        ChatImageWidget(metadata: message.mediaMetadata!),
+                        if (message.content.isNotEmpty)
+                          const SizedBox(height: 8),
+                      ],
+                      // Text content
+                      if (message.content.isNotEmpty)
+                        Text(
+                          message.content,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            height: 1.4,
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 4),
                       Text(
                         _formatTime(message.createdAt),
@@ -626,7 +874,7 @@ class _TeacherCommunityChatScreenState
                 size: 26,
               ),
               padding: const EdgeInsets.all(8),
-              onPressed: () {},
+              onPressed: _isUploading ? null : _showMediaOptions,
             ),
             const SizedBox(width: 8),
             Container(
