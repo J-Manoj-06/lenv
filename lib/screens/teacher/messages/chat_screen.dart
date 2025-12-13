@@ -37,6 +37,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final AudioRecorder _recorder = AudioRecorder();
+  final FocusNode _focusNode = FocusNode();
 
   late final MediaUploadService _mediaUploadService;
   // Track locally pending messages for transient single-tick state
@@ -53,6 +54,11 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _initMediaService();
     _messageController.addListener(() => setState(() {}));
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
+    });
     _loadCurrentUser();
     _markAsRead();
   }
@@ -101,6 +107,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     _recorder.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -288,27 +295,24 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(child: _buildMessageList()),
           _buildComposer(theme, isDark),
           if (_showEmojiPicker)
-            SizedBox(
-              height: 250,
-              child: EmojiPicker(
-                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-                onBackspacePressed: _onBackspacePressed,
-                config: Config(
-                  height: 256,
-                  checkPlatformCompatibility: false,
-                  emojiViewConfig: EmojiViewConfig(
-                    backgroundColor: const Color(0xFF0B141A),
-                    columns: 7,
-                    emojiSizeMax: 28,
-                  ),
-                  categoryViewConfig: CategoryViewConfig(
-                    backgroundColor: const Color(0xFF0B141A),
-                    iconColorSelected: const Color(0xFF00A884),
-                    indicatorColor: const Color(0xFF00A884),
-                  ),
-                  bottomActionBarConfig: BottomActionBarConfig(
-                    backgroundColor: const Color(0xFF0B141A),
-                  ),
+            EmojiPicker(
+              onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+              onBackspacePressed: _onBackspacePressed,
+              config: Config(
+                height: 250,
+                checkPlatformCompatibility: false,
+                emojiViewConfig: EmojiViewConfig(
+                  backgroundColor: const Color(0xFF0B141A),
+                  columns: 7,
+                  emojiSizeMax: 28,
+                ),
+                categoryViewConfig: CategoryViewConfig(
+                  backgroundColor: const Color(0xFF0B141A),
+                  iconColorSelected: const Color(0xFF00A884),
+                  indicatorColor: const Color(0xFF00A884),
+                ),
+                bottomActionBarConfig: BottomActionBarConfig(
+                  backgroundColor: const Color(0xFF0B141A),
                 ),
               ),
             ),
@@ -590,7 +594,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final iconColor = Colors.grey.shade400;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       decoration: const BoxDecoration(
         color: barColor,
         border: Border(top: BorderSide(color: Color(0xFF131C21))),
@@ -629,11 +633,21 @@ class _ChatScreenState extends State<ChatScreen> {
                             size: 26,
                           ),
                           padding: const EdgeInsets.all(8),
-                          onPressed: () {},
+                          onPressed: () {
+                            setState(() {
+                              _showEmojiPicker = !_showEmojiPicker;
+                            });
+                            if (!_showEmojiPicker) {
+                              _focusNode.requestFocus();
+                            } else {
+                              _focusNode.unfocus();
+                            }
+                          },
                         ),
                         Expanded(
                           child: TextField(
                             controller: _messageController,
+                            focusNode: _focusNode,
                             decoration: InputDecoration(
                               hintText: _isRecording
                                   ? 'Recording...'

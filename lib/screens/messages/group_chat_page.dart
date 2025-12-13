@@ -70,6 +70,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
   void initState() {
     super.initState();
     _messageController.addListener(() => setState(() {}));
+    _messageFocusNode.addListener(() {
+      if (_messageFocusNode.hasFocus && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
+    });
     // Initialize MediaUploadService with CloudflareConfig
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -602,27 +607,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
           // Input Bar
           _buildInputBar(),
           if (_showEmojiPicker)
-            SizedBox(
-              height: 250,
-              child: EmojiPicker(
-                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-                onBackspacePressed: _onBackspacePressed,
-                config: Config(
-                  height: 256,
-                  checkPlatformCompatibility: false,
-                  emojiViewConfig: EmojiViewConfig(
-                    backgroundColor: const Color(0xFF1A1A1A),
-                    columns: 7,
-                    emojiSizeMax: 28,
-                  ),
-                  categoryViewConfig: CategoryViewConfig(
-                    backgroundColor: const Color(0xFF1A1A1A),
-                    iconColorSelected: const Color(0xFF00A884),
-                    indicatorColor: const Color(0xFF00A884),
-                  ),
-                  bottomActionBarConfig: BottomActionBarConfig(
-                    backgroundColor: const Color(0xFF1A1A1A),
-                  ),
+            EmojiPicker(
+              onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+              onBackspacePressed: _onBackspacePressed,
+              config: Config(
+                height: 300,
+                checkPlatformCompatibility: false,
+                emojiViewConfig: EmojiViewConfig(
+                  backgroundColor: const Color(0xFF1A1A1A),
+                  columns: 7,
+                  emojiSizeMax: 28,
+                ),
+                categoryViewConfig: CategoryViewConfig(
+                  backgroundColor: const Color(0xFF1A1A1A),
+                  iconColorSelected: const Color(0xFF00A884),
+                  indicatorColor: const Color(0xFF00A884),
+                ),
+                bottomActionBarConfig: BottomActionBarConfig(
+                  backgroundColor: const Color(0xFF1A1A1A),
                 ),
               ),
             ),
@@ -633,7 +635,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   Widget _buildInputBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
         color: const Color(0xFF222222),
         boxShadow: [
@@ -645,6 +647,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ],
       ),
       child: SafeArea(
+        top: false,
+        minimum: EdgeInsets.zero,
         child: Row(
           children: [
             // Text Input
@@ -670,6 +674,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         setState(() {
                           _showEmojiPicker = !_showEmojiPicker;
                         });
+                        if (!_showEmojiPicker) {
+                          _messageFocusNode.requestFocus();
+                        } else {
+                          _messageFocusNode.unfocus();
+                        }
                       },
                     ),
                     Expanded(

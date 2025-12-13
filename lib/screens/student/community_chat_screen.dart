@@ -47,6 +47,12 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     super.initState();
     _messageController.addListener(() => setState(() {}));
 
+    _messageFocusNode.addListener(() {
+      if (_messageFocusNode.hasFocus && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
+    });
+
     // Initialize MediaUploadService with CloudflareConfig
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -582,27 +588,24 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           ),
           _buildMessageInput(),
           if (_showEmojiPicker)
-            SizedBox(
-              height: 250,
-              child: EmojiPicker(
-                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-                onBackspacePressed: _onBackspacePressed,
-                config: Config(
-                  height: 256,
-                  checkPlatformCompatibility: false,
-                  emojiViewConfig: EmojiViewConfig(
-                    backgroundColor: const Color(0xFF1A1C20),
-                    columns: 7,
-                    emojiSizeMax: 28,
-                  ),
-                  categoryViewConfig: CategoryViewConfig(
-                    backgroundColor: const Color(0xFF1A1C20),
-                    iconColorSelected: const Color(0xFFFFA929),
-                    indicatorColor: const Color(0xFFFFA929),
-                  ),
-                  bottomActionBarConfig: BottomActionBarConfig(
-                    backgroundColor: const Color(0xFF1A1C20),
-                  ),
+            EmojiPicker(
+              onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+              onBackspacePressed: _onBackspacePressed,
+              config: Config(
+                height: 250,
+                checkPlatformCompatibility: false,
+                emojiViewConfig: EmojiViewConfig(
+                  backgroundColor: const Color(0xFF1A1C20),
+                  columns: 7,
+                  emojiSizeMax: 28,
+                ),
+                categoryViewConfig: CategoryViewConfig(
+                  backgroundColor: const Color(0xFF1A1C20),
+                  iconColorSelected: const Color(0xFFFFA929),
+                  indicatorColor: const Color(0xFFFFA929),
+                ),
+                bottomActionBarConfig: BottomActionBarConfig(
+                  backgroundColor: const Color(0xFF1A1C20),
                 ),
               ),
             ),
@@ -847,96 +850,107 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   Widget _buildMessageInput() {
     return Container(
       color: const Color(0xFF1A1C20),
-      padding: const EdgeInsets.all(8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1C1F25),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          children: [
-            IconButton(
-              icon: Icon(
-                _showEmojiPicker
-                    ? Icons.keyboard
-                    : Icons.emoji_emotions_outlined,
-              ),
-              color: const Color(0xFF9E9E9E),
-              onPressed: () {
-                setState(() {
-                  _showEmojiPicker = !_showEmojiPicker;
-                });
-              },
-            ),
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                focusNode: _messageFocusNode,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                decoration: const InputDecoration(
-                  hintText: 'Type a message...',
-                  hintStyle: TextStyle(color: Color(0xFF9E9E9E)),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      child: SafeArea(
+        top: false,
+        minimum: EdgeInsets.zero,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1F25),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(
+                  _showEmojiPicker
+                      ? Icons.keyboard
+                      : Icons.emoji_emotions_outlined,
                 ),
-                maxLines: null,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) {
-                  _sendMessage();
-                  // Keep keyboard open by requesting focus again
-                  Future.delayed(const Duration(milliseconds: 50), () {
-                    _messageFocusNode.requestFocus();
+                color: const Color(0xFF9E9E9E),
+                onPressed: () {
+                  setState(() {
+                    _showEmojiPicker = !_showEmojiPicker;
                   });
+                  if (!_showEmojiPicker) {
+                    _messageFocusNode.requestFocus();
+                  } else {
+                    _messageFocusNode.unfocus();
+                  }
                 },
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(
-                Icons.attach_file,
-                color: Color(0xFF9E9E9E),
-                size: 26,
-              ),
-              padding: const EdgeInsets.all(8),
-              onPressed: _isUploading ? null : _showMediaOptions,
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: _isRecording
-                    ? Colors.redAccent
-                    : const Color(0xFF00A884),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: Icon(
-                  _isRecording
-                      ? Icons.stop
-                      : (_messageController.text.trim().isNotEmpty
-                            ? Icons.send_rounded
-                            : Icons.mic),
-                  color: Colors.white,
-                  size: 24,
+              Expanded(
+                child: TextField(
+                  controller: _messageController,
+                  focusNode: _messageFocusNode,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: const InputDecoration(
+                    hintText: 'Type a message...',
+                    hintStyle: TextStyle(color: Color(0xFF9E9E9E)),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  maxLines: null,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) {
+                    _sendMessage();
+                    // Keep keyboard open by requesting focus again
+                    Future.delayed(const Duration(milliseconds: 50), () {
+                      _messageFocusNode.requestFocus();
+                    });
+                  },
                 ),
-                padding: EdgeInsets.zero,
-                onPressed: _isUploading
-                    ? null
-                    : () {
-                        if (_isRecording) {
-                          _recordAndSendAudio();
-                        } else if (_messageController.text.trim().isNotEmpty) {
-                          _sendMessage();
-                        } else {
-                          // Start recording
-                          _recordAndSendAudio();
-                        }
-                      },
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(
+                  Icons.attach_file,
+                  color: Color(0xFF9E9E9E),
+                  size: 26,
+                ),
+                padding: const EdgeInsets.all(8),
+                onPressed: _isUploading ? null : _showMediaOptions,
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _isRecording
+                      ? Colors.redAccent
+                      : const Color(0xFF00A884),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    _isRecording
+                        ? Icons.stop
+                        : (_messageController.text.trim().isNotEmpty
+                              ? Icons.send_rounded
+                              : Icons.mic),
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: _isUploading
+                      ? null
+                      : () {
+                          if (_isRecording) {
+                            _recordAndSendAudio();
+                          } else if (_messageController.text
+                              .trim()
+                              .isNotEmpty) {
+                            _sendMessage();
+                          } else {
+                            // Start recording
+                            _recordAndSendAudio();
+                          }
+                        },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

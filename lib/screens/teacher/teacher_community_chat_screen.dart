@@ -22,6 +22,7 @@ class _TeacherCommunityChatScreenState
     extends State<TeacherCommunityChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
   final CommunityService _communityService = CommunityService();
   String? _teacherName;
   String? _teacherId;
@@ -31,6 +32,11 @@ class _TeacherCommunityChatScreenState
   void initState() {
     super.initState();
     _messageController.addListener(() => setState(() {}));
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
+    });
     _loadTeacherData();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToBottom(force: true),
@@ -41,6 +47,7 @@ class _TeacherCommunityChatScreenState
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -253,27 +260,24 @@ class _TeacherCommunityChatScreenState
           ),
           _buildMessageInput(),
           if (_showEmojiPicker)
-            SizedBox(
-              height: 250,
-              child: EmojiPicker(
-                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-                onBackspacePressed: _onBackspacePressed,
-                config: Config(
-                  height: 256,
-                  checkPlatformCompatibility: false,
-                  emojiViewConfig: EmojiViewConfig(
-                    backgroundColor: const Color(0xFF0B141A),
-                    columns: 7,
-                    emojiSizeMax: 28,
-                  ),
-                  categoryViewConfig: CategoryViewConfig(
-                    backgroundColor: const Color(0xFF0B141A),
-                    iconColorSelected: const Color(0xFF6A4FF7),
-                    indicatorColor: const Color(0xFF6A4FF7),
-                  ),
-                  bottomActionBarConfig: BottomActionBarConfig(
-                    backgroundColor: const Color(0xFF0B141A),
-                  ),
+            EmojiPicker(
+              onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+              onBackspacePressed: _onBackspacePressed,
+              config: Config(
+                height: 250,
+                checkPlatformCompatibility: false,
+                emojiViewConfig: EmojiViewConfig(
+                  backgroundColor: const Color(0xFF0B141A),
+                  columns: 7,
+                  emojiSizeMax: 28,
+                ),
+                categoryViewConfig: CategoryViewConfig(
+                  backgroundColor: const Color(0xFF0B141A),
+                  iconColorSelected: const Color(0xFF6A4FF7),
+                  indicatorColor: const Color(0xFF6A4FF7),
+                ),
+                bottomActionBarConfig: BottomActionBarConfig(
+                  backgroundColor: const Color(0xFF0B141A),
                 ),
               ),
             ),
@@ -523,12 +527,14 @@ class _TeacherCommunityChatScreenState
   Widget _buildMessageInput() {
     final hasText = _messageController.text.trim().isNotEmpty;
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       decoration: const BoxDecoration(
         color: Color(0xFF0B141A),
         border: Border(top: BorderSide(color: Color(0xFF131C21))),
       ),
       child: SafeArea(
+        top: false,
+        minimum: EdgeInsets.zero,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -554,11 +560,17 @@ class _TeacherCommunityChatScreenState
                         setState(() {
                           _showEmojiPicker = !_showEmojiPicker;
                         });
+                        if (!_showEmojiPicker) {
+                          _focusNode.requestFocus();
+                        } else {
+                          _focusNode.unfocus();
+                        }
                       },
                     ),
                     Expanded(
                       child: TextField(
                         controller: _messageController,
+                        focusNode: _focusNode,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,

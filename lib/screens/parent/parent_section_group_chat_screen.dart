@@ -290,8 +290,9 @@ class _ParentSectionGroupChatScreenState
         : parentGreen;
     return SafeArea(
       top: false,
+      minimum: EdgeInsets.zero,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
         decoration: BoxDecoration(
           color: isDark ? bubbleDark : Colors.white,
           boxShadow: [

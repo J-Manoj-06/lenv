@@ -267,8 +267,10 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                   ),
           ),
           SafeArea(
+            top: false,
+            minimum: EdgeInsets.zero,
             child: Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
               child: Row(
                 children: [
                   IconButton(
