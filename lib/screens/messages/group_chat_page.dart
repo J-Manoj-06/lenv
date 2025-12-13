@@ -18,6 +18,7 @@ import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/media_preview_card.dart';
+import '../../widgets/modern_attachment_sheet.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String classId;
@@ -933,98 +934,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   void _showMediaOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1A1C20),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Send Media',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildMediaOption(
-                  icon: Icons.image,
-                  label: 'Image',
-                  color: const Color(0xFF4CAF50),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickAndSendImage();
-                  },
-                ),
-                _buildMediaOption(
-                  icon: Icons.picture_as_pdf,
-                  label: 'PDF',
-                  color: const Color(0xFFF44336),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickAndSendPDF();
-                  },
-                ),
-                _buildMediaOption(
-                  icon: Icons.audiotrack,
-                  label: 'Audio',
-                  color: const Color(0xFF2196F3),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickAndSendAudio();
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMediaOption({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 80,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.5)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
+    showModernAttachmentSheet(
+      context,
+      onImageTap: _pickAndSendImage,
+      onPdfTap: _pickAndSendPDF,
+      onAudioTap: _pickAndSendAudio,
     );
   }
 }

@@ -519,6 +519,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         viewStatuses.isEmpty ||
                         viewStatuses.any((isViewed) => !isViewed);
 
+                    debugPrint(
+                      '🎨 STUDENT: Building avatar - Statuses: $viewStatuses, hasUnread: $hasUnread',
+                    );
+
                     return _buildAnnouncementAvatar('Principal', hasUnread, () {
                       _openCrossPersonAnnouncementViewer(
                         creatorGroups,
@@ -747,6 +751,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             } else if (type == 'principal') {
               final principalAnnouncement =
                   originalData['data'] as InstituteAnnouncementModel;
+              debugPrint(
+                '🔵 STUDENT: Marking principal announcement as viewed',
+              );
+              debugPrint('   Announcement ID: ${principalAnnouncement.id}');
+              debugPrint('   User ID: $currentUserId');
+              debugPrint('   Title: ${principalAnnouncement.text}');
               _markPrincipalAnnouncementAsViewed(
                 principalAnnouncement.id,
                 currentUserId,
@@ -757,10 +767,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       },
     );
 
-    // Refresh UI after viewer closes (no setState during build error)
-    if (mounted) {
-      setState(() {});
-    }
+    // StreamBuilder will automatically update the UI, no manual refresh needed
   }
 
   /// Mark a principal announcement as viewed by updating Firestore
@@ -769,28 +776,35 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     String userId,
   ) async {
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final instituteId = authProvider.currentUser?.instituteId ?? '';
+      debugPrint('🟢 STUDENT: Writing view to Firestore...');
+      debugPrint(
+        '   Path: institute_announcements/$announcementId/views/$userId',
+      );
 
-      if (instituteId.isEmpty) return;
-
-      // Add user to views subcollection
+      // Add user to views subcollection (no instituteId check needed)
       await FirebaseFirestore.instance
           .collection('institute_announcements')
           .doc(announcementId)
           .collection('views')
           .doc(userId)
-          .set({'viewedAt': FieldValue.serverTimestamp()})
-          .catchError((error) {
-            print('Error marking announcement as viewed: $error');
-          });
+          .set({'viewedAt': FieldValue.serverTimestamp()});
 
-      // Refresh UI to show updated viewing status
-      if (mounted) {
-        setState(() {});
-      }
+      debugPrint('✅ STUDENT: Successfully wrote view to Firestore');
+
+      // Verify write
+      final verify = await FirebaseFirestore.instance
+          .collection('institute_announcements')
+          .doc(announcementId)
+          .collection('views')
+          .doc(userId)
+          .get();
+      debugPrint(
+        '🔍 STUDENT: Verification - Document exists: ${verify.exists}',
+      );
+
+      // StreamBuilder will automatically update the UI
     } catch (e) {
-      print('Error in _markPrincipalAnnouncementAsViewed: $e');
+      debugPrint('❌ STUDENT: Error in _markPrincipalAnnouncementAsViewed: $e');
     }
   }
 
@@ -799,37 +813,72 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     List<InstituteAnnouncementModel> announcements,
     String userId,
   ) {
+    debugPrint(
+      '🔄 STUDENT: Setting up stream for ${announcements.length} principal announcements',
+    );
+    for (var i = 0; i < announcements.length; i++) {
+      debugPrint(
+        '   [$i] ID: ${announcements[i].id}, Title: ${announcements[i].text}',
+      );
+    }
+
     if (announcements.isEmpty) {
       return Stream.value([]);
     }
 
     // For single announcement, simple stream
     if (announcements.length == 1) {
+      debugPrint('📡 STUDENT: Using single announcement stream');
       return FirebaseFirestore.instance
           .collection('institute_announcements')
           .doc(announcements.first.id)
           .collection('views')
           .doc(userId)
           .snapshots()
-          .map((doc) => [doc.exists]);
+          .map((doc) {
+            debugPrint('📥 STUDENT: Stream update - Exists: ${doc.exists}');
+            return [doc.exists];
+          })
+          .distinct(
+            (prev, next) => prev[0] == next[0],
+          ); // Prevent duplicate emissions
     }
 
-    // For multiple announcements, combine streams manually
-    return Stream.periodic(const Duration(milliseconds: 500)).asyncMap((
-      _,
-    ) async {
-      final results = <bool>[];
-      for (final announcement in announcements) {
-        final doc = await FirebaseFirestore.instance
-            .collection('institute_announcements')
-            .doc(announcement.id)
-            .collection('views')
-            .doc(userId)
-            .get();
-        results.add(doc.exists);
-      }
-      return results;
-    });
+    // For multiple announcements, use snapshot listener instead of polling
+    debugPrint(
+      '📡 STUDENT: Using snapshot listener for multiple announcements',
+    );
+    // Listen to the first announcement and check all when it changes
+    return FirebaseFirestore.instance
+        .collection('institute_announcements')
+        .doc(announcements.first.id)
+        .collection('views')
+        .doc(userId)
+        .snapshots()
+        .asyncMap((_) async {
+          final results = <bool>[];
+          for (final announcement in announcements) {
+            final doc = await FirebaseFirestore.instance
+                .collection('institute_announcements')
+                .doc(announcement.id)
+                .collection('views')
+                .doc(userId)
+                .get();
+            results.add(doc.exists);
+          }
+          debugPrint(
+            '📥 STUDENT: Checked ${results.length} announcements - Results: $results',
+          );
+          return results;
+        })
+        .distinct((prev, next) {
+          // Only emit if the results actually changed
+          if (prev.length != next.length) return false;
+          for (var i = 0; i < prev.length; i++) {
+            if (prev[i] != next[i]) return false;
+          }
+          return true;
+        });
   }
 
   /// Check if ANY principal announcement in the group has NOT been viewed
