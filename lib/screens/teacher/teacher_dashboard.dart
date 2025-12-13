@@ -16,6 +16,7 @@ import '../../models/parent_teacher_group.dart';
 import 'status_view_screen.dart';
 import 'attendance_screen.dart';
 import '../common/announcement_view_screen.dart';
+import '../common/announcement_pageview_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -1248,24 +1249,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
     return GestureDetector(
       onTap: () {
-        if (latestAnnouncement.type == 'teacher') {
-          final statusList = allAnnouncements
-              .where((a) => a.type == 'teacher')
-              .map((a) => a.data as StatusModel)
-              .toList();
-          if (statusList.isNotEmpty) {
-            _openStatusViewer(statusList, 0);
-          }
-        } else {
-          // Show principal announcement
-          final principalAnnouncements = allAnnouncements
-              .where((a) => a.type == 'principal')
-              .map((a) => a.data as InstituteAnnouncementModel)
-              .toList();
-          if (principalAnnouncements.isNotEmpty) {
-            _showPrincipalAnnouncement(principalAnnouncements.first);
-          }
-        }
+        // Combine ALL announcements (teacher + principal) in chronological order
+        _openCombinedAnnouncementViewer(allAnnouncements);
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1372,20 +1357,32 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUserId = authProvider.currentUser?.uid;
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => StatusViewScreen(
-          statuses: statuses,
-          initialIndex: initialIndex,
-          currentUserId: currentUserId,
-          onStatusDeleted: () {
-            // Refresh is handled automatically by StreamBuilder
-            if (mounted) {
-              setState(() {});
-            }
+    // Convert statuses to announcement format for PageView
+    final announcements = statuses
+        .map(
+          (status) => {
+            'role': 'teacher',
+            'title': status.text.isNotEmpty ? status.text : 'Status',
+            'subtitle': '',
+            'postedByLabel': 'Posted by ${status.teacherName}',
+            'avatarUrl': status.imageUrl,
+            'postedAt': status.createdAt,
+            'expiresAt': status.createdAt.add(const Duration(hours: 24)),
           },
-        ),
-      ),
+        )
+        .toList();
+
+    openAnnouncementPageView(
+      context,
+      announcements: announcements,
+      initialIndex: initialIndex,
+      onAnnouncementViewed: (index) {
+        // Status viewing is tracked separately in Firestore
+        // This callback just logs the viewed announcement
+        if (mounted) {
+          setState(() {});
+        }
+      },
     );
   }
 
@@ -1403,6 +1400,107 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       postedAt: announcement.createdAt,
       expiresAt: announcement.expiresAt,
     );
+  }
+
+  /// Open combined viewer with ALL announcements (teacher + principal)
+  void _openCombinedAnnouncementViewer(
+    List<_AnnouncementItem> allAnnouncements,
+  ) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUserId = authProvider.currentUser?.uid;
+
+    // Convert all announcements to PageView format
+    final announcements = allAnnouncements.map((item) {
+      String role;
+      String postedByLabel;
+      String title;
+      String? imageUrl;
+      DateTime createdAt;
+      DateTime expiresAt;
+
+      if (item.type == 'teacher') {
+        final status = item.data as StatusModel;
+        role = 'teacher';
+        postedByLabel = 'Posted by ${status.teacherName}';
+        title = status.text.isNotEmpty ? status.text : 'Status';
+        imageUrl = status.imageUrl;
+        createdAt = status.createdAt;
+        expiresAt = status.createdAt.add(const Duration(hours: 24));
+      } else {
+        final principal = item.data as InstituteAnnouncementModel;
+        role = 'principal';
+        postedByLabel = 'Posted by ${principal.principalName}';
+        title = principal.text.isNotEmpty ? principal.text : 'Announcement';
+        imageUrl = principal.imageUrl;
+        createdAt = principal.createdAt;
+        expiresAt = principal.expiresAt;
+      }
+
+      return {
+        'role': role,
+        'title': title,
+        'subtitle': '',
+        'postedByLabel': postedByLabel,
+        'avatarUrl': imageUrl,
+        'postedAt': createdAt,
+        'expiresAt': expiresAt,
+      };
+    }).toList();
+
+    // Sort by timestamp (newest first)
+    announcements.sort((a, b) {
+      final dateA = a['postedAt'] as DateTime;
+      final dateB = b['postedAt'] as DateTime;
+      return dateB.compareTo(dateA);
+    });
+
+    openAnnouncementPageView(
+      context,
+      announcements: announcements,
+      initialIndex: 0,
+      onAnnouncementViewed: (index) {
+        // Mark principal announcements as viewed
+        if (index < allAnnouncements.length) {
+          final item = allAnnouncements[index];
+          if (item.type == 'principal') {
+            final authProvider = Provider.of<AuthProvider>(
+              context,
+              listen: false,
+            );
+            final userId = authProvider.currentUser?.uid ?? '';
+            if (userId.isNotEmpty) {
+              final principal = item.data as InstituteAnnouncementModel;
+              _markPrincipalAnnouncementAsViewed(principal.id, userId);
+            }
+          }
+        }
+      },
+    );
+  }
+
+  /// Mark a principal announcement as viewed by updating Firestore
+  Future<void> _markPrincipalAnnouncementAsViewed(
+    String announcementId,
+    String userId,
+  ) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('institute_announcements')
+          .doc(announcementId)
+          .update({
+            'viewedBy': FieldValue.arrayUnion([userId]),
+          })
+          .catchError((error) {
+            print('Error marking announcement as viewed: $error');
+          });
+
+      // Refresh UI
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('Error in _markPrincipalAnnouncementAsViewed: $e');
+    }
   }
 
   String _formatAnnouncementTime(DateTime time) {

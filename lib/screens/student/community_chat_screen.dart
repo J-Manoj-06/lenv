@@ -12,7 +12,7 @@ import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/student_provider.dart';
 import '../../services/community_service.dart';
-import '../common/announcement_view_screen.dart';
+import '../common/announcement_pageview_screen.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
@@ -860,24 +860,27 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: InkWell(
         onTap: () {
-          // Open role-themed announcement viewer regardless of who posted
           final role = message.senderRole.toLowerCase();
           final postedByLabel =
               'Posted by ${message.senderRole[0].toUpperCase()}${message.senderRole.substring(1)}';
-          openAnnouncementView(
+          openAnnouncementPageView(
             context,
-            role: role,
-            title: message.content.isNotEmpty
-                ? message.content
-                : 'Announcement',
-            subtitle: '',
-            postedByLabel: postedByLabel,
-            avatarUrl: message.senderAvatar.isNotEmpty
-                ? message.senderAvatar
-                : null,
-            postedAt: message.createdAt,
-            // Community announcements: visible for 24 hours
-            expiresAt: message.createdAt.add(const Duration(hours: 24)),
+            announcements: [
+              {
+                'role': role,
+                'title': message.content.isNotEmpty
+                    ? message.content
+                    : 'Announcement',
+                'subtitle': '',
+                'postedByLabel': postedByLabel,
+                'avatarUrl': message.senderAvatar.isNotEmpty
+                    ? message.senderAvatar
+                    : null,
+                'postedAt': message.createdAt,
+                'expiresAt': message.createdAt.add(const Duration(hours: 24)),
+              },
+            ],
+            initialIndex: 0,
           );
         },
         child: Center(

@@ -7,7 +7,7 @@ import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
 import 'parent_profile_screen.dart';
-import '../common/announcement_view_screen.dart';
+import '../common/announcement_pageview_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -861,15 +861,20 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             ? postedAt.add(const Duration(hours: 24))
             : DateTime.now().add(const Duration(hours: 24));
 
-        openAnnouncementView(
+        openAnnouncementPageView(
           context,
-          role: role,
-          title: title,
-          subtitle: description,
-          postedByLabel: postedByLabel,
-          avatarUrl: announcement['teacherPhotoUrl'] as String?,
-          postedAt: postedAt,
-          expiresAt: expiresAt,
+          announcements: [
+            {
+              'role': role,
+              'title': title,
+              'subtitle': description,
+              'postedByLabel': postedByLabel,
+              'avatarUrl': announcement['teacherPhotoUrl'] as String?,
+              'postedAt': postedAt,
+              'expiresAt': expiresAt,
+            },
+          ],
+          initialIndex: 0,
         );
       },
       child: Column(

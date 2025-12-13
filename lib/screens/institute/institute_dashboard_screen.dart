@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import './institute_announcement_target_screen.dart';
+import './principal_announcement_viewer.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/institute_announcement_model.dart';
 
@@ -228,7 +229,22 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     return GestureDetector(
       onTap: () {
         if (hasAnnouncement) {
-          // TODO: Open announcement viewer
+          // Open announcement viewer with delete option
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PrincipalAnnouncementViewer(
+                announcements: myAnnouncements,
+                initialIndex: 0,
+                currentUserId: currentUser?.uid ?? '',
+              ),
+            ),
+          ).then((_) {
+            // Refresh dashboard after returning from viewer
+            if (mounted) {
+              setState(() {});
+            }
+          });
         } else {
           _openAnnouncementTargetSelection();
         }

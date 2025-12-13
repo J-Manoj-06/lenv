@@ -7,7 +7,7 @@ import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
-import '../common/announcement_view_screen.dart';
+import '../common/announcement_pageview_screen.dart';
 
 class TeacherCommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -379,19 +379,24 @@ class _TeacherCommunityChatScreenState
           final role = message.senderRole.toLowerCase();
           final postedByLabel =
               'Posted by ${message.senderRole[0].toUpperCase()}${message.senderRole.substring(1)}';
-          openAnnouncementView(
+          openAnnouncementPageView(
             context,
-            role: role,
-            title: message.content.isNotEmpty
-                ? message.content
-                : 'Announcement',
-            subtitle: '',
-            postedByLabel: postedByLabel,
-            avatarUrl: message.senderAvatar.isNotEmpty
-                ? message.senderAvatar
-                : null,
-            postedAt: message.createdAt,
-            expiresAt: message.createdAt.add(const Duration(hours: 24)),
+            announcements: [
+              {
+                'role': role,
+                'title': message.content.isNotEmpty
+                    ? message.content
+                    : 'Announcement',
+                'subtitle': '',
+                'postedByLabel': postedByLabel,
+                'avatarUrl': message.senderAvatar.isNotEmpty
+                    ? message.senderAvatar
+                    : null,
+                'postedAt': message.createdAt,
+                'expiresAt': message.createdAt.add(const Duration(hours: 24)),
+              },
+            ],
+            initialIndex: 0,
           );
         },
         child: Center(

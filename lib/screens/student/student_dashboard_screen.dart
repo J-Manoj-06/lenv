@@ -21,6 +21,7 @@ import 'student_profile_screen.dart';
 import 'badge_gallery_screen.dart';
 import '../ai/ai_chat_page.dart';
 import '../common/announcement_view_screen.dart';
+import '../common/announcement_pageview_screen.dart';
 import 'dart:math' as math;
 
 class StudentDashboardScreen extends StatefulWidget {
@@ -483,38 +484,50 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               final latestData = latest['data'];
               final latestType = latest['type'];
 
-              bool hasUnread = false;
               if (latestType == 'teacher') {
-                hasUnread = creatorAnnouncements.any(
+                // For teacher announcements, check viewedBy array
+                final hasUnread = creatorAnnouncements.any(
                   (a) => !(a['data'] as StatusModel).viewedBy.contains(
                     currentUserId,
                   ),
                 );
+
+                final name = (latestData as StatusModel).teacherName;
+
+                return _buildAnnouncementAvatar(name, hasUnread, () {
+                  _openCrossPersonAnnouncementViewer(
+                    creatorGroups,
+                    index,
+                    currentUserId,
+                  );
+                }, count: creatorAnnouncements.length);
               } else {
-                // For principal announcements, always show as unread for now
-                hasUnread = true;
+                // For principal announcements, use StreamBuilder for real-time updates
+                final principalAnnouncements = creatorAnnouncements
+                    .where((a) => a['type'] == 'principal')
+                    .map((a) => a['data'] as InstituteAnnouncementModel)
+                    .toList();
+
+                return StreamBuilder<List<bool>>(
+                  stream: _streamPrincipalAnnouncementsViewStatus(
+                    principalAnnouncements,
+                    currentUserId,
+                  ),
+                  builder: (context, snapshot) {
+                    final viewStatuses = snapshot.data ?? [];
+                    final hasUnread = viewStatuses.isEmpty ||
+                        viewStatuses.any((isViewed) => !isViewed);
+
+                    return _buildAnnouncementAvatar('Principal', hasUnread, () {
+                      _openCrossPersonAnnouncementViewer(
+                        creatorGroups,
+                        index,
+                        currentUserId,
+                      );
+                    }, count: creatorAnnouncements.length);
+                  },
+                );
               }
-
-              final name = latestType == 'teacher'
-                  ? (latestData as StatusModel).teacherName
-                  : 'Principal';
-
-              return _buildAnnouncementAvatar(name, hasUnread, () {
-                if (latestType == 'teacher') {
-                  final statusList = creatorAnnouncements
-                      .where((a) => a['type'] == 'teacher')
-                      .map((a) => a['data'] as StatusModel)
-                      .toList();
-                  _openAnnouncementViewer(statusList, 0);
-                } else {
-                  // Show principal announcement
-                  final principalAnnouncements = creatorAnnouncements
-                      .where((a) => a['type'] == 'principal')
-                      .map((a) => a['data'] as InstituteAnnouncementModel)
-                      .toList();
-                  _showPrincipalAnnouncement(principalAnnouncements.first);
-                }
-              }, count: creatorAnnouncements.length);
             },
           ),
         ),
@@ -654,6 +667,206 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       postedAt: announcement.createdAt,
       expiresAt: announcement.expiresAt,
     );
+  }
+
+  /// Open cross-person announcement viewer - chains through all creators
+  /// starting from the tapped one
+  Future<void> _openCrossPersonAnnouncementViewer(
+    List<List<Map<String, dynamic>>> allCreatorGroups,
+    int tappedGroupIndex,
+    String currentUserId,
+  ) async {
+    // Flatten all announcements starting from tapped group
+    final flattenedAnnouncements = <Map<String, dynamic>>[];
+
+    // Add tapped group first, then all subsequent groups
+    for (int i = tappedGroupIndex; i < allCreatorGroups.length; i++) {
+      flattenedAnnouncements.addAll(allCreatorGroups[i]);
+    }
+
+    // Convert to PageView format with metadata for tracking
+    final announcements = flattenedAnnouncements.map((item) {
+      final type = item['type'] as String;
+      final data = item['data'];
+
+      if (type == 'teacher') {
+        final status = data as StatusModel;
+        return {
+          'role': 'teacher',
+          'title': status.text.isNotEmpty ? status.text : 'Status',
+          'subtitle': '',
+          'postedByLabel': 'Posted by ${status.teacherName}',
+          'avatarUrl': status.imageUrl,
+          'postedAt': status.createdAt,
+          'expiresAt': status.createdAt.add(const Duration(hours: 24)),
+          '_originalData': item, // Keep reference for marking viewed
+        };
+      } else {
+        final principal = data as InstituteAnnouncementModel;
+        return {
+          'role': 'principal',
+          'title': principal.hasText ? principal.text : 'Announcement',
+          'subtitle': '',
+          'postedByLabel': 'Posted by ${principal.principalName}',
+          'avatarUrl': null,
+          'postedAt': principal.createdAt,
+          'expiresAt': principal.expiresAt,
+          '_originalData': item, // Keep reference for marking viewed
+        };
+      }
+    }).toList();
+
+    // Open viewer and await completion
+    await openAnnouncementPageView(
+      context,
+      announcements: announcements,
+      initialIndex: 0,
+      onAnnouncementViewed: (index) {
+        // Mark as viewed (no setState during build)
+        if (index < announcements.length) {
+          final announcement = announcements[index];
+          final originalData =
+              announcement['_originalData'] as Map<String, dynamic>?;
+
+          if (originalData != null) {
+            final type = originalData['type'] as String;
+
+            if (type == 'teacher') {
+              final status = originalData['data'] as StatusModel;
+              // Persist view state to Firestore
+              FirebaseFirestore.instance
+                  .collection('class_highlights')
+                  .doc(status.id)
+                  .update({
+                    'viewedBy': FieldValue.arrayUnion([currentUserId]),
+                  })
+                  .catchError((e) {
+                    debugPrint('Error marking teacher status viewed: $e');
+                  });
+            } else if (type == 'principal') {
+              final principalAnnouncement =
+                  originalData['data'] as InstituteAnnouncementModel;
+              _markPrincipalAnnouncementAsViewed(
+                principalAnnouncement.id,
+                currentUserId,
+              );
+            }
+          }
+        }
+      },
+    );
+
+    // Refresh UI after viewer closes (no setState during build error)
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// Mark a principal announcement as viewed by updating Firestore
+  Future<void> _markPrincipalAnnouncementAsViewed(
+    String announcementId,
+    String userId,
+  ) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final instituteId = authProvider.currentUser?.instituteId ?? '';
+
+      if (instituteId.isEmpty) return;
+
+      // Add user to views subcollection
+      await FirebaseFirestore.instance
+          .collection('institute_announcements')
+          .doc(announcementId)
+          .collection('views')
+          .doc(userId)
+          .set({'viewedAt': FieldValue.serverTimestamp()})
+          .catchError((error) {
+            print('Error marking announcement as viewed: $error');
+          });
+
+      // Refresh UI to show updated viewing status
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('Error in _markPrincipalAnnouncementAsViewed: $e');
+    }
+  }
+
+  /// Stream real-time view status for principal announcements
+  Stream<List<bool>> _streamPrincipalAnnouncementsViewStatus(
+    List<InstituteAnnouncementModel> announcements,
+    String userId,
+  ) async* {
+    if (announcements.isEmpty) {
+      yield [];
+      return;
+    }
+
+    // Create streams for each announcement's view status
+    final streams = announcements.map((announcement) {
+      return FirebaseFirestore.instance
+          .collection('institute_announcements')
+          .doc(announcement.id)
+          .collection('views')
+          .doc(userId)
+          .snapshots()
+          .map((doc) => doc.exists);
+    }).toList();
+
+    // Combine all streams
+    await for (final _ in streams.first) {
+      final results = <bool>[];
+      for (final stream in streams) {
+        final snapshot = await stream.first;
+        results.add(snapshot);
+      }
+      yield results;
+    }
+  }
+
+  /// Check if ANY principal announcement in the group has NOT been viewed
+  Future<bool> _hasAnyPrincipalAnnouncementUnread(
+    List<Map<String, dynamic>> creatorAnnouncements,
+    String userId,
+  ) async {
+    try {
+      for (final item in creatorAnnouncements) {
+        if (item['type'] == 'principal') {
+          final announcement = item['data'] as InstituteAnnouncementModel;
+          final isViewed = await _hasPrincipalAnnouncementBeenViewed(
+            announcement.id,
+            userId,
+          );
+          if (!isViewed) {
+            return true; // Has at least one unread
+          }
+        }
+      }
+      return false; // All are read
+    } catch (e) {
+      print('Error checking principal announcements: $e');
+      return true; // Default to unread on error
+    }
+  }
+
+  /// Check if a principal announcement has been viewed by the current user
+  Future<bool> _hasPrincipalAnnouncementBeenViewed(
+    String announcementId,
+    String userId,
+  ) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('institute_announcements')
+          .doc(announcementId)
+          .collection('views')
+          .doc(userId)
+          .get();
+      return doc.exists;
+    } catch (e) {
+      print('Error checking if announcement viewed: $e');
+      return false;
+    }
   }
 
   String _formatAnnouncementTime(DateTime time) {
