@@ -7,6 +7,7 @@ import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
 import 'parent_profile_screen.dart';
+import '../common/announcement_view_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -668,7 +669,41 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     bool isDark,
     ParentProvider parentProvider,
   ) {
-    final announcements = parentProvider.announcements;
+    // Filter announcements to only those within 24 hours or with future expiresAt
+    final now = DateTime.now();
+    final announcements = parentProvider.announcements.where((a) {
+      final createdAt = a['createdAt'];
+      final expiresAt = a['expiresAt'];
+      DateTime? created;
+      DateTime? expiry;
+      if (createdAt is Timestamp) {
+        created = createdAt.toDate();
+      } else if (createdAt is DateTime) {
+        created = createdAt;
+      } else if (createdAt is String) {
+        try {
+          created = DateTime.parse(createdAt);
+        } catch (_) {}
+      }
+      if (expiresAt is Timestamp) {
+        expiry = expiresAt.toDate();
+      } else if (expiresAt is DateTime) {
+        expiry = expiresAt;
+      } else if (expiresAt is String) {
+        try {
+          expiry = DateTime.parse(expiresAt);
+        } catch (_) {}
+      }
+      // If expiry provided, use it; else fallback to 24h from created
+      if (expiry != null) {
+        return expiry.isAfter(now);
+      }
+      if (created != null) {
+        return now.difference(created) < const Duration(hours: 24);
+      }
+      // If timestamps missing, keep to be safe
+      return true;
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -792,13 +827,50 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
     return GestureDetector(
       onTap: () {
-        _showAnnouncementDetails({
-          'teacherName': teacherName,
-          'teacherInitial': teacherInitial,
-          'title': title,
-          'description': description,
-          'date': formattedDate,
-        });
+        // Role mapping: prefer explicit role, fallback to 'teacher'
+        final role =
+            (announcement['role'] as String?)?.toLowerCase() ?? 'teacher';
+        final postedByLabel =
+            'Posted by ${role[0].toUpperCase()}${role.substring(1)}';
+
+        // Parse timestamps
+        DateTime? postedAt;
+        DateTime? expiresAt;
+        final createdAt = announcement['createdAt'];
+        final expAt = announcement['expiresAt'];
+        if (createdAt is Timestamp) {
+          postedAt = createdAt.toDate();
+        } else if (createdAt is DateTime) {
+          postedAt = createdAt;
+        } else if (createdAt is String) {
+          try {
+            postedAt = DateTime.parse(createdAt);
+          } catch (_) {}
+        }
+        if (expAt is Timestamp) {
+          expiresAt = expAt.toDate();
+        } else if (expAt is DateTime) {
+          expiresAt = expAt;
+        } else if (expAt is String) {
+          try {
+            expiresAt = DateTime.parse(expAt);
+          } catch (_) {}
+        }
+        // Fallback to 24h expiry if not provided
+        expiresAt ??= (postedAt != null)
+            ? postedAt.add(const Duration(hours: 24))
+            : DateTime.now().add(const Duration(hours: 24));
+
+        openAnnouncementView(
+          context,
+          role: role,
+          title: title,
+          subtitle: description,
+          postedByLabel: postedByLabel,
+          avatarUrl: announcement['teacherPhotoUrl'] as String?,
+          postedAt: postedAt,
+          expiresAt: expiresAt,
+        );
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,

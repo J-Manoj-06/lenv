@@ -15,6 +15,7 @@ import '../../services/parent_teacher_group_service.dart';
 import '../../models/parent_teacher_group.dart';
 import 'status_view_screen.dart';
 import 'attendance_screen.dart';
+import '../common/announcement_view_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -1389,115 +1390,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   void _showPrincipalAnnouncement(InstituteAnnouncementModel announcement) {
-    final theme = Theme.of(context);
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: theme.cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF146D7A),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.campaign, color: Colors.white, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Principal Announcement',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          announcement.principalName,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            // Content
-            Container(
-              constraints: const BoxConstraints(maxHeight: 500),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (announcement.hasImage)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          announcement.imageUrl!,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
-                      ),
-                    if (announcement.hasImage && announcement.hasText)
-                      const SizedBox(height: 16),
-                    if (announcement.hasText)
-                      Text(
-                        announcement.text,
-                        style: TextStyle(
-                          color: theme.textTheme.bodyLarge?.color,
-                          fontSize: 16,
-                          height: 1.5,
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          color: theme.textTheme.bodyMedium?.color?.withOpacity(
-                            0.6,
-                          ),
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatAnnouncementTime(announcement.createdAt),
-                          style: TextStyle(
-                            color: theme.textTheme.bodyMedium?.color
-                                ?.withOpacity(0.6),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    // Use unified role-themed viewer instead of custom dialog
+    openAnnouncementView(
+      context,
+      role: 'principal',
+      title: announcement.text.isNotEmpty
+          ? announcement.text
+          : 'Principal Announcement',
+      subtitle: '',
+      postedByLabel: 'Posted by Principal',
+      avatarUrl: null,
+      postedAt: announcement.createdAt,
+      expiresAt: announcement.expiresAt,
     );
   }
 

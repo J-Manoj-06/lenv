@@ -12,6 +12,7 @@ import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/student_provider.dart';
 import '../../services/community_service.dart';
+import '../common/announcement_view_screen.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
@@ -857,10 +858,34 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   Widget _buildAnnouncement(CommunityMessageModel message) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Center(
-        child: Text(
-          message.content,
-          style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
+      child: InkWell(
+        onTap: () {
+          // Open role-themed announcement viewer regardless of who posted
+          final role = message.senderRole.toLowerCase();
+          final postedByLabel =
+              'Posted by ${message.senderRole[0].toUpperCase()}${message.senderRole.substring(1)}';
+          openAnnouncementView(
+            context,
+            role: role,
+            title: message.content.isNotEmpty
+                ? message.content
+                : 'Announcement',
+            subtitle: '',
+            postedByLabel: postedByLabel,
+            avatarUrl: message.senderAvatar.isNotEmpty
+                ? message.senderAvatar
+                : null,
+            postedAt: message.createdAt,
+            // Community announcements: visible for 24 hours
+            expiresAt: message.createdAt.add(const Duration(hours: 24)),
+          );
+        },
+        child: Center(
+          child: Text(
+            message.content,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
+          ),
         ),
       ),
     );
@@ -1290,7 +1315,16 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       );
                     }
 
-                    final messages = snapshot.data ?? [];
+                    // Filter out expired announcements (24h visibility)
+                    final now = DateTime.now();
+                    final messages = (snapshot.data ?? [])
+                        .where(
+                          (m) =>
+                              m.type != 'announcement' ||
+                              now.difference(m.createdAt) <
+                                  const Duration(hours: 24),
+                        )
+                        .toList();
                     if (messages.isEmpty) {
                       return Center(
                         child: Column(

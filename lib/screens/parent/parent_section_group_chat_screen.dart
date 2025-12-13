@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/parent_teacher_group_service.dart';
+import '../common/announcement_view_screen.dart';
 
 class ParentSectionGroupChatScreen extends StatefulWidget {
   final String groupId;
@@ -203,6 +204,43 @@ class _ParentSectionGroupChatScreenState
                     final textColor = isCurrentUser
                         ? Colors.white
                         : (isDark ? Colors.white : Colors.black87);
+
+                    if (msg.type == 'announcement') {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Center(
+                          child: InkWell(
+                            onTap: () {
+                              final role = (msg.senderRole).toLowerCase();
+                              final postedByLabel =
+                                  'Posted by ${msg.senderRole}';
+                              openAnnouncementView(
+                                context,
+                                role: role,
+                                title: msg.content.isNotEmpty
+                                    ? msg.content
+                                    : 'Announcement',
+                                subtitle: '',
+                                postedByLabel: postedByLabel,
+                                avatarUrl: null,
+                                postedAt: msg.createdAt,
+                                expiresAt: msg.createdAt.add(
+                                  const Duration(hours: 24),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              msg.content,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),

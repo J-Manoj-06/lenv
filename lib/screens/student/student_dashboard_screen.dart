@@ -20,6 +20,7 @@ import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
 import 'badge_gallery_screen.dart';
 import '../ai/ai_chat_page.dart';
+import '../common/announcement_view_screen.dart';
 import 'dart:math' as math;
 
 class StudentDashboardScreen extends StatefulWidget {
@@ -641,110 +642,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 
   void _showPrincipalAnnouncement(InstituteAnnouncementModel announcement) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Color(0xFF146D7A),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.campaign, color: Colors.white, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Principal Announcement',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          announcement.principalName,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            // Content
-            Container(
-              constraints: const BoxConstraints(maxHeight: 500),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (announcement.hasImage)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          announcement.imageUrl!,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
-                      ),
-                    if (announcement.hasImage && announcement.hasText)
-                      const SizedBox(height: 16),
-                    if (announcement.hasText)
-                      Text(
-                        announcement.text,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          height: 1.5,
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.access_time,
-                          color: Colors.white54,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatAnnouncementTime(announcement.createdAt),
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    openAnnouncementView(
+      context,
+      role: 'principal',
+      title: announcement.hasText
+          ? announcement.text
+          : 'Principal Announcement',
+      subtitle: '',
+      postedByLabel: 'Posted by ${announcement.principalName}',
+      avatarUrl: null,
+      postedAt: announcement.createdAt,
+      expiresAt: announcement.expiresAt,
     );
   }
 
@@ -771,10 +679,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             .where('instituteId', isEqualTo: instituteId)
             .where('expiresAt', isGreaterThan: Timestamp.now())
             .snapshots()) {
-      // Get principal announcements as a one-time fetch
+      // Get principal announcements with expiry filter
+      final now = Timestamp.now();
       final principalSnapshot = await FirebaseFirestore.instance
           .collection('institute_announcements')
           .where('instituteId', isEqualTo: instituteId)
+          .where('expiresAt', isGreaterThan: now)
           .get();
 
       final combined = <Map<String, dynamic>>[];
@@ -784,7 +694,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         combined.add({'type': 'teacher', 'snapshot': doc});
       }
 
-      // Add principal announcements
+      // Add principal announcements (already filtered by expiry)
       for (final doc in principalSnapshot.docs) {
         combined.add({'type': 'principal', 'snapshot': doc});
       }

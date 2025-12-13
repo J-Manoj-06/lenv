@@ -7,6 +7,7 @@ import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
+import '../common/announcement_view_screen.dart';
 
 class TeacherCommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -238,8 +239,8 @@ class _TeacherCommunityChatScreenState
                         index == messages.length - 1 ||
                         _formatDate(message.createdAt) !=
                             _formatDate(messages[index + 1].createdAt);
-
                     return Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         if (message.type == 'announcement')
                           _buildAnnouncement(message)
@@ -373,10 +374,32 @@ class _TeacherCommunityChatScreenState
   Widget _buildAnnouncement(CommunityMessageModel message) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Center(
-        child: Text(
-          message.content,
-          style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
+      child: InkWell(
+        onTap: () {
+          final role = message.senderRole.toLowerCase();
+          final postedByLabel =
+              'Posted by ${message.senderRole[0].toUpperCase()}${message.senderRole.substring(1)}';
+          openAnnouncementView(
+            context,
+            role: role,
+            title: message.content.isNotEmpty
+                ? message.content
+                : 'Announcement',
+            subtitle: '',
+            postedByLabel: postedByLabel,
+            avatarUrl: message.senderAvatar.isNotEmpty
+                ? message.senderAvatar
+                : null,
+            postedAt: message.createdAt,
+            expiresAt: message.createdAt.add(const Duration(hours: 24)),
+          );
+        },
+        child: Center(
+          child: Text(
+            message.content,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
+          ),
         ),
       ),
     );
@@ -398,7 +421,6 @@ class _TeacherCommunityChatScreenState
           if (!isCurrentUser) ...[
             CircleAvatar(
               radius: 16,
-              backgroundColor: const Color(0xFF6A4FF7),
               child: Text(
                 message.senderName.isNotEmpty
                     ? message.senderName[0].toUpperCase()
