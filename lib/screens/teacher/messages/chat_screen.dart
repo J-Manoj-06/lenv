@@ -683,45 +683,38 @@ class _ChatScreenState extends State<ChatScreen> {
       alignment: isTeacher ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.85,
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 12),
         child: Column(
           crossAxisAlignment: isTeacher
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
               decoration: BoxDecoration(
                 color: isTeacher
-                    ? const Color(0xFF7A5CFF)
-                    : (isDark ? Colors.grey.shade800 : Colors.white),
+                    ? const Color(0xFF232629)
+                    : const Color(0xFF1A1D21),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
                   bottomLeft: Radius.circular(isTeacher ? 16 : 4),
                   bottomRight: Radius.circular(isTeacher ? 4 : 16),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
               ),
               child: Text(
                 message.text,
-                style: TextStyle(
-                  color: isTeacher
-                      ? Colors.white
-                      : theme.textTheme.bodyLarge?.color,
+                style: const TextStyle(
+                  color: Color(0xFFE8E8E8),
                   fontSize: 15,
+                  height: 1.45,
+                  letterSpacing: 0.15,
                 ),
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 5),
             Padding(
               padding: EdgeInsets.only(
                 left: isTeacher ? 0 : 4,
@@ -733,10 +726,13 @@ class _ChatScreenState extends State<ChatScreen> {
                 children: [
                   Text(
                     _formatMessageTime(message.createdAt),
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF6B7075),
+                    ),
                   ),
                   if (isTeacher) ...[
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     _buildStatusTicks(message),
                   ],
                 ],
@@ -771,31 +767,28 @@ class _ChatScreenState extends State<ChatScreen> {
         _pendingMessageIds.contains(message.id) || message.isPending;
     final isRead = message.readByParent;
     if (isPending) {
-      return Icon(Icons.check, size: 15, color: Colors.grey.shade500);
+      return const Icon(Icons.check, size: 13, color: Color(0xFF6B7075));
     }
     if (isRead) {
-      return Icon(
+      return const Icon(
         Icons.done_all,
-        size: 15,
-        color: const Color(0xFF34B7F1), // WhatsApp-like blue
+        size: 13,
+        color: Color(0xFF64B5F6), // Subtle blue accent
       );
     }
     return Icon(Icons.done_all, size: 15, color: Colors.grey.shade500);
   }
 
   Widget _buildComposer(ThemeData theme, bool isDark) {
-    // WhatsApp-inspired dark bar regardless of theme for consistent look
-    const barColor = Color(0xFF0B141A);
-    const bubbleColor = Color(0xFF1F2C34);
-    const accentColor = Color(0xFF00A884); // WhatsApp green
-    final iconColor = Colors.grey.shade400;
+    // Calm, composed input bar
+    const barColor = Color(0xFF0F1113);
+    const bubbleColor = Color(0xFF1A1D21);
+    const accentColor = Color(0xFFFFA726); // Subtle orange accent
+    const iconColor = Color(0xFF6B7075);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-      decoration: const BoxDecoration(
-        color: barColor,
-        border: Border(top: BorderSide(color: Color(0xFF131C21))),
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: const BoxDecoration(color: barColor),
       child: SafeArea(
         top: false,
         child: Column(
@@ -820,6 +813,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     decoration: BoxDecoration(
                       color: bubbleColor,
                       borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: const Color(0xFF2A2D31),
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -827,7 +824,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           icon: Icon(
                             Icons.sentiment_satisfied_outlined,
                             color: iconColor,
-                            size: 26,
+                            size: 22,
                           ),
                           padding: const EdgeInsets.all(8),
                           onPressed: () {
@@ -845,22 +842,23 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: TextField(
                             controller: _messageController,
                             focusNode: _focusNode,
+                            style: const TextStyle(
+                              color: Color(0xFFE8E8E8),
+                              fontSize: 15,
+                              height: 1.4,
+                            ),
                             decoration: InputDecoration(
                               hintText: _isRecording
                                   ? 'Recording...'
                                   : 'Message',
-                              hintStyle: TextStyle(
+                              hintStyle: const TextStyle(
                                 color: iconColor,
-                                fontSize: 16,
+                                fontSize: 15,
                               ),
                               border: InputBorder.none,
                               contentPadding: const EdgeInsets.symmetric(
                                 vertical: 10,
                               ),
-                            ),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
                             ),
                             enabled: !_isRecording && !_isUploading,
                             maxLines: null,

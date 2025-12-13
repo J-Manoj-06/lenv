@@ -23,42 +23,50 @@ class ChatBubble extends StatelessWidget {
       child: GestureDetector(
         onLongPress: onLongPress,
         child: Container(
-          margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: EdgeInsets.symmetric(vertical: 3, horizontal: 12),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+          ),
           decoration: BoxDecoration(
             color: isOwn
-                ? Color(0xFFDCF8C6) // WhatsApp green
-                : Color(0xFFEBEBEB), // Gray
+                ? Color(0xFF232629) // Subtle dark for sent
+                : Color(0xFF1A1D21), // Slightly darker for received
             borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(12),
-              topRight: Radius.circular(12),
-              bottomLeft: Radius.circular(isOwn ? 12 : 2),
-              bottomRight: Radius.circular(isOwn ? 2 : 12),
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+              bottomLeft: Radius.circular(isOwn ? 16 : 4),
+              bottomRight: Radius.circular(isOwn ? 4 : 16),
             ),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 message.text,
-                style: TextStyle(color: Colors.black87, fontSize: 15),
+                style: TextStyle(
+                  color: Color(0xFFE8E8E8),
+                  fontSize: 15,
+                  height: 1.45,
+                  letterSpacing: 0.15,
+                ),
               ),
-              SizedBox(height: 4),
+              SizedBox(height: 6),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     _formatTime(message.createdAt),
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                    style: TextStyle(fontSize: 11, color: Color(0xFF6B7075)),
                   ),
                   if (isOwn) ...[
-                    SizedBox(width: 4),
+                    SizedBox(width: 5),
                     Icon(
                       (message.readByParent && message.readByTeacher)
                           ? Icons.done_all
                           : Icons.done,
-                      size: 14,
-                      color: Colors.black54,
+                      size: 13,
+                      color: Color(0xFF6B7075),
                     ),
                   ],
                 ],
@@ -99,33 +107,37 @@ class MediaChatBubble extends StatelessWidget {
       child: GestureDetector(
         onLongPress: onLongPress,
         child: Container(
-          margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          margin: EdgeInsets.symmetric(vertical: 3, horizontal: 12),
+          constraints: BoxConstraints(maxWidth: 260),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(12),
-              topRight: Radius.circular(12),
-              bottomLeft: Radius.circular(isOwn ? 12 : 2),
-              bottomRight: Radius.circular(isOwn ? 2 : 12),
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+              bottomLeft: Radius.circular(isOwn ? 16 : 4),
+              bottomRight: Radius.circular(isOwn ? 4 : 16),
             ),
-            color: isOwn ? Color(0xFFDCF8C6) : Color(0xFFEBEBEB),
+            color: isOwn ? Color(0xFF232629) : Color(0xFF1A1D21),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Media preview
               if (media.isImage)
-                MediaImagePreview(
-                  media: media,
-                  maxWidth: 250,
-                  onTap: onTap,
-                  showSenderInfo: false,
+                ClipRRect(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  child: MediaImagePreview(
+                    media: media,
+                    maxWidth: 260,
+                    onTap: onTap,
+                    showSenderInfo: false,
+                  ),
                 )
               else if (media.isPdf)
                 Padding(
-                  padding: EdgeInsets.all(8),
+                  padding: EdgeInsets.all(12),
                   child: MediaPdfPreview(
                     media: media,
-                    maxWidth: 230,
+                    maxWidth: 236,
                     onTap: onTap,
                     onDownload: onDownload,
                   ),
@@ -133,33 +145,33 @@ class MediaChatBubble extends StatelessWidget {
 
               // Time + status
               Padding(
-                padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
+                padding: EdgeInsets.fromLTRB(14, 8, 14, 10),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Upload status
                     if (media.isPending)
                       SizedBox(
-                        width: 14,
-                        height: 14,
+                        width: 13,
+                        height: 13,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.orange,
+                            Color(0xFF6B7075),
                           ),
                         ),
                       )
                     else if (media.uploadFailed)
-                      Icon(Icons.error, size: 14, color: Colors.red),
+                      Icon(Icons.error, size: 13, color: Color(0xFFE57373)),
 
-                    SizedBox(width: 4),
+                    SizedBox(width: 5),
                     Text(
                       _formatTime(media.createdAt),
-                      style: TextStyle(fontSize: 11, color: Colors.black54),
+                      style: TextStyle(fontSize: 11, color: Color(0xFF6B7075)),
                     ),
                     if (isOwn) ...[
-                      SizedBox(width: 4),
-                      Icon(Icons.done_all, size: 12, color: Colors.black54),
+                      SizedBox(width: 5),
+                      Icon(Icons.done_all, size: 12, color: Color(0xFF6B7075)),
                     ],
                   ],
                 ),

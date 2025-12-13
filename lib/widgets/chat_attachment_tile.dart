@@ -36,35 +36,43 @@ class ChatAttachmentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = _isPdf
-        ? const Color(0xFFE53935)
+        ? const Color(0xFFE57373)
         : _isAudio
-        ? const Color(0xFF42A5F5)
-        : const Color(0xFFAB47BC);
+        ? const Color(0xFF64B5F6)
+        : const Color(0xFFBA68C8);
 
     return InkWell(
       onTap: () => _open(context),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         width: 240,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isMe
-              ? Colors.white.withOpacity(0.08)
-              : Colors.black.withOpacity(0.08),
+          color: const Color(0xFF1A1D21),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: accent.withOpacity(0.35)),
+          border: Border.all(color: const Color(0xFF2A2D31), width: 1),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(
-              _isPdf
-                  ? Icons.picture_as_pdf
-                  : _isAudio
-                  ? Icons.audio_file
-                  : Icons.insert_drive_file,
-              color: accent,
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                _isPdf
+                    ? Icons.picture_as_pdf_outlined
+                    : _isAudio
+                    ? Icons.audio_file_outlined
+                    : Icons.insert_drive_file_outlined,
+                color: accent,
+                size: 22,
+              ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,25 +83,29 @@ class ChatAttachmentTile extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFE8E8E8),
+                      fontWeight: FontWeight.w500,
                       fontSize: 13,
+                      letterSpacing: 0.1,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _isPdf
-                        ? 'Tap to view PDF'
+                        ? 'PDF Document'
                         : _isAudio
-                        ? 'Tap to play'
-                        : 'Tap to open file',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                        ? 'Audio'
+                        : 'File',
+                    style: const TextStyle(
+                      color: Color(0xFF6B7075),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 6),
-            const Icon(Icons.open_in_new, size: 16, color: Colors.white70),
+            const SizedBox(width: 8),
+            Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFF6B7075)),
           ],
         ),
       ),

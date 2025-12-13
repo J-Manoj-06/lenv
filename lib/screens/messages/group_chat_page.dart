@@ -760,16 +760,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Widget _buildInputBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF222222),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 8,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
+      decoration: const BoxDecoration(color: Color(0xFF0F1113)),
       child: SafeArea(
         top: false,
         minimum: EdgeInsets.zero,
@@ -780,8 +771,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1F2C34),
+                  color: const Color(0xFF1A1D21),
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFF2A2D31), width: 1),
                 ),
                 child: Row(
                   children: [
@@ -790,8 +782,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         _showEmojiPicker
                             ? Icons.keyboard
                             : Icons.sentiment_satisfied_outlined,
-                        color: const Color(0xFF8696A0),
-                        size: 26,
+                        color: const Color(0xFF6B7075),
+                        size: 22,
                       ),
                       padding: const EdgeInsets.all(8),
                       onPressed: () {
@@ -810,12 +802,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         controller: _messageController,
                         focusNode: _messageFocusNode,
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
+                          color: Color(0xFFE8E8E8),
+                          fontSize: 15,
+                          height: 1.4,
                         ),
                         decoration: const InputDecoration(
                           hintText: 'Message',
-                          hintStyle: TextStyle(color: Color(0xFF8696A0)),
+                          hintStyle: TextStyle(color: Color(0xFF6B7075)),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
@@ -839,8 +832,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
             IconButton(
               icon: const Icon(
                 Icons.attach_file,
-                color: Color(0xFF8696A0),
-                size: 26,
+                color: Color(0xFF6B7075),
+                size: 22,
               ),
               padding: const EdgeInsets.all(8),
               onPressed: _isUploading ? null : _showMediaOptions,
@@ -985,11 +978,11 @@ class _MessageBubble extends StatelessWidget {
               children: [
                 if (!isMe)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(bottom: 5),
                     child: Text(
                       message.senderName,
                       style: const TextStyle(
-                        color: Color(0xFFFF8800),
+                        color: Color(0xFF6B7075),
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -997,13 +990,13 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
+                    horizontal: 14,
+                    vertical: 11,
                   ),
                   decoration: BoxDecoration(
                     color: isMe
-                        ? const Color(0xFFFF8800)
-                        : const Color(0xFF2A2A2A),
+                        ? const Color(0xFF232629)
+                        : const Color(0xFF1A1D21),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(16),
                       topRight: const Radius.circular(16),
@@ -1032,18 +1025,23 @@ class _MessageBubble extends StatelessWidget {
                       if (message.message.isNotEmpty)
                         Text(
                           message.message,
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.white,
-                            fontSize: 14,
+                          style: const TextStyle(
+                            color: Color(0xFFE8E8E8),
+                            fontSize: 15,
+                            height: 1.45,
+                            letterSpacing: 0.15,
                           ),
                         ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Text(
                   _formatTime(message.timestamp),
-                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  style: const TextStyle(
+                    color: Color(0xFF6B7075),
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
