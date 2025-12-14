@@ -1,5 +1,7 @@
 buildscript {
     repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://mirrors.tsinghua.edu.cn/maven-central/") }
         google()
         mavenCentral()
     }
@@ -10,6 +12,8 @@ buildscript {
 
 allprojects {
     repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://mirrors.tsinghua.edu.cn/maven-central/") }
         google()
         mavenCentral()
     }

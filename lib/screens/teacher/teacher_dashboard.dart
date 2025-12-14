@@ -42,6 +42,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   String? _sectionGroupError;
   bool _isLoading = true;
   String? _error;
+  // Cache viewed principal announcement ids to avoid re-marking and stale badges
+  final Set<String> _viewedPrincipalAnnouncements = <String>{};
 
   // Highlights: best-effort cleanup on load
   Future<void> _cleanupExpiredHighlights() async {
@@ -987,6 +989,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     doc['snapshot'] as DocumentSnapshot,
                   );
                   if (status.isValid && status.instituteId == instituteId) {
+                    final isViewed = status.hasBeenViewedBy(
+                      currentUserId ?? '',
+                    );
                     allAnnouncements.add(
                       _AnnouncementItem(
                         id: status.id,
@@ -996,15 +1001,27 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         hasImage: status.hasImage,
                         imageUrl: status.imageUrl,
                         type: 'teacher',
+                        isViewed: isViewed,
                         data: status,
                       ),
                     );
                   }
                 } else if (doc['type'] == 'principal') {
                   // Principal announcement (InstituteAnnouncementModel)
+                  final snapshot = doc['snapshot'] as DocumentSnapshot;
                   final announcement = InstituteAnnouncementModel.fromFirestore(
-                    doc['snapshot'] as DocumentSnapshot,
+                    snapshot,
                   );
+                  final data =
+                      (snapshot.data() as Map<String, dynamic>?) ?? const {};
+                  final viewedBy =
+                      (data['viewedBy'] as List<dynamic>?)
+                          ?.map((e) => e.toString())
+                          .toList() ??
+                      const <String>[];
+                  final isViewed =
+                      viewedBy.contains(currentUserId) ||
+                      _viewedPrincipalAnnouncements.contains(announcement.id);
                   if (announcement.instituteId == instituteId) {
                     allAnnouncements.add(
                       _AnnouncementItem(
@@ -1015,6 +1032,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         hasImage: announcement.hasImage,
                         imageUrl: announcement.imageUrl,
                         type: 'principal',
+                        isViewed: isViewed,
                         data: announcement,
                       ),
                     );
@@ -1247,21 +1265,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     _AnnouncementItem latestAnnouncement,
     List<_AnnouncementItem> allAnnouncements,
   ) {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUserId = authProvider.currentUser?.uid ?? '';
-
-    // Check if any announcements are unviewed
-    bool hasUnviewed = false;
-    if (latestAnnouncement.type == 'teacher') {
-      hasUnviewed = allAnnouncements.any(
-        (a) =>
-            a.type == 'teacher' &&
-            !(a.data as StatusModel).hasBeenViewedBy(currentUserId),
-      );
-    } else {
-      // For principal announcements, assume unviewed for now (simplified)
-      hasUnviewed = true;
-    }
+    final bool hasUnviewed = allAnnouncements.any((a) => !a.isViewed);
 
     return GestureDetector(
       onTap: () {
@@ -1396,7 +1400,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         // Status viewing is tracked separately in Firestore
         // This callback just logs the viewed announcement
         if (mounted) {
-          setState(() {});
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {});
+            }
+          });
         }
       },
     );
@@ -1487,6 +1495,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             if (userId.isNotEmpty) {
               final principal = item.data as InstituteAnnouncementModel;
               _markPrincipalAnnouncementAsViewed(principal.id, userId);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() {
+                    _viewedPrincipalAnnouncements.add(principal.id);
+                  });
+                }
+              });
             }
           }
         }
@@ -1503,17 +1518,24 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       await FirebaseFirestore.instance
           .collection('institute_announcements')
           .doc(announcementId)
+          .collection('views')
+          .doc(userId)
+          .set({
+            'viewedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+      // Also store a quick array flag for fast badge checks
+      await FirebaseFirestore.instance
+          .collection('institute_announcements')
+          .doc(announcementId)
           .update({
             'viewedBy': FieldValue.arrayUnion([userId]),
-          })
-          .catchError((error) {
-            print('Error marking announcement as viewed: $error');
           });
 
-      // Refresh UI
-      if (mounted) {
-        setState(() {});
-      }
+      // Debug log for visibility badge issues
+      print(
+        '👀 Marked principal announcement $announcementId as viewed by $userId',
+      );
     } catch (e) {
       print('Error in _markPrincipalAnnouncementAsViewed: $e');
     }
@@ -3149,6 +3171,7 @@ class _AnnouncementItem {
   final bool hasImage;
   final String? imageUrl;
   final String type; // 'teacher' or 'principal'
+  final bool isViewed;
   final dynamic data; // StatusModel or InstituteAnnouncementModel
 
   _AnnouncementItem({
@@ -3159,6 +3182,7 @@ class _AnnouncementItem {
     required this.hasImage,
     this.imageUrl,
     required this.type,
+    required this.isViewed,
     required this.data,
   });
 }
