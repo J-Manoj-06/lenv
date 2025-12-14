@@ -61,6 +61,7 @@ class ChatService {
     required String conversationId,
     required String text,
     required String senderRole, // 'parent' or 'teacher'
+    Map<String, dynamic>? mediaMetadata,
   }) async {
     final msgRef = _db
         .collection('conversations')
@@ -91,7 +92,7 @@ class ChatService {
       }
 
       // 2) WRITES after reads
-      tx.set(msgRef, {
+      final messageData = {
         'text': text,
         'senderRole': senderRole,
         'timestamp': FieldValue.serverTimestamp(),
@@ -100,7 +101,14 @@ class ChatService {
         'deliveredToTeacher': false,
         'readByParent': false,
         'readByTeacher': false,
-      });
+      };
+
+      // Add media metadata if present
+      if (mediaMetadata != null) {
+        messageData['mediaMetadata'] = mediaMetadata;
+      }
+
+      tx.set(msgRef, messageData);
 
       tx.update(convRef, {
         'lastMessage': text,

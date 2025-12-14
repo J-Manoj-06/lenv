@@ -1,6 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
+import 'dart:io';
+import 'dart:async';
+import 'package:path_provider/path_provider.dart';
 import '../../services/chat_service.dart';
+import '../../models/media_metadata.dart';
+import '../../services/media_upload_service.dart';
+import '../../services/cloudflare_r2_service.dart';
+import '../../services/local_cache_service.dart';
+import '../../config/cloudflare_config.dart';
+import '../../widgets/media_preview_card.dart';
+import '../../widgets/modern_attachment_sheet.dart';
 
 class TeacherChatScreen extends StatefulWidget {
   final String schoolCode;
@@ -34,6 +47,16 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   String? _conversationId;
   // Track messages already scheduled for read marking to avoid re-scheduling.
   final Set<String> _scheduledReadIds = <String>{};
+
+  // Media handling
+  final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  late final MediaUploadService _mediaUploadService;
+  bool _isUploading = false;
+  bool _isRecording = false;
+  String? _recordingPath;
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  late Timer _recordingTimer;
 
   Future<void> _batchUpdateIncoming(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
@@ -85,7 +108,34 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize MediaUploadService with CloudflareConfig
+    final r2Service = CloudflareR2Service(
+      accountId: CloudflareConfig.accountId,
+      bucketName: CloudflareConfig.bucketName,
+      accessKeyId: CloudflareConfig.accessKeyId,
+      secretAccessKey: CloudflareConfig.secretAccessKey,
+      r2Domain: CloudflareConfig.r2Domain,
+    );
+
+    _mediaUploadService = MediaUploadService(
+      r2Service: r2Service,
+      firestore: FirebaseFirestore.instance,
+      cacheService: LocalCacheService(),
+    );
+
+    _controller.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) => _ensureConversation());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _audioRecorder.dispose();
+    if (_isRecording) {
+      _recordingTimer.cancel();
+    }
+    super.dispose();
   }
 
   Future<void> _ensureConversation() async {
@@ -144,7 +194,10 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                   Text(
                     widget.parentName,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
                   ),
                   Text(
                     '${widget.className}${widget.section != null ? ' - ${widget.section}' : ''}',
@@ -212,16 +265,26 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(
-                                        msg['text'] ?? '',
-                                        style: TextStyle(
-                                          color: isTeacher
-                                              ? Colors.white
-                                              : (isDark
-                                                    ? Colors.white
-                                                    : Colors.black87),
+                                      // Media handling
+                                      if (msg['mediaMetadata'] != null) ...[
+                                        _buildMediaAttachment(
+                                          msg['mediaMetadata'],
+                                          isTeacher,
                                         ),
-                                      ),
+                                        if ((msg['text'] ?? '').isNotEmpty)
+                                          const SizedBox(height: 8),
+                                      ],
+                                      if ((msg['text'] ?? '').isNotEmpty)
+                                        Text(
+                                          msg['text'] ?? '',
+                                          style: TextStyle(
+                                            color: isTeacher
+                                                ? Colors.white
+                                                : (isDark
+                                                      ? Colors.white
+                                                      : Colors.black87),
+                                          ),
+                                        ),
                                       if (isTeacher) ...[
                                         const SizedBox(height: 4),
                                         Row(
@@ -262,9 +325,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () {},
+                    onPressed: _isUploading ? null : _showMediaOptions,
                     icon: Icon(
-                      Icons.add_circle_outline,
+                      Icons.attach_file,
                       color: isDark
                           ? Colors.grey.shade400
                           : Colors.grey.shade700,
@@ -292,18 +355,13 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                   ),
                   const SizedBox(width: 8),
                   CircleAvatar(
-                    backgroundColor: const Color(0xFF1362EB),
+                    backgroundColor: _isUploading
+                        ? Colors.grey
+                        : const Color(0xFF1362EB),
                     child: IconButton(
-                      onPressed: () async {
-                        final text = _controller.text.trim();
-                        if (text.isEmpty || _conversationId == null) return;
-                        await _chat.sendMessage(
-                          conversationId: _conversationId!,
-                          text: text,
-                          senderRole: 'teacher',
-                        );
-                        _controller.clear();
-                      },
+                      onPressed: (_isUploading || _conversationId == null)
+                          ? null
+                          : () => _sendMessage(),
                       icon: const Icon(Icons.send, color: Colors.white),
                     ),
                   ),
@@ -314,5 +372,215 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildMediaAttachment(Map<String, dynamic> metadata, bool isMe) {
+    // Convert map to MediaMetadata
+    final r2Key = metadata['r2Key'] as String? ?? '';
+    final fileName = _fileNameFromR2Key(r2Key);
+    final mimeType =
+        metadata['mimeType'] as String? ?? 'application/octet-stream';
+    final fileSize = metadata['fileSize'] as int? ?? 0;
+    final thumbnailBase64 = metadata['thumbnail'] as String?;
+    final localPath = metadata['localPath'] as String?;
+
+    return MediaPreviewCard(
+      r2Key: r2Key,
+      fileName: fileName,
+      mimeType: mimeType,
+      fileSize: fileSize,
+      thumbnailBase64: thumbnailBase64,
+      localPath: localPath,
+      isMe: isMe,
+    );
+  }
+
+  String _fileNameFromR2Key(String r2Key) {
+    // Extract filename from R2 key (format: media/timestamp/filename.ext)
+    final parts = r2Key.split('/');
+    return parts.isNotEmpty ? parts.last : 'file';
+  }
+
+  String _extractR2Key(String url) {
+    final uri = Uri.parse(url);
+    final path = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+    return path;
+  }
+
+  void _showMediaOptions() {
+    showModernAttachmentSheet(
+      context,
+      onImageTap: _pickAndSendImage,
+      onPdfTap: _pickAndSendPDF,
+      onAudioTap: _pickAndSendAudio,
+    );
+  }
+
+  Future<void> _sendMessage({Map<String, dynamic>? mediaMetadata}) async {
+    final text = _controller.text.trim();
+    if (text.isEmpty && mediaMetadata == null) return;
+    if (_conversationId == null) return;
+
+    _controller.clear();
+
+    try {
+      await _chat.sendMessage(
+        conversationId: _conversationId!,
+        text: text,
+        senderRole: 'teacher',
+        mediaMetadata: mediaMetadata,
+      );
+    } catch (e) {
+      print('❌ Error sending message: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickAndSendImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+      );
+      if (image == null) return;
+
+      setState(() => _isUploading = true);
+
+      final file = File(image.path);
+
+      // Upload using MediaUploadService
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: _conversationId!,
+        senderId: widget.teacherId,
+        senderRole: 'teacher',
+        mediaType: 'message',
+      );
+
+      // Create MediaMetadata from MediaMessage
+      final r2Key = _extractR2Key(mediaMessage.r2Url);
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: mediaMessage.thumbnailUrl ?? '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+      );
+
+      if (mounted) {
+        await _sendMessage(mediaMetadata: metadata.toFirestore());
+      }
+    } catch (e) {
+      print('❌ Error uploading image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to upload image: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  Future<void> _pickAndSendPDF() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      setState(() => _isUploading = true);
+
+      final file = File(result.files.single.path!);
+
+      // Upload using MediaUploadService
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: _conversationId!,
+        senderId: widget.teacherId,
+        senderRole: 'teacher',
+        mediaType: 'message',
+      );
+
+      // Create MediaMetadata from MediaMessage
+      final r2Key = _extractR2Key(mediaMessage.r2Url);
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+      );
+
+      if (mounted) {
+        await _sendMessage(mediaMetadata: metadata.toFirestore());
+      }
+    } catch (e) {
+      print('❌ Error uploading PDF: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to upload PDF: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  Future<void> _pickAndSendAudio() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+      if (result == null || result.files.isEmpty) return;
+
+      setState(() => _isUploading = true);
+
+      final file = File(result.files.single.path!);
+
+      // Upload using MediaUploadService
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: _conversationId!,
+        senderId: widget.teacherId,
+        senderRole: 'teacher',
+        mediaType: 'message',
+      );
+
+      // Create MediaMetadata from MediaMessage
+      final r2Key = _extractR2Key(mediaMessage.r2Url);
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+      );
+
+      if (mounted) {
+        await _sendMessage(mediaMetadata: metadata.toFirestore());
+      }
+    } catch (e) {
+      print('❌ Error uploading audio: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to upload audio: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
   }
 }
