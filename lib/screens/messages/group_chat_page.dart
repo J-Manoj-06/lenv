@@ -627,39 +627,47 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final currentUserId = authProvider.currentUser?.uid;
+    final theme = Theme.of(context);
 
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: const Color(0xFF1A1A1A),
+          backgroundColor: theme.scaffoldBackgroundColor,
           appBar: AppBar(
-            backgroundColor: const Color(0xFF141414),
+            backgroundColor: theme.scaffoldBackgroundColor,
+            elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+              icon: Icon(
+                Icons.arrow_back_ios_new,
+                color: theme.iconTheme.color,
+                size: 20,
+              ),
               onPressed: () => Navigator.pop(context),
             ),
             title: Row(
               children: [
-                Text(widget.icon, style: const TextStyle(fontSize: 24)),
-                const SizedBox(width: 12),
+                Text(widget.icon, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         widget.subjectName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                        style: TextStyle(
+                          color: theme.textTheme.bodyLarge?.color,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.3,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         widget.className != null && widget.section != null
                             ? '${widget.className} - Section ${widget.section}'
                             : widget.teacherName,
-                        style: const TextStyle(
-                          color: Colors.white60,
+                        style: TextStyle(
+                          color: theme.textTheme.bodySmall?.color,
                           fontSize: 12,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -668,6 +676,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   ),
                 ),
               ],
+            ),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1),
+              child: Container(
+                height: 1,
+                color: theme.dividerColor.withOpacity(0.1),
+              ),
             ),
           ),
           body: Column(
@@ -758,9 +773,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Widget _buildInputBar() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final inputBg = isDark ? const Color(0xFF1A1D21) : Colors.grey[100];
+    final borderColor = isDark ? const Color(0xFF2A2D31) : theme.dividerColor;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: const BoxDecoration(color: Color(0xFF0F1113)),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(
+          top: BorderSide(color: theme.dividerColor.withOpacity(0.1), width: 1),
+        ),
+      ),
       child: SafeArea(
         top: false,
         minimum: EdgeInsets.zero,
@@ -771,9 +796,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1A1D21),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFF2A2D31), width: 1),
+                  color: inputBg,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: borderColor?.withOpacity(0.5) ?? Colors.transparent,
+                    width: 1,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -782,8 +810,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         _showEmojiPicker
                             ? Icons.keyboard
                             : Icons.sentiment_satisfied_outlined,
-                        color: const Color(0xFF6B7075),
-                        size: 22,
+                        color: theme.iconTheme.color?.withOpacity(0.6),
+                        size: 20,
                       ),
                       padding: const EdgeInsets.all(8),
                       onPressed: () {
@@ -801,16 +829,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       child: TextField(
                         controller: _messageController,
                         focusNode: _messageFocusNode,
-                        style: const TextStyle(
-                          color: Color(0xFFE8E8E8),
+                        style: TextStyle(
+                          color: theme.textTheme.bodyLarge?.color,
                           fontSize: 15,
                           height: 1.4,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'Message',
-                          hintStyle: TextStyle(color: Color(0xFF6B7075)),
+                          hintStyle: TextStyle(
+                            color: theme.textTheme.bodySmall?.color,
+                          ),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
                         ),
                         maxLines: null,
                         textCapitalization: TextCapitalization.sentences,
@@ -828,11 +860,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.attach_file,
-                color: Color(0xFF6B7075),
+                color: theme.iconTheme.color?.withOpacity(0.6),
                 size: 22,
               ),
               padding: const EdgeInsets.all(8),
@@ -944,8 +976,16 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final myBubbleColor = isDark ? const Color(0xFF232629) : Colors.blue[50];
+    final otherBubbleColor = isDark
+        ? const Color(0xFF1A1D21)
+        : Colors.grey[100];
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         mainAxisAlignment: isMe
             ? MainAxisAlignment.end
@@ -955,14 +995,14 @@ class _MessageBubble extends StatelessWidget {
           if (!isMe) ...[
             // Avatar for others
             CircleAvatar(
-              radius: 16,
-              backgroundColor: const Color(0xFFFF8800),
+              radius: 14,
+              backgroundColor: theme.primaryColor.withOpacity(0.2),
               child: Text(
                 message.senderName[0].toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                style: TextStyle(
+                  color: theme.primaryColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -978,30 +1018,32 @@ class _MessageBubble extends StatelessWidget {
               children: [
                 if (!isMe)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 5),
+                    padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       message.senderName,
-                      style: const TextStyle(
-                        color: Color(0xFF6B7075),
-                        fontSize: 12,
+                      style: TextStyle(
+                        color: theme.textTheme.bodySmall?.color,
+                        fontSize: 11,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
+                    horizontal: 12,
+                    vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: isMe
-                        ? const Color(0xFF232629)
-                        : const Color(0xFF1A1D21),
+                    color: isMe ? myBubbleColor : otherBubbleColor,
                     borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 16),
+                      topLeft: const Radius.circular(14),
+                      topRight: const Radius.circular(14),
+                      bottomLeft: Radius.circular(isMe ? 14 : 4),
+                      bottomRight: Radius.circular(isMe ? 4 : 14),
+                    ),
+                    border: Border.all(
+                      color: theme.dividerColor.withOpacity(0.1),
+                      width: 1,
                     ),
                   ),
                   child: Column(
@@ -1025,22 +1067,22 @@ class _MessageBubble extends StatelessWidget {
                       if (message.message.isNotEmpty)
                         Text(
                           message.message,
-                          style: const TextStyle(
-                            color: Color(0xFFE8E8E8),
-                            fontSize: 15,
+                          style: TextStyle(
+                            color: theme.textTheme.bodyLarge?.color,
+                            fontSize: 14,
                             height: 1.45,
-                            letterSpacing: 0.15,
+                            letterSpacing: 0.1,
                           ),
                         ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 4),
                 Text(
                   _formatTime(message.timestamp),
-                  style: const TextStyle(
-                    color: Color(0xFF6B7075),
-                    fontSize: 11,
+                  style: TextStyle(
+                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                    fontSize: 10,
                   ),
                 ),
               ],

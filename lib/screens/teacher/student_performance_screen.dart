@@ -404,13 +404,12 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     return Container(
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+        border: Border(
+          bottom: BorderSide(
+            color: theme.dividerColor.withOpacity(0.1),
+            width: 1,
           ),
-        ],
+        ),
       ),
       child: SafeArea(
         bottom: false,
@@ -420,63 +419,37 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new, size: 22),
+                        icon: const Icon(Icons.arrow_back_ios_new, size: 20),
                         onPressed: () => Navigator.pop(context),
                         color: theme.iconTheme.color,
                       ),
                       Expanded(
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Text(
-                              'Student Performance',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: theme.textTheme.bodyLarge?.color,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Positioned(
-                              bottom: -2,
-                              child: Column(
-                                children: [
-                                  Container(
-                                    width: 160,
-                                    height: 2,
-                                    decoration: BoxDecoration(
-                                      color: brandPrimary.withOpacity(0.8),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 1),
-                                  Container(
-                                    width: 120,
-                                    height: 2,
-                                    decoration: BoxDecoration(
-                                      color: brandPrimary.withOpacity(0.8),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          'Student Performance',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: theme.textTheme.bodyLarge?.color,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.3,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 40),
+                      const SizedBox(width: 48),
                     ],
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                   child: Row(
                     children: [
-                      // Avatar or initials in circular gradient block
                       _buildIdentityBlock(theme),
                       const SizedBox(width: 16),
                       Expanded(
@@ -485,17 +458,18 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                           children: [
                             Text(
                               widget.studentName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
+                              style: TextStyle(
+                                color: theme.textTheme.bodyLarge?.color,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.5,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Text(
                               widget.studentClass,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
+                                color: theme.textTheme.bodySmall?.color,
                                 fontSize: 14,
                               ),
                             ),
@@ -527,17 +501,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     return Container(
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor.withOpacity(0.5), width: 1),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -545,15 +512,16 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             'Performance Trend',
             style: TextStyle(
               color: theme.textTheme.bodyLarge?.color,
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w600,
+              letterSpacing: -0.2,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Text(
             'Average Score',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -565,8 +533,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             children: [
               Text(
                 '${avg.round()}%',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color,
                   fontSize: 30,
                   fontWeight: FontWeight.w700,
                 ),
@@ -582,7 +550,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 : 'vs. last ${lastSix.length} tests',
             style: TextStyle(
               fontSize: 12,
-              color: Colors.white.withOpacity(0.6),
+              color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
             ),
           ),
           const SizedBox(height: 24),
@@ -597,7 +565,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                       _shortDate(e.submittedAt),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.white.withOpacity(0.6),
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.6,
+                        ),
                       ),
                     ),
                   )
@@ -607,7 +577,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             Center(
               child: Text(
                 'No chart data yet',
-                style: TextStyle(color: Colors.white.withOpacity(0.6)),
+                style: TextStyle(
+                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                ),
               ),
             ),
         ],
@@ -676,15 +648,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     return Container(
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor.withOpacity(0.5), width: 1),
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -692,23 +657,19 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [primaryColor, primaryColor.withOpacity(0.7)],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.history, color: Colors.white, size: 24),
+              Icon(
+                Icons.history,
+                color: theme.iconTheme.color?.withOpacity(0.7),
+                size: 20,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Text(
                 'Recent Test History',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
+                style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color,
+                  fontSize: 15,
                   fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
                 ),
               ),
             ],
@@ -725,71 +686,72 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   Widget _buildTestHistoryItem(ThemeData theme, TestSubmission submission) {
     final percentage = submission.percentage;
     final color = _getScoreColor(percentage);
+    final isDark = theme.brightness == Brightness.dark;
+    final itemBg = isDark ? theme.cardColor.withOpacity(0.3) : theme.cardColor;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: cardDark,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderDark),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: itemBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.3),
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
+              color: color.withOpacity(0.15),
               shape: BoxShape.circle,
-              border: Border.all(color: color.withOpacity(0.5), width: 2),
+              border: Border.all(color: color.withOpacity(0.4), width: 1.5),
             ),
             child: Center(
               child: Text(
                 '${percentage.round()}%',
                 style: TextStyle(
                   color: color,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   submission.testTitle,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
+                  style: TextStyle(
+                    color: theme.textTheme.bodyLarge?.color,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    letterSpacing: -0.2,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Row(
                   children: [
                     Icon(
                       Icons.calendar_today,
                       size: 12,
-                      color: Colors.white.withOpacity(0.6),
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _formatDate(submission.submittedAt),
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.6,
+                        ),
                         fontSize: 12,
                       ),
                     ),
@@ -797,13 +759,15 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     Icon(
                       Icons.stars,
                       size: 12,
-                      color: Colors.white.withOpacity(0.6),
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       '${submission.totalPoints} pts',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.6,
+                        ),
                         fontSize: 12,
                       ),
                     ),
@@ -877,53 +841,31 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         color: cardColor,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [primaryColor, primaryColor.withOpacity(0.7)],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.analytics,
-                  color: Colors.white,
-                  size: 24,
-                ),
+              Icon(
+                Icons.analytics,
+                color: theme.iconTheme.color?.withOpacity(0.7),
+                size: 20,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Text(
                 'Quick Stats',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
+                style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color,
+                  fontSize: 15,
                   fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           Row(
             children: [
               _statCard(
@@ -995,20 +937,19 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     IconData icon,
     Color color,
   ) {
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? theme.cardColor.withOpacity(0.3) : theme.cardColor;
+
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: cardDark,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderDark),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          color: cardBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: theme.dividerColor.withOpacity(0.3),
+            width: 1,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1030,7 +971,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             Text(
               value,
               style: TextStyle(
-                color: Colors.white,
+                color: theme.textTheme.bodyLarge?.color,
                 fontWeight: FontWeight.bold,
                 fontSize: 22,
               ),
@@ -1040,7 +981,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               label,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.white.withOpacity(0.6),
+                color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1051,18 +992,15 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   }
 
   Widget _buildBadgesSection(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1A1B24) : theme.cardColor;
     return Container(
       decoration: BoxDecoration(
-        color: cardDark,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderDark),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A2D3A) : theme.dividerColor,
+        ),
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -1085,17 +1023,17 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.emoji_events,
-                  color: Colors.white,
+                  color: theme.textTheme.bodyLarge?.color,
                   size: 24,
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 'Badges Earned',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1113,7 +1051,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                   ),
                   child: Text(
                     '${_badges.length}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -1133,7 +1071,11 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     const SizedBox(height: 12),
                     Text(
                       'Loading badges…',
-                      style: TextStyle(color: Colors.white.withOpacity(0.6)),
+                      style: TextStyle(
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.6,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1148,13 +1090,17 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     Icon(
                       Icons.emoji_events_outlined,
                       size: 64,
-                      color: Colors.white.withOpacity(0.35),
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(
+                        0.35,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       'No Badges Earned Yet',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
+                        color: theme.textTheme.bodyLarge?.color?.withOpacity(
+                          0.85,
+                        ),
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
                       ),
@@ -1163,7 +1109,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     Text(
                       'Keep up the great work to earn new badges!',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.6,
+                        ),
                         fontSize: 13,
                       ),
                     ),
@@ -1200,12 +1148,12 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.stars, color: Colors.white, size: 16),
+          Icon(Icons.stars, color: theme.textTheme.bodyLarge?.color, size: 16),
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: theme.textTheme.bodyLarge?.color,
               fontWeight: FontWeight.bold,
               fontSize: 13,
             ),
@@ -1216,19 +1164,17 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   }
 
   Widget _buildPersonalDetails(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1A1B24) : theme.cardColor;
     final d = _studentDetails;
     return Container(
       decoration: BoxDecoration(
-        color: cardDark,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderDark, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A2D3A) : theme.dividerColor,
+          width: 1,
+        ),
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -1251,17 +1197,17 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.person_outline,
-                  color: Colors.white,
+                  color: theme.textTheme.bodyLarge?.color,
                   size: 24,
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 'Personal Details',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1279,7 +1225,11 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     const SizedBox(height: 12),
                     Text(
                       'Loading details…',
-                      style: TextStyle(color: Colors.white.withOpacity(0.6)),
+                      style: TextStyle(
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.6,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1381,15 +1331,15 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.white.withOpacity(0.6),
+                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 value,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color,
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
                 ),
@@ -1402,18 +1352,15 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   }
 
   Widget _buildMessageParent(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1A1B24) : theme.cardColor;
     return Container(
       decoration: BoxDecoration(
-        color: cardDark,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderDark),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A2D3A) : theme.dividerColor,
+        ),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1436,17 +1383,17 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.chat_bubble_outline,
-                  color: Colors.white,
+                  color: theme.textTheme.bodyLarge?.color,
                   size: 24,
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 'Message Parent',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1456,7 +1403,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           const SizedBox(height: 16),
           Text(
             'Open a conversation with the parent to share progress, discuss concerns, or celebrate achievements.',
-            style: TextStyle(color: Colors.white.withOpacity(0.7), height: 1.4),
+            style: TextStyle(
+              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -1469,7 +1419,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                   horizontal: 12,
                 ),
                 backgroundColor: brandPrimary,
-                foregroundColor: Colors.white,
+                foregroundColor: theme.textTheme.bodyLarge?.color,
                 elevation: 4,
                 shadowColor: brandPrimary.withOpacity(0.4),
                 shape: RoundedRectangleBorder(

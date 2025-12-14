@@ -452,17 +452,18 @@ class _TeacherCommunityChatScreenState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     if (_teacherId == null || _teacherName == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF101214),
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF6A4FF7)),
+          child: CircularProgressIndicator(color: theme.primaryColor),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF101214),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: _buildAppBar(),
       body: Column(
         children: [
@@ -579,22 +580,29 @@ class _TeacherCommunityChatScreenState
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final theme = Theme.of(context);
     return AppBar(
-      backgroundColor: const Color(0xFF1A1C20),
-      elevation: 1,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+        icon: Icon(
+          Icons.arrow_back_ios_new,
+          color: theme.iconTheme.color,
+          size: 20,
+        ),
         onPressed: () => Navigator.pop(context),
       ),
       title: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Color(0xFF6A4FF7), Color(0xFF8B6FFF)],
+              color: theme.primaryColor.withOpacity(0.15),
+              border: Border.all(
+                color: theme.primaryColor.withOpacity(0.2),
+                width: 1,
               ),
             ),
             child: Center(

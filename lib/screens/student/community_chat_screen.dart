@@ -730,13 +730,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final theme = Theme.of(context);
     return AppBar(
-      backgroundColor: const Color(0xFF131517),
+      backgroundColor: theme.scaffoldBackgroundColor,
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(
+        icon: Icon(
           Icons.arrow_back_ios_new,
-          color: Color(0xFFE8E8E8),
+          color: theme.iconTheme.color,
           size: 20,
         ),
         onPressed: () => Navigator.pop(context),
@@ -744,32 +745,32 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       title: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFFFFA726).withOpacity(0.15),
+              color: theme.primaryColor.withOpacity(0.15),
               border: Border.all(
-                color: const Color(0xFFFFA726).withOpacity(0.3),
-                width: 1.5,
+                color: theme.primaryColor.withOpacity(0.2),
+                width: 1,
               ),
             ),
             child: Center(
               child: Text(
                 widget.community.getCategoryIcon(),
-                style: const TextStyle(fontSize: 18),
+                style: const TextStyle(fontSize: 16),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               widget.community.name,
-              style: const TextStyle(
-                color: Color(0xFFE8E8E8),
-                fontSize: 16,
+              style: TextStyle(
+                color: theme.textTheme.bodyLarge?.color,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
-                letterSpacing: 0.1,
+                letterSpacing: -0.3,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -778,10 +779,10 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       ),
       actions: [
         IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.search_rounded,
-            color: Color(0xFF6B7075),
-            size: 22,
+            color: theme.iconTheme.color?.withOpacity(0.6),
+            size: 20,
           ),
           onPressed: () {
             // TODO: Implement message search
@@ -791,33 +792,43 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           },
         ),
         IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.info_outline,
-            color: Color(0xFF6B7075),
-            size: 22,
+            color: theme.iconTheme.color?.withOpacity(0.6),
+            size: 20,
           ),
           onPressed: () => _showCommunityInfo(),
         ),
       ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: theme.dividerColor.withOpacity(0.1)),
+      ),
     );
   }
 
   Widget _buildDateDivider(DateTime date) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1D21),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF2A2D31), width: 1),
+            color: isDark ? theme.cardColor.withOpacity(0.3) : Colors.grey[200],
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: theme.dividerColor.withOpacity(0.2),
+              width: 1,
+            ),
           ),
           child: Text(
             _formatDate(date),
-            style: const TextStyle(
-              color: Color(0xFF6B7075),
-              fontSize: 11,
+            style: TextStyle(
+              color: theme.textTheme.bodySmall?.color,
+              fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.2,
             ),
@@ -1035,17 +1046,25 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   }
 
   Widget _buildMessageInput() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final inputBg = isDark ? const Color(0xFF1A1D21) : Colors.grey[100];
+    final borderColor = isDark ? const Color(0xFF2A2D31) : theme.dividerColor;
+
     return Container(
-      color: const Color(0xFF0F1113),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      color: theme.scaffoldBackgroundColor,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       child: SafeArea(
         top: false,
         minimum: EdgeInsets.zero,
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1D21),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFF2A2D31), width: 1),
+            color: inputBg,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: borderColor?.withOpacity(0.5) ?? Colors.transparent,
+              width: 1,
+            ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
@@ -1056,7 +1075,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       ? Icons.keyboard
                       : Icons.emoji_emotions_outlined,
                 ),
-                color: const Color(0xFF6B7075),
+                color: theme.iconTheme.color?.withOpacity(0.6),
                 onPressed: () {
                   setState(() {
                     _showEmojiPicker = !_showEmojiPicker;
@@ -1072,16 +1091,18 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                 child: TextField(
                   controller: _messageController,
                   focusNode: _messageFocusNode,
-                  style: const TextStyle(
-                    color: Color(0xFFE8E8E8),
+                  style: TextStyle(
+                    color: theme.textTheme.bodyLarge?.color,
                     fontSize: 15,
                     height: 1.4,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Message',
-                    hintStyle: TextStyle(color: Color(0xFF6B7075)),
+                    hintStyle: TextStyle(
+                      color: theme.textTheme.bodySmall?.color,
+                    ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 4),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                   ),
                   maxLines: null,
                   textInputAction: TextInputAction.send,
