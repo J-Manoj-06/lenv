@@ -284,8 +284,14 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = theme.scaffoldBackgroundColor;
+    final cardColor = theme.cardColor;
+    final primaryColor = theme.primaryColor;
+    final borderColor = isDark ? const Color(0xFF2A2D3A) : theme.dividerColor;
+
     return Scaffold(
-      backgroundColor: bgDark,
+      backgroundColor: bgColor,
       body: Column(
         children: [
           _buildHeader(context, theme),
@@ -397,10 +403,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   Widget _buildHeader(BuildContext context, ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
-        color: bgDark.withOpacity(0.9),
+        color: theme.scaffoldBackgroundColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -420,7 +426,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                       IconButton(
                         icon: const Icon(Icons.arrow_back_ios_new, size: 22),
                         onPressed: () => Navigator.pop(context),
-                        color: Colors.white,
+                        color: theme.iconTheme.color,
                       ),
                       Expanded(
                         child: Stack(
@@ -429,8 +435,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                             Text(
                               'Student Performance',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: theme.textTheme.bodyLarge?.color,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -514,18 +520,22 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         ? submissions
         : submissions.sublist(submissions.length - 6);
     final avg = perf?.averageScore ?? widget.averageScore.toDouble();
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+    final borderColor = isDark ? const Color(0xFF2A2D3A) : theme.dividerColor;
+
     return Container(
       decoration: BoxDecoration(
-        color: cardDark,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: borderDark),
+        border: Border.all(color: borderColor),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -533,8 +543,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         children: [
           Text(
             'Performance Trend',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: theme.textTheme.bodyLarge?.color,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -658,18 +668,23 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       return const SizedBox.shrink();
     }
 
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+    final borderColor = isDark ? const Color(0xFF2A2D3A) : theme.dividerColor;
+    final primaryColor = theme.primaryColor;
+
     return Container(
       decoration: BoxDecoration(
-        color: cardDark,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: borderDark),
+        border: Border.all(color: borderColor),
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -680,8 +695,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [brandPrimary, brandPrimaryLight],
+                  gradient: LinearGradient(
+                    colors: [primaryColor, primaryColor.withOpacity(0.7)],
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -852,14 +867,19 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         ? '${latestScore.round()}%'
         : '0%';
 
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+    final borderColor = isDark ? const Color(0xFF2A2D3A) : theme.dividerColor;
+    final primaryColor = theme.primaryColor;
+
     return Container(
       decoration: BoxDecoration(
-        color: cardDark,
+        color: cardColor,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderDark),
+        border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -874,13 +894,13 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [brandPrimary, brandPrimaryLight],
+                  gradient: LinearGradient(
+                    colors: [primaryColor, primaryColor.withOpacity(0.7)],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: brandPrimary.withOpacity(0.3),
+                      color: primaryColor.withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),

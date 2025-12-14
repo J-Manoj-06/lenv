@@ -157,8 +157,16 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     }
 
     final filtered = _applyFilters(tests);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = theme.scaffoldBackgroundColor;
+    final cardColor = theme.cardColor;
+    final primaryColor = theme.primaryColor;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.white;
+    final secondaryTextColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: bgColor,
       body: Stack(
         children: [
           Column(
@@ -217,18 +225,19 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildHeader() {
+    final theme = Theme.of(context);
     return Container(
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.8)),
+      decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
       child: SafeArea(
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: const Text(
+          child: Text(
             'Tests',
             style: TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: theme.textTheme.bodyLarge?.color,
               letterSpacing: -0.5,
             ),
           ),
@@ -238,29 +247,34 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildSearchBar() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
-      color: Colors.black.withOpacity(0.8),
+      color: theme.scaffoldBackgroundColor,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: TextField(
         controller: _searchController,
-        style: const TextStyle(color: Colors.white),
+        style: TextStyle(color: theme.textTheme.bodyLarge?.color),
         decoration: InputDecoration(
           hintText: 'Search for a test...',
-          hintStyle: const TextStyle(color: Color(0xFFA0A0A0)),
-          prefixIcon: const Icon(Icons.search, color: Color(0xFFA0A0A0)),
+          hintStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
+          prefixIcon: Icon(
+            Icons.search,
+            color: theme.textTheme.bodySmall?.color,
+          ),
           filled: true,
-          fillColor: const Color(0xFF1A1C20),
+          fillColor: isDark ? const Color(0xFF1A1C20) : Colors.grey[100],
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(9999),
-            borderSide: const BorderSide(color: Color(0xFF2A2D30)),
+            borderSide: BorderSide(color: theme.dividerColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(9999),
-            borderSide: const BorderSide(color: Color(0xFF2A2D30)),
+            borderSide: BorderSide(color: theme.dividerColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(9999),
-            borderSide: const BorderSide(color: Color(0xFF7961FF), width: 2),
+            borderSide: BorderSide(color: theme.primaryColor, width: 2),
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
@@ -275,9 +289,11 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildTabs() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final tabLabels = ['All Tests', 'Live', 'Scheduled', 'Completed'];
     return Container(
-      color: Colors.black.withOpacity(0.8),
+      color: theme.scaffoldBackgroundColor,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -298,12 +314,12 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF7961FF)
-                        : const Color(0xFF1A1C20),
+                        ? theme.primaryColor
+                        : (isDark ? const Color(0xFF1A1C20) : Colors.grey[200]),
                     borderRadius: BorderRadius.circular(9999),
                     border: isSelected
                         ? null
-                        : Border.all(color: const Color(0xFF2A2D30)),
+                        : Border.all(color: theme.dividerColor),
                   ),
                   child: Center(
                     child: Text(
@@ -313,7 +329,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                         fontWeight: FontWeight.w500,
                         color: isSelected
                             ? Colors.white
-                            : const Color(0xFFA0A0A0),
+                            : theme.textTheme.bodySmall?.color,
                       ),
                     ),
                   ),
@@ -541,12 +557,12 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
       borderRadius: BorderRadius.circular(20),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1C20),
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF2A2D30)),
+          border: Border.all(color: Theme.of(context).dividerColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withOpacity(0.1),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -586,19 +602,19 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                       const SizedBox(height: 8),
                       Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                           letterSpacing: -0.3,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: Color(0xFFA0A0A0),
+                          color: Theme.of(context).textTheme.bodySmall?.color,
                         ),
                       ),
                     ],
@@ -609,7 +625,9 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF111315),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF111315)
+                        : Colors.grey[200],
                     shape: BoxShape.circle,
                   ),
                   child: Icon(subjectIcon, color: iconColor, size: 28),
