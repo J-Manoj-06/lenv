@@ -158,19 +158,21 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFF16171A),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16171A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Explore Communities',
           style: TextStyle(
-            color: Colors.white,
+            color: theme.textTheme.bodyLarge?.color,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -185,18 +187,23 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
             child: Container(
               height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C1E),
+                color: isDark
+                    ? theme.colorScheme.surface
+                    : theme.colorScheme.surfaceVariant.withOpacity(0.6),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: TextField(
                 controller: _searchController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: theme.colorScheme.onSurface),
+                decoration: InputDecoration(
                   hintText: 'Search communities',
-                  hintStyle: TextStyle(color: Colors.white54),
-                  prefixIcon: Icon(Icons.search, color: Colors.white54),
+                  hintStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: theme.textTheme.bodySmall?.color,
+                  ),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
                   ),
@@ -226,15 +233,21 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFFFFA929)
-                          : const Color(0xFF1C1C1E),
+                          ? const Color(0xFF7A5CFF)
+                          : (isDark
+                                ? theme.colorScheme.surface
+                                : theme.colorScheme.surfaceVariant.withOpacity(
+                                    0.4,
+                                  )),
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: Center(
                       child: Text(
                         category,
                         style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.white70,
+                          color: isSelected
+                              ? Colors.white
+                              : theme.textTheme.bodySmall?.color,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -251,22 +264,28 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
           // Communities List
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFFA929)),
+                ? Center(
+                    child: CircularProgressIndicator(color: theme.primaryColor),
                   )
                 : _filteredCommunities.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off, size: 64, color: Colors.white24),
+                        Icon(
+                          Icons.search_off,
+                          size: 64,
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.3,
+                          ),
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           _searchController.text.isNotEmpty
                               ? 'No communities found'
                               : 'No communities available',
-                          style: const TextStyle(
-                            color: Colors.white54,
+                          style: TextStyle(
+                            color: theme.textTheme.bodySmall?.color,
                             fontSize: 16,
                           ),
                         ),
@@ -290,6 +309,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                         community,
                         isJoining,
                         isJoined,
+                        theme,
                       );
                     },
                   ),
@@ -303,11 +323,13 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
     CommunityModel community,
     bool isJoining,
     bool isJoined,
+    ThemeData theme,
   ) {
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
+        color: isDark ? theme.colorScheme.surface : theme.cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -317,7 +339,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFFFA929).withValues(alpha: 0.2),
+              color: const Color(0xFFFFA929).withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
@@ -338,8 +360,8 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
               children: [
                 Text(
                   community.name,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: theme.textTheme.bodyLarge?.color,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -349,7 +371,10 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                 const SizedBox(height: 4),
                 Text(
                   community.description,
-                  style: const TextStyle(color: Colors.white60, fontSize: 13),
+                  style: TextStyle(
+                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                    fontSize: 13,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -361,16 +386,19 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.people,
                           size: 14,
-                          color: Colors.white38,
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.5,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${community.memberCount} members',
-                          style: const TextStyle(
-                            color: Colors.white38,
+                          style: TextStyle(
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.5),
                             fontSize: 12,
                           ),
                         ),
@@ -382,7 +410,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFA929).withValues(alpha: 0.2),
+                        color: const Color(0xFFFFA929).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -410,7 +438,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: const Color(0xFF4CAF50),

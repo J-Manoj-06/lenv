@@ -85,6 +85,9 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildEmptyState() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -96,28 +99,35 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
               height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF1A1C20),
+                color: isDark
+                    ? const Color(0xFF1A1C20)
+                    : theme.colorScheme.surface,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.school_outlined,
                 size: 60,
-                color: Color(0xFF2A2D30),
+                color: isDark
+                    ? const Color(0xFF2A2D30)
+                    : theme.primaryColor.withOpacity(0.4),
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Start assessing your class with ease.',
               style: TextStyle(
-                color: Colors.white,
+                color: theme.textTheme.bodyLarge?.color,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Create your first test now to get started.',
-              style: TextStyle(color: Color(0xFFA0A0A0), fontSize: 16),
+              style: TextStyle(
+                color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                fontSize: 16,
+              ),
               textAlign: TextAlign.center,
             ),
           ],

@@ -13,7 +13,7 @@ class CreateTestEntryScreen extends StatelessWidget {
         ? const Color(0xFF5170FB).withOpacity(0.3)
         : Colors.white.withOpacity(isDark ? 0.08 : 0.15);
     Color cardBg(bool primary) => primary
-        ? const Color(0xFF12162D)
+        ? (isDark ? const Color(0xFF12162D) : theme.colorScheme.surface)
         : (isDark
               ? Colors.white.withOpacity(0.05)
               : Colors.black.withOpacity(0.05));
@@ -176,9 +176,7 @@ class _OptionCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: glowPrimary
-                    ? Colors.white
-                    : Theme.of(context).textTheme.bodyLarge?.color,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
             const SizedBox(height: 6),
@@ -186,11 +184,9 @@ class _OptionCard extends StatelessWidget {
               subtitle,
               style: TextStyle(
                 fontSize: 13,
-                color: glowPrimary
-                    ? Colors.white.withOpacity(0.65)
-                    : Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                color: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.color?.withOpacity(0.7),
               ),
             ),
           ],

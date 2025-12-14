@@ -194,19 +194,21 @@ class _TeacherCommunityExploreScreenState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFF16171A),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16171A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Explore Communities',
           style: TextStyle(
-            color: Colors.white,
+            color: theme.textTheme.bodyLarge?.color,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -221,18 +223,23 @@ class _TeacherCommunityExploreScreenState
             child: Container(
               height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C1E),
+                color: isDark
+                    ? theme.colorScheme.surface
+                    : theme.colorScheme.surfaceVariant.withOpacity(0.6),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: TextField(
                 controller: _searchController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: theme.colorScheme.onSurface),
+                decoration: InputDecoration(
                   hintText: 'Search communities',
-                  hintStyle: TextStyle(color: Colors.white54),
-                  prefixIcon: Icon(Icons.search, color: Colors.white54),
+                  hintStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: theme.textTheme.bodySmall?.color,
+                  ),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
                   ),
@@ -262,13 +269,17 @@ class _TeacherCommunityExploreScreenState
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF6A4FF7)
-                          : const Color(0xFF1C1C1E),
+                          ? const Color(0xFF7A5CFF)
+                          : (isDark
+                                ? theme.colorScheme.surface
+                                : theme.colorScheme.surfaceVariant.withOpacity(
+                                    0.4,
+                                  )),
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
                         color: isSelected
-                            ? const Color(0xFF6A4FF7)
-                            : Colors.white.withValues(alpha: 0.1),
+                            ? const Color(0xFF7A5CFF)
+                            : theme.dividerColor.withOpacity(0.3),
                         width: 1.5,
                       ),
                     ),
@@ -276,7 +287,9 @@ class _TeacherCommunityExploreScreenState
                       child: Text(
                         category,
                         style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.white70,
+                          color: isSelected
+                              ? Colors.white
+                              : theme.textTheme.bodySmall?.color,
                           fontSize: 14,
                           fontWeight: isSelected
                               ? FontWeight.w600
@@ -295,22 +308,22 @@ class _TeacherCommunityExploreScreenState
           // Communities List
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF6A4FF7)),
+                ? Center(
+                    child: CircularProgressIndicator(color: theme.primaryColor),
                   )
                 : _filteredCommunities.isEmpty
-                ? _buildEmptyState()
+                ? _buildEmptyState(theme)
                 : RefreshIndicator(
                     onRefresh: _loadCommunities,
-                    color: const Color(0xFF6A4FF7),
-                    backgroundColor: const Color(0xFF1C1C1E),
+                    color: theme.primaryColor,
+                    backgroundColor: theme.cardColor,
                     child: ListView.separated(
                       padding: const EdgeInsets.all(16),
                       itemCount: _filteredCommunities.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final community = _filteredCommunities[index];
-                        return _buildCommunityCard(community);
+                        return _buildCommunityCard(community, theme);
                       },
                     ),
                   ),
@@ -320,7 +333,7 @@ class _TeacherCommunityExploreScreenState
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(ThemeData theme) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -329,45 +342,45 @@ class _TeacherCommunityExploreScreenState
             width: 100,
             height: 100,
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E),
+              color: theme.cardColor,
               borderRadius: BorderRadius.circular(50),
             ),
-            child: const Icon(
-              Icons.search_off,
-              size: 50,
-              color: Color(0xFF6A4FF7),
-            ),
+            child: Icon(Icons.search_off, size: 50, color: theme.primaryColor),
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'No Communities Found',
             style: TextStyle(
-              color: Colors.white,
+              color: theme.textTheme.bodyLarge?.color,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Try adjusting your search or filters',
-            style: TextStyle(color: Colors.white54, fontSize: 14),
+            style: TextStyle(
+              color: theme.textTheme.bodySmall?.color,
+              fontSize: 14,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCommunityCard(CommunityModel community) {
+  Widget _buildCommunityCard(CommunityModel community, ThemeData theme) {
     final isJoined = _joinedCommunities.contains(community.id);
     final isJoining = _joiningCommunities.contains(community.id);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
+        color: isDark ? theme.colorScheme.surface : theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: theme.dividerColor.withValues(alpha: 0.1),
           width: 1,
         ),
       ),
@@ -381,7 +394,7 @@ class _TeacherCommunityExploreScreenState
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6A4FF7).withValues(alpha: 0.2),
+                  color: const Color(0xFF7A5CFF).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Center(
@@ -401,8 +414,8 @@ class _TeacherCommunityExploreScreenState
                   children: [
                     Text(
                       community.name,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: theme.textTheme.bodyLarge?.color,
                         fontSize: 17,
                         fontWeight: FontWeight.w600,
                       ),
@@ -417,27 +430,33 @@ class _TeacherCommunityExploreScreenState
                               ? Icons.public
                               : Icons.school,
                           size: 14,
-                          color: Colors.white38,
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.5,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           community.scope == 'global' ? 'Global' : 'School',
-                          style: const TextStyle(
-                            color: Colors.white38,
+                          style: TextStyle(
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.5),
                             fontSize: 12,
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Icon(
+                        Icon(
                           Icons.people,
                           size: 14,
-                          color: Colors.white38,
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.5,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${community.memberCount} members',
-                          style: const TextStyle(
-                            color: Colors.white38,
+                          style: TextStyle(
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.5),
                             fontSize: 12,
                           ),
                         ),
@@ -453,8 +472,8 @@ class _TeacherCommunityExploreScreenState
 
           Text(
             community.description,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
               fontSize: 14,
               height: 1.4,
             ),
@@ -473,13 +492,13 @@ class _TeacherCommunityExploreScreenState
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6A4FF7).withValues(alpha: 0.1),
+                  color: const Color(0xFF7A5CFF).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   community.category.toUpperCase(),
                   style: const TextStyle(
-                    color: Color(0xFF6A4FF7),
+                    color: Color(0xFF7A5CFF),
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
@@ -495,7 +514,7 @@ class _TeacherCommunityExploreScreenState
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: const Color(0xFF4CAF50),
@@ -526,7 +545,7 @@ class _TeacherCommunityExploreScreenState
                 ElevatedButton(
                   onPressed: isJoining ? null : () => _joinCommunity(community),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6A4FF7),
+                    backgroundColor: const Color(0xFF7A5CFF),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
