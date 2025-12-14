@@ -31,6 +31,7 @@ import '../screens/student/student_profile_screen.dart';
 import '../screens/student/student_groups_screen.dart';
 import '../screens/teacher/teacher_groups_screen.dart';
 import '../screens/teacher/profile_screen.dart';
+import '../screens/teacher/theme_settings_screen.dart';
 import '../screens/parent/parent_section_group_chat_screen.dart';
 
 class AppRouter {
@@ -177,6 +178,9 @@ class AppRouter {
 
       case '/profile':
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
+
+      case '/teacher/theme-settings':
+        return MaterialPageRoute(builder: (_) => const ThemeSettingsScreen());
 
       case '/my-highlights':
         return MaterialPageRoute(builder: (_) => const MyHighlightsScreen());

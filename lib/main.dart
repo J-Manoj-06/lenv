@@ -11,6 +11,7 @@ import 'providers/reward_provider.dart';
 import 'providers/student_provider.dart';
 import 'providers/daily_challenge_provider.dart';
 import 'providers/parent_provider.dart';
+import 'providers/theme_provider.dart';
 import 'routes/app_router.dart';
 import 'services/local_cache_service.dart';
 
@@ -93,6 +94,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => RewardProvider()),
         ChangeNotifierProvider(create: (_) => StudentProvider()),
         ChangeNotifierProvider(create: (_) => ParentProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProxyProvider<
           local_auth.AuthProvider,
           DailyChallengeProvider
@@ -108,13 +110,18 @@ class MyApp extends StatelessWidget {
           },
         ),
       ],
-      child: MaterialApp(
-        title: 'LenV - Educational Ecosystem',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        onGenerateRoute: AppRouter.generateRoute,
-        initialRoute: '/',
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          return MaterialApp(
+            title: 'LenV - Educational Ecosystem',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProvider.themeMode,
+            onGenerateRoute: AppRouter.generateRoute,
+            initialRoute: '/',
+          );
+        },
       ),
     );
   }
