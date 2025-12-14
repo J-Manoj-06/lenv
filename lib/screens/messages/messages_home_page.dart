@@ -35,16 +35,18 @@ class _MessagesHomePageState extends State<MessagesHomePage>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF141414),
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         centerTitle: true,
-        title: const Text(
+        title: Text(
           'Messages',
           style: TextStyle(
-            color: Colors.white,
+            color: theme.textTheme.bodyLarge?.color,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -57,8 +59,11 @@ class _MessagesHomePageState extends State<MessagesHomePage>
             margin: const EdgeInsets.fromLTRB(20, 12, 20, 16),
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: const Color(0xFF262626),
+              color: isDark
+                  ? theme.colorScheme.surface
+                  : theme.colorScheme.surfaceVariant.withOpacity(0.6),
               borderRadius: BorderRadius.circular(50),
+              border: Border.all(color: theme.dividerColor, width: 1),
             ),
             child: Row(
               children: [
@@ -96,15 +101,18 @@ class _MessagesHomePageState extends State<MessagesHomePage>
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           gradient: isSelected
-              ? const LinearGradient(
-                  colors: [Color(0xFFFF8800), Color(0xFFFF9E2A)],
+              ? LinearGradient(
+                  colors: [
+                    Theme.of(context).primaryColor,
+                    Theme.of(context).primaryColor.withOpacity(0.85),
+                  ],
                 )
               : null,
           borderRadius: BorderRadius.circular(50),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFFFF8800).withValues(alpha: 0.3),
+                    color: Theme.of(context).primaryColor.withOpacity(0.25),
                     blurRadius: 15,
                     spreadRadius: 0,
                   ),
@@ -115,7 +123,9 @@ class _MessagesHomePageState extends State<MessagesHomePage>
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: isSelected ? Colors.white : const Color(0xFFB0B0B0),
+            color: isSelected
+                ? Colors.white
+                : Theme.of(context).textTheme.bodyMedium?.color,
             fontSize: 13,
             fontWeight: FontWeight.bold,
             letterSpacing: 0.5,

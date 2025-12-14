@@ -34,23 +34,20 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF130F23)
-          : const Color(0xFFF6F5F8),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: isDark
-            ? const Color(0xFF130F23)
-            : const Color(0xFFF6F5F8),
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         automaticallyImplyLeading: false,
         centerTitle: true,
-        title: const Text(
+        title: Text(
           'Messages',
           style: TextStyle(
-            color: Colors.white,
+            color: theme.textTheme.bodyLarge?.color,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -63,8 +60,11 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
             margin: const EdgeInsets.fromLTRB(20, 12, 20, 16),
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1A2F) : const Color(0xFFE8E5EF),
+              color: isDark
+                  ? theme.colorScheme.surface
+                  : theme.colorScheme.surfaceVariant.withOpacity(0.6),
               borderRadius: BorderRadius.circular(50),
+              border: Border.all(color: theme.dividerColor, width: 1),
             ),
             child: Row(
               children: [
@@ -102,15 +102,18 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           gradient: isSelected
-              ? const LinearGradient(
-                  colors: [Color(0xFF6A4FF7), Color(0xFF8B6FFF)],
+              ? LinearGradient(
+                  colors: [
+                    Theme.of(context).primaryColor,
+                    Theme.of(context).primaryColor.withOpacity(0.85),
+                  ],
                 )
               : null,
           borderRadius: BorderRadius.circular(50),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF6A4FF7).withValues(alpha: 0.3),
+                    color: Theme.of(context).primaryColor.withOpacity(0.25),
                     blurRadius: 15,
                     spreadRadius: 0,
                   ),
@@ -123,7 +126,7 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
           style: TextStyle(
             color: isSelected
                 ? Colors.white
-                : (isDark ? const Color(0xFFB0B0B0) : const Color(0xFF7A7A7A)),
+                : Theme.of(context).textTheme.bodyMedium?.color,
             fontSize: 13,
             fontWeight: FontWeight.bold,
             letterSpacing: 0.5,

@@ -48,18 +48,18 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context); // ✅ Required for AutomaticKeepAliveClientMixin
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFF16171A),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF6A4FF7)),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : _myCommunities.isEmpty
           ? _buildEmptyState()
           : RefreshIndicator(
               onRefresh: _loadMyCommunities,
-              color: const Color(0xFF6A4FF7),
-              backgroundColor: const Color(0xFF1C1C1E),
+              color: theme.colorScheme.primary,
+              backgroundColor: theme.cardColor,
               child: ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: _myCommunities.length,
@@ -79,12 +79,12 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
             ),
           ).then((_) => _loadMyCommunities()); // Reload after exploring
         },
-        backgroundColor: const Color(0xFF6A4FF7),
-        icon: const Icon(Icons.explore, color: Colors.white),
-        label: const Text(
+        backgroundColor: theme.colorScheme.primary,
+        icon: Icon(Icons.explore, color: theme.colorScheme.onPrimary),
+        label: Text(
           'Explore Communities',
           style: TextStyle(
-            color: Colors.white,
+            color: theme.colorScheme.onPrimary,
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
@@ -94,6 +94,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
   }
 
   Widget _buildEmptyState() {
+    final theme = Theme.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -102,25 +103,32 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E),
+              color: theme.cardColor,
               borderRadius: BorderRadius.circular(60),
             ),
-            child: const Icon(Icons.groups, size: 60, color: Color(0xFF6A4FF7)),
+            child: Icon(
+              Icons.groups,
+              size: 60,
+              color: theme.colorScheme.primary,
+            ),
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'No Communities Yet',
             style: TextStyle(
-              color: Colors.white,
+              color: theme.textTheme.bodyLarge?.color,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Join communities to connect with\nteachers and educators',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white54, fontSize: 14),
+            style: TextStyle(
+              color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+              fontSize: 14,
+            ),
           ),
           const SizedBox(height: 32),
           ElevatedButton.icon(
@@ -133,8 +141,8 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
               ).then((_) => _loadMyCommunities());
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6A4FF7),
-              foregroundColor: Colors.white,
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
@@ -153,6 +161,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
   }
 
   Widget _buildCommunityCard(CommunityModel community) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -166,10 +175,10 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1E),
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: theme.dividerColor.withOpacity(0.1),
             width: 1,
           ),
         ),
@@ -180,7 +189,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: const Color(0xFF6A4FF7).withValues(alpha: 0.2),
+                color: theme.colorScheme.primary.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Center(
@@ -203,8 +212,8 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
                       Expanded(
                         child: Text(
                           community.name,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: theme.textTheme.bodyLarge?.color,
                             fontSize: 17,
                             fontWeight: FontWeight.w600,
                           ),
@@ -219,24 +228,22 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF6A4FF7,
-                            ).withValues(alpha: 0.2),
+                            color: theme.colorScheme.primary.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.people,
                                 size: 12,
-                                color: Color(0xFF6A4FF7),
+                                color: theme.colorScheme.primary,
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 '${community.memberCount}',
-                                style: const TextStyle(
-                                  color: Color(0xFF6A4FF7),
+                                style: TextStyle(
+                                  color: theme.colorScheme.primary,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -250,8 +257,10 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
                   if (community.lastMessagePreview.isNotEmpty)
                     Text(
                       community.lastMessagePreview,
-                      style: const TextStyle(
-                        color: Colors.white60,
+                      style: TextStyle(
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.6,
+                        ),
                         fontSize: 14,
                       ),
                       maxLines: 2,
@@ -260,8 +269,10 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
                   else
                     Text(
                       community.description,
-                      style: const TextStyle(
-                        color: Colors.white60,
+                      style: TextStyle(
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.6,
+                        ),
                         fontSize: 14,
                       ),
                       maxLines: 2,
@@ -276,13 +287,13 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF6A4FF7).withValues(alpha: 0.1),
+                          color: theme.colorScheme.primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           community.category.toUpperCase(),
-                          style: const TextStyle(
-                            color: Color(0xFF6A4FF7),
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
@@ -295,13 +306,17 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
                             ? Icons.public
                             : Icons.school,
                         size: 14,
-                        color: Colors.white38,
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.4,
+                        ),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         community.scope == 'global' ? 'Global' : 'School',
-                        style: const TextStyle(
-                          color: Colors.white38,
+                        style: TextStyle(
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.4,
+                          ),
                           fontSize: 12,
                         ),
                       ),
@@ -314,9 +329,9 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
             const SizedBox(width: 8),
 
             // Arrow
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
-              color: Colors.white24,
+              color: theme.iconTheme.color?.withOpacity(0.3),
               size: 16,
             ),
           ],

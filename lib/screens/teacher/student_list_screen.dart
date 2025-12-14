@@ -240,9 +240,12 @@ class _StudentListScreenState extends State<StudentListScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new, size: 22),
+                    icon: Icon(
+                      Icons.arrow_back_ios_new,
+                      size: 22,
+                      color: theme.iconTheme.color,
+                    ),
                     onPressed: () => Navigator.pop(context),
-                    color: Colors.white,
                   ),
                   Expanded(
                     child: Column(
@@ -251,8 +254,8 @@ class _StudentListScreenState extends State<StudentListScreen> {
                         Text(
                           widget.className.replaceAll('-', '–'),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: theme.textTheme.bodyLarge?.color,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             letterSpacing: -0.2,
