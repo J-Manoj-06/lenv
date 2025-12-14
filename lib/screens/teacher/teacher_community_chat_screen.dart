@@ -714,6 +714,8 @@ class _TeacherCommunityChatScreenState
     bool isCurrentUser,
     String currentUserName,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -784,21 +786,25 @@ class _TeacherCommunityChatScreenState
                   ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                    horizontal: 14,
+                    vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    gradient: isCurrentUser
-                        ? const LinearGradient(
-                            colors: [Color(0xFF6A4FF7), Color(0xFF8B6FFF)],
-                          )
-                        : null,
-                    color: isCurrentUser ? null : const Color(0xFF1E2228),
+                    color: isCurrentUser
+                        ? (isDark
+                              ? const Color(0xFF1A1C20)
+                              : theme.colorScheme.surfaceVariant.withOpacity(
+                                  0.6,
+                                ))
+                        : (isDark ? const Color(0xFF14171B) : theme.cardColor),
                     borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isCurrentUser ? 16 : 4),
-                      bottomRight: Radius.circular(isCurrentUser ? 4 : 16),
+                      topLeft: const Radius.circular(12),
+                      topRight: const Radius.circular(12),
+                      bottomLeft: Radius.circular(isCurrentUser ? 12 : 6),
+                      bottomRight: Radius.circular(isCurrentUser ? 6 : 12),
+                    ),
+                    border: Border.all(
+                      color: theme.dividerColor.withOpacity(0.4),
                     ),
                   ),
                   child: Column(
@@ -826,19 +832,19 @@ class _TeacherCommunityChatScreenState
                       if (message.content.isNotEmpty)
                         Text(
                           message.content,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            height: 1.4,
+                          style: TextStyle(
+                            color: theme.textTheme.bodyLarge?.color,
+                            fontSize: 14,
+                            height: 1.5,
                           ),
                         ),
                       const SizedBox(height: 4),
                       Text(
                         _formatTime(message.createdAt),
                         style: TextStyle(
-                          color: isCurrentUser
-                              ? Colors.white.withValues(alpha: 0.7)
-                              : Colors.white.withValues(alpha: 0.5),
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.7,
+                          ),
                           fontSize: 11,
                         ),
                       ),
@@ -872,11 +878,15 @@ class _TeacherCommunityChatScreenState
 
   Widget _buildMessageInput() {
     final hasText = _messageController.text.trim().isNotEmpty;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0B141A),
-        border: Border(top: BorderSide(color: Color(0xFF131C21))),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(
+          top: BorderSide(color: theme.dividerColor.withOpacity(0.4)),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -886,10 +896,15 @@ class _TeacherCommunityChatScreenState
           children: [
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1F2C34),
-                  borderRadius: BorderRadius.circular(24),
+                  color: isDark
+                      ? const Color(0xFF1A1C20)
+                      : theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.dividerColor.withOpacity(0.5),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -898,10 +913,10 @@ class _TeacherCommunityChatScreenState
                         _showEmojiPicker
                             ? Icons.keyboard
                             : Icons.sentiment_satisfied_outlined,
-                        color: const Color(0xFF8696A0),
-                        size: 26,
+                        color: theme.textTheme.bodySmall?.color,
+                        size: 22,
                       ),
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(6),
                       onPressed: () {
                         setState(() {
                           _showEmojiPicker = !_showEmojiPicker;
@@ -917,17 +932,21 @@ class _TeacherCommunityChatScreenState
                       child: TextField(
                         controller: _messageController,
                         focusNode: _focusNode,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
+                        style: TextStyle(
+                          color: theme.textTheme.bodyLarge?.color,
+                          fontSize: 15,
                         ),
                         maxLines: null,
                         textCapitalization: TextCapitalization.sentences,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'Message',
-                          hintStyle: TextStyle(color: Color(0xFF8696A0)),
+                          hintStyle: TextStyle(
+                            color: theme.textTheme.bodySmall?.color,
+                          ),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                          ),
                         ),
                         onSubmitted: (_) => _sendMessage(),
                         onChanged: (_) => setState(() {}),
@@ -939,27 +958,32 @@ class _TeacherCommunityChatScreenState
             ),
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(
-                Icons.attach_file,
-                color: Color(0xFF8696A0),
-                size: 26,
-              ),
-              padding: const EdgeInsets.all(8),
+              icon: const Icon(Icons.attach_file, color: Colors.grey, size: 22),
+              padding: const EdgeInsets.all(6),
               onPressed: _isUploading ? null : _showMediaOptions,
             ),
             const SizedBox(width: 8),
             Container(
-              width: 48,
-              height: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFF00A884),
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: hasText
+                    ? theme.primaryColor
+                    : (isDark
+                          ? const Color(0xFF1A1C20)
+                          : theme.colorScheme.surfaceVariant.withOpacity(0.6)),
                 shape: BoxShape.circle,
+                border: Border.all(
+                  color: theme.dividerColor.withOpacity(hasText ? 0.0 : 0.5),
+                ),
               ),
               child: IconButton(
                 icon: Icon(
                   hasText ? Icons.send_rounded : Icons.mic,
-                  color: Colors.white,
-                  size: 24,
+                  color: hasText
+                      ? theme.colorScheme.onPrimary
+                      : theme.iconTheme.color,
+                  size: 20,
                 ),
                 padding: EdgeInsets.zero,
                 onPressed: hasText ? _sendMessage : () {},

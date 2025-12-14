@@ -775,11 +775,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Widget _buildInputBar() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final inputBg = isDark ? const Color(0xFF1A1D21) : Colors.grey[100];
-    final borderColor = isDark ? const Color(0xFF2A2D31) : theme.dividerColor;
+    final inputBg = isDark
+        ? theme.colorScheme.surface
+        : theme.colorScheme.surfaceVariant;
+    final borderColor = theme.colorScheme.outline;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
         border: Border(
@@ -794,12 +796,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
             // Text Input
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
                   color: inputBg,
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: borderColor?.withOpacity(0.5) ?? Colors.transparent,
+                    color: borderColor.withOpacity(0.5),
                     width: 1,
                   ),
                 ),
@@ -813,7 +815,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         color: theme.iconTheme.color?.withOpacity(0.6),
                         size: 20,
                       ),
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(6),
                       onPressed: () {
                         setState(() {
                           _showEmojiPicker = !_showEmojiPicker;
@@ -830,7 +832,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         controller: _messageController,
                         focusNode: _messageFocusNode,
                         style: TextStyle(
-                          color: theme.textTheme.bodyLarge?.color,
+                          color: theme.colorScheme.onSurface,
                           fontSize: 15,
                           height: 1.4,
                         ),
@@ -841,7 +843,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           ),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
-                            vertical: 10,
+                            vertical: 8,
                           ),
                         ),
                         maxLines: null,
@@ -864,10 +866,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
             IconButton(
               icon: Icon(
                 Icons.attach_file,
-                color: theme.iconTheme.color?.withOpacity(0.6),
+                color: theme.textTheme.bodySmall?.color,
                 size: 22,
               ),
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               onPressed: _isUploading ? null : _showMediaOptions,
             ),
             const SizedBox(width: 8),
@@ -937,9 +939,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 height: 48,
                 decoration: BoxDecoration(
                   color: _isRecording
-                      ? Colors.redAccent
-                      : const Color(0xFF00A884),
+                      ? theme.colorScheme.error
+                      : theme.primaryColor,
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.primaryColor.withOpacity(0.15),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
                 child: Icon(
                   _isRecording
@@ -947,8 +956,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       : (_messageController.text.trim().isNotEmpty
                             ? Icons.send_rounded
                             : Icons.mic),
-                  color: Colors.white,
-                  size: 24,
+                  color: theme.colorScheme.onPrimary,
+                  size: 22,
                 ),
               ),
             ),
@@ -979,10 +988,12 @@ class _MessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final myBubbleColor = isDark ? const Color(0xFF232629) : Colors.blue[50];
+    final myBubbleColor = isDark
+        ? theme.colorScheme.surface
+        : theme.colorScheme.surfaceVariant;
     final otherBubbleColor = isDark
-        ? const Color(0xFF1A1D21)
-        : Colors.grey[100];
+        ? theme.colorScheme.surface
+        : theme.cardColor;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1028,53 +1039,49 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     ),
                   ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+                Material(
+                  elevation: isDark ? 0 : 1,
+                  color: isMe ? myBubbleColor : otherBubbleColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(12),
+                    topRight: const Radius.circular(12),
+                    bottomLeft: Radius.circular(isMe ? 12 : 6),
+                    bottomRight: Radius.circular(isMe ? 6 : 12),
                   ),
-                  decoration: BoxDecoration(
-                    color: isMe ? myBubbleColor : otherBubbleColor,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(14),
-                      topRight: const Radius.circular(14),
-                      bottomLeft: Radius.circular(isMe ? 14 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 14),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
                     ),
-                    border: Border.all(
-                      color: theme.dividerColor.withOpacity(0.1),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Media handling
-                      if (message.mediaMetadata != null) ...[
-                        _buildMetadataAttachment(
-                          context,
-                          message.mediaMetadata!,
-                        ),
-                        if (message.message.isNotEmpty)
-                          const SizedBox(height: 8),
-                      ]
-                      // Legacy URL support (images/PDFs)
-                      else if (message.imageUrl != null) ...[
-                        _buildLegacyAttachment(context, message.imageUrl!),
-                        if (message.message.isNotEmpty)
-                          const SizedBox(height: 8),
-                      ],
-                      if (message.message.isNotEmpty)
-                        Text(
-                          message.message,
-                          style: TextStyle(
-                            color: theme.textTheme.bodyLarge?.color,
-                            fontSize: 14,
-                            height: 1.45,
-                            letterSpacing: 0.1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Media handling
+                        if (message.mediaMetadata != null) ...[
+                          _buildMetadataAttachment(
+                            context,
+                            message.mediaMetadata!,
                           ),
-                        ),
-                    ],
+                          if (message.message.isNotEmpty)
+                            const SizedBox(height: 8),
+                        ]
+                        // Legacy URL support (images/PDFs)
+                        else if (message.imageUrl != null) ...[
+                          _buildLegacyAttachment(context, message.imageUrl!),
+                          if (message.message.isNotEmpty)
+                            const SizedBox(height: 8),
+                        ],
+                        if (message.message.isNotEmpty)
+                          Text(
+                            message.message,
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface,
+                              fontSize: 14,
+                              height: 1.5,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),

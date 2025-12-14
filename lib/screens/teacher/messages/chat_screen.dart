@@ -691,26 +691,31 @@ class _ChatScreenState extends State<ChatScreen> {
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-              decoration: BoxDecoration(
-                color: isTeacher
-                    ? const Color(0xFF232629)
-                    : const Color(0xFF1A1D21),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isTeacher ? 16 : 4),
-                  bottomRight: Radius.circular(isTeacher ? 4 : 16),
-                ),
+            Material(
+              elevation: isDark ? 0 : 1,
+              color: isTeacher
+                  ? (isDark
+                        ? theme.colorScheme.surface
+                        : theme.colorScheme.surfaceVariant)
+                  : (isDark ? theme.colorScheme.surface : theme.cardColor),
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(12),
+                topRight: const Radius.circular(12),
+                bottomLeft: Radius.circular(isTeacher ? 12 : 6),
+                bottomRight: Radius.circular(isTeacher ? 6 : 12),
               ),
-              child: Text(
-                message.text,
-                style: const TextStyle(
-                  color: Color(0xFFE8E8E8),
-                  fontSize: 15,
-                  height: 1.45,
-                  letterSpacing: 0.15,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: Text(
+                  message.text,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -726,9 +731,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 children: [
                   Text(
                     _formatMessageTime(message.createdAt),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: Color(0xFF6B7075),
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
                     ),
                   ),
                   if (isTeacher) ...[
@@ -780,15 +785,9 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildComposer(ThemeData theme, bool isDark) {
-    // Calm, composed input bar
-    const barColor = Color(0xFF0F1113);
-    const bubbleColor = Color(0xFF1A1D21);
-    const accentColor = Color(0xFFFFA726); // Subtle orange accent
-    const iconColor = Color(0xFF6B7075);
-
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: const BoxDecoration(color: barColor),
+      decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
       child: SafeArea(
         top: false,
         child: Column(
@@ -799,8 +798,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: LinearProgressIndicator(
                   value: (_uploadProgress.clamp(0, 100)) / 100,
-                  backgroundColor: Colors.grey.shade300,
-                  color: accentColor,
+                  backgroundColor: theme.colorScheme.surfaceVariant,
+                  color: theme.primaryColor,
                   minHeight: 4,
                 ),
               ),
@@ -809,12 +808,14 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
                     decoration: BoxDecoration(
-                      color: bubbleColor,
-                      borderRadius: BorderRadius.circular(24),
+                      color: isDark
+                          ? theme.colorScheme.surface
+                          : theme.colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: const Color(0xFF2A2D31),
+                        color: theme.colorScheme.outline.withOpacity(0.5),
                         width: 1,
                       ),
                     ),
@@ -823,7 +824,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         IconButton(
                           icon: Icon(
                             Icons.sentiment_satisfied_outlined,
-                            color: iconColor,
+                            color: theme.textTheme.bodySmall?.color,
                             size: 22,
                           ),
                           padding: const EdgeInsets.all(8),
@@ -842,8 +843,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: TextField(
                             controller: _messageController,
                             focusNode: _focusNode,
-                            style: const TextStyle(
-                              color: Color(0xFFE8E8E8),
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface,
                               fontSize: 15,
                               height: 1.4,
                             ),
@@ -851,8 +852,8 @@ class _ChatScreenState extends State<ChatScreen> {
                               hintText: _isRecording
                                   ? 'Recording...'
                                   : 'Message',
-                              hintStyle: const TextStyle(
-                                color: iconColor,
+                              hintStyle: TextStyle(
+                                color: theme.textTheme.bodySmall?.color,
                                 fontSize: 15,
                               ),
                               border: InputBorder.none,
@@ -872,7 +873,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: Icon(Icons.attach_file, color: iconColor, size: 26),
+                  icon: Icon(
+                    Icons.attach_file,
+                    color: theme.textTheme.bodySmall?.color,
+                    size: 24,
+                  ),
                   padding: const EdgeInsets.all(8),
                   onPressed: _isUploading ? null : _pickAttachmentSheet,
                 ),
@@ -910,14 +915,23 @@ class _ChatScreenState extends State<ChatScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: _isRecording ? Colors.redAccent : accentColor,
+                      color: _isRecording
+                          ? theme.colorScheme.error
+                          : theme.primaryColor,
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.primaryColor.withOpacity(0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: Icon(
                       _isRecording
                           ? Icons.mic
                           : (_hasText ? Icons.send_rounded : Icons.mic),
-                      color: Colors.white,
+                      color: theme.colorScheme.onPrimary,
                       size: 24,
                     ),
                   ),

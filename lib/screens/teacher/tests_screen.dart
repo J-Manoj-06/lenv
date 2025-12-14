@@ -251,34 +251,35 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     final isDark = theme.brightness == Brightness.dark;
     return Container(
       color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
       child: TextField(
         controller: _searchController,
         style: TextStyle(color: theme.textTheme.bodyLarge?.color),
         decoration: InputDecoration(
           hintText: 'Search for a test...',
-          hintStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
+          hintStyle: TextStyle(
+            color: theme.textTheme.bodySmall?.color?.withOpacity(0.9),
+          ),
           prefixIcon: Icon(
             Icons.search,
             color: theme.textTheme.bodySmall?.color,
           ),
           filled: true,
-          fillColor: isDark ? const Color(0xFF1A1C20) : theme.colorScheme.surfaceVariant.withOpacity(0.5),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: theme.dividerColor.withOpacity(0.6)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: theme.dividerColor.withOpacity(0.6)),
-          ),
+          fillColor: isDark
+              ? const Color(0xFF1A1C20)
+              : theme.colorScheme.surfaceVariant.withOpacity(0.35),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: theme.primaryColor, width: 1.5),
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+              color: theme.primaryColor.withOpacity(0.3),
+              width: 1,
+            ),
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
-            vertical: 10,
+            vertical: 8,
           ),
         ),
         onChanged: (value) {
@@ -310,24 +311,38 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                   _armTicker();
                 },
                 child: Container(
-                  height: 32,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  height: 34,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? theme.primaryColor.withOpacity(0.12)
-                        : (isDark ? const Color(0xFF1A1C20) : theme.colorScheme.surfaceVariant.withOpacity(0.4)),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: theme.dividerColor.withOpacity(isSelected ? 0.0 : 0.6)),
+                        ? theme.primaryColor.withOpacity(0.18)
+                        : (isDark
+                              ? const Color(0xFF1A1C20)
+                              : theme.colorScheme.surfaceVariant.withOpacity(
+                                  0.25,
+                                )),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: theme.primaryColor.withOpacity(0.12),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Center(
                     child: Text(
                       tabLabels[index],
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: isSelected
-                            ? theme.primaryColor
-                            : theme.textTheme.bodySmall?.color?.withOpacity(0.8),
+                            ? theme.colorScheme.onPrimary
+                            : theme.textTheme.bodySmall?.color?.withOpacity(
+                                0.8,
+                              ),
                       ),
                     ),
                   ),
@@ -552,311 +567,355 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
           },
         );
       },
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.6)),
-        ),
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: statusBgColor,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: statusColor,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.9),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF111315)
-                        : Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.6),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(subjectIcon, color: iconColor, size: 22),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Time/Date info - Fixed height container for consistent card sizes
-            SizedBox(
-              height: 60,
-              child: Column(
+      borderRadius: BorderRadius.circular(16),
+      child: Material(
+        color: Theme.of(context).cardColor,
+        elevation: Theme.of(context).brightness == Brightness.dark ? 0 : 1,
+        shadowColor: Theme.of(context).primaryColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  if (isLive)
-                    FutureBuilder<List<int>>(
-                      future: Future.wait([
-                        _getCompletedCount(testId ?? ''),
-                        _getTotalStudentsInClass(
-                          className,
-                          section,
-                          schoolCode,
-                        ),
-                      ]),
-                      builder: (context, snapshot) {
-                        final completedCount = snapshot.data?[0] ?? 0;
-                        final totalCount = snapshot.data?[1] ?? 0;
-                        final progress = totalCount > 0
-                            ? completedCount / totalCount
-                            : 0.0;
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: double.infinity,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).dividerColor.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: progress > 0
-                                  ? FractionallySizedBox(
-                                      alignment: Alignment.centerLeft,
-                                      widthFactor: progress,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFA726),
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '$completedCount / $totalCount students completed',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    )
-                  else if (isPast)
-                    FutureBuilder<List<int>>(
-                      future: Future.wait([
-                        _getCompletedCount(testId ?? ''),
-                        _getTotalStudentsInClass(
-                          className,
-                          section,
-                          schoolCode,
-                        ),
-                      ]),
-                      builder: (context, snapshot) {
-                        final completedCount = snapshot.data?[0] ?? 0;
-                        final totalCount = snapshot.data?[1] ?? 0;
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Completed: ${_formatDateTime(endDate)}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              width: double.infinity,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).dividerColor.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: totalCount > 0 && completedCount > 0
-                                  ? FractionallySizedBox(
-                                      alignment: Alignment.centerLeft,
-                                      widthFactor: completedCount / totalCount,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF7961FF),
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '$completedCount / $totalCount students completed',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    )
-                  else
-                    Text(
-                      'Scheduled: ${_formatDateTime(startDate)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Footer buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                if (isLive)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7961FF).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(9999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        StreamBuilder<DateTime>(
-                          stream: Stream<DateTime>.periodic(
-                            const Duration(seconds: 1),
-                            (_) => DateTime.now(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
                           ),
-                          builder: (context, snapshot) {
-                            final now = snapshot.data ?? DateTime.now();
-                            final remaining = endDate.difference(now);
-                            final hh = remaining.inHours.toString().padLeft(
-                              2,
-                              '0',
-                            );
-                            final mm = (remaining.inMinutes % 60)
-                                .toString()
-                                .padLeft(2, '0');
-                            final ss = (remaining.inSeconds % 60)
-                                .toString()
-                                .padLeft(2, '0');
-
-                            return Row(
-                              children: [
-                                const Icon(
-                                  Icons.timer,
-                                  color: Color(0xFF7961FF),
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '$hh:$mm:$ss',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF7961FF),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                          decoration: BoxDecoration(
+                            color: statusBgColor,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            status,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: statusColor,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.color?.withOpacity(0.9),
+                          ),
                         ),
                       ],
                     ),
-                  )
-                else if (isPast)
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/test-result',
-                        arguments: {
-                          'testId': testId ?? '',
-                          'name': title,
-                          'class': subtitle,
-                          'status': status,
-                          'endTime': '',
-                        },
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
+                  ),
+                  const SizedBox(width: 16),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF111315)
+                          : Theme.of(
+                              context,
+                            ).colorScheme.surfaceVariant.withOpacity(0.6),
+                      shape: BoxShape.circle,
                     ),
-                    child: const Text('View Results', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  )
-                else
-                  const SizedBox(),
+                    child: Icon(subjectIcon, color: iconColor, size: 22),
+                  ),
+                ],
+              ),
 
-                // Delete button
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  iconSize: 20,
-                  color: Theme.of(context).colorScheme.error,
-                  onPressed: () {
-                    if (onDelete != null) {
-                      _showDeleteDialogConfirm(title, onDelete);
-                    }
-                  },
+              const SizedBox(height: 12),
+
+              // Time/Date info - Fixed height container for consistent card sizes
+              SizedBox(
+                height: 60,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    if (isLive)
+                      FutureBuilder<List<int>>(
+                        future: Future.wait([
+                          _getCompletedCount(testId ?? ''),
+                          _getTotalStudentsInClass(
+                            className,
+                            section,
+                            schoolCode,
+                          ),
+                        ]),
+                        builder: (context, snapshot) {
+                          final completedCount = snapshot.data?[0] ?? 0;
+                          final totalCount = snapshot.data?[1] ?? 0;
+                          final progress = totalCount > 0
+                              ? completedCount / totalCount
+                              : 0.0;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).dividerColor.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: progress > 0
+                                    ? FractionallySizedBox(
+                                        alignment: Alignment.centerLeft,
+                                        widthFactor: progress,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFA726),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '$completedCount / $totalCount students completed',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color
+                                      ?.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      )
+                    else if (isPast)
+                      FutureBuilder<List<int>>(
+                        future: Future.wait([
+                          _getCompletedCount(testId ?? ''),
+                          _getTotalStudentsInClass(
+                            className,
+                            section,
+                            schoolCode,
+                          ),
+                        ]),
+                        builder: (context, snapshot) {
+                          final completedCount = snapshot.data?[0] ?? 0;
+                          final totalCount = snapshot.data?[1] ?? 0;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Completed: ${_formatDateTime(endDate)}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color
+                                      ?.withOpacity(0.7),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                width: double.infinity,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).dividerColor.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: totalCount > 0 && completedCount > 0
+                                    ? FractionallySizedBox(
+                                        alignment: Alignment.centerLeft,
+                                        widthFactor:
+                                            completedCount / totalCount,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF7961FF),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '$completedCount / $totalCount students completed',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color
+                                      ?.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      )
+                    else
+                      Text(
+                        'Scheduled: ${_formatDateTime(startDate)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.color?.withOpacity(0.7),
+                        ),
+                      ),
+                  ],
                 ),
-              ],
-            ),
-          ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Footer buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (isLive)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          StreamBuilder<DateTime>(
+                            stream: Stream<DateTime>.periodic(
+                              const Duration(seconds: 1),
+                              (_) => DateTime.now(),
+                            ),
+                            builder: (context, snapshot) {
+                              final now = snapshot.data ?? DateTime.now();
+                              final remaining = endDate.difference(now);
+                              final hh = remaining.inHours.toString().padLeft(
+                                2,
+                                '0',
+                              );
+                              final mm = (remaining.inMinutes % 60)
+                                  .toString()
+                                  .padLeft(2, '0');
+                              final ss = (remaining.inSeconds % 60)
+                                  .toString()
+                                  .padLeft(2, '0');
+
+                              return Row(
+                                children: [
+                                  Icon(
+                                    Icons.timer,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '$hh:$mm:$ss',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).primaryColor,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (isPast)
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/test-result',
+                          arguments: {
+                            'testId': testId ?? '',
+                            'name': title,
+                            'class': subtitle,
+                            'status': status,
+                            'endTime': '',
+                          },
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7A5CFF),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: const Text(
+                        'View Results',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox(),
+
+                  // Delete button
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    iconSize: 20,
+                    color: Theme.of(context).colorScheme.error,
+                    onPressed: () {
+                      if (onDelete != null) {
+                        _showDeleteDialogConfirm(title, onDelete);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -870,7 +929,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
         onPressed: () => Navigator.pushNamed(context, '/create-test-entry'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        elevation: 2,
+        elevation: 1,
         child: const Icon(Icons.add),
       ),
     );

@@ -102,11 +102,8 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           gradient: isSelected
-              ? LinearGradient(
-                  colors: [
-                    Theme.of(context).primaryColor,
-                    Theme.of(context).primaryColor.withOpacity(0.85),
-                  ],
+              ? const LinearGradient(
+                  colors: [Color(0xFF7A5CFF), Color(0xFF7A5CFF)],
                 )
               : null,
           borderRadius: BorderRadius.circular(50),
