@@ -56,6 +56,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
   bool _isRecording = false;
+  String _uploadingMediaType =
+      ''; // Track what type of media is uploading: 'image', 'pdf', 'audio'
   bool _showEmojiPicker = false;
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
@@ -223,7 +225,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
         throw Exception('User not authenticated');
       }
 
-      setState(() => _isUploading = true);
+      setState(() {
+        _isUploading = true;
+        _uploadingMediaType = 'image';
+      });
 
       // WhatsApp-style upload: compression + thumbnails + temporary storage
       final conversationId = '${widget.classId}_${widget.subjectId}';
@@ -239,7 +244,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
         },
       );
 
-      setState(() => _isUploading = false);
+      setState(() {
+        _isUploading = false;
+        _uploadingMediaType = '';
+      });
 
       if (result.success && result.metadata != null) {
         // Send message with media metadata (no imageUrl for WhatsApp-style)
@@ -275,7 +283,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
         throw Exception('User not authenticated');
       }
 
-      setState(() => _isUploading = true);
+      setState(() {
+        _isUploading = true;
+        _uploadingMediaType = 'pdf';
+      });
 
       // Upload to Cloudflare R2 using MediaUploadService
       final conversationId = '${widget.classId}_${widget.subjectId}';
@@ -353,7 +364,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
         throw Exception('User not authenticated');
       }
 
-      setState(() => _isUploading = true);
+      setState(() {
+        _isUploading = true;
+        _uploadingMediaType = 'audio';
+      });
 
       final conversationId = '${widget.classId}_${widget.subjectId}';
 
@@ -561,9 +575,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Text(
-                      'Sending audio...',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    Text(
+                      _uploadingMediaType == 'image'
+                          ? 'Sending image...'
+                          : _uploadingMediaType == 'pdf'
+                          ? 'Sending PDF...'
+                          : _uploadingMediaType == 'audio'
+                          ? 'Sending audio...'
+                          : 'Uploading...',
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
                     ),
                   ],
                 )

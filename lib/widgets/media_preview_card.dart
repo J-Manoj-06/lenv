@@ -89,6 +89,11 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         _localPath = path;
       });
     }
+
+    // If sender viewing their own media and it isn't cached, auto-download silently
+    if (widget.isMe && !_isDownloaded && !_isDownloading) {
+      _download();
+    }
   }
 
   Future<void> _download() async {
@@ -410,8 +415,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   ),
                 ),
 
-              // Download overlay if not downloaded
-              if (!_isDownloaded && !_isDownloading)
+              // Download overlay only for receivers; sender auto-fetches silently
+              if (!_isDownloaded && !_isDownloading && !widget.isMe)
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
