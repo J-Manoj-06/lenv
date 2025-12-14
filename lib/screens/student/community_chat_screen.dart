@@ -21,6 +21,8 @@ import '../../config/cloudflare_config.dart';
 import '../../widgets/chat_image_widget.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/modern_attachment_sheet.dart';
+import '../../models/media_metadata.dart';
+import '../../widgets/media_preview_card.dart';
 
 class CommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -372,16 +374,33 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
       setState(() => _isUploading = false);
 
-      // Send message with R2 URL
+      debugPrint('📦 PDF Upload complete:');
+      debugPrint('   File size: ${mediaMessage.fileSize} bytes');
+      debugPrint('   File type: ${mediaMessage.fileType}');
+      debugPrint('   R2 URL: ${mediaMessage.r2Url}');
+
+      // Create MediaMetadata with file size for proper display
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '', // No thumbnail for PDF
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+      );
+
+      // Send message with metadata (not just URL)
       await _communityService.sendMessage(
         communityId: widget.community.id,
         senderId: student.uid,
         senderName: student.name,
         senderRole: 'Student',
-        content: '', // Empty content for PDF-only messages
-        fileUrl: mediaMessage.r2Url,
-        fileName: fileName,
+        content: '',
         mediaType: 'pdf',
+        mediaMetadata: metadata,
       );
 
       if (mounted) {
@@ -438,15 +457,32 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
       setState(() => _isUploading = false);
 
+      debugPrint('🎵 Audio Upload complete:');
+      debugPrint('   File size: ${mediaMessage.fileSize} bytes');
+      debugPrint('   R2 URL: ${mediaMessage.r2Url}');
+
+      // Create MediaMetadata with file size
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+      );
+
+      // Send message with metadata
       await _communityService.sendMessage(
         communityId: widget.community.id,
         senderId: student.uid,
         senderName: student.name,
         senderRole: 'Student',
         content: '',
-        fileUrl: mediaMessage.r2Url,
-        fileName: fileName,
         mediaType: 'audio',
+        mediaMetadata: metadata,
       );
 
       if (mounted) {
@@ -679,6 +715,20 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     }
   }
 
+  String _getFileNameFromMetadata(MediaMetadata metadata) {
+    final parts = metadata.r2Key.split('/').where((p) => p.isNotEmpty).toList();
+    if (parts.isNotEmpty) return parts.last;
+    return _getFileNameFromUrl(metadata.publicUrl);
+  }
+
+  String _getFileNameFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.last;
+    }
+    return 'file';
+  }
+
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: const Color(0xFF131517),
@@ -894,9 +944,21 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // WhatsApp-style media with metadata
+                          // Media with metadata (images, PDFs, audio)
                           if (message.mediaMetadata != null) ...[
-                            ChatImageWidget(metadata: message.mediaMetadata!),
+                            MediaPreviewCard(
+                              r2Key: message.mediaMetadata!.r2Key,
+                              fileName: _getFileNameFromMetadata(
+                                message.mediaMetadata!,
+                              ),
+                              mimeType:
+                                  message.mediaMetadata!.mimeType ??
+                                  'application/octet-stream',
+                              fileSize: message.mediaMetadata!.fileSize ?? 0,
+                              thumbnailBase64: message.mediaMetadata!.thumbnail,
+                              localPath: message.mediaMetadata!.localPath,
+                              isMe: isCurrentUser,
+                            ),
                             if (message.content.isNotEmpty)
                               const SizedBox(height: 8),
                           ],
