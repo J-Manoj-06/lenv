@@ -19,10 +19,14 @@ class ParentDashboardScreen extends StatefulWidget {
 class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   // Parent green theme colors
   static const Color parentGreen = Color(0xFF14A670);
-  static const Color backgroundLight = Color(0xFFF6F6F8);
-  static const Color backgroundDark = Color(0xFF151022);
-  static const Color cardBg = Colors.white;
-  static const Color textPrimary = Color(0xFF110D1B);
+
+  Color _scaffoldBg(BuildContext context) =>
+      Theme.of(context).scaffoldBackgroundColor;
+
+  Color _cardColor(BuildContext context) => Theme.of(context).cardColor;
+
+  Color _onBackground(BuildContext context) =>
+      Theme.of(context).colorScheme.onBackground;
 
   final PageController _childrenPageController = PageController();
 
@@ -61,7 +65,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         // Show loading if still loading children
         if (parentProvider.isLoadingChildren) {
           return Scaffold(
-            backgroundColor: isDark ? backgroundDark : backgroundLight,
+            backgroundColor: _scaffoldBg(context),
             body: const Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(parentGreen),
@@ -73,7 +77,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         // Show message if no children found
         if (!parentProvider.hasChildren) {
           return Scaffold(
-            backgroundColor: isDark ? backgroundDark : backgroundLight,
+            backgroundColor: _scaffoldBg(context),
             body: SafeArea(
               child: Center(
                 child: Column(
@@ -90,7 +94,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : textPrimary,
+                        color: isDark ? Colors.white : _onBackground(context),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -126,7 +130,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         final performanceStats = parentProvider.performanceStats;
 
         return Scaffold(
-          backgroundColor: isDark ? backgroundDark : backgroundLight,
+          backgroundColor: _scaffoldBg(context),
           body: SafeArea(
             child: Column(
               children: [
@@ -199,7 +203,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+          color: _cardColor(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isDark ? Colors.white.withOpacity(0.08) : Colors.transparent,
@@ -264,7 +268,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white : textPrimary,
+                              color: isDark
+                                  ? Colors.white
+                                  : _onBackground(context),
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -303,7 +309,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       Text(
                         'Preparing your section group…',
                         style: TextStyle(
-                          color: isDark ? Colors.white : textPrimary,
+                          color: isDark ? Colors.white : _onBackground(context),
                         ),
                       ),
                     ],
@@ -321,7 +327,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             Text(
                               'Could not load section group',
                               style: TextStyle(
-                                color: isDark ? Colors.white : textPrimary,
+                                color: isDark
+                                    ? Colors.white
+                                    : _onBackground(context),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -376,7 +384,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   Widget _buildHeader(bool isDark, AuthProvider authProvider) {
     return Container(
       padding: const EdgeInsets.all(16),
-      color: isDark ? backgroundDark : backgroundLight,
+      color: _scaffoldBg(context),
       child: Row(
         children: [
           // Profile Picture - Now clickable
@@ -415,7 +423,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : textPrimary,
+                color: isDark ? Colors.white : _onBackground(context),
               ),
             ),
           ),
@@ -427,7 +435,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             },
             icon: Icon(
               Icons.notifications_outlined,
-              color: isDark ? Colors.white : textPrimary,
+              color: isDark ? Colors.white : _onBackground(context),
             ),
           ),
         ],
@@ -450,6 +458,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         itemBuilder: (context, index) {
           final child = children[index];
           final isActive = index == selectedIndex;
+          final cardColor = _cardColor(context);
 
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -458,11 +467,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: isActive
-                      ? (isDark ? backgroundDark.withOpacity(0.5) : cardBg)
-                      : (isDark
-                            ? backgroundDark.withOpacity(0.2)
-                            : cardBg.withOpacity(0.5)),
+                  color: cardColor.withOpacity(
+                    isActive ? 1.0 : (isDark ? 0.6 : 0.8),
+                  ),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isDark
@@ -609,7 +616,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                                       : parentGreen.withOpacity(0.2),
                                   foregroundColor: isActive
                                       ? Colors.white
-                                      : (isDark ? Colors.white : textPrimary),
+                                      : (isDark
+                                            ? Colors.white
+                                            : _onBackground(context)),
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 10,
                                   ),
@@ -727,7 +736,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : textPrimary,
+                  color: isDark ? Colors.white : _onBackground(context),
                 ),
               ),
             ],
@@ -896,7 +905,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isDark ? backgroundDark : Colors.white,
+                color: _scaffoldBg(context),
               ),
               padding: const EdgeInsets.all(2),
               child: CircleAvatar(
@@ -941,7 +950,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       builder: (context) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         return AlertDialog(
-          backgroundColor: isDark ? backgroundDark : Colors.white,
+          backgroundColor: _cardColor(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -967,7 +976,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : textPrimary,
+                        color: isDark ? Colors.white : _onBackground(context),
                       ),
                     ),
                     Text(
@@ -991,7 +1000,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : textPrimary,
+                  color: isDark ? Colors.white : _onBackground(context),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1039,7 +1048,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : textPrimary,
+                color: isDark ? Colors.white : _onBackground(context),
               ),
             ),
           ),
@@ -1089,7 +1098,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+        color: _cardColor(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? Colors.white.withOpacity(0.1) : Colors.transparent,
@@ -1111,7 +1120,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : textPrimary,
+              color: isDark ? Colors.white : _onBackground(context),
             ),
           ),
           const SizedBox(height: 4),
@@ -1148,7 +1157,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : textPrimary,
+                    color: isDark ? Colors.white : _onBackground(context),
                   ),
                 ),
                 if (rewardRequests.isNotEmpty)
@@ -1179,7 +1188,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+                color: _cardColor(context),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isDark
@@ -1216,7 +1225,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+                  color: _cardColor(context),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isDark
@@ -1255,7 +1264,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.white : textPrimary,
+                              color: isDark
+                                  ? Colors.white
+                                  : _onBackground(context),
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -1341,7 +1352,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : textPrimary,
+                    color: isDark ? Colors.white : _onBackground(context),
                   ),
                 ),
                 TextButton(
@@ -1366,7 +1377,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+                color: _cardColor(context),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isDark
@@ -1395,7 +1406,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isDark ? backgroundDark.withOpacity(0.5) : cardBg,
+                  color: _cardColor(context),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isDark
@@ -1452,7 +1463,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
-                                color: isDark ? Colors.white : textPrimary,
+                                color: isDark
+                                    ? Colors.white
+                                    : _onBackground(context),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

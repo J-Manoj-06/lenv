@@ -99,8 +99,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         if (_isInitializing ||
             studentProvider.isLoading ||
             studentProvider.currentStudent == null) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF16171A),
+          return Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -125,7 +125,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         final authUser = Provider.of<AuthProvider>(context).currentUser;
 
         return Scaffold(
-          backgroundColor: const Color(0xFF16171A),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: RefreshIndicator(
             onRefresh: _loadDashboardData,
             color: const Color(0xFFF2800D),
@@ -212,8 +212,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       firstName = 'Student';
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: const Color(0xFF16171A),
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
           const SizedBox(height: 64),
@@ -228,21 +229,23 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     children: [
                       Text(
                         'Hi, $firstName 👋',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: isDark ? Colors.white : Colors.black87,
                           height: 1.2,
                         ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         "Here's your progress for today",
                         style: TextStyle(
                           fontSize: 15,
-                          color: Color(0xFFE5E5E5),
+                          color: isDark
+                              ? const Color(0xFFE5E5E5)
+                              : Colors.grey.shade600,
                           fontWeight: FontWeight.w400,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -322,6 +325,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 
   Widget _buildProfileIcon() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -332,11 +336,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1E),
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF2C2C2E), width: 1),
+          border: Border.all(
+            color: isDark ? const Color(0xFF2C2C2E) : Colors.grey.shade300,
+            width: 1,
+          ),
         ),
-        child: const Icon(Icons.person_outline, color: Colors.white, size: 24),
+        child: Icon(
+          Icons.person_outline,
+          color: isDark ? Colors.white : Colors.black87,
+          size: 24,
+        ),
       ),
     );
   }
@@ -454,19 +465,25 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(bottom: 12),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
           child: Row(
             children: [
-              Icon(Icons.campaign, color: Color(0xFFF2800D), size: 20),
-              SizedBox(width: 8),
-              Text(
-                '📢 Announcements',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+              const Icon(Icons.campaign, color: Color(0xFFF2800D), size: 20),
+              const SizedBox(width: 8),
+              Builder(
+                builder: (context) {
+                  final isDark =
+                      Theme.of(context).brightness == Brightness.dark;
+                  return Text(
+                    '📢 Announcements',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -546,6 +563,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     VoidCallback onTap, {
     int count = 1,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -565,14 +583,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         )
                       : null,
                   border: !isUnread
-                      ? Border.all(color: Colors.grey[700]!, width: 2)
+                      ? Border.all(
+                          color: isDark ? Colors.grey[700]! : Colors.grey[400]!,
+                          width: 2,
+                        )
                       : null,
                 ),
                 padding: const EdgeInsets.all(3),
                 child: Container(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Color(0xFF16171A),
+                    color: Theme.of(context).scaffoldBackgroundColor,
                   ),
                   padding: const EdgeInsets.all(2),
                   child: CircleAvatar(
@@ -599,7 +620,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       color: const Color(0xFFF2800D),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: const Color(0xFF16171A),
+                        color: Theme.of(context).scaffoldBackgroundColor,
                         width: 2,
                       ),
                     ),
@@ -628,7 +649,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
-                color: isUnread ? const Color(0xFFF2800D) : Colors.white70,
+                color: isUnread
+                    ? const Color(0xFFF2800D)
+                    : (isDark ? Colors.white70 : Colors.black54),
               ),
               textAlign: TextAlign.center,
               maxLines: 1,
@@ -1052,15 +1075,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           future: _getTopperPoints(student),
           builder: (context, topperSnapshot) {
             final topperPoints = topperSnapshot.data ?? 0;
+            final isDark = Theme.of(context).brightness == Brightness.dark;
 
             return Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C1E),
+                color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
+                border: isDark ? null : Border.all(color: Colors.grey.shade200),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -1075,19 +1100,21 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   // Points Info
                   Text(
                     'Your Points: $studentPoints',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Topper: $topperPoints pts',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFFBBBBBB),
+                      color: isDark
+                          ? const Color(0xFFBBBBBB)
+                          : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -1107,6 +1134,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     } else if (studentPoints > 0) {
       percentage = 1.0;
     }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: percentage),
@@ -1133,20 +1162,24 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               children: [
                 Text(
                   '$studentPoints',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    shadows: [Shadow(color: Colors.white24, blurRadius: 8)],
+                    color: isDark ? Colors.white : Colors.black87,
+                    shadows: isDark
+                        ? [Shadow(color: Colors.white24, blurRadius: 8)]
+                        : null,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'POINTS',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFBBBBBB),
+                    color: isDark
+                        ? const Color(0xFFBBBBBB)
+                        : Colors.grey.shade600,
                     letterSpacing: 1.2,
                   ),
                 ),
@@ -1429,14 +1462,20 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Assigned Test',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    height: 1.2,
-                  ),
+                Builder(
+                  builder: (context) {
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    return Text(
+                      'Assigned Test',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                        height: 1.2,
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 ...liveTests.take(3).map((test) => _buildTestCard(test)),
@@ -1454,16 +1493,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         test.endDate.year == now.year &&
         test.endDate.month == now.month &&
         test.endDate.day == now.day;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
+        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: isDark ? null : Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1479,10 +1520,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               Expanded(
                 child: Text(
                   test.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: isDark ? Colors.white : Colors.black87,
                     height: 1.3,
                   ),
                 ),
@@ -1512,11 +1553,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           // Due date
           Row(
             children: [
-              const Icon(Icons.access_time, color: Colors.white70, size: 16),
+              Icon(
+                Icons.access_time,
+                color: isDark ? Colors.white70 : Colors.grey.shade600,
+                size: 16,
+              ),
               const SizedBox(width: 6),
               Text(
                 'Due Today, ${_formatTime(test.endDate)}',
-                style: const TextStyle(fontSize: 13, color: Colors.white70),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white70 : Colors.grey.shade600,
+                ),
               ),
             ],
           ),
@@ -1524,15 +1572,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           // Questions count
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.article_outlined,
-                color: Colors.white70,
+                color: isDark ? Colors.white70 : Colors.grey.shade600,
                 size: 16,
               ),
               const SizedBox(width: 6),
               Text(
                 '${test.questions.length} Questions',
-                style: const TextStyle(fontSize: 13, color: Colors.white70),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white70 : Colors.grey.shade600,
+                ),
               ),
             ],
           ),
@@ -1596,98 +1647,125 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Performance',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                height: 1.2,
-              ),
+            Builder(
+              builder: (context) {
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+                return Text(
+                  'Performance',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                    height: 1.2,
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1C1C1E),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  // Circular score
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 120,
-                        height: 120,
-                        child: CustomPaint(
-                          painter: CircularProgressPainter(
-                            progress: avgScore / 100,
-                            strokeWidth: 12,
-                          ),
-                        ),
+            Builder(
+              builder: (context) {
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+                return Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: isDark
+                        ? null
+                        : Border.all(color: Colors.grey.shade200),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      // Circular score
+                      Stack(
+                        alignment: Alignment.center,
                         children: [
-                          Text(
-                            '${avgScore.toInt()}%',
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              shadows: [
-                                Shadow(color: Colors.white24, blurRadius: 8),
-                              ],
+                          SizedBox(
+                            width: 120,
+                            height: 120,
+                            child: CustomPaint(
+                              painter: CircularProgressPainter(
+                                progress: avgScore / 100,
+                                strokeWidth: 12,
+                              ),
                             ),
                           ),
-                          const Text(
-                            'Avg. Score',
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${avgScore.toInt()}%',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                  shadows: isDark
+                                      ? [
+                                          Shadow(
+                                            color: Colors.white24,
+                                            blurRadius: 8,
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                              ),
+                              Text(
+                                'Avg. Score',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark
+                                      ? Colors.white70
+                                      : Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      // Tests taken
+                      Column(
+                        children: [
+                          Text(
+                            '$testsTaken',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : Colors.black87,
+                              shadows: isDark
+                                  ? [
+                                      Shadow(
+                                        color: Colors.white24,
+                                        blurRadius: 8,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                          Text(
+                            'Tests Taken',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white70,
+                              color: isDark
+                                  ? Colors.white70
+                                  : Colors.grey.shade600,
                             ),
                           ),
                         ],
                       ),
                     ],
                   ),
-                  // Tests taken
-                  Column(
-                    children: [
-                      Text(
-                        '$testsTaken',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(color: Colors.white24, blurRadius: 8),
-                          ],
-                        ),
-                      ),
-                      const Text(
-                        'Tests Taken',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );

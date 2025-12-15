@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/daily_challenge_provider.dart';
 import '../../providers/student_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../services/leaderboard_service.dart';
 import '../../services/student_service.dart';
 import '../../services/firestore_service.dart';
@@ -149,6 +150,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
 
   Widget _buildHeader() {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
       decoration: BoxDecoration(
@@ -162,10 +164,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             child: Text(
               'My Profile',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: isDark ? Colors.white : Colors.black87,
                 letterSpacing: 0.2,
               ),
             ),
@@ -187,7 +189,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               child: Icon(
                 Icons.settings,
                 size: 22,
-                color: Colors.white.withOpacity(0.8),
+                color: isDark ? Colors.white.withOpacity(0.8) : Colors.black54,
               ),
             ),
           ),
@@ -198,6 +200,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
 
   Widget _buildProfileHeader(dynamic user) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final String name =
         _studentData?.name ??
         user?.name ??
@@ -244,10 +247,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 const SizedBox(height: 16),
                 Text(
                   name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -280,21 +283,24 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
-  Widget _badge(String text) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    decoration: BoxDecoration(
-      color: Theme.of(context).cardColor,
-      borderRadius: BorderRadius.circular(24),
-    ),
-    child: Text(
-      text,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: Color(0xFFA3A3A3),
+  Widget _badge(String text) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
       ),
-    ),
-  );
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: isDark ? const Color(0xFFA3A3A3) : Colors.grey.shade600,
+        ),
+      ),
+    );
+  }
 
   String _initialsFromName(String name) {
     final parts = name.trim().split(' ');
@@ -354,15 +360,19 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   Widget _statCell(String label, String value, double width) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: width,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF242424),
+        color: isDark ? const Color(0xFF242424) : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade200,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withOpacity(isDark ? 0.25 : 0.08),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -373,19 +383,19 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: Color(0xFFA3A3A3),
+              color: isDark ? const Color(0xFFA3A3A3) : Colors.grey.shade600,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: isDark ? Colors.white : Colors.black87,
               height: 1.0,
             ),
           ),
@@ -396,6 +406,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
 
   Widget _buildPersonalInfoSection(dynamic user) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final String email = _studentData?.email ?? user?.email ?? 'N/A';
     final String phone = _studentData?.phone ?? 'N/A';
     final String schoolName = _studentData?.schoolName ?? 'N/A';
@@ -423,9 +434,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF242424),
+              color: isDark ? const Color(0xFF242424) : Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF3A3A3A)),
+              border: Border.all(
+                color: isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade300,
+              ),
             ),
             child: Column(
               children: [
@@ -437,6 +450,9 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             ),
           ),
         ),
+        // Theme selector
+        const SizedBox(height: 16),
+        _buildThemeSelector(),
         // Logout button
         const SizedBox(height: 24),
         Padding(
@@ -473,18 +489,147 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
+  Widget _buildThemeSelector() {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF242424) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade300,
+          ),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.palette_outlined,
+                    color: const Color(0xFFF2800D),
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Theme',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(
+              height: 1,
+              color: isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade200,
+            ),
+            _themeOption(
+              'Light',
+              Icons.light_mode,
+              themeProvider.themeMode == ThemeMode.light,
+              () => themeProvider.setThemeMode(ThemeMode.light),
+            ),
+            Divider(
+              height: 1,
+              indent: 16,
+              endIndent: 16,
+              color: isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade200,
+            ),
+            _themeOption(
+              'Dark',
+              Icons.dark_mode,
+              themeProvider.themeMode == ThemeMode.dark,
+              () => themeProvider.setThemeMode(ThemeMode.dark),
+            ),
+            Divider(
+              height: 1,
+              indent: 16,
+              endIndent: 16,
+              color: isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade200,
+            ),
+            _themeOption(
+              'System Default',
+              Icons.settings_suggest,
+              themeProvider.themeMode == ThemeMode.system,
+              () => themeProvider.setThemeMode(ThemeMode.system),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _themeOption(
+    String label,
+    IconData icon,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: isSelected
+                  ? const Color(0xFFF2800D)
+                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected
+                      ? const Color(0xFFF2800D)
+                      : (isDark ? Colors.white70 : Colors.black87),
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_circle,
+                color: Color(0xFFF2800D),
+                size: 22,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _infoRow(
     String label,
     String value, {
     bool top = false,
     bool bottom = false,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
         border: bottom
             ? null
-            : const Border(
-                bottom: BorderSide(color: Color(0xFF3A3A3A), width: 1),
+            : Border(
+                bottom: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF3A3A3A)
+                      : Colors.grey.shade200,
+                  width: 1,
+                ),
               ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -493,10 +638,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: Color(0xFFA3A3A3),
+                color: isDark ? const Color(0xFFA3A3A3) : Colors.grey.shade600,
               ),
             ),
           ),
@@ -505,10 +650,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               value,
               textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
+                color: isDark ? Colors.white : Colors.black87,
               ),
             ),
           ),
