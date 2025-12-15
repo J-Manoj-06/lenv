@@ -34,12 +34,21 @@ class StudentDashboardScreen extends StatefulWidget {
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   bool _isInitializing = true;
 
+  // Theme helpers
+  Color get _primary => const Color(0xFFF2800D);
+  Color _surface(BuildContext context) => Theme.of(context).cardColor;
+  Color _onSurface(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurface;
+  Color _muted(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.65) ??
+      Colors.grey;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await authProvider.ensureInitialized();
+      const SizedBox(height: 12);
       await _loadDashboardData();
       // Mark initialization complete
       if (mounted) {
@@ -106,14 +115,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Color(0xFFF2800D),
-                    ),
+                    valueColor: AlwaysStoppedAnimation<Color>(_primary),
                   ),
                   SizedBox(height: 20),
                   Text(
                     'Fetching your details...',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    style: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.color?.withOpacity(0.65),
+                      fontSize: 16,
+                    ),
                   ),
                 ],
               ),
@@ -187,7 +199,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 MaterialPageRoute(builder: (context) => const AiChatPage()),
               );
             },
-            backgroundColor: const Color(0xFFF2800D),
+            backgroundColor: _primary,
+            elevation: 4,
             child: const Icon(Icons.smart_toy, color: Colors.white),
           ),
         );
@@ -217,9 +230,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
-          const SizedBox(height: 64),
+          const SizedBox(height: 48),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -230,7 +243,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       Text(
                         'Hi, $firstName 👋',
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: isDark ? Colors.white : Colors.black87,
                           height: 1.2,
@@ -242,7 +255,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       Text(
                         "Here's your progress for today",
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 14,
                           color: isDark
                               ? const Color(0xFFE5E5E5)
                               : Colors.grey.shade600,
@@ -257,7 +270,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 Row(
                   children: [
                     _buildStreakBadge(),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     // Dev Tools Button
                     GestureDetector(
                       onTap: () => Navigator.pushNamed(context, '/dev-tools'),
@@ -265,24 +278,24 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF2800D).withOpacity(0.2),
+                          color: _primary.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
-                          Icons.build,
+                          Icons.build_rounded,
                           color: Color(0xFFF2800D),
                           size: 20,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     _buildProfileIcon(),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 28),
         ],
       ),
     );
@@ -295,10 +308,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         final streakDays = student?.streak ?? 0;
 
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
-            color: const Color(0xFFF2800D).withOpacity(0.2),
-            borderRadius: BorderRadius.circular(24),
+            color: _primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -313,7 +326,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 '$streakDays',
                 style: const TextStyle(
                   color: Color(0xFFF2800D),
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -336,7 +349,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+          color: isDark ? const Color(0xFF1C1C1E) : _surface(context),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isDark ? const Color(0xFF2C2C2E) : Colors.grey.shade300,
@@ -585,7 +598,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   border: !isUnread
                       ? Border.all(
                           color: isDark ? Colors.grey[700]! : Colors.grey[400]!,
-                          width: 2,
+                          width: 1,
                         )
                       : null,
                 ),
@@ -593,7 +606,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Theme.of(context).scaffoldBackgroundColor,
+                    color: _surface(context),
                   ),
                   padding: const EdgeInsets.all(2),
                   child: CircleAvatar(
@@ -1078,14 +1091,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             final isDark = Theme.of(context).brightness == Brightness.dark;
 
             return Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: isDark ? null : Border.all(color: Colors.grey.shade200),
+                color: _surface(context),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor.withOpacity(0.4),
+                  width: 1,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                    color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -1147,12 +1163,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           children: [
             // Background circle
             SizedBox(
-              width: 150,
-              height: 150,
+              width: 140,
+              height: 140,
               child: CustomPaint(
                 painter: _CircularComparisonPainter(
                   progress: animatedValue,
-                  strokeWidth: 14,
+                  strokeWidth: 10,
                 ),
               ),
             ),
@@ -1252,21 +1268,24 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   Widget _buildEmptyPointsCard() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
-        borderRadius: BorderRadius.circular(16),
+        color: _surface(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withOpacity(0.35),
+        ),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.stars, size: 60, color: Colors.white24),
-          SizedBox(height: 12),
+          Icon(Icons.stars, size: 52, color: _primary.withOpacity(0.35)),
+          const SizedBox(height: 10),
           Text(
             'No points yet',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white54,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _onSurface(context).withOpacity(0.8),
             ),
           ),
         ],
@@ -1309,32 +1328,25 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   }
                 },
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: hasAnswered
-                  ? null
-                  : const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF2A2A2A), Color(0xFF1C1C1E)],
-                    ),
               color: hasAnswered
                   ? (isCorrect
-                        ? const Color(0xFF4CAF50).withOpacity(0.1)
-                        : const Color(0xFFEF5350).withOpacity(0.1))
-                  : null,
-              borderRadius: BorderRadius.circular(16),
-              border: hasAnswered
-                  ? Border.all(
-                      color: isCorrect
+                        ? const Color(0xFF4CAF50).withOpacity(0.08)
+                        : const Color(0xFFEF5350).withOpacity(0.08))
+                  : _surface(context),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: hasAnswered
+                    ? (isCorrect
                           ? const Color(0xFF4CAF50)
-                          : const Color(0xFFEF5350),
-                      width: 2,
-                    )
-                  : null,
+                          : const Color(0xFFEF5350))
+                    : Theme.of(context).dividerColor.withOpacity(0.35),
+                width: hasAnswered ? 1.2 : 1,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withOpacity(0.06),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -1351,13 +1363,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                             : 'Challenge Attempted')
                       : 'Daily Challenge',
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: hasAnswered
                         ? (isCorrect
                               ? const Color(0xFF4CAF50)
                               : const Color(0xFFEF5350))
-                        : Colors.white,
+                        : Theme.of(context).textTheme.bodyLarge?.color,
                     height: 1.2,
                   ),
                 ),
@@ -1376,7 +1388,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         ? (isCorrect
                               ? const Color(0xFF4CAF50).withOpacity(0.7)
                               : const Color(0xFFEF5350).withOpacity(0.7))
-                        : Colors.white70,
+                        : _muted(context),
                   ),
                 ),
                 // Button
@@ -1388,13 +1400,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFF8E24),
+                      color: _primary,
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: const Text(
                       'Take Challenge',
                       style: TextStyle(
-                        color: Color(0xFF23190F),
+                        color: Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1497,14 +1509,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: isDark ? null : Border.all(color: Colors.grey.shade200),
+        color: _surface(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withOpacity(0.35),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1535,13 +1549,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF2800D),
+                    color: _primary.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(
                     'Due Today',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: Color(0xFFF2800D),
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1598,11 +1612,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 arguments: test,
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF2800D),
+                backgroundColor: _primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 elevation: 0,
               ),
@@ -1653,7 +1667,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 return Text(
                   'Performance',
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: isDark ? Colors.white : Colors.black87,
                     height: 1.2,
@@ -1666,16 +1680,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               builder: (context) {
                 final isDark = Theme.of(context).brightness == Brightness.dark;
                 return Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: isDark
-                        ? null
-                        : Border.all(color: Colors.grey.shade200),
+                    color: _surface(context),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Theme.of(context).dividerColor.withOpacity(0.35),
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                        color: Colors.black.withOpacity(isDark ? 0.22 : 0.06),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -1689,12 +1703,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         alignment: Alignment.center,
                         children: [
                           SizedBox(
-                            width: 120,
-                            height: 120,
+                            width: 110,
+                            height: 110,
                             child: CustomPaint(
                               painter: CircularProgressPainter(
                                 progress: avgScore / 100,
-                                strokeWidth: 12,
+                                strokeWidth: 9,
                               ),
                             ),
                           ),
@@ -1800,24 +1814,27 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Attendance',
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: _onSurface(context),
                 height: 1.2,
               ),
             ),
             const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C1E),
-                borderRadius: BorderRadius.circular(16),
+                color: _surface(context),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor.withOpacity(0.35),
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withOpacity(0.06),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -1835,20 +1852,20 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         child: CustomPaint(
                           painter: CircularProgressPainter(
                             progress: attendancePct / 100,
-                            strokeWidth: 12,
-                            color: const Color(0xFF81C784),
+                            strokeWidth: 10,
+                            color: const Color(0xFF4CAF50),
                             backgroundColor: const Color(
                               0xFFEF5350,
-                            ).withOpacity(0.3),
+                            ).withOpacity(0.2),
                           ),
                         ),
                       ),
                       Text(
                         '${attendancePct.toInt()}%',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: _onSurface(context),
                         ),
                       ),
                     ],
@@ -1863,18 +1880,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF81C784),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4CAF50).withOpacity(0.9),
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Text(
                             '$presentDays Days Present',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white,
+                              color: _onSurface(context),
                             ),
                           ),
                         ],
@@ -1885,18 +1902,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFEF5350),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF5350).withOpacity(0.9),
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Text(
                             '$absentDays Days Absent',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white,
+                              color: _onSurface(context).withOpacity(0.8),
                             ),
                           ),
                         ],
@@ -1957,12 +1974,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Badges Earned',
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: _onSurface(context),
                     height: 1.2,
                   ),
                 ),
@@ -2084,16 +2101,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     child: Text(
                       earned ? '✓ Earned' : '🔒 Locked',
                       style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
                         color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text(
