@@ -1008,9 +1008,7 @@ class _MessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final myBubbleColor = isDark
-        ? theme.colorScheme.surface
-        : theme.colorScheme.surfaceVariant;
+    final myBubbleColor = const Color(0xFFFFE8D1);
     final otherBubbleColor = isDark
         ? theme.colorScheme.surface
         : theme.cardColor;
@@ -1095,7 +1093,9 @@ class _MessageBubble extends StatelessWidget {
                           Text(
                             message.message,
                             style: TextStyle(
-                              color: theme.colorScheme.onSurface,
+                              color: isMe
+                                  ? const Color(0xFF1A1D21)
+                                  : theme.colorScheme.onSurface,
                               fontSize: 14,
                               height: 1.5,
                             ),

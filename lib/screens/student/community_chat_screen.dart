@@ -422,10 +422,28 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     } catch (e) {
       setState(() => _isUploading = false);
       if (mounted) {
+        final errorMessage = e.toString();
+        final isTimeSyncError = errorMessage.contains('RequestTimeTooSkewed');
+        final isSignatureError = errorMessage.contains('SignatureDoesNotMatch');
+
+        String message;
+        if (isTimeSyncError) {
+          message =
+              'Upload failed: Please check your device date & time settings';
+        } else if (isSignatureError) {
+          message =
+              'Upload failed: File name contains special characters. Please rename the file and try again.';
+        } else {
+          message = 'Failed to send PDF: $e';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send PDF: $e'),
+            content: Text(message),
             backgroundColor: Colors.red,
+            duration: Duration(
+              seconds: isTimeSyncError || isSignatureError ? 5 : 3,
+            ),
           ),
         );
       }
@@ -504,10 +522,28 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     } catch (e) {
       setState(() => _isUploading = false);
       if (mounted) {
+        final errorMessage = e.toString();
+        final isTimeSyncError = errorMessage.contains('RequestTimeTooSkewed');
+        final isSignatureError = errorMessage.contains('SignatureDoesNotMatch');
+
+        String message;
+        if (isTimeSyncError) {
+          message =
+              'Upload failed: Please check your device date & time settings';
+        } else if (isSignatureError) {
+          message =
+              'Upload failed: File name contains special characters. Please rename the file and try again.';
+        } else {
+          message = 'Failed to send audio: $e';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send audio: $e'),
+            content: Text(message),
             backgroundColor: Colors.red,
+            duration: Duration(
+              seconds: isTimeSyncError || isSignatureError ? 5 : 3,
+            ),
           ),
         );
       }
@@ -590,15 +626,32 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         },
       );
 
+      debugPrint('🎵 Recording Upload complete:');
+      debugPrint('   File size: ${mediaMessage.fileSize} bytes');
+      debugPrint('   R2 URL: ${mediaMessage.r2Url}');
+
+      // Create MediaMetadata with file size
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+        localPath: _recordingPath, // Keep track of the local file
+      );
+
       await _communityService.sendMessage(
         communityId: widget.community.id,
         senderId: student.uid,
         senderName: student.name,
         senderRole: 'Student',
         content: '',
-        fileUrl: mediaMessage.r2Url,
-        fileName: 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a',
         mediaType: 'audio',
+        mediaMetadata: metadata,
       );
 
       // Delete the temporary file
@@ -951,7 +1004,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: isCurrentUser
-                            ? const Color(0xFF232629)
+                            ? const Color(0xFFFFE8D1)
                             : const Color(0xFF1A1D21),
                         borderRadius: BorderRadius.only(
                           topLeft: const Radius.circular(16),
@@ -985,8 +1038,10 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                           if (message.content.isNotEmpty)
                             Text(
                               message.content,
-                              style: const TextStyle(
-                                color: Color(0xFFE8E8E8),
+                              style: TextStyle(
+                                color: isCurrentUser
+                                    ? const Color(0xFF1A1D21)
+                                    : const Color(0xFFE8E8E8),
                                 fontSize: 15,
                                 height: 1.45,
                                 letterSpacing: 0.15,
