@@ -52,6 +52,15 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   double _slideOffsetX = 0;
   bool _isCancelled = false;
 
+  // Theme helpers
+  Color get _primary => const Color(0xFFF2800D);
+  Color _surface(BuildContext context) => Theme.of(context).cardColor;
+  Color _onSurface(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurface;
+  Color _muted(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.65) ??
+      Colors.grey;
+
   @override
   void initState() {
     super.initState();
@@ -129,9 +138,10 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   }
 
   void _showCommunityInfo() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1C20),
+      backgroundColor: _surface(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -166,8 +176,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     children: [
                       Text(
                         widget.community.name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: _onSurface(context),
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -175,10 +185,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       const SizedBox(height: 4),
                       Text(
                         '${widget.community.memberCount} members',
-                        style: const TextStyle(
-                          color: Color(0xFF9E9E9E),
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: _muted(context), fontSize: 14),
                       ),
                     ],
                   ),
@@ -187,10 +194,10 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
             ),
             const SizedBox(height: 20),
             if (widget.community.description.isNotEmpty) ...[
-              const Text(
+              Text(
                 'Description',
                 style: TextStyle(
-                  color: Color(0xFFFFA929),
+                  color: _primary,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -198,14 +205,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
               const SizedBox(height: 8),
               Text(
                 widget.community.description,
-                style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 14),
+                style: TextStyle(color: _muted(context), fontSize: 14),
               ),
               const SizedBox(height: 20),
             ],
-            const Text(
+            Text(
               'Community Rules',
               style: TextStyle(
-                color: Color(0xFFFFA929),
+                color: _primary,
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
@@ -228,17 +235,18 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   }
 
   Widget _buildRuleChip(String text, bool isAllowed) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isAllowed
-            ? const Color(0xFF1F2228)
-            : Colors.red.withValues(alpha: 0.1),
+            ? _surface(context).withOpacity(0.5)
+            : Colors.red.withOpacity(0.08),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isAllowed
-              ? const Color(0xFF2E3239)
-              : Colors.red.withValues(alpha: 0.3),
+              ? Theme.of(context).dividerColor.withOpacity(0.3)
+              : Colors.red.withOpacity(0.2),
         ),
       ),
       child: Row(
@@ -253,7 +261,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           Text(
             text,
             style: TextStyle(
-              color: isAllowed ? const Color(0xFFCCCCCC) : Colors.red.shade300,
+              color: isAllowed ? _onSurface(context) : Colors.red.shade400,
               fontSize: 14,
             ),
           ),
@@ -817,7 +825,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: isDark ? theme.cardColor.withOpacity(0.3) : Colors.grey[200],
+            color: isDark ? theme.cardColor.withOpacity(0.4) : Colors.grey[100],
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: theme.dividerColor.withOpacity(0.2),
@@ -827,7 +835,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           child: Text(
             _formatDate(date),
             style: TextStyle(
-              color: theme.textTheme.bodySmall?.color,
+              color: _muted(context),
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.2,
@@ -1048,8 +1056,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   Widget _buildMessageInput() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final inputBg = isDark ? const Color(0xFF1A1D21) : Colors.grey[100];
-    final borderColor = isDark ? const Color(0xFF2A2D31) : theme.dividerColor;
+    final inputBg = _surface(context);
+    final borderColor = theme.dividerColor;
 
     return Container(
       color: theme.scaffoldBackgroundColor,
@@ -1061,10 +1069,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           decoration: BoxDecoration(
             color: inputBg,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: borderColor?.withOpacity(0.5) ?? Colors.transparent,
-              width: 1,
-            ),
+            border: Border.all(color: borderColor.withOpacity(0.3), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
@@ -1074,8 +1086,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                   _showEmojiPicker
                       ? Icons.keyboard
                       : Icons.emoji_emotions_outlined,
+                  color: _muted(context),
                 ),
-                color: theme.iconTheme.color?.withOpacity(0.6),
                 onPressed: () {
                   setState(() {
                     _showEmojiPicker = !_showEmojiPicker;
@@ -1092,15 +1104,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                   controller: _messageController,
                   focusNode: _messageFocusNode,
                   style: TextStyle(
-                    color: theme.textTheme.bodyLarge?.color,
+                    color: _onSurface(context),
                     fontSize: 15,
                     height: 1.4,
                   ),
                   decoration: InputDecoration(
                     hintText: 'Message',
-                    hintStyle: TextStyle(
-                      color: theme.textTheme.bodySmall?.color,
-                    ),
+                    hintStyle: TextStyle(color: _muted(context)),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                   ),
@@ -1117,11 +1127,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(
-                  Icons.attach_file,
-                  color: Color(0xFF6B7075),
-                  size: 22,
-                ),
+                icon: Icon(Icons.attach_file, color: _muted(context), size: 22),
                 padding: const EdgeInsets.all(8),
                 onPressed: _isUploading ? null : _showMediaOptions,
               ),
@@ -1320,10 +1326,12 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       return const Scaffold(body: Center(child: Text('No student data')));
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: const Color(0xFF0F1113),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: _buildAppBar(),
           body: Column(
             children: [
@@ -1334,9 +1342,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                   ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
+                      return Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFFFFA929),
+                          valueColor: AlwaysStoppedAnimation<Color>(_primary),
                         ),
                       );
                     }
@@ -1368,13 +1376,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                             Icon(
                               Icons.chat_bubble_outline,
                               size: 64,
-                              color: Colors.white.withValues(alpha: 0.3),
+                              color: _muted(context).withOpacity(0.3),
                             ),
                             const SizedBox(height: 16),
                             Text(
                               'No messages yet',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.5),
+                                color: _muted(context).withOpacity(0.6),
                                 fontSize: 16,
                               ),
                             ),
@@ -1382,7 +1390,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                             Text(
                               'Be the first to say hello!',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.3),
+                                color: _muted(context).withOpacity(0.4),
                                 fontSize: 14,
                               ),
                             ),
@@ -1432,7 +1440,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     height: 250,
                     checkPlatformCompatibility: false,
                     emojiViewConfig: EmojiViewConfig(
-                      backgroundColor: const Color(0xFF1A1C20),
+                      backgroundColor: _surface(context),
                       columns: 7,
                       emojiSizeMax: 28,
                     ),

@@ -22,6 +22,15 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   String? selectedAnswer;
   bool isSubmitting = false;
 
+  // Theme helpers
+  Color get _primary => const Color(0xFFF2800D);
+  Color _surface(BuildContext context) => Theme.of(context).cardColor;
+  Color _onSurface(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurface;
+  Color _muted(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.65) ??
+      Colors.grey;
+
   @override
   void initState() {
     super.initState();
@@ -80,20 +89,21 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   Future<void> _showResultDialog(BuildContext context, bool isCorrect) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return showDialog(
       context: context,
       barrierDismissible: false,
-      barrierColor: const Color(0xFF23190F),
+      barrierColor: isDark ? const Color(0xFF23190F) : Colors.black45,
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
           constraints: const BoxConstraints(maxWidth: 400),
           decoration: BoxDecoration(
-            color: const Color(0xFF23190F),
+            color: _surface(context),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -125,10 +135,10 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
               // Result Title
               Text(
                 isCorrect ? 'Great Job!' : 'Nice Try!',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: _onSurface(context),
                   height: 1.2,
                 ),
               ),
@@ -136,9 +146,9 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
               // Result Description
               Text(
                 isCorrect ? 'You earned +5 points!' : 'Better luck next time.',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white70,
+                  color: _muted(context),
                   height: 1.5,
                 ),
                 textAlign: TextAlign.center,
@@ -150,7 +160,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6F42C1),
+                    backgroundColor: _primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -172,20 +182,29 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   Color _getOptionColor(String option) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (selectedAnswer == null) {
-      return const Color(0xFF2A2A2A); // Default
+      return isDark
+          ? const Color(0xFF2A2A2A)
+          : Colors.grey.shade100; // Light background
     }
     if (selectedAnswer == option) {
-      return const Color(0xFFFF8E24).withOpacity(0.22); // Selected
+      return isDark
+          ? const Color(0xFFFF8E24).withOpacity(0.22)
+          : _primary.withOpacity(0.1); // Light selection
     }
-    return const Color(0xFF2A2A2A); // Default
+    return isDark ? const Color(0xFF2A2A2A) : Colors.grey.shade100; // Default
   }
 
   Border _getOptionBorder(String option) {
     if (selectedAnswer == option) {
-      return Border.all(color: const Color(0xFFFF8E24), width: 2);
+      return Border.all(color: _primary, width: 2);
     }
-    return Border.all(color: Colors.transparent, width: 2);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Border.all(
+      color: isDark ? Colors.transparent : Colors.grey.shade300,
+      width: 1,
+    );
   }
 
   @override
@@ -198,10 +217,10 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
 
         if (provider.isLoading(widget.studentId) && challenge == null) {
           return Scaffold(
-            backgroundColor: const Color(0xFF23190F),
-            body: const Center(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF8E24)),
+                valueColor: AlwaysStoppedAnimation<Color>(_primary),
               ),
             ),
           );
@@ -209,19 +228,19 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
 
         if (challenge == null) {
           return Scaffold(
-            backgroundColor: const Color(0xFF23190F),
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             appBar: AppBar(
-              backgroundColor: const Color(0xFF23190F),
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
               elevation: 0,
               leading: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                icon: Icon(Icons.close, color: _onSurface(context), size: 28),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
-            body: const Center(
+            body: Center(
               child: Text(
                 'No challenge available',
-                style: TextStyle(color: Colors.white70, fontSize: 16),
+                style: TextStyle(color: _muted(context), fontSize: 16),
               ),
             ),
           );
@@ -230,8 +249,9 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
         // If already answered and NOT currently submitting, show completion screen
         if (hasAnswered && !isSubmitting) {
           final isCorrect = result == 'correct';
+          final isDark = Theme.of(context).brightness == Brightness.dark;
           return Scaffold(
-            backgroundColor: const Color(0xFF23190F),
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             body: SafeArea(
               child: Column(
                 children: [
@@ -241,18 +261,18 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                     child: Row(
                       children: [
                         IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.close,
-                            color: Colors.white,
+                            color: _onSurface(context),
                             size: 28,
                           ),
                           onPressed: () => Navigator.pop(context),
                         ),
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'Daily Challenge',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: _onSurface(context),
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -269,8 +289,19 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                     margin: const EdgeInsets.all(24),
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2A),
+                      color: _surface(context),
                       borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Theme.of(context).dividerColor.withOpacity(0.3),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -299,10 +330,10 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                           isCorrect
                               ? 'Already Completed!'
                               : 'Already Attempted',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: _onSurface(context),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -310,16 +341,19 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                           isCorrect
                               ? 'You earned +5 points today!'
                               : 'Better luck tomorrow!',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
-                            color: Colors.white70,
+                            color: _muted(context),
                           ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 8),
-                        const Text(
+                        Text(
                           'Come back tomorrow for a new challenge',
-                          style: TextStyle(fontSize: 14, color: Colors.white60),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _muted(context).withOpacity(0.7),
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -334,7 +368,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6F42C1),
+                          backgroundColor: _primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
@@ -367,7 +401,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
         final correctAnswer = challenge['correctAnswer'] as String? ?? '';
 
         return Scaffold(
-          backgroundColor: const Color(0xFF23190F),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: SafeArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,25 +412,25 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.close,
-                          color: Colors.white,
+                          color: _onSurface(context),
                           size: 28,
                         ),
                         onPressed: () => Navigator.pop(context),
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Daily Challenge',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: _onSurface(context),
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,
                         ),
                       ),
-                      const SizedBox(width: 48), // Balance the close button
+                      const SizedBox(width: 48),
                     ],
                   ),
                 ),
@@ -406,8 +440,8 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
                   child: Text(
                     question,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: _onSurface(context),
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                       height: 1.2,
@@ -451,8 +485,8 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                             child: Center(
                               child: Text(
                                 option,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: _onSurface(context),
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                   height: 1.4,
@@ -478,15 +512,19 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                           : () =>
                                 _checkAnswer(context, correctAnswer, provider),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF8E24),
-                        foregroundColor: const Color(0xFF23190F),
+                        backgroundColor: _primary,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(28),
                         ),
                         elevation: 0,
-                        disabledBackgroundColor: const Color(0xFF2A2A2A),
-                        disabledForegroundColor: Colors.white30,
+                        disabledBackgroundColor: _muted(
+                          context,
+                        ).withOpacity(0.2),
+                        disabledForegroundColor: _muted(
+                          context,
+                        ).withOpacity(0.5),
                       ),
                       child: isSubmitting
                           ? const SizedBox(
@@ -495,7 +533,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFF23190F),
+                                  Colors.white,
                                 ),
                               ),
                             )
