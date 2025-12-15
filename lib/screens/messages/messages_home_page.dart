@@ -37,6 +37,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    const orange = Color(0xFFF97316);
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -56,14 +57,17 @@ class _MessagesHomePageState extends State<MessagesHomePage>
         children: [
           // Custom Tab Selector
           Container(
-            margin: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-            padding: const EdgeInsets.all(4),
+            margin: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
               color: isDark
-                  ? theme.colorScheme.surface
-                  : theme.colorScheme.surfaceVariant.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(50),
-              border: Border.all(color: theme.dividerColor, width: 1),
+                  ? theme.colorScheme.surface.withOpacity(0.6)
+                  : theme.colorScheme.surfaceVariant.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: theme.dividerColor.withOpacity(0.3),
+                width: 1,
+              ),
             ),
             child: Row(
               children: [
@@ -90,34 +94,28 @@ class _MessagesHomePageState extends State<MessagesHomePage>
 
   Widget _buildTabButton(String label, int index) {
     final isSelected = _selectedIndex == index;
+    const orange = Color(0xFFF97316);
 
     return GestureDetector(
       onTap: () {
         _tabController.animateTo(index);
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? LinearGradient(
-                  colors: [
-                    Theme.of(context).primaryColor,
-                    Theme.of(context).primaryColor.withOpacity(0.85),
-                  ],
-                )
-              : null,
-          borderRadius: BorderRadius.circular(50),
+          color: isSelected ? orange : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Theme.of(context).primaryColor.withOpacity(0.25),
-                    blurRadius: 15,
-                    spreadRadius: 0,
+                    color: orange.withOpacity(0.22),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
                 ]
-              : null,
+              : [],
         ),
         child: Text(
           label,
@@ -125,10 +123,12 @@ class _MessagesHomePageState extends State<MessagesHomePage>
           style: TextStyle(
             color: isSelected
                 ? Colors.white
-                : Theme.of(context).textTheme.bodyMedium?.color,
-            fontSize: 13,
+                : Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.color?.withOpacity(0.7),
+            fontSize: 12,
             fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
+            letterSpacing: 0.4,
           ),
         ),
       ),

@@ -120,18 +120,21 @@ class _GroupsListPageState extends State<GroupsListPage>
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    const orange = Color(0xFFF97316);
 
     if (_isLoading) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CircularProgressIndicator(color: Color(0xFFFF8800)),
+            const CircularProgressIndicator(color: orange),
             const SizedBox(height: 16),
             Text(
               'Loading your groups...',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                 fontSize: 14,
               ),
             ),
@@ -148,13 +151,15 @@ class _GroupsListPageState extends State<GroupsListPage>
             Icon(
               Icons.error_outline,
               size: 64,
-              color: Colors.white.withValues(alpha: 0.3),
+              color: theme.iconTheme.color?.withOpacity(0.3),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Unable to determine your class.\nPlease contact your administrator.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70),
+              style: TextStyle(
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -162,7 +167,7 @@ class _GroupsListPageState extends State<GroupsListPage>
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF8800),
+                backgroundColor: orange,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -179,12 +184,14 @@ class _GroupsListPageState extends State<GroupsListPage>
             Icon(
               Icons.groups_outlined,
               size: 64,
-              color: Colors.white.withValues(alpha: 0.3),
+              color: theme.iconTheme.color?.withOpacity(0.3),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'No subject groups available yet.',
-              style: TextStyle(color: Colors.white70),
+              style: TextStyle(
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -192,7 +199,7 @@ class _GroupsListPageState extends State<GroupsListPage>
               icon: const Icon(Icons.refresh),
               label: const Text('Refresh'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF8800),
+                backgroundColor: orange,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -237,30 +244,44 @@ class _SubjectGroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    const orange = Color(0xFFF97316);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF222222),
-          borderRadius: BorderRadius.circular(16),
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.06),
               blurRadius: 8,
-              offset: const Offset(0, 2),
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Row(
           children: [
+            // Accent strip
+            Container(
+              width: 4,
+              height: 44,
+              decoration: BoxDecoration(
+                color: orange,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 12),
             // Subject Icon
             Container(
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.2),
+                color: theme.colorScheme.surfaceVariant.withOpacity(0.6),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
@@ -276,22 +297,28 @@ class _SubjectGroupCard extends StatelessWidget {
                 children: [
                   Text(
                     subject.name,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: theme.textTheme.bodyLarge?.color,
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'Class Group',
-                    style: TextStyle(color: Color(0xFFB0B0B0), fontSize: 14),
+                    style: TextStyle(
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(
+                        0.7,
+                      ),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Teacher: ${subject.teacherName}',
-                    style: const TextStyle(
-                      color: Color(0xFFB0B0B0),
+                    style: TextStyle(
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                       fontSize: 12,
                     ),
                   ),
@@ -300,10 +327,10 @@ class _SubjectGroupCard extends StatelessWidget {
             ),
 
             // Arrow Icon
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
-              color: Colors.white30,
-              size: 20,
+              color: theme.iconTheme.color?.withOpacity(0.35),
+              size: 18,
             ),
           ],
         ),

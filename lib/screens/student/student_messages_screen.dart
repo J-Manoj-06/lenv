@@ -10,6 +10,7 @@ class StudentMessagesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<app.AuthProvider>(context, listen: false);
+    final theme = Theme.of(context);
     final studentId =
         authProvider.currentUser?.uid ??
         FirebaseAuth.instance.currentUser?.uid ??
@@ -17,11 +18,13 @@ class StudentMessagesScreen extends StatelessWidget {
 
     if (studentId.isEmpty) {
       return Scaffold(
-        backgroundColor: const Color(0xFF1A1A1A),
-        body: const Center(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: Center(
           child: Text(
             'Please login to view messages',
-            style: TextStyle(color: Colors.white70),
+            style: TextStyle(
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+            ),
           ),
         ),
       );
