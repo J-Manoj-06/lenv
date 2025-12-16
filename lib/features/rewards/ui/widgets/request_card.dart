@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/reward_request_model.dart';
+import '../../utils/points_calculator.dart';
 import '..\\..\\utils\\date_utils.dart' as reward_date_utils;
 
 class RequestCard extends StatelessWidget {
@@ -53,12 +54,33 @@ class RequestCard extends StatelessWidget {
   }
 
   String _getProductName() {
-    // Try to extract from audit entries or request data
+    // Prefer the product snapshot title; fallback to audit actor or a generic label
+    final snapshotTitle = request.productSnapshot.title.trim();
+    if (snapshotTitle.isNotEmpty) return snapshotTitle;
+
     if (request.audit.isNotEmpty) {
       final firstEntry = request.audit.first;
-      return firstEntry.actor ?? 'Unknown Product';
+      final actor = firstEntry.actor?.trim();
+      if (actor != null && actor.isNotEmpty) return actor;
     }
+
     return 'Reward Request';
+  }
+
+  int _getDisplayPoints() {
+    final product = request.productSnapshot;
+
+    // Prefer calculated points based on product snapshot to align with detail view
+    final calculated = PointsCalculator.calculatePointsRequired(
+      price: product.price.estimatedPrice,
+      pointsPerRupee: product.pointsRule.pointsPerRupee,
+      maxPoints: product.pointsRule.maxPoints,
+    );
+    if (calculated > 0) return calculated;
+
+    if (request.pointsData.required > 0) return request.pointsData.required;
+    final maxPoints = product.pointsRule.maxPoints;
+    return maxPoints > 0 ? maxPoints : 0;
   }
 
   @override
@@ -138,7 +160,7 @@ class RequestCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '${request.pointsData.required} points',
+                    '${_getDisplayPoints()} points',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: isDark ? Colors.grey[300] : Colors.grey[800],
