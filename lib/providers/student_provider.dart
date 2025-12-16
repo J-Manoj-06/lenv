@@ -70,7 +70,7 @@ class StudentProvider with ChangeNotifier {
         print('📚 Loading today\'s challenge...');
         _todayChallenge = await _studentService.getTodayChallenge();
         print(
-          '✅ Challenge loaded: ${_todayChallenge?.title ?? "no challenge"}',
+          '✅ Challenge loaded: ${_todayChallenge?.question ?? "no challenge"}',
         );
 
         // Check if student has attempted today's challenge

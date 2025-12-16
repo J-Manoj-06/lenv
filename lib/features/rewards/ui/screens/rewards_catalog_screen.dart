@@ -164,7 +164,7 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
     );
   }
 
-  Widget _buildModernAppBar(BuildContext context, bool isDark, Color cardBg) {
+  PreferredSizeWidget _buildModernAppBar(BuildContext context, bool isDark, Color cardBg) {
     return PreferredSize(
       preferredSize: const Size.fromHeight(56),
       child: AppBar(
