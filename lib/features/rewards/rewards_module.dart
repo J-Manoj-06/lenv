@@ -26,15 +26,20 @@ class RewardsModule {
     if (!isEnabled) return [];
 
     return [
+      // Root redirect so any accidental '/' goes to catalog
+      GoRoute(
+        path: '/',
+        redirect: (context, state) => catalogRoute,
+      ),
       // Rewards Catalog Screen
       GoRoute(
-        path: 'rewards/catalog',
+        path: '/rewards/catalog',
         name: 'rewards-catalog',
         builder: (context, state) => const RewardsCatalogScreen(),
       ),
       // Product Detail Screen
       GoRoute(
-        path: 'rewards/product/:productId',
+        path: '/rewards/product/:productId',
         name: 'product-detail',
         builder: (context, state) {
           final productId = state.pathParameters['productId']!;
@@ -47,7 +52,7 @@ class RewardsModule {
       ),
       // Student Requests Screen
       GoRoute(
-        path: 'rewards/requests/student/:studentId',
+        path: '/rewards/requests/student/:studentId',
         name: 'student-requests',
         builder: (context, state) {
           final studentId = state.pathParameters['studentId']!;
@@ -56,7 +61,7 @@ class RewardsModule {
       ),
       // Parent Dashboard Screen
       GoRoute(
-        path: 'rewards/requests/parent/:parentId',
+        path: '/rewards/requests/parent/:parentId',
         name: 'parent-dashboard',
         builder: (context, state) {
           final parentId = state.pathParameters['parentId']!;
@@ -65,7 +70,7 @@ class RewardsModule {
       ),
       // Request Detail Screen
       GoRoute(
-        path: 'rewards/request/:requestId',
+        path: '/rewards/request/:requestId',
         name: 'request-detail',
         builder: (context, state) {
           final requestId = state.pathParameters['requestId']!;

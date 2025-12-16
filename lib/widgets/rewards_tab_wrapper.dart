@@ -14,6 +14,8 @@ class RewardsTabWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     // Create a local GoRouter for rewards feature routes
     final router = GoRouter(
+      // Ensure we land on the catalog instead of '/'
+      initialLocation: RewardsModule.catalogRoute,
       routes: RewardsModule.getRoutes(),
       errorBuilder: (context, state) => Scaffold(
         appBar: AppBar(title: const Text('Error')),
@@ -26,8 +28,8 @@ class RewardsTabWrapper extends StatelessWidget {
               Text(state.error.toString()),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => context.go('/'),
-                child: const Text('Go Home'),
+                onPressed: () => context.go(RewardsModule.catalogRoute),
+                child: const Text('Go to Rewards'),
               ),
             ],
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../rewards_module.dart';
 import '../../models/reward_request_model.dart';
 import '../../providers/rewards_providers.dart';
 import '../widgets/request_card.dart';
@@ -153,9 +154,10 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                       child: RequestCard(
                         request: request,
                         onTapped: () {
-                          context.push(
-                            '/rewards/request/${request.requestId}',
-                            extra: request,
+                          RewardsModule.navigateToRequestDetail(
+                            context,
+                            requestId: request.requestId,
+                            request: request,
                           );
                         },
                         actionLabel: _getActionLabel(request.status),
@@ -185,7 +187,7 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          context.push('/rewards/catalog');
+          RewardsModule.navigateToCatalog(context);
         },
         backgroundColor: const Color(0xFFF2800D),
         elevation: 3,
@@ -231,7 +233,11 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
   }
 
   void _handleAction(BuildContext context, RewardRequestModel request) {
-    context.push('/rewards/request/${request.requestId}', extra: request);
+    RewardsModule.navigateToRequestDetail(
+      context,
+      requestId: request.requestId,
+      request: request,
+    );
   }
 }
 

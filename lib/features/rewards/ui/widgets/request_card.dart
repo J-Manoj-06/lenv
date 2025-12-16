@@ -60,8 +60,8 @@ class RequestCard extends StatelessWidget {
 
     if (request.audit.isNotEmpty) {
       final firstEntry = request.audit.first;
-      final actor = firstEntry.actor?.trim();
-      if (actor != null && actor.isNotEmpty) return actor;
+      final actor = firstEntry.actor.trim();
+      if (actor.isNotEmpty) return actor;
     }
 
     return 'Reward Request';

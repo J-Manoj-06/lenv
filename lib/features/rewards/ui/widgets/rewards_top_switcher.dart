@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../rewards_module.dart';
 
 class RewardsTopSwitcher extends StatelessWidget {
   final bool isCatalogActive;
@@ -29,7 +30,7 @@ class RewardsTopSwitcher extends StatelessWidget {
               selected: isCatalogActive,
               onTap: () {
                 if (!isCatalogActive) {
-                  context.go('/rewards/catalog');
+                  RewardsModule.navigateToCatalog(context);
                 }
               },
             ),
@@ -40,7 +41,10 @@ class RewardsTopSwitcher extends StatelessWidget {
                 if (isCatalogActive) {
                   final id = studentId;
                   if (id != null && id.isNotEmpty) {
-                    context.go('/rewards/requests/$id');
+                    RewardsModule.navigateToStudentRequests(
+                      context,
+                      studentId: id,
+                    );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(

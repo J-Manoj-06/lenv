@@ -7,6 +7,7 @@ import 'ui/screens/rewards_catalog_screen.dart';
 import 'ui/screens/product_detail_screen.dart';
 import 'ui/screens/student_requests_screen.dart';
 import 'ui/screens/parent_request_approval_screen.dart';
+import 'ui/screens/request_detail_screen.dart';
 
 /// Wrapper that provides local ProviderScope + GoRouter for Rewards feature
 /// This allows the Rewards catalog and detail screens to work independently
@@ -42,11 +43,23 @@ class RewardsScreenWrapper extends StatelessWidget {
           },
         ),
         GoRoute(
-          path: '/rewards/requests/:studentId',
+          path: '/rewards/requests/student/:studentId',
           name: 'student-requests',
           builder: (context, state) {
             final studentId = state.pathParameters['studentId']!;
             return StudentRequestsScreen(studentId: studentId);
+          },
+        ),
+        GoRoute(
+          path: '/rewards/request/:requestId',
+          name: 'request-detail',
+          builder: (context, state) {
+            final requestId = state.pathParameters['requestId']!;
+            final request = state.extra as RewardRequestModel?;
+            return RequestDetailScreen(
+              requestId: requestId,
+              initialRequest: request,
+            );
           },
         ),
         GoRoute(
