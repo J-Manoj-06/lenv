@@ -23,11 +23,15 @@ class RewardsRepository {
     try {
       // Return cache if available and not forcing refresh
       if (_catalogCache != null && !forceRefresh) {
-        print('✅ getCatalog: Returning cached catalog (${_catalogCache!.length} items)');
+        print(
+          '✅ getCatalog: Returning cached catalog (${_catalogCache!.length} items)',
+        );
         return _catalogCache!;
       }
 
-      print('🔥 getCatalog: Fetching from Firestore collection: $catalogCollection');
+      print(
+        '🔥 getCatalog: Fetching from Firestore collection: $catalogCollection',
+      );
       // Try to fetch from Firestore
       final snapshot = await _firestore
           .collection(catalogCollection)
@@ -37,7 +41,9 @@ class RewardsRepository {
             onTimeout: () => throw Exception('Firestore timeout'),
           );
 
-      print('✅ getCatalog: Firestore returned ${snapshot.docs.length} documents');
+      print(
+        '✅ getCatalog: Firestore returned ${snapshot.docs.length} documents',
+      );
       if (snapshot.docs.isNotEmpty) {
         _catalogCache = snapshot.docs
             .map((doc) => ProductModel.fromMap(doc.data()))
@@ -68,7 +74,9 @@ class RewardsRepository {
       final products = jsonList
           .map((item) => ProductModel.fromMap(item as Map<String, dynamic>))
           .toList();
-      print('✅ _loadDummyCatalog: Parsed ${products.length} products from dummy data');
+      print(
+        '✅ _loadDummyCatalog: Parsed ${products.length} products from dummy data',
+      );
       return products;
     } catch (e) {
       print('❌ _loadDummyCatalog: Error loading dummy catalog: $e');
@@ -81,7 +89,9 @@ class RewardsRepository {
     print('🔍 searchProducts: Searching for "$query"');
     final catalog = await getCatalog();
     if (query.isEmpty) {
-      print('🔍 searchProducts: Empty query, returning all ${catalog.length} products');
+      print(
+        '🔍 searchProducts: Empty query, returning all ${catalog.length} products',
+      );
       return catalog;
     }
 
@@ -298,24 +308,20 @@ class RewardsRepository {
           .where('parent_id', isEqualTo: parentId)
           .orderBy('timestamps.requested_at', descending: true)
           .snapshots()
-          .handleError(
-            (error) {
-              print('❌ Error streaming parent requests: $error');
-              return Stream.value(<QuerySnapshot<Map<String, dynamic>>>[]);
-            },
-          )
-          .map(
-            (snapshot) {
-              try {
-                return snapshot.docs
-                    .map((doc) => RewardRequestModel.fromMap(doc.data()))
-                    .toList();
-              } catch (e) {
-                print('❌ Error parsing parent requests: $e');
-                return [];
-              }
-            },
-          );
+          .handleError((error) {
+            print('❌ Error streaming parent requests: $error');
+            return Stream.value(<QuerySnapshot<Map<String, dynamic>>>[]);
+          })
+          .map((snapshot) {
+            try {
+              return snapshot.docs
+                  .map((doc) => RewardRequestModel.fromMap(doc.data()))
+                  .toList();
+            } catch (e) {
+              print('❌ Error parsing parent requests: $e');
+              return [];
+            }
+          });
     } catch (e) {
       print('❌ Error creating parent stream: $e');
       return Stream.value([]);
@@ -330,24 +336,20 @@ class RewardsRepository {
           .where('student_id', isEqualTo: studentId)
           .orderBy('timestamps.requested_at', descending: true)
           .snapshots()
-          .handleError(
-            (error) {
-              print('❌ Error streaming student requests: $error');
-              return Stream.value(<QuerySnapshot<Map<String, dynamic>>>[]);
-            },
-          )
-          .map(
-            (snapshot) {
-              try {
-                return snapshot.docs
-                    .map((doc) => RewardRequestModel.fromMap(doc.data()))
-                    .toList();
-              } catch (e) {
-                print('❌ Error parsing reward requests: $e');
-                return [];
-              }
-            },
-          );
+          .handleError((error) {
+            print('❌ Error streaming student requests: $error');
+            return Stream.value(<QuerySnapshot<Map<String, dynamic>>>[]);
+          })
+          .map((snapshot) {
+            try {
+              return snapshot.docs
+                  .map((doc) => RewardRequestModel.fromMap(doc.data()))
+                  .toList();
+            } catch (e) {
+              print('❌ Error parsing reward requests: $e');
+              return [];
+            }
+          });
     } catch (e) {
       print('❌ Error creating request stream: $e');
       return Stream.value([]);
@@ -387,7 +389,9 @@ class RewardsRepository {
         .where('studentId', isEqualTo: studentId)
         .snapshots()
         .asyncMap((snap) async {
-          print('💰 streamStudentPoints: Snapshot received for $studentId with ${snap.docs.length} documents');
+          print(
+            '💰 streamStudentPoints: Snapshot received for $studentId with ${snap.docs.length} documents',
+          );
           if (snap.docs.isNotEmpty) {
             double total = 0;
             for (final doc in snap.docs) {
@@ -399,7 +403,9 @@ class RewardsRepository {
             return total;
           }
 
-          print('⚠️ streamStudentPoints: No rewards found, checking students collection');
+          print(
+            '⚠️ streamStudentPoints: No rewards found, checking students collection',
+          );
           // Fallback to students document if no rewards entries
           final studentDoc = await _firestore
               .collection(studentsCollection)
@@ -410,7 +416,9 @@ class RewardsRepository {
           final legacyEarned = (data['pointsEarned'] as num?)?.toDouble();
           final legacyPoints = (data['points'] as num?)?.toDouble();
           final result = available ?? legacyEarned ?? legacyPoints ?? 0.0;
-          print('✅ streamStudentPoints: Fallback points for $studentId: $result');
+          print(
+            '✅ streamStudentPoints: Fallback points for $studentId: $result',
+          );
           return result;
         });
   }

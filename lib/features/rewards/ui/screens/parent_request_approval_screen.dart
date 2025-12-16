@@ -8,10 +8,7 @@ import '../../providers/rewards_providers.dart';
 class ParentRequestApprovalScreen extends ConsumerStatefulWidget {
   final String parentId;
 
-  const ParentRequestApprovalScreen({
-    super.key,
-    required this.parentId,
-  });
+  const ParentRequestApprovalScreen({super.key, required this.parentId});
 
   @override
   ConsumerState<ParentRequestApprovalScreen> createState() =>
@@ -45,11 +42,7 @@ class _ParentRequestApprovalScreenState
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.card_giftcard,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
+                  Icon(Icons.card_giftcard, size: 64, color: Colors.grey[400]),
                   const SizedBox(height: 16),
                   Text(
                     'No reward requests',
@@ -58,8 +51,9 @@ class _ParentRequestApprovalScreenState
                   const SizedBox(height: 8),
                   Text(
                     'When your child requests rewards, they\'ll appear here.',
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: Colors.grey[600]),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -88,11 +82,7 @@ class _ParentRequestApprovalScreenState
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Colors.red[400],
-              ),
+              Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
               const SizedBox(height: 16),
               Text(
                 'Error loading requests',
@@ -110,8 +100,7 @@ class _ParentRequestApprovalScreenState
     );
   }
 
-  List<RewardRequestModel> _filterRequests(
-      List<RewardRequestModel> requests) {
+  List<RewardRequestModel> _filterRequests(List<RewardRequestModel> requests) {
     if (_selectedStatus == null) return requests;
     return requests.where((r) => r.status == _selectedStatus).toList();
   }
@@ -131,7 +120,9 @@ class _RequestCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dateStr = DateFormat('MMM dd, yyyy').format(request.timestamps.requestedAt);
+    final dateStr = DateFormat(
+      'MMM dd, yyyy',
+    ).format(request.timestamps.requestedAt);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -165,8 +156,9 @@ class _RequestCard extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         request.productSnapshot.title,
-                        style: Theme.of(context).textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -189,7 +181,10 @@ class _RequestCard extends ConsumerWidget {
           ),
 
           // Divider
-          Divider(height: 0, color: isDark ? Colors.grey[800] : Colors.grey[200]),
+          Divider(
+            height: 0,
+            color: isDark ? Colors.grey[800] : Colors.grey[200],
+          ),
 
           // Details
           Padding(
@@ -206,7 +201,8 @@ class _RequestCard extends ConsumerWidget {
                 const SizedBox(height: 10),
                 _DetailRow(
                   label: 'Price',
-                  value: '₹${request.productSnapshot.price.estimatedPrice.toStringAsFixed(0)}',
+                  value:
+                      '₹${request.productSnapshot.price.estimatedPrice.toStringAsFixed(0)}',
                   icon: Icons.shopping_bag,
                   isDark: isDark,
                 ),
@@ -283,9 +279,7 @@ class _RequestCard extends ConsumerWidget {
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Reject Request?'),
-        content: Text(
-          'Reject "${request.productSnapshot.title}" request?',
-        ),
+        content: Text('Reject "${request.productSnapshot.title}" request?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
@@ -296,9 +290,7 @@ class _RequestCard extends ConsumerWidget {
               Navigator.pop(c);
               await _rejectRequest(context, ref);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Reject'),
           ),
         ],
@@ -327,10 +319,7 @@ class _RequestCard extends ConsumerWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -356,10 +345,7 @@ class _RequestCard extends ConsumerWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
   }

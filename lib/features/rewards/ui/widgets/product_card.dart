@@ -72,7 +72,9 @@ class _ProductCardState extends State<ProductCard>
         child: Card(
           elevation: _isHovering ? 8 : 2,
           margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           color: cardBg,
           shadowColor: _primaryOrange.withOpacity(0.1),
           child: InkWell(
@@ -117,10 +119,7 @@ class _ProductCardState extends State<ProductCard>
       decoration: BoxDecoration(
         color: imageBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _primaryOrange.withOpacity(0.15),
-          width: 1,
-        ),
+        border: Border.all(color: _primaryOrange.withOpacity(0.15), width: 1),
       ),
       child: Center(
         child: Icon(
@@ -207,11 +206,7 @@ class _ProductCardState extends State<ProductCard>
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.star,
-                size: 16,
-                color: Colors.amber[600],
-              ),
+              Icon(Icons.star, size: 16, color: Colors.amber[600]),
               const SizedBox(width: 4),
               Text(
                 '${widget.product.rating!.toStringAsFixed(1)}',
@@ -244,10 +239,7 @@ class _ProductCardState extends State<ProductCard>
       decoration: BoxDecoration(
         color: _primaryOrange.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _primaryOrange.withOpacity(0.2),
-          width: 1.2,
-        ),
+        border: Border.all(color: _primaryOrange.withOpacity(0.2), width: 1.2),
       ),
       child: Row(
         children: [
@@ -298,9 +290,7 @@ class _ProductCardState extends State<ProductCard>
                 height: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.grey[600]!,
-                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[600]!),
                 ),
               )
             : const Icon(Icons.shopping_cart, size: 18),

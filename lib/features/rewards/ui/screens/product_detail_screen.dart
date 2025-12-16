@@ -409,10 +409,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: _isRequestingProduct ? null : () async {
-              Navigator.pop(context);
-              await _submitRequest(product, pointsRequired);
-            },
+            onPressed: _isRequestingProduct
+                ? null
+                : () async {
+                    Navigator.pop(context);
+                    await _submitRequest(product, pointsRequired);
+                  },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF2800D),
             ),
@@ -441,7 +443,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       // Get parent ID from current user or use a default
       // NOTE: In production, get actual parent ID from user/student relationship
       final parentId = widget.studentId!.replaceFirst('student_', 'parent_');
-      
+
       final notifier = ref.read(createRequestProvider.notifier);
       await notifier.createRequest(
         product: product,
@@ -450,7 +452,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       );
 
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('🎉 Request submitted! Parent notification sent.'),

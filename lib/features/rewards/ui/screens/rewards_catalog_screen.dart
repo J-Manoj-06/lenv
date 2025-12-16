@@ -49,7 +49,9 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
         : ref.watch(productsSearchProvider(searchQuery));
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg = isDark ? const Color(0xFF121212) : const Color(0xFFFAF9F7);
+    final scaffoldBg = isDark
+        ? const Color(0xFF121212)
+        : const Color(0xFFFAF9F7);
     final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
 
     return Scaffold(
@@ -76,7 +78,9 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
           Expanded(
             child: productsAsync.when(
               data: (products) {
-                print('✅ RewardsCatalogScreen: Data loaded with ${products.length} products');
+                print(
+                  '✅ RewardsCatalogScreen: Data loaded with ${products.length} products',
+                );
                 if (products.isEmpty) {
                   return _buildEmptyState(context, isDark);
                 }
@@ -103,7 +107,11 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 20, left: 16, right: 16),
+                  padding: const EdgeInsets.only(
+                    bottom: 20,
+                    left: 16,
+                    right: 16,
+                  ),
                   itemCount: sortedProducts.length,
                   itemBuilder: (context, index) {
                     final product = sortedProducts[index];
@@ -129,7 +137,9 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       CircularProgressIndicator(
-                        valueColor: const AlwaysStoppedAnimation(_primaryOrange),
+                        valueColor: const AlwaysStoppedAnimation(
+                          _primaryOrange,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -173,11 +183,17 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
     );
   }
 
-  Widget _buildModernSearchBar(BuildContext context, bool isDark, Color cardBg) {
+  Widget _buildModernSearchBar(
+    BuildContext context,
+    bool isDark,
+    Color cardBg,
+  ) {
     return TextField(
       controller: _searchController,
       onChanged: (_) {
-        print('🎁 RewardsCatalogScreen: Search text changed to "${_searchController.text}"');
+        print(
+          '🎁 RewardsCatalogScreen: Search text changed to "${_searchController.text}"',
+        );
         setState(() {});
       },
       decoration: InputDecoration(
@@ -221,12 +237,12 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(
-            color: _primaryOrange,
-            width: 1.5,
-          ),
+          borderSide: const BorderSide(color: _primaryOrange, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
       ),
     );
   }
@@ -289,9 +305,9 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
           const SizedBox(height: 16),
           Text(
             'No rewards found',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Text(
@@ -316,18 +332,14 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
               shape: BoxShape.circle,
               color: Colors.red.withOpacity(0.1),
             ),
-            child: Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Colors.red[400],
-            ),
+            child: Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
           ),
           const SizedBox(height: 16),
           Text(
             'Something went wrong',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Padding(
@@ -352,7 +364,6 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
       ),
     );
   }
-
 }
 
 class _ModernFilterChip extends StatelessWidget {

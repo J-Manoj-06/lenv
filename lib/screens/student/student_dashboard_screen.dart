@@ -75,7 +75,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       listen: false,
     );
 
-    print('🏠 _loadDashboardData: Auth status - currentUser=${authProvider.currentUser?.uid}, isLoading=${authProvider.isLoading}');
+    print(
+      '🏠 _loadDashboardData: Auth status - currentUser=${authProvider.currentUser?.uid}, isLoading=${authProvider.isLoading}',
+    );
     // Ensure auth is initialized before proceeding
     if (authProvider.currentUser == null && !authProvider.isLoading) {
       print('🏠 _loadDashboardData: Auth not initialized, initializing now...');

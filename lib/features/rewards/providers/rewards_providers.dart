@@ -13,7 +13,9 @@ final rewardsCatalogProvider = FutureProvider<List<ProductModel>>((ref) async {
   try {
     final repository = ref.watch(rewardsRepositoryProvider);
     final catalog = await repository.getCatalog();
-    print('✅ rewardsCatalogProvider: Successfully loaded ${catalog.length} products');
+    print(
+      '✅ rewardsCatalogProvider: Successfully loaded ${catalog.length} products',
+    );
     return catalog;
   } catch (e) {
     print('❌ rewardsCatalogProvider: Error loading catalog: $e');
@@ -22,19 +24,23 @@ final rewardsCatalogProvider = FutureProvider<List<ProductModel>>((ref) async {
 });
 
 /// Provides search results for products by query string
-final productsSearchProvider =
-    FutureProvider.family<List<ProductModel>, String>((ref, query) async {
-      print('🔍 productsSearchProvider: Searching for "$query"...');
-      try {
-        final repository = ref.watch(rewardsRepositoryProvider);
-        final results = await repository.searchProducts(query);
-        print('✅ productsSearchProvider: Found ${results.length} results for "$query"');
-        return results;
-      } catch (e) {
-        print('❌ productsSearchProvider: Error searching products: $e');
-        rethrow;
-      }
-    });
+final productsSearchProvider = FutureProvider.family<List<ProductModel>, String>((
+  ref,
+  query,
+) async {
+  print('🔍 productsSearchProvider: Searching for "$query"...');
+  try {
+    final repository = ref.watch(rewardsRepositoryProvider);
+    final results = await repository.searchProducts(query);
+    print(
+      '✅ productsSearchProvider: Found ${results.length} results for "$query"',
+    );
+    return results;
+  } catch (e) {
+    print('❌ productsSearchProvider: Error searching products: $e');
+    rethrow;
+  }
+});
 
 /// Provides current user's available points (real-time)
 final studentPointsProvider = StreamProvider.family<double, String>((
@@ -45,7 +51,7 @@ final studentPointsProvider = StreamProvider.family<double, String>((
   try {
     final repository = ref.watch(rewardsRepositoryProvider);
     final pointsStream = repository.streamStudentPoints(studentId);
-    
+
     return pointsStream.map((points) {
       print('💰 studentPointsProvider: Updated points for $studentId: $points');
       return points;
@@ -59,13 +65,17 @@ final studentPointsProvider = StreamProvider.family<double, String>((
 /// Provides list of reward requests for a student (real-time)
 final studentRequestsProvider =
     StreamProvider.family<List<RewardRequestModel>, String>((ref, studentId) {
-      print('📋 studentRequestsProvider: Starting stream for student: $studentId');
+      print(
+        '📋 studentRequestsProvider: Starting stream for student: $studentId',
+      );
       try {
         final repository = ref.watch(rewardsRepositoryProvider);
         final requestsStream = repository.streamStudentRequests(studentId);
-        
+
         return requestsStream.map((requests) {
-          print('📋 studentRequestsProvider: Updated requests for $studentId: ${requests.length} items');
+          print(
+            '📋 studentRequestsProvider: Updated requests for $studentId: ${requests.length} items',
+          );
           return requests;
         });
       } catch (e) {
@@ -77,13 +87,17 @@ final studentRequestsProvider =
 /// Provides list of reward requests for a parent to review (real-time)
 final parentRequestsProvider =
     StreamProvider.family<List<RewardRequestModel>, String>((ref, parentId) {
-      print('👨‍👩‍👧 parentRequestsProvider: Starting stream for parent: $parentId');
+      print(
+        '👨‍👩‍👧 parentRequestsProvider: Starting stream for parent: $parentId',
+      );
       try {
         final repository = ref.watch(rewardsRepositoryProvider);
         final requestsStream = repository.streamParentRequests(parentId);
-        
+
         return requestsStream.map((requests) {
-          print('👨‍👩‍👧 parentRequestsProvider: Updated requests for $parentId: ${requests.length} items');
+          print(
+            '👨‍👩‍👧 parentRequestsProvider: Updated requests for $parentId: ${requests.length} items',
+          );
           return requests;
         });
       } catch (e) {

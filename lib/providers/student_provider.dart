@@ -69,7 +69,9 @@ class StudentProvider with ChangeNotifier {
         // Load today's challenge
         print('📚 Loading today\'s challenge...');
         _todayChallenge = await _studentService.getTodayChallenge();
-        print('✅ Challenge loaded: ${_todayChallenge?.title ?? "no challenge"}');
+        print(
+          '✅ Challenge loaded: ${_todayChallenge?.title ?? "no challenge"}',
+        );
 
         // Check if student has attempted today's challenge
         print('✅ Checking if student attempted challenge...');
@@ -89,7 +91,7 @@ class StudentProvider with ChangeNotifier {
         print('📊 Updating student stats...');
         await _updateStudentStats(studentId);
         print('✅ Stats updated');
-        
+
         _hasLoaded = true; // Mark as loaded
         print('✅ Dashboard data loading COMPLETE');
       } else {
