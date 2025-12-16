@@ -15,15 +15,12 @@ class RewardsTopSwitcher extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Container(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: isDark ? Colors.grey[900] : Colors.grey[100],
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isDark ? Colors.grey[800]! : Colors.grey[300]!,
-          ),
+          color: isDark ? Colors.grey[850] : Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
@@ -74,25 +71,36 @@ class _SegmentButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: selected ? const Color(0xFFF2800D) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFF2800D).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
+              fontSize: 15,
               fontWeight: FontWeight.w600,
               color: selected
                   ? Colors.white
-                  : Theme.of(context).textTheme.bodyMedium?.color,
+                  : (isDark ? Colors.grey[400] : Colors.grey[600]),
             ),
           ),
         ),

@@ -37,7 +37,7 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
           ),
           // Status Filter
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -49,7 +49,7 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                       setState(() => _selectedStatus = null);
                     },
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   _StatusFilterChip(
                     label: 'Pending',
                     isSelected:
@@ -62,7 +62,7 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                       );
                     },
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   _StatusFilterChip(
                     label: 'In Progress',
                     isSelected:
@@ -75,7 +75,7 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                       );
                     },
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   _StatusFilterChip(
                     label: 'Delivery',
                     isSelected:
@@ -88,7 +88,7 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                       );
                     },
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   _StatusFilterChip(
                     label: 'Completed',
                     isSelected:
@@ -144,20 +144,23 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
                   itemCount: filteredRequests.length,
                   itemBuilder: (context, index) {
                     final request = filteredRequests[index];
-                    return RequestCard(
-                      request: request,
-                      onTapped: () {
-                        context.push(
-                          '/rewards/request/${request.requestId}',
-                          extra: request,
-                        );
-                      },
-                      actionLabel: _getActionLabel(request.status),
-                      onActionPressed: () => _handleAction(context, request),
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: RequestCard(
+                        request: request,
+                        onTapped: () {
+                          context.push(
+                            '/rewards/request/${request.requestId}',
+                            extra: request,
+                          );
+                        },
+                        actionLabel: _getActionLabel(request.status),
+                        onActionPressed: () => _handleAction(context, request),
+                      ),
                     );
                   },
                 );
@@ -185,8 +188,16 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
           context.push('/rewards/catalog');
         },
         backgroundColor: const Color(0xFFF2800D),
-        icon: const Icon(Icons.add_shopping_cart),
-        label: const Text('Browse Rewards'),
+        elevation: 3,
+        icon: const Icon(Icons.card_giftcard, size: 20),
+        label: const Text(
+          'Browse Rewards',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+          ),
+        ),
       ),
     );
   }
@@ -237,17 +248,32 @@ class _StatusFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => onPressed(),
-      backgroundColor: Colors.transparent,
-      side: BorderSide(
-        color: isSelected ? const Color(0xFFF2800D) : Colors.grey[300]!,
-      ),
-      labelStyle: TextStyle(
-        color: isSelected ? const Color(0xFFF2800D) : Colors.grey[700],
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? const Color(0xFFF2800D).withOpacity(0.12)
+                : (isDark ? Colors.grey[800] : Colors.grey[100]),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: isSelected
+                  ? const Color(0xFFF2800D)
+                  : (isDark ? Colors.grey[300] : Colors.grey[700]),
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ),
       ),
     );
   }

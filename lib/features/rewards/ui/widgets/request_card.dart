@@ -63,6 +63,7 @@ class RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final statusColor = _getStatusColor(request.status);
     final statusLabel = _getStatusLabel(request.status);
     final productName = _getProductName();
@@ -70,115 +71,141 @@ class RequestCard extends StatelessWidget {
       request.timestamps.lockExpiresAt,
     );
 
-    return Card(
-      elevation: 1,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Material(
+      elevation: isDark ? 2 : 1,
+      borderRadius: BorderRadius.circular(16),
+      color: isDark ? Colors.grey[850] : Colors.white,
+      shadowColor: Colors.black.withOpacity(0.05),
       child: InkWell(
         onTap: onTapped,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product Name and Status
+              // Product Name and Status Badge
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Text(
-                      productName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          productName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                                letterSpacing: 0.1,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            statusLabel,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: statusColor,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  Badge(
-                    label: Text(
-                      statusLabel,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    backgroundColor: statusColor,
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 14),
               // Points and Date Info
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.card_giftcard,
-                        size: 16,
-                        color: Colors.orange[700],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${request.pointsData.required} points',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    Icons.card_giftcard,
+                    size: 18,
+                    color: const Color(0xFFF2800D),
                   ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${request.pointsData.required} points',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.grey[300] : Colors.grey[800],
+                    ),
+                  ),
+                  const Spacer(),
+                  const Spacer(),
                   if (remainingDays > 0)
                     Text(
                       '$remainingDays days left',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
                     ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               // Timeline Indicator
-              Container(
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-                child: FractionallySizedBox(
-                  widthFactor: _getProgressFraction(),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: SizedBox(
+                  height: 3,
+                  child: LinearProgressIndicator(
+                    value: _getProgressFraction(),
+                    backgroundColor: isDark
+                        ? Colors.grey[800]
+                        : Colors.grey[200],
+                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                   ),
                 ),
               ),
               if (onActionPressed != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton(
+                  height: 42,
+                  child: FilledButton(
                     onPressed: isLoading ? null : onActionPressed,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: statusColor,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      disabledBackgroundColor: Colors.grey[300],
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFF2800D),
+                      disabledBackgroundColor: isDark
+                          ? Colors.grey[700]
+                          : Colors.grey[300],
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     child: isLoading
                         ? SizedBox(
-                            height: 16,
-                            width: 16,
+                            height: 18,
+                            width: 18,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                              strokeWidth: 2.5,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
+                                isDark ? Colors.grey[400]! : Colors.grey[600]!,
                               ),
                             ),
                           )
-                        : Text(actionLabel ?? 'Take Action'),
+                        : Text(
+                            actionLabel ?? 'View Status',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
                   ),
                 ),
               ],
