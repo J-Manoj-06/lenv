@@ -27,10 +27,7 @@ class RewardsModule {
 
     return [
       // Root redirect so any accidental '/' goes to catalog
-      GoRoute(
-        path: '/',
-        redirect: (context, state) => catalogRoute,
-      ),
+      GoRoute(path: '/', redirect: (context, state) => catalogRoute),
       // Rewards Catalog Screen
       GoRoute(
         path: '/rewards/catalog',

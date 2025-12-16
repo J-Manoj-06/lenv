@@ -10,10 +10,15 @@ class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
   final RewardRequestModel? initialRequest;
 
-  const RequestDetailScreen({super.key, required this.requestId, this.initialRequest});
+  const RequestDetailScreen({
+    super.key,
+    required this.requestId,
+    this.initialRequest,
+  });
 
   @override
-  ConsumerState<RequestDetailScreen> createState() => _RequestDetailScreenState();
+  ConsumerState<RequestDetailScreen> createState() =>
+      _RequestDetailScreenState();
 }
 
 class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
@@ -97,7 +102,9 @@ class _RequestDetailContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final productName = _getProductName();
-    final shortLen = request.requestId.length >= 6 ? 6 : request.requestId.length;
+    final shortLen = request.requestId.length >= 6
+        ? 6
+        : request.requestId.length;
     final requestIdShort = '#${request.requestId.substring(0, shortLen)}';
     final remainingDays = reward_date_utils.DateUtils.getRemainingDays(
       request.timestamps.lockExpiresAt,
@@ -237,9 +244,7 @@ class _SummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF27272a) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white12 : Colors.grey[200]!,
-        ),
+        border: Border.all(color: isDark ? Colors.white12 : Colors.grey[200]!),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -298,8 +303,9 @@ class _SummaryCard extends StatelessWidget {
                           ? '$remainingDays days left'
                           : 'Lock active',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color:
-                            theme.textTheme.labelSmall?.color?.withOpacity(0.7),
+                        color: theme.textTheme.labelSmall?.color?.withOpacity(
+                          0.7,
+                        ),
                       ),
                     ),
                   ],
@@ -398,8 +404,8 @@ class _ProgressTimeline extends StatelessWidget {
                   state: i < currentIndex
                       ? _StepState.done
                       : i == currentIndex
-                          ? _StepState.active
-                          : _StepState.upcoming,
+                      ? _StepState.active
+                      : _StepState.upcoming,
                   showConnector: i < steps.length - 1,
                 ),
             ],
@@ -442,8 +448,7 @@ class _TimelineRow extends StatelessWidget {
       case _StepState.active:
         return const Color(0xFFF97316);
       case _StepState.upcoming:
-        return Theme.of(context).textTheme.bodySmall!.color!
-            .withOpacity(0.5);
+        return Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.5);
     }
   }
 
@@ -470,11 +475,7 @@ class _TimelineRow extends StatelessWidget {
                   border: Border.all(color: color, width: 2),
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(
-                  step.icon,
-                  size: 18,
-                  color: color,
-                ),
+                child: Icon(step.icon, size: 18, color: color),
               ),
               if (showConnector)
                 Container(
@@ -505,8 +506,7 @@ class _TimelineRow extends StatelessWidget {
                   Text(
                     step.description,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
                     ),
                   ),
                 ],
@@ -564,9 +564,7 @@ class _RequestDetailsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF27272a) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white12 : Colors.grey[200]!,
-        ),
+        border: Border.all(color: isDark ? Colors.white12 : Colors.grey[200]!),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -618,9 +616,7 @@ class _DetailTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1f1f23) : Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? Colors.white10 : Colors.grey[200]!,
-        ),
+        border: Border.all(color: isDark ? Colors.white10 : Colors.grey[200]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -703,14 +699,13 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         _label(),
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-            ),
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
 }
-
 
 class _InfoRow extends StatelessWidget {
   final String label;
