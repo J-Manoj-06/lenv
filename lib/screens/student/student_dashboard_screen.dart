@@ -46,12 +46,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    print('🏠 StudentDashboard: initState called');
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      print('🏠 StudentDashboard: Post-frame callback triggered');
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       const SizedBox(height: 12);
+      print('🏠 StudentDashboard: Calling _loadDashboardData()');
       await _loadDashboardData();
       // Mark initialization complete
       if (mounted) {
+        print('🏠 StudentDashboard: Setting _isInitializing = false');
         setState(() {
           _isInitializing = false;
         });
@@ -60,6 +64,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 
   Future<void> _loadDashboardData() async {
+    print('🏠 _loadDashboardData: Starting...');
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final studentProvider = Provider.of<StudentProvider>(
       context,
@@ -70,17 +75,19 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       listen: false,
     );
 
+    print('🏠 _loadDashboardData: Auth status - currentUser=${authProvider.currentUser?.uid}, isLoading=${authProvider.isLoading}');
     // Ensure auth is initialized before proceeding
     if (authProvider.currentUser == null && !authProvider.isLoading) {
+      print('🏠 _loadDashboardData: Auth not initialized, initializing now...');
       await authProvider.initializeAuth();
     }
     if (authProvider.currentUser == null) {
-      print('❌ No authenticated user found');
+      print('❌ _loadDashboardData: No authenticated user found');
       return;
     }
 
     final userId = authProvider.currentUser!.uid;
-    print('✅ Loading dashboard for user: $userId');
+    print('✅ _loadDashboardData: Loading dashboard for user: $userId');
 
     try {
       await FirestoreService().processEndedTests();

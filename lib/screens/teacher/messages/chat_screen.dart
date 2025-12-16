@@ -696,7 +696,7 @@ class _ChatScreenState extends State<ChatScreen> {
               color: isTeacher
                   ? (isDark
                         ? theme.colorScheme.surface
-                        : theme.colorScheme.surfaceVariant)
+                        : theme.colorScheme.surfaceContainerHighest)
                   : (isDark ? theme.colorScheme.surface : theme.cardColor),
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(12),
@@ -798,7 +798,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: LinearProgressIndicator(
                   value: (_uploadProgress.clamp(0, 100)) / 100,
-                  backgroundColor: theme.colorScheme.surfaceVariant,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   color: theme.primaryColor,
                   minHeight: 4,
                 ),
@@ -812,7 +812,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     decoration: BoxDecoration(
                       color: isDark
                           ? theme.colorScheme.surface
-                          : theme.colorScheme.surfaceVariant,
+                          : theme.colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: theme.colorScheme.outline.withOpacity(0.5),

@@ -5,7 +5,6 @@ import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/parent_teacher_group_service.dart';
 import '../common/announcement_view_screen.dart';
-import '../common/announcement_pageview_screen.dart';
 
 class ParentSectionGroupChatScreen extends StatefulWidget {
   final String groupId;

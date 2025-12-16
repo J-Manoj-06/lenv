@@ -314,8 +314,9 @@ class GroupMessagingService {
     if (s.contains('math')) return '🔢';
     if (s.contains('science') &&
         !s.contains('social') &&
-        !s.contains('computer'))
+        !s.contains('computer')) {
       return '🔬';
+    }
     if (s.contains('social')) return '🌍';
     if (s.contains('english')) return '📖';
     if (s.contains('hindi')) return '📚';

@@ -6,10 +6,10 @@ class PerformanceInsightBubble extends StatelessWidget {
   final Map<String, dynamic>? performanceData;
 
   const PerformanceInsightBubble({
-    Key? key,
+    super.key,
     required this.insightText,
     this.performanceData,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -449,7 +449,7 @@ class PerformanceInsightBubble extends StatelessWidget {
 class StudyPlanBubble extends StatelessWidget {
   final String planText;
 
-  const StudyPlanBubble({Key? key, required this.planText}) : super(key: key);
+  const StudyPlanBubble({super.key, required this.planText});
 
   @override
   Widget build(BuildContext context) {

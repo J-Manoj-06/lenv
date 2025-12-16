@@ -251,7 +251,7 @@ class CloudflareR2Service {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
     final second = date.second.toString().padLeft(2, '0');
-    return '${year}${month}${day}T${hour}${minute}${second}Z';
+    return '$year$month${day}T$hour$minute${second}Z';
   }
 
   /// HMAC-SHA256 helper - returns List<int> for chaining

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/student/student_dashboard_screen.dart';
 import '../screens/student/student_tests_screen.dart';
-import '../screens/student/student_rewards_screen.dart';
 import '../screens/student/student_leaderboard_screen.dart';
 import '../screens/student/student_messages_screen.dart';
+import '../features/rewards/rewards_screen_wrapper.dart';
 
 /// Student Main Navigation Wrapper
 /// Uses IndexedStack to preserve state when switching tabs
@@ -41,7 +41,7 @@ class _StudentMainNavigationState extends State<StudentMainNavigation> {
           const StudentDashboardScreen(),
           const StudentTestsScreen(),
           const StudentMessagesScreen(),
-          const StudentRewardsScreen(),
+          RewardsScreenWrapper(userId: user.uid),
           const StudentLeaderboardScreen(),
         ]);
       }

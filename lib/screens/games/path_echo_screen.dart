@@ -329,7 +329,7 @@ class _PathEchoContent extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${size}×$size',
+                      '$size×$size',
                       style: const TextStyle(
                         color: Color(0xFFFF8A00),
                         fontSize: 20,

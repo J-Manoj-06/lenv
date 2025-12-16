@@ -64,7 +64,7 @@ class MessageGroupsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // ✅ NEW: Cache for message groups (5 minute TTL)
-  Map<String, MessageGroup> _groupCache = {};
+  final Map<String, MessageGroup> _groupCache = {};
   DateTime? _cacheTimestamp;
 
   // ✅ NEW: Cache check method

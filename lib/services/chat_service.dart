@@ -8,7 +8,7 @@ class ChatService {
     required String teacherId,
     required String parentId,
     required String studentId,
-  }) => '${schoolCode}__${teacherId}__${parentId}__${studentId}';
+  }) => '${schoolCode}__${teacherId}__${parentId}__$studentId';
 
   Future<String> ensureConversation({
     required String schoolCode,

@@ -5,7 +5,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'dart:io';
 import 'dart:async';
-import 'package:path_provider/path_provider.dart';
 import '../../services/chat_service.dart';
 import '../../models/media_metadata.dart';
 import '../../services/media_upload_service.dart';
@@ -53,7 +52,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
-  bool _isRecording = false;
+  final bool _isRecording = false;
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   late Timer _recordingTimer;

@@ -458,7 +458,7 @@ class _StudyTimerCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            running ? 'Remaining: ' + formatTime(remainingSeconds) : 'Ready',
+            running ? 'Remaining: ${formatTime(remainingSeconds)}' : 'Ready',
             style: const TextStyle(color: Colors.white70),
           ),
           const SizedBox(height: 10),
@@ -522,7 +522,7 @@ class _BreakReminderCard extends StatelessWidget {
               Switch(
                 value: enabled,
                 onChanged: onToggle,
-                activeColor: const Color(0xFF7EE8A9),
+                activeThumbColor: const Color(0xFF7EE8A9),
                 inactiveThumbColor: const Color(0xFF444446),
               ),
               const SizedBox(width: 10),

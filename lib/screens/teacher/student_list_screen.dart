@@ -19,7 +19,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
   bool _isLoading = true;
   String? _error;
   List<Map<String, dynamic>> _students = [];
-  Map<String, int> _attendanceCache = {}; // Cache for calculated attendance
+  final Map<String, int> _attendanceCache = {}; // Cache for calculated attendance
 
   // Teacher brand + dark palette (UI only; no logic changes)
   static const Color _teacherPrimary = Color(0xFF8B5CF6);

@@ -8,6 +8,7 @@ import '../../services/leaderboard_service.dart';
 import 'per_test_leaderboard_detail.dart';
 
 class KeyedSubtree extends StatelessWidget {
+  @override
   final Key key;
   final Widget child;
 

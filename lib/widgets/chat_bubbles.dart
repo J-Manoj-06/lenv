@@ -10,11 +10,11 @@ class ChatBubble extends StatelessWidget {
   final VoidCallback? onLongPress;
 
   const ChatBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isOwn,
     this.onLongPress,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -92,13 +92,13 @@ class MediaChatBubble extends StatelessWidget {
   final VoidCallback? onDownload;
 
   const MediaChatBubble({
-    Key? key,
+    super.key,
     required this.media,
     required this.isOwn,
     this.onTap,
     this.onLongPress,
     this.onDownload,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -197,13 +197,13 @@ class UnifiedChatMessage extends StatelessWidget {
   final VoidCallback? onDownload;
 
   const UnifiedChatMessage({
-    Key? key,
+    super.key,
     required this.message,
     required this.isOwn,
     this.onTap,
     this.onLongPress,
     this.onDownload,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -233,11 +233,11 @@ class MediaUploadProgress extends StatelessWidget {
   final VoidCallback? onCancel;
 
   const MediaUploadProgress({
-    Key? key,
+    super.key,
     required this.fileName,
     required this.progress,
     this.onCancel,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

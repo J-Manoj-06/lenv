@@ -923,7 +923,7 @@ const List<_StaffMember> _sampleStaff = [
         'https://lh3.googleusercontent.com/aida-public/AB6AXuCo47qOnpla-Qmgvn_hYN1TPZNL9gB5Ugq5-Ji9KFSnyB1eIQtNG56CztBhBOGhsyARlsDA6m1-cM6cjYw4Tsp9xk7LRktqXqyKC0WP6zAR5SXQozpA1C2GoPXq7yOLLcKILu70RxFdS2paipTd15PMAe0Ebw89sj-FH5mNwSTPODnqQTtRP-SDXvGT4_QorUEPCl8ChiPNRxGsynyYuvf-IiN6vlAkkMJbGPNgSAldDBGyKNwIuwtVf-_cGqcwVqMBItciPUVt-u3J',
     subjects: ['Biology'],
     classes: ['10-A'],
-    tests: const [],
+    tests: [],
     stats: _StaffStats(totalTests: 0, avgScore: 0, studentsImpacted: 0),
   ),
   _StaffMember(
@@ -934,9 +934,9 @@ const List<_StaffMember> _sampleStaff = [
     roleKey: 'non-teaching',
     imageUrl:
         'https://lh3.googleusercontent.com/aida-public/AB6AXuAJVobfsfvRPh1HKbUTe-ntjPG-X5mOj6WiRvu4tn3xi6FW96RxBgzoKJWetALHp4DsVQZ8RznlCunugAObFWh7lRrJJfHPDSroZeme7Kg4D1dMtnUl46gQpyA1iYbbH6Li1V-a7HHA9XdHtadNK36CdSATGRw6G9_4E5plNmCm3zZ0hXvSdrBHc_gAnCvirWs0P5EuDL62xZYgoXs-Hnxs-ADxKHMdnSvf6Xkd9mxDBx1oO8P7kE2ZxUomA-PrSeZ4vJKkOFHOo9CG',
-    subjects: const [],
+    subjects: [],
     classes: ['Support'],
-    tests: const [],
+    tests: [],
     stats: _StaffStats(totalTests: 0, avgScore: 0, studentsImpacted: 0),
   ),
 ];

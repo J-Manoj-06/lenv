@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:new_reward/providers/media_chat_provider.dart';
 
 class TestMediaUploadScreen extends StatefulWidget {
-  const TestMediaUploadScreen({Key? key}) : super(key: key);
+  const TestMediaUploadScreen({super.key});
 
   @override
   State<TestMediaUploadScreen> createState() => _TestMediaUploadScreenState();

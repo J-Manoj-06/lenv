@@ -11,12 +11,12 @@ class MediaImagePreview extends StatefulWidget {
   final bool showSenderInfo;
 
   const MediaImagePreview({
-    Key? key,
+    super.key,
     required this.media,
     this.onTap,
     this.maxWidth = 300,
     this.showSenderInfo = true,
-  }) : super(key: key);
+  });
 
   @override
   State<MediaImagePreview> createState() => _MediaImagePreviewState();
@@ -167,12 +167,12 @@ class MediaPdfPreview extends StatelessWidget {
   final double maxWidth;
 
   const MediaPdfPreview({
-    Key? key,
+    super.key,
     required this.media,
     this.onTap,
     this.onDownload,
     this.maxWidth = 280,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -270,11 +270,11 @@ class MediaMessageTile extends StatelessWidget {
   final bool isOwner; // sent by current user
 
   const MediaMessageTile({
-    Key? key,
+    super.key,
     required this.media,
     required this.onTap,
     required this.isOwner,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -370,11 +370,11 @@ class MediaPreviewDialog extends StatefulWidget {
   final int initialIndex;
 
   const MediaPreviewDialog({
-    Key? key,
+    super.key,
     required this.media,
     required this.allMedia,
     this.initialIndex = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<MediaPreviewDialog> createState() => _MediaPreviewDialogState();

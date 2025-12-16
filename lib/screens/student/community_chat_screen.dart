@@ -18,7 +18,6 @@ import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
-import '../../widgets/chat_image_widget.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../models/media_metadata.dart';

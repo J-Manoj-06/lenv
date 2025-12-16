@@ -18,8 +18,6 @@ import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
-import '../../widgets/chat_image_widget.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../models/media_metadata.dart';
 import '../../widgets/media_preview_card.dart';
@@ -48,12 +46,12 @@ class _TeacherCommunityChatScreenState
   String? _teacherId;
   bool _showEmojiPicker = false;
   bool _isUploading = false;
-  bool _isRecording = false;
+  final bool _isRecording = false;
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   late Timer _recordingTimer;
-  double _slideOffsetX = 0;
-  bool _isCancelled = false;
+  final double _slideOffsetX = 0;
+  final bool _isCancelled = false;
 
   @override
   void initState() {
@@ -793,7 +791,7 @@ class _TeacherCommunityChatScreenState
                     color: isCurrentUser
                         ? (isDark
                               ? const Color(0xFF1A1C20)
-                              : theme.colorScheme.surfaceVariant.withOpacity(
+                              : theme.colorScheme.surfaceContainerHighest.withOpacity(
                                   0.6,
                                 ))
                         : (isDark ? const Color(0xFF14171B) : theme.cardColor),
@@ -900,7 +898,7 @@ class _TeacherCommunityChatScreenState
                 decoration: BoxDecoration(
                   color: isDark
                       ? const Color(0xFF1A1C20)
-                      : theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                      : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: theme.dividerColor.withOpacity(0.5),
@@ -971,7 +969,7 @@ class _TeacherCommunityChatScreenState
                     ? theme.primaryColor
                     : (isDark
                           ? const Color(0xFF1A1C20)
-                          : theme.colorScheme.surfaceVariant.withOpacity(0.6)),
+                          : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6)),
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: theme.dividerColor.withOpacity(hasText ? 0.0 : 0.5),

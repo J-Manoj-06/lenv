@@ -166,7 +166,7 @@ class ParentProfileScreen extends StatelessWidget {
               ),
               Switch(
                 value: parentProvider.notificationsEnabled,
-                activeColor: parentGreen,
+                activeThumbColor: parentGreen,
                 onChanged: (value) {
                   parentProvider.setNotificationsEnabled(value);
                 },

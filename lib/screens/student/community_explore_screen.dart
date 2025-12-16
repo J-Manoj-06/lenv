@@ -19,7 +19,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
   List<CommunityModel> _filteredCommunities = [];
   String _selectedCategory = 'All';
   bool _isLoading = true;
-  Set<String> _joiningCommunities = {};
+  final Set<String> _joiningCommunities = {};
   Set<String> _joinedCommunities = {};
 
   final List<String> _categories = [
@@ -189,7 +189,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
               decoration: BoxDecoration(
                 color: isDark
                     ? theme.colorScheme.surface
-                    : theme.colorScheme.surfaceVariant.withOpacity(0.6),
+                    : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: TextField(
@@ -236,7 +236,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                           ? const Color(0xFF7A5CFF)
                           : (isDark
                                 ? theme.colorScheme.surface
-                                : theme.colorScheme.surfaceVariant.withOpacity(
+                                : theme.colorScheme.surfaceContainerHighest.withOpacity(
                                     0.4,
                                   )),
                       borderRadius: BorderRadius.circular(22),

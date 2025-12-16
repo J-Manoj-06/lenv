@@ -62,7 +62,7 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
             decoration: BoxDecoration(
               color: isDark
                   ? theme.colorScheme.surface
-                  : theme.colorScheme.surfaceVariant.withOpacity(0.6),
+                  : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
               borderRadius: BorderRadius.circular(50),
               border: Border.all(color: theme.dividerColor, width: 1),
             ),

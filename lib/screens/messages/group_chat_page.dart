@@ -797,7 +797,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     final isDark = theme.brightness == Brightness.dark;
     final inputBg = isDark
         ? theme.colorScheme.surface
-        : theme.colorScheme.surfaceVariant;
+        : theme.colorScheme.surfaceContainerHighest;
     final borderColor = theme.colorScheme.outline;
 
     return Container(

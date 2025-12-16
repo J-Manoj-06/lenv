@@ -28,7 +28,7 @@ class MediaChatProvider extends ChangeNotifier {
 
   // State
   List<MediaMessage> _mediaMessages = [];
-  Map<String, int> _uploadProgress = {}; // mediaId -> progress%
+  final Map<String, int> _uploadProgress = {}; // mediaId -> progress%
   String? _currentError;
   bool _isLoadingMore = false;
   DocumentSnapshot? _lastDocumentSnapshot;
@@ -375,8 +375,7 @@ class MediaChatProvider extends ChangeNotifier {
 class MediaChatExample extends StatefulWidget {
   final String conversationId;
 
-  const MediaChatExample({Key? key, required this.conversationId})
-    : super(key: key);
+  const MediaChatExample({super.key, required this.conversationId});
 
   @override
   State<MediaChatExample> createState() => _MediaChatExampleState();

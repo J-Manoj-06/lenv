@@ -62,7 +62,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
             decoration: BoxDecoration(
               color: isDark
                   ? theme.colorScheme.surface.withOpacity(0.6)
-                  : theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                  : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: theme.dividerColor.withOpacity(0.3),

@@ -277,7 +277,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
           filled: true,
           fillColor: isDark
               ? const Color(0xFF1A1C20)
-              : theme.colorScheme.surfaceVariant.withOpacity(0.35),
+              : theme.colorScheme.surfaceContainerHighest.withOpacity(0.35),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: OutlineInputBorder(
@@ -328,7 +328,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                         ? theme.primaryColor.withOpacity(0.18)
                         : (isDark
                               ? const Color(0xFF1A1C20)
-                              : theme.colorScheme.surfaceVariant.withOpacity(
+                              : theme.colorScheme.surfaceContainerHighest.withOpacity(
                                   0.25,
                                 )),
                     borderRadius: BorderRadius.circular(12),
@@ -647,7 +647,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                           ? const Color(0xFF111315)
                           : Theme.of(
                               context,
-                            ).colorScheme.surfaceVariant.withOpacity(0.6),
+                            ).colorScheme.surfaceContainerHighest.withOpacity(0.6),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(subjectIcon, color: iconColor, size: 22),

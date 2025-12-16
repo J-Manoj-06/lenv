@@ -33,56 +33,75 @@ class StudentProvider with ChangeNotifier {
     if (_hasLoaded &&
         _currentStudent != null &&
         _currentStudent!.uid == studentId) {
+      print('🔄 Dashboard already loaded for student: $studentId - skipping');
       return;
     }
 
     // Force reload on user switch
+    print('🚀 Starting loadDashboardData for student: $studentId');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       // Step 1: Try to load from cache first (instant UI update)
+      print('📦 Attempting to load from cache...');
       final cachedStudent = await CacheManager.getStudentDataCache(
         studentId: studentId,
       );
       if (cachedStudent != null) {
         _currentStudent = cachedStudent;
         notifyListeners(); // Show cached data immediately
-        print('📦 Loaded student data from cache');
+        print('✅ Loaded student data from cache: ${cachedStudent.name}');
       }
 
       // Step 2: Load from Firestore in parallel
+      print('🔥 Loading from Firestore...');
       _currentStudent = await _studentService.getCurrentStudent();
+      print('✅ Firestore fetch complete: ${_currentStudent?.name ?? "null"}');
 
       if (_currentStudent != null) {
         // Cache the fresh data
+        print('💾 Caching fresh student data...');
         await CacheManager.cacheStudentData(_currentStudent!);
-        print('💾 Cached fresh student data');
+        print('✅ Cache saved');
 
         // Load today's challenge
+        print('📚 Loading today\'s challenge...');
         _todayChallenge = await _studentService.getTodayChallenge();
+        print('✅ Challenge loaded: ${_todayChallenge?.title ?? "no challenge"}');
 
         // Check if student has attempted today's challenge
+        print('✅ Checking if student attempted challenge...');
         _hasAttemptedChallenge = await _studentService
             .hasAttemptedTodayChallenge(studentId);
+        print('✅ Attempt status: $_hasAttemptedChallenge');
 
         // Load notifications
+        print('🔔 Loading notifications...');
         _notifications = await _studentService.getStudentNotifications(
           studentId,
           limit: 20,
         );
+        print('✅ Notifications loaded: ${_notifications.length} items');
 
         // Update stats
+        print('📊 Updating student stats...');
         await _updateStudentStats(studentId);
+        print('✅ Stats updated');
+        
         _hasLoaded = true; // Mark as loaded
+        print('✅ Dashboard data loading COMPLETE');
+      } else {
+        print('⚠️ Firestore returned null for current student');
       }
     } catch (e) {
       _errorMessage = 'Failed to load dashboard: ${e.toString()}';
-      print(_errorMessage);
+      print('❌ ERROR in loadDashboardData: $_errorMessage');
 
       // If Firestore fails, at least we have cache
       if (_currentStudent == null) {
+        print('🔄 Attempting fallback to cached data...');
         final cachedStudent = await CacheManager.getStudentDataCache(
           studentId: studentId,
         );
@@ -94,6 +113,7 @@ class StudentProvider with ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+      print('✅ notifyListeners() called - _isLoading set to false');
     }
   }
 

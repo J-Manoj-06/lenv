@@ -1,0 +1,102 @@
+// Firestore security rules for rewards system
+// Append these rules to your existing firestore.rules file
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Read-only rewards catalog
+    match /rewards_catalog/{product} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admin and Cloud Functions can write
+    }
+
+    // Reward requests - students create, parents update
+    match /reward_requests/{requestId} {
+      // Students can create new requests
+      allow create: if request.auth != null 
+        && request.auth.token.role == 'student'
+        && request.resource.data.student_id == request.auth.uid
+        && request.resource.data.status == 'pending_parent_approval'
+        && request.resource.data.points.locked > 0
+        && request.resource.data.timestamps.lock_expires_at > now;
+
+      // Parents and admins can update requests
+      allow update: if request.auth != null && (
+        (request.auth.token.role == 'parent' 
+          && resource.data.parent_id == request.auth.uid)
+        || request.auth.token.role == 'admin'
+      );
+
+      // Anyone with permission can read their own requests
+      allow read: if request.auth != null && (
+        resource.data.student_id == request.auth.uid
+        || resource.data.parent_id == request.auth.uid
+        || request.auth.token.role == 'admin'
+      );
+
+      // Cloud Functions can update for auto-expiry
+      allow update: if request.auth == null
+        && request.headers['authorization'] != null;
+    }
+
+    // Student points (read-only for students, update via Cloud Functions/transactions)
+    match /students/{studentId} {
+      allow read: if request.auth != null 
+        && request.auth.uid == studentId;
+
+      allow write: if false; // Only Cloud Functions and transactions
+    }
+
+    // Parent profiles
+    match /parents/{parentId} {
+      allow read: if request.auth != null 
+        && request.auth.uid == parentId;
+
+      allow write: if request.auth != null 
+        && request.auth.uid == parentId;
+    }
+
+    // Notifications (for reminders and analytics)
+    match /notifications/{notificationId} {
+      allow create: if request.auth != null;
+      
+      allow read: if request.auth != null 
+        && (resource.data.receiver == request.auth.uid 
+            || request.auth.token.role == 'admin');
+
+      allow write: if false; // Only server writes
+    }
+
+    // Audit logs (append-only)
+    match /audit_logs/{auditId} {
+      allow create: if request.auth != null;
+      
+      allow read: if request.auth != null 
+        && (resource.data.actor == request.auth.uid 
+            || request.auth.token.role == 'admin');
+
+      allow update, delete: if false;
+    }
+
+    // Helper function: check if user has role
+    function hasRole(role) {
+      return request.auth.token.role == role;
+    }
+
+    // Helper function: check if user is student
+    function isStudent() {
+      return hasRole('student');
+    }
+
+    // Helper function: check if user is parent
+    function isParent() {
+      return hasRole('parent');
+    }
+
+    // Helper function: check if user is admin
+    function isAdmin() {
+      return hasRole('admin');
+    }
+  }
+}

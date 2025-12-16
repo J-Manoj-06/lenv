@@ -277,14 +277,13 @@ class _TeacherSubjectMessagesScreenState
     String classesLabel;
     if (hasMultiple) {
       classesLabel =
-          'Classes ' +
-          classes
+          'Classes ${classes
               .map(
                 (c) =>
                     (c['className'] as String) +
                     (c['section'].toString().isNotEmpty ? c['section'] : ''),
               )
-              .join(', ');
+              .join(', ')}';
     } else {
       final c = classes.first;
       final sec = (c['section'] as String).trim();

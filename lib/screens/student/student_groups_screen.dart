@@ -496,8 +496,9 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
     if (s.contains('english')) return const Color(0xFF9B59B6);
     if (s.contains('hindi')) return const Color(0xFFE74C3C);
     if (s.contains('computer')) return const Color(0xFF3498DB);
-    if (s.contains('physical') || s.contains('education'))
+    if (s.contains('physical') || s.contains('education')) {
       return const Color(0xFF2ECC71);
+    }
     return const Color(0xFFFF8800);
   }
 }

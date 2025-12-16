@@ -779,7 +779,7 @@ class _AiChatPageState extends State<AiChatPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Daily quiz limit reached! You can generate 2 quizzes per day. (${_quizAttemptsToday}/2 used)',
+            'Daily quiz limit reached! You can generate 2 quizzes per day. ($_quizAttemptsToday/2 used)',
           ),
           backgroundColor: Colors.orange,
           duration: const Duration(seconds: 3),

@@ -8,10 +8,10 @@ class TeacherStudentResultDetailScreen extends StatefulWidget {
   final String testId;
 
   const TeacherStudentResultDetailScreen({
-    Key? key,
+    super.key,
     required this.resultId,
     required this.testId,
-  }) : super(key: key);
+  });
 
   @override
   State<TeacherStudentResultDetailScreen> createState() =>
@@ -616,7 +616,7 @@ class _TeacherStudentResultDetailScreenState
                 ),
               ),
             );
-          }).toList(),
+          }),
         ] else ...[
           // No options available - show simple answer comparison
           _buildSimpleAnswer('Student Answer', userAnswer, isCorrect),

@@ -7,9 +7,9 @@ import '../models/game_tile.dart';
 class GhostMemoryProvider with ChangeNotifier {
   static const String _highScoreKey = 'ghost_memory_high_score';
 
-  List<GameTile> _tiles = [];
+  final List<GameTile> _tiles = [];
   List<int> _targetIndices = [];
-  List<int> _userTaps = [];
+  final List<int> _userTaps = [];
 
   int _currentLevel = 1;
   int _score = 0;

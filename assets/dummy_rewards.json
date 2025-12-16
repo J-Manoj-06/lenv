@@ -1,0 +1,552 @@
+[
+  {
+    "product_id": "prod_001",
+    "source": "amazon",
+    "asin": "B09G9FPHY6",
+    "title": "boAt Rockerz 255 Pro+ Bluetooth Neckband",
+    "image_url": "https://m.media-amazon.com/images/I/61OJRbtZIvL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 149
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B09G9FPHY6/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.8,
+      "max_points": 1500
+    },
+    "status": "active",
+    "rating": 4.2,
+    "review_count": 1250
+  },
+  {
+    "product_id": "prod_002",
+    "source": "amazon",
+    "asin": "B08KJKG9VJ",
+    "title": "Realme Buds Q Master TWS Earbuds",
+    "image_url": "https://m.media-amazon.com/images/I/51DfHO2qCpL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 1799
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B08KJKG9VJ/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.75,
+      "max_points": 1500
+    },
+    "status": "active",
+    "rating": 4.1,
+    "review_count": 980
+  },
+  {
+    "product_id": "prod_003",
+    "source": "amazon",
+    "asin": "B0B5KFYJWC",
+    "title": "OnePlus Nord Buds 2 True Wireless",
+    "image_url": "https://m.media-amazon.com/images/I/51RnAymvyWL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 2299
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0B5KFYJWC/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.7,
+      "max_points": 1800
+    },
+    "status": "active",
+    "rating": 4.3,
+    "review_count": 1540
+  },
+  {
+    "product_id": "prod_004",
+    "source": "amazon",
+    "asin": "B08T19N82P",
+    "title": "Fossil Gen 5E Smartwatch",
+    "image_url": "https://m.media-amazon.com/images/I/51Ar7FNMq6L.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 9999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B08T19N82P/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.6,
+      "max_points": 6000
+    },
+    "status": "active",
+    "rating": 4.0,
+    "review_count": 560
+  },
+  {
+    "product_id": "prod_005",
+    "source": "amazon",
+    "asin": "B08H6CZFD1",
+    "title": "Lenovo Smart Clock Essential",
+    "image_url": "https://m.media-amazon.com/images/I/61T1Dq6q2iL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 2999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B08H6CZFD1/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.65,
+      "max_points": 2000
+    },
+    "status": "active",
+    "rating": 4.4,
+    "review_count": 720
+  },
+  {
+    "product_id": "prod_006",
+    "source": "amazon",
+    "asin": "B092MY2T8R",
+    "title": "Kindle Paperwhite (11th Gen)",
+    "image_url": "https://m.media-amazon.com/images/I/51z6K6-4vZL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 9999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B092MY2T8R/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.55,
+      "max_points": 5500
+    },
+    "status": "active",
+    "rating": 4.5,
+    "review_count": 2100
+  },
+  {
+    "product_id": "prod_007",
+    "source": "amazon",
+    "asin": "B08YNJCS2R",
+    "title": "Fire TV Stick 4K Max",
+    "image_url": "https://m.media-amazon.com/images/I/51BiNKmVKPL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 5499
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B08YNJCS2R/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.6,
+      "max_points": 3300
+    },
+    "status": "active",
+    "rating": 4.2,
+    "review_count": 1850
+  },
+  {
+    "product_id": "prod_008",
+    "source": "amazon",
+    "asin": "B0BSLW1X5D",
+    "title": "JBL Flip 6 Portable Bluetooth Speaker",
+    "image_url": "https://m.media-amazon.com/images/I/51e5VG9dxUL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 6999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0BSLW1X5D/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.65,
+      "max_points": 4500
+    },
+    "status": "active",
+    "rating": 4.3,
+    "review_count": 1420
+  },
+  {
+    "product_id": "prod_009",
+    "source": "amazon",
+    "asin": "B096TGGQVZ",
+    "title": "Instax Mini 11 Instant Camera",
+    "image_url": "https://m.media-amazon.com/images/I/515NuG7U3dL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 5999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B096TGGQVZ/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.68,
+      "max_points": 4000
+    },
+    "status": "active",
+    "rating": 4.4,
+    "review_count": 980
+  },
+  {
+    "product_id": "prod_010",
+    "source": "amazon",
+    "asin": "B08QKP25T9",
+    "title": "Corsair Gaming Mouse Harpoon RGB",
+    "image_url": "https://m.media-amazon.com/images/I/51dZLLCg1rL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 1499
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B08QKP25T9/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.75,
+      "max_points": 1200
+    },
+    "status": "active",
+    "rating": 4.1,
+    "review_count": 650
+  },
+  {
+    "product_id": "prod_011",
+    "source": "amazon",
+    "asin": "B08W5Q6MZG",
+    "title": "Mechanical Gaming Keyboard RGB",
+    "image_url": "https://m.media-amazon.com/images/I/61MLlRtV-QL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 2999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B08W5Q6MZG/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.7,
+      "max_points": 2100
+    },
+    "status": "active",
+    "rating": 4.5,
+    "review_count": 1200
+  },
+  {
+    "product_id": "prod_012",
+    "source": "amazon",
+    "asin": "B0B1DWPQZQ",
+    "title": "Logitech Wireless Keyboard and Mouse Combo",
+    "image_url": "https://m.media-amazon.com/images/I/51cKL5tZlmL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 1599
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0B1DWPQZQ/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.8,
+      "max_points": 1300
+    },
+    "status": "active",
+    "rating": 4.2,
+    "review_count": 890
+  },
+  {
+    "product_id": "prod_013",
+    "source": "amazon",
+    "asin": "B08CKXCGPL",
+    "title": "Sony WH-CH720N Wireless Headphones",
+    "image_url": "https://m.media-amazon.com/images/I/51rGFEiMnzL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 4999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B08CKXCGPL/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.65,
+      "max_points": 3250
+    },
+    "status": "active",
+    "rating": 4.3,
+    "review_count": 1100
+  },
+  {
+    "product_id": "prod_014",
+    "source": "amazon",
+    "asin": "B0B35L47VL",
+    "title": "Sennheiser Momentum 4 Wireless Headphones",
+    "image_url": "https://m.media-amazon.com/images/I/51+6WjVvQpL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 14999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0B35L47VL/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.6,
+      "max_points": 9000
+    },
+    "status": "active",
+    "rating": 4.6,
+    "review_count": 540
+  },
+  {
+    "product_id": "prod_015",
+    "source": "amazon",
+    "asin": "B0946RJ3RR",
+    "title": "Elago AirPods Pro Charging Case Cover",
+    "image_url": "https://m.media-amazon.com/images/I/41hzF-ylTgL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 599
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0946RJ3RR/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.9,
+      "max_points": 600
+    },
+    "status": "active",
+    "rating": 4.0,
+    "review_count": 420
+  },
+  {
+    "product_id": "prod_016",
+    "source": "amazon",
+    "asin": "B098GMQM3P",
+    "title": "Anker PowerCore 26800mAh Power Bank",
+    "image_url": "https://m.media-amazon.com/images/I/51HgkwCw58L.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 2499
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B098GMQM3P/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.75,
+      "max_points": 1900
+    },
+    "status": "active",
+    "rating": 4.4,
+    "review_count": 1560
+  },
+  {
+    "product_id": "prod_017",
+    "source": "amazon",
+    "asin": "B0B4PHVBG6",
+    "title": "Baseus 65W Fast Charging Power Bank",
+    "image_url": "https://m.media-amazon.com/images/I/51HgkwCw58L.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 3299
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0B4PHVBG6/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.7,
+      "max_points": 2300
+    },
+    "status": "active",
+    "rating": 4.3,
+    "review_count": 740
+  },
+  {
+    "product_id": "prod_018",
+    "source": "amazon",
+    "asin": "B08V2P4L2N",
+    "title": "Portronics Dash 5 Dash Cam",
+    "image_url": "https://m.media-amazon.com/images/I/41IEgVJNmOL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 4499
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B08V2P4L2N/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.65,
+      "max_points": 2900
+    },
+    "status": "active",
+    "rating": 4.1,
+    "review_count": 520
+  },
+  {
+    "product_id": "prod_019",
+    "source": "amazon",
+    "asin": "B0BYJKGBL4",
+    "title": "GoPro HERO11 Black Action Camera",
+    "image_url": "https://m.media-amazon.com/images/I/41gNhxXVoSL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 39999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0BYJKGBL4/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.5,
+      "max_points": 20000
+    },
+    "status": "active",
+    "rating": 4.7,
+    "review_count": 380
+  },
+  {
+    "product_id": "prod_020",
+    "source": "amazon",
+    "asin": "B09QFP5TXM",
+    "title": "DJI Mini 3 Pro Drone",
+    "image_url": "https://m.media-amazon.com/images/I/51mOLxlYsYL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 49999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B09QFP5TXM/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.45,
+      "max_points": 22500
+    },
+    "status": "active",
+    "rating": 4.6,
+    "review_count": 290
+  },
+  {
+    "product_id": "prod_021",
+    "source": "amazon",
+    "asin": "B0BLQY3KB8",
+    "title": "iPad (10th Generation)",
+    "image_url": "https://m.media-amazon.com/images/I/41P8vVkaI5L.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 29999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0BLQY3KB8/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.5,
+      "max_points": 15000
+    },
+    "status": "active",
+    "rating": 4.5,
+    "review_count": 1250
+  },
+  {
+    "product_id": "prod_022",
+    "source": "amazon",
+    "asin": "B09Z6TWDXL",
+    "title": "Samsung Galaxy Tab S8",
+    "image_url": "https://m.media-amazon.com/images/I/41ug12j+3aL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 39999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B09Z6TWDXL/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.48,
+      "max_points": 19200
+    },
+    "status": "active",
+    "rating": 4.4,
+    "review_count": 950
+  },
+  {
+    "product_id": "prod_023",
+    "source": "amazon",
+    "asin": "B0B5C1PPFM",
+    "title": "Apple MacBook Air M2",
+    "image_url": "https://m.media-amazon.com/images/I/41Z1m2Y5BIL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 119999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0B5C1PPFM/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.4,
+      "max_points": 48000
+    },
+    "status": "active",
+    "rating": 4.8,
+    "review_count": 420
+  },
+  {
+    "product_id": "prod_024",
+    "source": "amazon",
+    "asin": "B0B9BPPWFF",
+    "title": "Dell Inspiron 15 Laptop",
+    "image_url": "https://m.media-amazon.com/images/I/41aXXRm4F7L.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 49999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0B9BPPWFF/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.45,
+      "max_points": 22500
+    },
+    "status": "active",
+    "rating": 4.2,
+    "review_count": 680
+  },
+  {
+    "product_id": "prod_025",
+    "source": "amazon",
+    "asin": "B0BWZBX9SR",
+    "title": "Samsung 4K Smart TV 55 inch",
+    "image_url": "https://m.media-amazon.com/images/I/41VImW3hQXL.jpg",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 39999
+    },
+    "affiliate_url": "https://www.amazon.in/dp/B0BWZBX9SR/?tag=lenv-21",
+    "points_rule": {
+      "points_per_rupee": 0.48,
+      "max_points": 19200
+    },
+    "status": "active",
+    "rating": 4.3,
+    "review_count": 1100
+  },
+  {
+    "product_id": "prod_026",
+    "source": "manual",
+    "title": "Amazon Gift Card 500",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 500
+    },
+    "points_rule": {
+      "points_per_rupee": 1.0,
+      "max_points": 500
+    },
+    "status": "active",
+    "description": "Digital gift card for Amazon purchases"
+  },
+  {
+    "product_id": "prod_027",
+    "source": "manual",
+    "title": "Amazon Gift Card 1000",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 1000
+    },
+    "points_rule": {
+      "points_per_rupee": 1.0,
+      "max_points": 1000
+    },
+    "status": "active",
+    "description": "Digital gift card for Amazon purchases"
+  },
+  {
+    "product_id": "prod_028",
+    "source": "manual",
+    "title": "Flipkart Gift Card 500",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 500
+    },
+    "points_rule": {
+      "points_per_rupee": 1.0,
+      "max_points": 500
+    },
+    "status": "active",
+    "description": "Digital gift card for Flipkart purchases"
+  },
+  {
+    "product_id": "prod_029",
+    "source": "manual",
+    "title": "Flipkart Gift Card 2000",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 2000
+    },
+    "points_rule": {
+      "points_per_rupee": 1.0,
+      "max_points": 2000
+    },
+    "status": "active",
+    "description": "Digital gift card for Flipkart purchases"
+  },
+  {
+    "product_id": "prod_030",
+    "source": "manual",
+    "title": "Movie Ticket Voucher",
+    "price": {
+      "currency": "INR",
+      "estimated_price": 300
+    },
+    "points_rule": {
+      "points_per_rupee": 0.9,
+      "max_points": 300
+    },
+    "status": "active",
+    "description": "Valid for all major cinema chains"
+  }
+]

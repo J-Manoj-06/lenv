@@ -239,8 +239,58 @@ class StudentService {
       );
     } catch (e) {
       print('Error getting student: $e');
+      // Fallback to minimal student model built from auth + rewards sum
+      final user = _auth.currentUser;
+      if (user != null) {
+        try {
+          return await _buildFallbackStudent(user);
+        } catch (_) {}
+      }
       return null;
     }
+  }
+
+  /// Fallback builder: minimal student using auth info + student_rewards sum
+  Future<StudentModel> _buildFallbackStudent(User user) async {
+    double totalPoints = 0;
+    try {
+      final rewardsSnap = await _firestore
+          .collection('student_rewards')
+          .where('studentId', isEqualTo: user.uid)
+          .get();
+      for (final doc in rewardsSnap.docs) {
+        final data = doc.data();
+        final pts = data['pointsEarned'];
+        if (pts is num) totalPoints += pts.toDouble();
+      }
+    } catch (e) {
+      print('Fallback: failed to sum student_rewards: $e');
+    }
+
+    return StudentModel(
+      uid: user.uid,
+      email: user.email ?? '',
+      name: user.displayName ?? 'Student',
+      photoUrl: user.photoURL,
+      schoolId: null,
+      schoolCode: null,
+      schoolName: null,
+      className: null,
+      section: null,
+      phone: null,
+      parentPhone: null,
+      rewardPoints: totalPoints.toInt(),
+      classRank: 0,
+      monthlyProgress: 0,
+      monthlyTarget: 90,
+      pendingTests: 0,
+      completedTests: 0,
+      newNotifications: 0,
+      streak: 0,
+      lastStreakDate: null,
+      createdAt: DateTime.now(),
+      isActive: true,
+    );
   }
 
   // Stream of student data (real-time updates)

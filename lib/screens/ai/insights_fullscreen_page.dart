@@ -97,7 +97,7 @@ class InsightsFullScreenPage extends StatelessWidget {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),

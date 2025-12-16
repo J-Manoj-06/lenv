@@ -72,7 +72,7 @@ class YouTubeApiService {
               ? (errors.first['reason'] ?? '')
               : '';
           final messageText = error?['message'] ?? '';
-          message = 'YouTube API error $code/$status: $messageText (${reason})';
+          message = 'YouTube API error $code/$status: $messageText ($reason)';
           print('❌ $message');
         } catch (_) {
           print('❌ YouTube API error: ${response.statusCode}');

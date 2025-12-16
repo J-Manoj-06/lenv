@@ -6,9 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class PathEchoProvider with ChangeNotifier {
   static const String _highestLevelKey = 'path_echo_highest_level';
 
-  List<Point<int>> _path = [];
-  List<Point<int>> _userPath = [];
-  Set<Point<int>> _visitedCells = {};
+  final List<Point<int>> _path = [];
+  final List<Point<int>> _userPath = [];
+  final Set<Point<int>> _visitedCells = {};
 
   int _currentLevel = 1;
   int _highestLevel = 1;

@@ -14,7 +14,7 @@ class PatternPulseProvider with ChangeNotifier {
   ];
 
   final List<int> _sequence = [];
-  List<int> _userInput = [];
+  final List<int> _userInput = [];
 
   int _currentLevel = 1;
   int _highestLevel = 1;

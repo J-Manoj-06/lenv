@@ -12,13 +12,13 @@ class TestResultScreen extends StatefulWidget {
   final String endTime;
 
   const TestResultScreen({
-    Key? key,
+    super.key,
     required this.testId,
     required this.testName,
     required this.className,
     required this.status,
     required this.endTime,
-  }) : super(key: key);
+  });
 
   @override
   State<TestResultScreen> createState() => _TestResultScreenState();
@@ -784,7 +784,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
               ),
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }

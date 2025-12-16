@@ -677,7 +677,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           const SizedBox(height: 20),
           ...recent
               .map((submission) => _buildTestHistoryItem(theme, submission))
-              .toList(),
+              ,
         ],
       ),
     );
