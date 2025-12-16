@@ -6,7 +6,11 @@ class StudentProfileService {
   // Get student subjects from profile
   Future<List<String>> getStudentSubjects(String studentId) async {
     try {
-      final doc = await _firestore.collection('students').doc(studentId).get();
+      // Force server read to avoid stale cache
+      final doc = await _firestore
+          .collection('students')
+          .doc(studentId)
+          .get(const GetOptions(source: Source.server));
 
       if (doc.exists) {
         final data = doc.data();
@@ -32,7 +36,11 @@ class StudentProfileService {
   // Fallback: get subjects from class collection
   Future<List<String>> _getSubjectsFromClass(String classId) async {
     try {
-      final doc = await _firestore.collection('classes').doc(classId).get();
+      // Force server read to avoid stale cache
+      final doc = await _firestore
+          .collection('classes')
+          .doc(classId)
+          .get(const GetOptions(source: Source.server));
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data.containsKey('subjects')) {
@@ -64,7 +72,11 @@ class StudentProfileService {
   // Get student profile data
   Future<Map<String, dynamic>> getStudentProfile(String studentId) async {
     try {
-      final doc = await _firestore.collection('students').doc(studentId).get();
+      // Force server read to avoid stale cache
+      final doc = await _firestore
+          .collection('students')
+          .doc(studentId)
+          .get(const GetOptions(source: Source.server));
       if (doc.exists) {
         return doc.data() ?? {};
       }

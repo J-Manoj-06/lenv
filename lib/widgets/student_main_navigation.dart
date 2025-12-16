@@ -38,11 +38,11 @@ class _StudentMainNavigationState extends State<StudentMainNavigation> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         _screens.addAll([
-          const StudentDashboardScreen(),
-          const StudentTestsScreen(),
-          const StudentMessagesScreen(),
-          RewardsScreenWrapper(userId: user.uid),
-          const StudentLeaderboardScreen(),
+          const StudentDashboardScreen(), // 0: Home
+          const StudentTestsScreen(), // 1: Tests
+          const StudentMessagesScreen(), // 2: Messages
+          RewardsScreenWrapper(userId: user.uid), // 3: Rewards
+          const StudentLeaderboardScreen(), // 4: Leaderboard
         ]);
       }
     }

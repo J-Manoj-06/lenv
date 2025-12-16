@@ -5,6 +5,7 @@ import '../../models/product_model.dart';
 import '../../providers/rewards_providers.dart';
 import '../widgets/product_card.dart';
 import '../widgets/rewards_top_switcher.dart';
+import 'product_detail_screen.dart';
 
 const Color _primaryOrange = Color(0xFFF97316);
 
@@ -120,9 +121,14 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
                       child: ProductCard(
                         product: product,
                         onRequestPressed: () {
-                          context.push(
-                            '/rewards/product/${product.productId}',
-                            extra: product,
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => ProductDetailScreen(
+                                productId: product.productId,
+                                initialProduct: product,
+                                studentId: widget.studentId,
+                              ),
+                            ),
                           );
                         },
                       ),

@@ -55,9 +55,21 @@ class StudentProvider with ChangeNotifier {
         print('✅ Loaded student data from cache: ${cachedStudent.name}');
       }
 
-      // Step 2: Load from Firestore in parallel
+      // Step 2: Load from Firestore with timeout
       print('🔥 Loading from Firestore...');
-      _currentStudent = await _studentService.getCurrentStudent();
+      try {
+        _currentStudent = await _studentService.getCurrentStudent().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            print('⏱️ Firestore fetch timed out after 10 seconds');
+            return _currentStudent; // Use cached data if timeout
+          },
+        );
+      } catch (e) {
+        print('❌ Firestore fetch error: $e');
+        if (_currentStudent == null) rethrow; // Only rethrow if no cached data
+        print('✅ Using cached data due to fetch error');
+      }
       print('✅ Firestore fetch complete: ${_currentStudent?.name ?? "null"}');
 
       if (_currentStudent != null) {

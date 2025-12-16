@@ -29,13 +29,13 @@ class CommunityService {
         return [];
       }
 
-      // Get all active, public communities
+      // Get all active, public communities with server read
       final query = await _firestore
           .collection('communities')
           .where('isActive', isEqualTo: true)
           .where('visibility', isEqualTo: 'public')
           .where('audienceRoles', arrayContains: 'student')
-          .get();
+          .get(const GetOptions(source: Source.server));
 
       // Filter by grade (show ALL eligible communities including joined ones)
       final communities = query.docs
@@ -75,13 +75,13 @@ class CommunityService {
     required String schoolCode,
   }) async {
     try {
-      // Get all active, public communities for teachers
+      // Get all active, public communities for teachers with server read
       final query = await _firestore
           .collection('communities')
           .where('isActive', isEqualTo: true)
           .where('visibility', isEqualTo: 'public')
           .where('audienceRoles', arrayContains: 'teacher')
-          .get();
+          .get(const GetOptions(source: Source.server));
 
       // Filter by school scope
       final communities = query.docs
@@ -114,11 +114,11 @@ class CommunityService {
   /// ✅ OPTIMIZED: Uses user_communities collection (1 read instead of 3000+)
   Future<List<CommunityModel>> getMyComm(String userId) async {
     try {
-      // ✅ OPTIMIZATION: Read from user_communities index
+      // ✅ OPTIMIZATION: Read from user_communities index with server read
       final indexDoc = await _firestore
           .collection('user_communities')
           .doc(userId)
-          .get();
+          .get(const GetOptions(source: Source.server));
 
       if (!indexDoc.exists || indexDoc.data() == null) {
         debugPrint(
@@ -141,7 +141,11 @@ class CommunityService {
       // Fetch community details (N reads where N = number of joined communities)
       final communities = <CommunityModel>[];
       for (final id in communityIds) {
-        final doc = await _firestore.collection('communities').doc(id).get();
+        // Force server read to avoid stale cache
+        final doc = await _firestore
+            .collection('communities')
+            .doc(id)
+            .get(const GetOptions(source: Source.server));
         if (doc.exists) {
           communities.add(CommunityModel.fromFirestore(doc));
         }

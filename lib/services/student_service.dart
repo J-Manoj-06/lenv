@@ -14,7 +14,10 @@ class StudentService {
       if (user == null) return null;
 
       final userDocRef = _firestore.collection('users').doc(user.uid);
-      final userDoc = await userDocRef.get();
+      // Force server read to avoid stale cache
+      final userDoc = await userDocRef.get(
+        const GetOptions(source: Source.server),
+      );
 
       // If users/<uid> doesn't exist, bootstrap it from students by email
       if (!userDoc.exists) {
@@ -23,11 +26,12 @@ class StudentService {
 
         Map<String, dynamic>? studentRefData;
         try {
+          // Force server read to avoid stale cache
           final sSnap = await _firestore
               .collection('students')
               .where('email', isEqualTo: emailFallback)
               .limit(1)
-              .get();
+              .get(const GetOptions(source: Source.server));
           if (sSnap.docs.isNotEmpty) {
             studentRefData = sSnap.docs.first.data();
           }
@@ -104,11 +108,12 @@ class StudentService {
       Map<String, dynamic>? studentRefData;
       try {
         if (email.isNotEmpty) {
+          // Force server read to avoid stale cache
           final sSnap = await _firestore
               .collection('students')
               .where('email', isEqualTo: email)
               .limit(1)
-              .get();
+              .get(const GetOptions(source: Source.server));
           if (sSnap.docs.isNotEmpty) {
             studentRefData = sSnap.docs.first.data();
           }
@@ -225,6 +230,66 @@ class StudentService {
         }
       } else {
         print('📌 StudentService: No updates needed for users/${user.uid}');
+      }
+
+      // ✅ CRITICAL FIX: Also sync back to students collection if data was enriched
+      if (studentRefData != null && updates.isNotEmpty) {
+        print(
+          '📌 StudentService: Syncing enriched data back to students collection...',
+        );
+        try {
+          await _firestore.collection('students').doc(user.uid).update(updates);
+          print('✅ StudentService: Successfully synced students collection');
+        } catch (e) {
+          print('⚠️ StudentService: Failed to sync students collection: $e');
+        }
+      }
+
+      // ✅ ENSURE students/{uid} document has ALL profile fields
+      try {
+        final studentsDoc = await _firestore
+            .collection('students')
+            .doc(user.uid)
+            .get();
+        if (!studentsDoc.exists) {
+          print(
+            '📌 StudentService: Creating students/${user.uid} with full profile...',
+          );
+          // Create complete profile document in students collection
+          await _firestore.collection('students').doc(user.uid).set({
+            'uid': user.uid,
+            'email': base.email.isNotEmpty ? base.email : user.email ?? '',
+            'name': resolvedName,
+            'studentName': resolvedName,
+            'className': resolvedClassName ?? '',
+            'section': resolvedSection ?? '',
+            'schoolCode': resolvedSchoolCode ?? '',
+            'schoolName': resolvedSchoolName ?? '',
+            'phone': resolvedPhone ?? '',
+            'contactNumber': resolvedPhone ?? '',
+            'parentPhone': resolvedParentPhone ?? '',
+            'createdAt': FieldValue.serverTimestamp(),
+            // Don't set reward fields - they'll be populated by rewards system
+          }, SetOptions(merge: true));
+          print('✅ StudentService: Created students/${user.uid} document');
+        } else {
+          final doc = studentsDoc.data() ?? {};
+          // Check if profile fields are missing/empty
+          if ((doc['className'] as String?)?.isEmpty ?? true) {
+            print(
+              '📌 StudentService: Fixing missing profile fields in students/${user.uid}',
+            );
+            await _firestore.collection('students').doc(user.uid).update({
+              'className': resolvedClassName ?? '',
+              'section': resolvedSection ?? '',
+              'schoolCode': resolvedSchoolCode ?? '',
+              'schoolName': resolvedSchoolName ?? '',
+            });
+            print('✅ StudentService: Fixed profile fields');
+          }
+        }
+      } catch (e) {
+        print('⚠️ StudentService: Error ensuring students document: $e');
       }
 
       // Return enriched model for UI

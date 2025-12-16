@@ -230,11 +230,11 @@ class GroupMessagingService {
     try {
       print('📚 getClassSubjects called for classId: $classId');
 
-      // Get the class document
+      // Get the class document with server read to avoid stale cache
       final classDoc = await _firestore
           .collection('classes')
           .doc(classId)
-          .get();
+          .get(const GetOptions(source: Source.server));
 
       if (!classDoc.exists) {
         print('❌ Class document not found: $classId');
@@ -388,12 +388,24 @@ class GroupMessagingService {
 
   /// Get student's class ID from their profile
   Future<String?> getStudentClassId(String studentId) async {
+    return _getStudentClassIdInternal(studentId, isRetry: false);
+  }
+
+  Future<String?> _getStudentClassIdInternal(
+    String studentId, {
+    required bool isRetry,
+  }) async {
     try {
+      print(
+        '🔍 getStudentClassId: Starting for student: $studentId (retry: $isRetry)',
+      );
+
       // ✅ FIX: Check students collection first (primary source for student data)
+      // Force server read to avoid stale cache
       final studentDoc = await _firestore
           .collection('students')
           .doc(studentId)
-          .get();
+          .get(const GetOptions(source: Source.server));
 
       String? fullClassName;
       String? sectionField;
@@ -409,12 +421,16 @@ class GroupMessagingService {
         print(
           '📚 Found student in students collection: className=$fullClassName, section=$sectionField, schoolCode=$schoolCode',
         );
+        print('📊 Full student data keys: ${studentData.keys.toList()}');
       } else {
-        // Fallback: Try users collection
+        print(
+          '⚠️ Student not found in students collection, trying users collection',
+        );
+        // Fallback: Try users collection with server read
         final userDoc = await _firestore
             .collection('users')
             .doc(studentId)
-            .get();
+            .get(const GetOptions(source: Source.server));
 
         if (!userDoc.exists || userDoc.data() == null) {
           print(
@@ -428,6 +444,7 @@ class GroupMessagingService {
         sectionField = userData['section'] ?? '';
         schoolCode = userData['schoolId'] ?? userData['schoolCode'] ?? '';
 
+        print('📊 User data keys: ${userData.keys.toList()}');
         print(
           '📚 Found student in users collection: className=$fullClassName, section=$sectionField',
         );
@@ -435,7 +452,15 @@ class GroupMessagingService {
 
       if (fullClassName == null || fullClassName.isEmpty) {
         print('❌ className is empty for user: $studentId');
-        return null;
+        if (!isRetry) {
+          print('🔄 Attempting to sync student data from Firestore (retry)...');
+          // Try one more time with a fresh fetch
+          await Future.delayed(const Duration(milliseconds: 1000));
+          return _getStudentClassIdInternal(studentId, isRetry: true);
+        } else {
+          print('❌ Second attempt also failed, giving up');
+          return null;
+        }
       }
 
       // Parse className to extract grade (e.g., "Grade 10" from "Grade 10 - A")
@@ -536,8 +561,9 @@ class GroupMessagingService {
         'No class found for: grade=$grade, section=$section, fullClassName=$fullClassName',
       );
       return null;
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error getting student class ID: $e');
+      print('Stack trace: $stackTrace');
       return null;
     }
   }

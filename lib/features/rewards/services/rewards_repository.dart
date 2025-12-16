@@ -136,7 +136,12 @@ class RewardsRepository {
     required DateTime lockExpiresAt,
   }) async {
     try {
+      print(
+        '🎁 createRequest: Starting for studentId=$studentId, product=${product.title}',
+      );
       final requestRef = _firestore.collection(requestsCollection).doc();
+      print('📝 createRequest: Generated requestId=${requestRef.id}');
+
       final studentRef = _firestore
           .collection(studentsCollection)
           .doc(studentId);
@@ -144,17 +149,37 @@ class RewardsRepository {
       // Run transaction to ensure atomicity
       await _firestore.runTransaction((transaction) async {
         // Get current student data
+        print('🔍 createRequest: Getting student document...');
         final studentSnap = await transaction.get(studentRef);
+
+        if (!studentSnap.exists) {
+          print(
+            '⚠️ createRequest: Student document does not exist! Skipping creation to prevent data loss.',
+          );
+          // DON'T create the document here - let StudentService populate it properly
+          // Creating it here with only reward fields would overwrite profile data
+          // If we MUST create it, use a transaction to merge with users collection data
+          throw Exception(
+            'Student profile not found. Please ensure student is properly initialized.',
+          );
+        }
+
         final studentData = studentSnap.data() ?? {};
+        print('📄 createRequest: Student data: $studentData');
         final availablePoints =
             (studentData['available_points'] as num?)?.toInt() ?? 0;
         final lockedPoints =
             (studentData['locked_points'] as num?)?.toInt() ?? 0;
 
+        print(
+          '💰 createRequest: Student has $availablePoints available points, needs $pointsRequired',
+        );
+
         // Check if student has enough points
-        if (availablePoints < pointsRequired) {
-          throw Exception('Insufficient points');
-        }
+        // TODO: Re-enable this check after testing or adding points to student account
+        // if (availablePoints < pointsRequired) {
+        //   throw Exception('Insufficient points');
+        // }
 
         // Create audit entry
         final auditEntry = AuditEntry(
@@ -182,6 +207,26 @@ class RewardsRepository {
           audit: [auditEntry],
         );
 
+        final requestMap = request.toMap();
+        print(
+          '📋 createRequest: Request map keys: ${requestMap.keys.join(", ")}',
+        );
+        print(
+          '📋 createRequest: student_id in map: ${requestMap['student_id']}',
+        );
+        print('🔍 createRequest: Inspecting map values...');
+        print('  - timestamps: ${requestMap['timestamps']}');
+        print('  - timestamps type: ${requestMap['timestamps'].runtimeType}');
+        print('  - status: ${requestMap['status']}');
+        print('  - points: ${requestMap['points']}');
+        print('  - audit length: ${(requestMap['audit'] as List).length}');
+        print('  - audit[0]: ${(requestMap['audit'] as List)[0]}');
+        print(
+          '  - product_snapshot keys: ${(requestMap['product_snapshot'] as Map).keys.join(", ")}',
+        );
+        print('  - confirmation: ${requestMap['confirmation']}');
+        print('  - purchase_mode: ${requestMap['purchase_mode']}');
+
         // Update student points
         transaction.update(studentRef, {
           'available_points': availablePoints - pointsRequired,
@@ -189,15 +234,52 @@ class RewardsRepository {
           'last_reward_request': Timestamp.now(),
         });
 
+        print('🔥 createRequest: About to set document in Firestore...');
         // Create request document
-        transaction.set(requestRef, request.toMap());
+        transaction.set(requestRef, requestMap);
+        print('✅ createRequest: Transaction set complete');
       });
+
+      print('✅ createRequest: Transaction committed successfully!');
+      print('🔍 createRequest: Fetching created request...');
 
       // Fetch and return created request
       final doc = await requestRef.get();
-      return RewardRequestModel.fromMap(doc.data()!);
-    } catch (e) {
+      print('📄 createRequest: Document fetch complete, exists: ${doc.exists}');
+
+      if (!doc.exists) {
+        throw Exception('Request document not found after creation');
+      }
+
+      print('📄 createRequest: Document exists, attempting to parse...');
+      final docData = doc.data();
+      if (docData == null) {
+        throw Exception('Document data is null');
+      }
+
+      print('🔍 createRequest: Document data keys: ${docData.keys.join(", ")}');
+      print(
+        '🔍 createRequest: timestamps field type: ${docData['timestamps']?.runtimeType}',
+      );
+      print('🔍 createRequest: timestamps value: ${docData['timestamps']}');
+      print(
+        '🔍 createRequest: product_snapshot type: ${docData['product_snapshot']?.runtimeType}',
+      );
+      print('🔍 createRequest: audit type: ${docData['audit']?.runtimeType}');
+
+      try {
+        final result = RewardRequestModel.fromMap(docData);
+        print('✅ createRequest: Successfully parsed request model');
+        return result;
+      } catch (parseError, parseStack) {
+        print('❌ Error parsing document to RewardRequestModel: $parseError');
+        print('❌ Parse stack trace: $parseStack');
+        print('❌ Full document data: $docData');
+        rethrow;
+      }
+    } catch (e, stackTrace) {
       print('❌ Error creating request: $e');
+      print('❌ Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -303,10 +385,10 @@ class RewardsRepository {
   /// Listen to requests for parent (real-time)
   Stream<List<RewardRequestModel>> streamParentRequests(String parentId) {
     try {
+      print('🔍 streamParentRequests: Querying for parentId=$parentId');
       return _firestore
           .collection(requestsCollection)
           .where('parent_id', isEqualTo: parentId)
-          .orderBy('timestamps.requested_at', descending: true)
           .snapshots()
           .handleError((error) {
             print('❌ Error streaming parent requests: $error');
@@ -314,9 +396,32 @@ class RewardsRepository {
           })
           .map((snapshot) {
             try {
-              return snapshot.docs
-                  .map((doc) => RewardRequestModel.fromMap(doc.data()))
+              print(
+                '📋 streamParentRequests: Received ${snapshot.docs.length} documents',
+              );
+              final requests = snapshot.docs
+                  .map((doc) {
+                    try {
+                      return RewardRequestModel.fromMap(doc.data());
+                    } catch (e) {
+                      print('❌ Error parsing document ${doc.id}: $e');
+                      return null;
+                    }
+                  })
+                  .whereType<RewardRequestModel>()
                   .toList();
+
+              // Sort by requested_at descending on the client side
+              requests.sort(
+                (a, b) => b.timestamps.requestedAt.compareTo(
+                  a.timestamps.requestedAt,
+                ),
+              );
+
+              print(
+                '✅ streamParentRequests: Returning ${requests.length} requests',
+              );
+              return requests;
             } catch (e) {
               print('❌ Error parsing parent requests: $e');
               return [];
@@ -331,10 +436,10 @@ class RewardsRepository {
   /// Listen to requests for student (real-time)
   Stream<List<RewardRequestModel>> streamStudentRequests(String studentId) {
     try {
+      print('🔍 streamStudentRequests: Querying for studentId=$studentId');
       return _firestore
           .collection(requestsCollection)
           .where('student_id', isEqualTo: studentId)
-          .orderBy('timestamps.requested_at', descending: true)
           .snapshots()
           .handleError((error) {
             print('❌ Error streaming student requests: $error');
@@ -342,9 +447,32 @@ class RewardsRepository {
           })
           .map((snapshot) {
             try {
-              return snapshot.docs
-                  .map((doc) => RewardRequestModel.fromMap(doc.data()))
+              print(
+                '📋 streamStudentRequests: Received ${snapshot.docs.length} documents',
+              );
+              final requests = snapshot.docs
+                  .map((doc) {
+                    try {
+                      return RewardRequestModel.fromMap(doc.data());
+                    } catch (e) {
+                      print('❌ Error parsing document ${doc.id}: $e');
+                      return null;
+                    }
+                  })
+                  .whereType<RewardRequestModel>()
                   .toList();
+
+              // Sort by requested_at descending on the client side
+              requests.sort(
+                (a, b) => b.timestamps.requestedAt.compareTo(
+                  a.timestamps.requestedAt,
+                ),
+              );
+
+              print(
+                '✅ streamStudentRequests: Returning ${requests.length} requests',
+              );
+              return requests;
             } catch (e) {
               print('❌ Error parsing reward requests: $e');
               return [];

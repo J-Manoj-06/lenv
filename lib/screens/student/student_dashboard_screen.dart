@@ -2187,9 +2187,11 @@ class _PremiumBadgeTileState extends State<_PremiumBadgeTile>
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeOutBack,
       builder: (context, value, child) {
+        // Clamp opacity value to ensure it stays within valid range [0.0, 1.0]
+        final clampedOpacity = value.clamp(0.0, 1.0);
         return Transform.scale(
           scale: 0.85 + (0.15 * value),
-          child: Opacity(opacity: value, child: child),
+          child: Opacity(opacity: clampedOpacity, child: child),
         );
       },
       child: GestureDetector(
