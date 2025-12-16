@@ -120,7 +120,7 @@ class RewardsModule {
     required String requestId,
     RewardRequestModel? request,
   }) {
-    context.go(
+    context.push(
       requestDetailRoute.replaceAll(':requestId', requestId),
       extra: request,
     );

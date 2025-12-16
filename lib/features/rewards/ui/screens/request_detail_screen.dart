@@ -5,6 +5,7 @@ import '../../providers/rewards_providers.dart';
 import '../../utils/points_calculator.dart';
 import '../../utils/date_utils.dart' as reward_date_utils;
 import '../widgets/modals.dart';
+import '../../rewards_module.dart';
 
 class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -122,7 +123,19 @@ class _RequestDetailContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _TopBar(requestIdShort: requestIdShort),
+              _TopBar(
+                requestIdShort: requestIdShort,
+                onBack: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else {
+                    RewardsModule.navigateToStudentRequests(
+                      context,
+                      studentId: request.studentId,
+                    );
+                  }
+                },
+              ),
               const SizedBox(height: 16),
 
               _SummaryCard(
@@ -182,8 +195,9 @@ class _RequestDetailContent extends StatelessWidget {
 
 class _TopBar extends StatelessWidget {
   final String requestIdShort;
+  final VoidCallback onBack;
 
-  const _TopBar({required this.requestIdShort});
+  const _TopBar({required this.requestIdShort, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -192,7 +206,7 @@ class _TopBar extends StatelessWidget {
       children: [
         IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: onBack,
         ),
         Expanded(
           child: Column(
