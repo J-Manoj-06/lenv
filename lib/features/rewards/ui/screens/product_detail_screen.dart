@@ -72,93 +72,82 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             );
 
             return Scaffold(
-              appBar: AppBar(
-                title: const Text('Reward'),
-                elevation: 0,
-                backgroundColor: isDark
-                    ? Theme.of(context).scaffoldBackgroundColor
-                    : Colors.transparent,
-              ),
-              body: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ===== PRODUCT IMAGE SECTION =====
-                    Container(
-                      width: double.infinity,
-                      height: 280,
-                      margin: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[850] : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.shopping_bag_outlined,
-                        size: 80,
-                        color: isDark ? Colors.grey[600] : Colors.grey[400],
-                      ),
-                    ),
-
-                    // ===== PRODUCT HEADER (NAME & PRICE) =====
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Product Name - Primary element
-                          Text(
-                            product.title,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.2,
+              // App bar removed; custom header below keeps nav bar hidden and uses the project arrow style
+              body: SafeArea(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: Text(
+                                  'Reward',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Price & Rating Row
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Price
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Store Price',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: isDark
-                                              ? Colors.grey[400]
-                                              : Colors.grey[600],
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '₹${product.price.estimatedPrice.toStringAsFixed(0)}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineSmall
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                          color: const Color(0xFFF2800D),
-                                        ),
-                                  ),
-                                ],
                               ),
+                            ),
+                            const SizedBox(width: 48),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
 
-                              // Rating
-                              if (product.rating != null && product.rating! > 0)
+                      // ===== PRODUCT IMAGE SECTION =====
+                      Container(
+                        width: double.infinity,
+                        height: 280,
+                        margin: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.grey[850] : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.shopping_bag_outlined,
+                          size: 80,
+                          color: isDark ? Colors.grey[600] : Colors.grey[400],
+                        ),
+                      ),
+
+                      // ===== PRODUCT HEADER (NAME & PRICE) =====
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Product Name - Primary element
+                            Text(
+                              product.title,
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.2,
+                                  ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Price & Rating Row
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Price
                                 Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Rating',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
+                                      'Store Price',
+                                      style: Theme.of(context).textTheme.bodySmall
                                           ?.copyWith(
                                             color: isDark
                                                 ? Colors.grey[400]
@@ -167,32 +156,63 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                           ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.star_rounded,
-                                          size: 16,
-                                          color: Colors.amber[400],
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${product.rating!.toStringAsFixed(1)} / 5',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                        ),
-                                      ],
+                                    Text(
+                                      '₹${product.price.estimatedPrice.toStringAsFixed(0)}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(0xFFF2800D),
+                                          ),
                                     ),
                                   ],
                                 ),
-                            ],
-                          ),
-                        ],
+
+                                // Rating
+                                if (product.rating != null && product.rating! > 0)
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        'Rating',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: isDark
+                                                  ? Colors.grey[400]
+                                                  : Colors.grey[600],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.star_rounded,
+                                            size: 16,
+                                            color: Colors.amber[400],
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${product.rating!.toStringAsFixed(1)} / 5',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
 
                     const SizedBox(height: 28),
 
@@ -349,24 +369,26 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
+                      const SizedBox(height: 24),
 
-              // ===== PRIMARY ACTION BUTTON =====
-              bottomSheet: _ActionButton(
-                isEligible: isEligible,
-                isLoading: _isRequestingProduct,
-                onPressed: !isEligible || _isRequestingProduct
-                    ? null
-                    : () => _showRequestConfirmation(
-                        context,
-                        product,
-                        pointsRequired,
+                      // ===== PRIMARY ACTION BUTTON (moved into scroll, no bottom nav) =====
+                      _ActionButton(
+                        isEligible: isEligible,
+                        isLoading: _isRequestingProduct,
+                        onPressed: !isEligible || _isRequestingProduct
+                            ? null
+                            : () => _showRequestConfirmation(
+                                context,
+                                product,
+                                pointsRequired,
+                              ),
+                        neededPoints: neededPoints,
+                        isDark: isDark,
                       ),
-                neededPoints: neededPoints,
-                isDark: isDark,
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+                ),
               ),
             );
           },

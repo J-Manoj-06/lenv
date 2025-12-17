@@ -120,12 +120,15 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
                       child: ProductCard(
                         product: product,
                         onRequestPressed: () {
-                          Navigator.of(context).push(
+                          Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute(
-                              builder: (context) => ProductDetailScreen(
-                                productId: product.productId,
-                                initialProduct: product,
-                                studentId: widget.studentId,
+                              builder: (ctx) => UncontrolledProviderScope(
+                                container: ProviderScope.containerOf(context),
+                                child: ProductDetailScreen(
+                                  productId: product.productId,
+                                  initialProduct: product,
+                                  studentId: widget.studentId,
+                                ),
                               ),
                             ),
                           );
@@ -364,7 +367,8 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () {
-              ref.refresh(rewardsCatalogProvider);
+              // Use refresh result to satisfy lints
+              final _ = ref.refresh(rewardsCatalogProvider);
             },
             icon: const Icon(Icons.refresh),
             label: const Text('Try Again'),
@@ -431,6 +435,7 @@ class _ModernFilterChip extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _SortChip extends StatelessWidget {
   final String label;
   final String value;
