@@ -23,11 +23,27 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
   Widget build(BuildContext context) {
     final requestsAsync = ref.watch(studentRequestsProvider(widget.studentId));
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = isDark ? const Color(0xFF121212) : const Color(0xFFFAF9F7);
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Requests'),
-        centerTitle: true,
-        elevation: 0,
+      backgroundColor: scaffoldBg,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: AppBar(
+          elevation: 0,
+          backgroundColor: cardBg,
+          surfaceTintColor: Colors.transparent,
+          centerTitle: true,
+          title: Text(
+            'My Requests',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+          ),
+        ),
       ),
       body: Column(
         children: [
