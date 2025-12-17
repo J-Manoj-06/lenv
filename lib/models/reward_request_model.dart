@@ -5,6 +5,7 @@ enum RewardRequestStatus { pending, approved, orderPlaced, rejected }
 class RewardRequestModel {
   final String id;
   final String studentId;
+  final String studentName;
   final String productId; // reference to ProductModel in 'products'
   final String productName;
   final String amazonLink;
@@ -18,6 +19,7 @@ class RewardRequestModel {
   RewardRequestModel({
     required this.id,
     required this.studentId,
+    required this.studentName,
     required this.productId,
     required this.productName,
     required this.amazonLink,
@@ -48,6 +50,7 @@ class RewardRequestModel {
     return RewardRequestModel(
       id: id ?? (json['id'] as String? ?? ''),
       studentId: (json['studentId'] as String? ?? ''),
+      studentName: (json['studentName'] as String? ?? 'Unknown Student'),
       productId: (json['productId'] as String? ?? ''),
       productName: (json['productName'] as String? ?? ''),
       amazonLink: (json['amazonLink'] as String? ?? ''),
@@ -68,6 +71,7 @@ class RewardRequestModel {
   Map<String, dynamic> toJson() => {
     'id': id,
     'studentId': studentId,
+    'studentName': studentName,
     'productId': productId,
     'productName': productName,
     'amazonLink': amazonLink,

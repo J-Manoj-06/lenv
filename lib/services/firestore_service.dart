@@ -1470,11 +1470,13 @@ class FirestoreService {
   Future<String> requestReward({
     required ProductModel product,
     required String studentId,
+    required String studentName,
   }) async {
     final reqRef = _db.collection('reward_requests').doc();
     final request = RewardRequestModel(
       id: reqRef.id,
       studentId: studentId,
+      studentName: studentName,
       productId: product.id,
       productName: product.name,
       amazonLink: product.amazonLink,

@@ -106,11 +106,13 @@ class ProductDetailScreen extends StatelessWidget {
               onPressed: () async {
                 final auth = Provider.of<AuthProvider>(context, listen: false);
                 final studentId = auth.currentUser?.uid;
+                final studentName = auth.currentUser?.name ?? 'Unknown Student';
                 if (studentId == null) return;
                 try {
                   await FirestoreService().requestReward(
                     product: product,
                     studentId: studentId,
+                    studentName: studentName,
                   );
                   // ignore: use_build_context_synchronously
                   ScaffoldMessenger.of(context).showSnackBar(

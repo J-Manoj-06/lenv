@@ -491,11 +491,11 @@ class ParentService {
       final querySnapshot = await _firestore
           .collection('reward_requests')
           .where('studentId', isEqualTo: studentId)
-          .orderBy('requestedAt', descending: true)
+          .orderBy('requestedOn', descending: true)
           .get();
 
       return querySnapshot.docs
-          .map((doc) => RewardRequestModel.fromJson(doc.data()))
+          .map((doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id))
           .toList();
     } catch (e) {
       print('❌ Error fetching reward requests: $e');
@@ -510,11 +510,11 @@ class ParentService {
     return _firestore
         .collection('reward_requests')
         .where('studentId', isEqualTo: studentId)
-        .orderBy('requestedAt', descending: true)
+        .orderBy('requestedOn', descending: true)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-              .map((doc) => RewardRequestModel.fromJson(doc.data()))
+              .map((doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id))
               .toList(),
         );
   }
