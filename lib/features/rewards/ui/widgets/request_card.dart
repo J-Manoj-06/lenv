@@ -184,7 +184,7 @@ class RequestCard extends StatelessWidget {
                 child: SizedBox(
                   height: 3,
                   child: LinearProgressIndicator(
-                    value: _getProgressFraction(),
+                    value: _getTimeProgressFraction(),
                     backgroundColor: isDark
                         ? Colors.grey[800]
                         : Colors.grey[200],
@@ -238,24 +238,23 @@ class RequestCard extends StatelessWidget {
     );
   }
 
-  double _getProgressFraction() {
-    const totalSteps = 5;
-    late int currentStep;
-
-    switch (request.status) {
-      case RewardRequestStatus.pendingParentApproval:
-        currentStep = 1;
-      case RewardRequestStatus.approvedPurchaseInProgress:
-        currentStep = 2;
-      case RewardRequestStatus.awaitingDeliveryConfirmation:
-        currentStep = 3;
-      case RewardRequestStatus.completed:
-        currentStep = 4;
-      case RewardRequestStatus.expiredOrAutoResolved:
-      case RewardRequestStatus.cancelled:
-        currentStep = 0;
+  double _getTimeProgressFraction() {
+    // If completed, consider as 100%
+    if (request.status == RewardRequestStatus.completed) return 1.0;
+    // If cancelled/expired, show full track but no progress (0)
+    if (request.status == RewardRequestStatus.expiredOrAutoResolved ||
+        request.status == RewardRequestStatus.cancelled) {
+      return 0.0;
     }
 
-    return currentStep / totalSteps;
+    final start = request.timestamps.requestedAt;
+    final end = request.timestamps.lockExpiresAt;
+    final total = end.difference(start).inSeconds;
+    if (total <= 0) return 0.0;
+
+    final elapsed = DateTime.now().difference(start).inSeconds;
+    final fraction = elapsed / total;
+    if (fraction.isNaN || fraction.isInfinite) return 0.0;
+    return fraction.clamp(0.0, 1.0);
   }
 }
