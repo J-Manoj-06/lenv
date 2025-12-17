@@ -26,6 +26,7 @@ class _PathEchoContent extends StatelessWidget {
     final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
     final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
 
     return Scaffold(
@@ -63,7 +64,7 @@ class _PathEchoContent extends StatelessWidget {
                   ),
                   Text(
                     'Best: ${provider.highestLevel}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    style: TextStyle(color: secondaryTextColor, fontSize: 11),
                   ),
                 ],
               ),
@@ -80,6 +81,11 @@ class _PathEchoContent extends StatelessWidget {
   }
 
   Widget _buildStartScreen(BuildContext context, PathEchoProvider provider) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -88,25 +94,25 @@ class _PathEchoContent extends StatelessWidget {
           children: [
             const Text('🧩', style: TextStyle(fontSize: 80)),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Path Echo',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Memorize the path, then trace it!',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              style: TextStyle(color: secondaryTextColor, fontSize: 16),
             ),
             const SizedBox(height: 32),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -123,14 +129,14 @@ class _PathEchoContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     '• Watch the path light up\n'
                     '• Memorize the sequence\n'
                     '• Tap cells in same order\n'
                     '• Longer paths each level\n'
                     '• Faster animations too!',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: secondaryTextColor,
                       fontSize: 14,
                       height: 1.6,
                     ),
@@ -165,7 +171,7 @@ class _PathEchoContent extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -173,9 +179,9 @@ class _PathEchoContent extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    const Text(
+                    Text(
                       'Highest Level',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 14),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -197,6 +203,11 @@ class _PathEchoContent extends StatelessWidget {
 
   Widget _buildGameScreen(BuildContext context, PathEchoProvider provider) {
     final size = provider.gridSize;
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final dividerColor = secondaryTextColor.withOpacity(0.3);
 
     return Column(
       children: [
@@ -210,7 +221,7 @@ class _PathEchoContent extends StatelessWidget {
                   ? Colors.blue.withOpacity(0.2)
                   : provider.gameState == GameState.levelComplete
                   ? Colors.green.withOpacity(0.2)
-                  : const Color(0xFF2A2A2A),
+                  : cardColor,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: provider.gameState == GameState.showing
@@ -248,7 +259,7 @@ class _PathEchoContent extends StatelessWidget {
                         ? Colors.blueAccent
                         : provider.gameState == GameState.levelComplete
                         ? Colors.green
-                        : Colors.white,
+                        : textColor,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -265,7 +276,7 @@ class _PathEchoContent extends StatelessWidget {
             children: [
               Text(
                 'Progress: ${provider.userPath.length}/${provider.path.length}',
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                style: TextStyle(color: secondaryTextColor, fontSize: 14),
               ),
             ],
           ),
@@ -317,7 +328,7 @@ class _PathEchoContent extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF2A2A2A),
+              color: cardColor,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -328,9 +339,9 @@ class _PathEchoContent extends StatelessWidget {
               children: [
                 Column(
                   children: [
-                    const Text(
+                    Text(
                       'Grid',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 12),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -343,12 +354,12 @@ class _PathEchoContent extends StatelessWidget {
                     ),
                   ],
                 ),
-                Container(width: 1, height: 40, color: Colors.white24),
+                Container(width: 1, height: 40, color: dividerColor),
                 Column(
                   children: [
-                    const Text(
+                    Text(
                       'Path Length',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 12),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -370,6 +381,11 @@ class _PathEchoContent extends StatelessWidget {
   }
 
   Widget _buildFailedScreen(BuildContext context, PathEchoProvider provider) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -378,10 +394,10 @@ class _PathEchoContent extends StatelessWidget {
           children: [
             const Text('❌', style: TextStyle(fontSize: 80)),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Wrong Path!',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
               ),
@@ -390,7 +406,7 @@ class _PathEchoContent extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -398,9 +414,9 @@ class _PathEchoContent extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  const Text(
+                  Text(
                     'Level Reached',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    style: TextStyle(color: secondaryTextColor, fontSize: 16),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -482,7 +498,7 @@ class _PathEchoContent extends StatelessWidget {
                 Navigator.pop(context);
               },
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.white54),
+                side: BorderSide(color: secondaryTextColor),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 32,
                   vertical: 14,
@@ -491,9 +507,9 @@ class _PathEchoContent extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
+              child: Text(
                 'Exit',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+                style: TextStyle(color: textColor, fontSize: 16),
               ),
             ),
           ],

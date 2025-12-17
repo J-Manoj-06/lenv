@@ -82,6 +82,11 @@ class _PatternPulseContent extends StatelessWidget {
     BuildContext context,
     PatternPulseProvider provider,
   ) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -90,25 +95,25 @@ class _PatternPulseContent extends StatelessWidget {
           children: [
             const Text('🎵', style: TextStyle(fontSize: 80)),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Pattern Pulse',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Watch the pattern, then repeat it!',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              style: TextStyle(color: secondaryTextColor, fontSize: 16),
             ),
             const SizedBox(height: 32),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -125,13 +130,13 @@ class _PatternPulseContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     '• Watch the sequence of colors\n'
                     '• Tap buttons in same order\n'
                     '• Sequence gets longer each level\n'
                     '• Speed increases with level',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: secondaryTextColor,
                       fontSize: 14,
                       height: 1.6,
                     ),
@@ -166,7 +171,7 @@ class _PatternPulseContent extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -174,9 +179,9 @@ class _PatternPulseContent extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    const Text(
+                    Text(
                       'Highest Level',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 14),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -197,6 +202,11 @@ class _PatternPulseContent extends StatelessWidget {
   }
 
   Widget _buildGameScreen(BuildContext context, PatternPulseProvider provider) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    
     return Column(
       children: [
         // Status indicator
@@ -209,7 +219,7 @@ class _PatternPulseContent extends StatelessWidget {
                   ? Colors.blue.withOpacity(0.2)
                   : provider.gameState == GameState.levelComplete
                   ? Colors.green.withOpacity(0.2)
-                  : const Color(0xFF2A2A2A),
+                  : cardColor,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: provider.gameState == GameState.showing
@@ -247,7 +257,7 @@ class _PatternPulseContent extends StatelessWidget {
                         ? Colors.blueAccent
                         : provider.gameState == GameState.levelComplete
                         ? Colors.green
-                        : Colors.white,
+                        : textColor,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -294,7 +304,7 @@ class _PatternPulseContent extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF2A2A2A),
+              color: cardColor,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -305,9 +315,9 @@ class _PatternPulseContent extends StatelessWidget {
               children: [
                 Column(
                   children: [
-                    const Text(
+                    Text(
                       'Level',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 12),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -323,9 +333,9 @@ class _PatternPulseContent extends StatelessWidget {
                 Container(width: 1, height: 40, color: Colors.white24),
                 Column(
                   children: [
-                    const Text(
+                    Text(
                       'Sequence',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 12),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -341,9 +351,9 @@ class _PatternPulseContent extends StatelessWidget {
                 Container(width: 1, height: 40, color: Colors.white24),
                 Column(
                   children: [
-                    const Text(
+                    Text(
                       'Speed',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 12),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -368,6 +378,11 @@ class _PatternPulseContent extends StatelessWidget {
     BuildContext context,
     PatternPulseProvider provider,
   ) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -376,10 +391,10 @@ class _PatternPulseContent extends StatelessWidget {
           children: [
             const Text('❌', style: TextStyle(fontSize: 80)),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Wrong Pattern!',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
               ),
@@ -388,7 +403,7 @@ class _PatternPulseContent extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -396,9 +411,9 @@ class _PatternPulseContent extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  const Text(
+                  Text(
                     'Level Reached',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    style: TextStyle(color: secondaryTextColor, fontSize: 16),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -480,7 +495,7 @@ class _PatternPulseContent extends StatelessWidget {
                 Navigator.pop(context);
               },
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.white54),
+                side: BorderSide(color: isDarkTheme ? Colors.white54 : Colors.black54),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 32,
                   vertical: 14,
@@ -489,9 +504,9 @@ class _PatternPulseContent extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
+              child: Text(
                 'Exit',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+                style: TextStyle(color: textColor, fontSize: 16),
               ),
             ),
           ],

@@ -78,6 +78,11 @@ class _NBackChallengeContent extends StatelessWidget {
   }
 
   Widget _buildStartScreen(BuildContext context, NBackProvider provider) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -86,25 +91,25 @@ class _NBackChallengeContent extends StatelessWidget {
           children: [
             const Text('🧠', style: TextStyle(fontSize: 80)),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'N-Back Challenge',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Match symbols that appeared N steps ago!',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              style: TextStyle(color: secondaryTextColor, fontSize: 16),
             ),
             const SizedBox(height: 32),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -121,14 +126,14 @@ class _NBackChallengeContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     '• Watch symbols appear every 1.5s\n'
                     '• Tap MATCH if current = N steps ago\n'
                     '• Tap SKIP if different\n'
                     '• Reach 80% accuracy to level up\n'
                     '• Below 50% decreases N',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: secondaryTextColor,
                       fontSize: 14,
                       height: 1.6,
                     ),
@@ -163,7 +168,7 @@ class _NBackChallengeContent extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -171,9 +176,9 @@ class _NBackChallengeContent extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    const Text(
+                    Text(
                       'Max N Reached',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 14),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -194,6 +199,10 @@ class _NBackChallengeContent extends StatelessWidget {
   }
 
   Widget _buildGameScreen(BuildContext context, NBackProvider provider) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    
     return Column(
       children: [
         // Level and Progress
@@ -210,7 +219,7 @@ class _NBackChallengeContent extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2A),
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -226,8 +235,8 @@ class _NBackChallengeContent extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           '${provider.currentN}-Back',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: textColor,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -241,7 +250,7 @@ class _NBackChallengeContent extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2A),
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: Colors.blueAccent.withOpacity(0.3),
@@ -263,7 +272,7 @@ class _NBackChallengeContent extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
                 child: LinearProgressIndicator(
                   value: provider.round / provider.roundsInLevel,
-                  backgroundColor: const Color(0xFF2A2A2A),
+                  backgroundColor: cardColor,
                   color: const Color(0xFFFF8A00),
                   minHeight: 8,
                 ),
@@ -280,7 +289,7 @@ class _NBackChallengeContent extends StatelessWidget {
             width: 200,
             height: 200,
             decoration: BoxDecoration(
-              color: const Color(0xFF2A2A2A),
+              color: cardColor,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: provider.lastAnswerCorrect == null
@@ -345,8 +354,8 @@ class _NBackChallengeContent extends StatelessWidget {
                       ? () => provider.onSkipPressed()
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2A2A2A),
-                    disabledBackgroundColor: const Color(0xFF1A1A1A),
+                    backgroundColor: cardColor,
+                    disabledBackgroundColor: isDarkTheme ? const Color(0xFF1A1A1A) : Colors.grey.shade200,
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -361,7 +370,7 @@ class _NBackChallengeContent extends StatelessWidget {
                   child: Text(
                     'SKIP',
                     style: TextStyle(
-                      color: provider.canAnswer ? Colors.white : Colors.white38,
+                      color: provider.canAnswer ? textColor : (isDarkTheme ? Colors.white38 : Colors.black38),
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -408,6 +417,10 @@ class _NBackChallengeContent extends StatelessWidget {
     final acc = provider.accuracy;
     final levelUp = acc >= 80 && provider.currentN < 8;
     final levelDown = acc < 50 && provider.currentN > 1;
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
 
     return Center(
       child: Padding(
@@ -430,8 +443,8 @@ class _NBackChallengeContent extends StatelessWidget {
                   : levelDown
                   ? 'Level Down'
                   : 'Level Complete',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: textColor,
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
               ),
@@ -440,7 +453,7 @@ class _NBackChallengeContent extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -453,10 +466,10 @@ class _NBackChallengeContent extends StatelessWidget {
                     children: [
                       Column(
                         children: [
-                          const Text(
+                          Text(
                             'Accuracy',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: secondaryTextColor,
                               fontSize: 14,
                             ),
                           ),
@@ -477,10 +490,10 @@ class _NBackChallengeContent extends StatelessWidget {
                       ),
                       Column(
                         children: [
-                          const Text(
+                          Text(
                             'Score',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: secondaryTextColor,
                               fontSize: 14,
                             ),
                           ),

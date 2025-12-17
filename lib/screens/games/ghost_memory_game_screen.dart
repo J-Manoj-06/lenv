@@ -25,6 +25,7 @@ class _GhostMemoryGameContent extends StatelessWidget {
     final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
     final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
 
     return Scaffold(
@@ -62,7 +63,7 @@ class _GhostMemoryGameContent extends StatelessWidget {
                   ),
                   Text(
                     'Best: ${provider.highScore}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    style: TextStyle(color: secondaryTextColor, fontSize: 11),
                   ),
                 ],
               ),
@@ -79,6 +80,11 @@ class _GhostMemoryGameContent extends StatelessWidget {
   }
 
   Widget _buildStartScreen(BuildContext context, GhostMemoryProvider provider) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -87,19 +93,19 @@ class _GhostMemoryGameContent extends StatelessWidget {
           children: [
             const Text('👻', style: TextStyle(fontSize: 80)),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Ghost Memory Tiles',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Memorize the tiles, then tap them in order!',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              style: TextStyle(color: secondaryTextColor, fontSize: 16),
             ),
             const SizedBox(height: 40),
             ElevatedButton(
@@ -128,7 +134,7 @@ class _GhostMemoryGameContent extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -136,9 +142,9 @@ class _GhostMemoryGameContent extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    const Text(
+                    Text(
                       'High Score',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 14),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -160,6 +166,9 @@ class _GhostMemoryGameContent extends StatelessWidget {
 
   Widget _buildGameScreen(BuildContext context, GhostMemoryProvider provider) {
     final gridSize = provider.gridSize;
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
 
     return Column(
       children: [
@@ -168,7 +177,7 @@ class _GhostMemoryGameContent extends StatelessWidget {
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
+            color: cardColor,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: const Color(0xFFFF8A00).withOpacity(0.3)),
           ),
@@ -179,8 +188,8 @@ class _GhostMemoryGameContent extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Level ${provider.currentLevel}',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: textColor,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -280,6 +289,11 @@ class _GhostMemoryGameContent extends StatelessWidget {
     BuildContext context,
     GhostMemoryProvider provider,
   ) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -288,10 +302,10 @@ class _GhostMemoryGameContent extends StatelessWidget {
           children: [
             const Text('💀', style: TextStyle(fontSize: 80)),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Game Over',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
               ),
@@ -300,7 +314,7 @@ class _GhostMemoryGameContent extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -308,9 +322,9 @@ class _GhostMemoryGameContent extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  const Text(
+                  Text(
                     'Your Score',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    style: TextStyle(color: secondaryTextColor, fontSize: 16),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -324,7 +338,7 @@ class _GhostMemoryGameContent extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     'Level Reached: ${provider.currentLevel}',
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: textColor, fontSize: 14),
                   ),
                   if (provider.score == provider.highScore &&
                       provider.score > 0) ...[
@@ -370,7 +384,7 @@ class _GhostMemoryGameContent extends StatelessWidget {
                 OutlinedButton(
                   onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white54),
+                    side: BorderSide(color: isDarkTheme ? Colors.white54 : Colors.black54),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 32,
                       vertical: 14,
@@ -379,9 +393,9 @@ class _GhostMemoryGameContent extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Exit',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    style: TextStyle(color: textColor, fontSize: 16),
                   ),
                 ),
               ],

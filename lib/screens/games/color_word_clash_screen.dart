@@ -24,6 +24,7 @@ class _ColorWordClashContent extends StatelessWidget {
     final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
     final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
 
     return Scaffold(
@@ -61,7 +62,7 @@ class _ColorWordClashContent extends StatelessWidget {
                   ),
                   Text(
                     'Best: ${provider.highScore}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    style: TextStyle(color: secondaryTextColor, fontSize: 11),
                   ),
                 ],
               ),
@@ -81,6 +82,11 @@ class _ColorWordClashContent extends StatelessWidget {
     BuildContext context,
     ColorWordClashProvider provider,
   ) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -89,25 +95,25 @@ class _ColorWordClashContent extends StatelessWidget {
           children: [
             const Text('🌈', style: TextStyle(fontSize: 80)),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Color-Word Clash',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Tap the COLOR, not the word!',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              style: TextStyle(color: secondaryTextColor, fontSize: 16),
             ),
             const SizedBox(height: 32),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -124,14 +130,14 @@ class _ColorWordClashContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     '• Read the word, but ignore it\n'
                     '• Tap button matching TEXT COLOR\n'
                     '• Faster answers = bonus points\n'
                     '• Time decreases each round\n'
                     '• One mistake = game over',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: secondaryTextColor,
                       fontSize: 14,
                       height: 1.6,
                     ),
@@ -141,9 +147,9 @@ class _ColorWordClashContent extends StatelessWidget {
                     text: TextSpan(
                       style: const TextStyle(fontSize: 14),
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'Example: ',
-                          style: TextStyle(color: Colors.white70),
+                          style: TextStyle(color: secondaryTextColor),
                         ),
                         TextSpan(
                           text: 'BLUE',
@@ -153,9 +159,9 @@ class _ColorWordClashContent extends StatelessWidget {
                             fontSize: 20,
                           ),
                         ),
-                        const TextSpan(
+                        TextSpan(
                           text: ' → Tap RED',
-                          style: TextStyle(color: Colors.white70),
+                          style: TextStyle(color: secondaryTextColor),
                         ),
                       ],
                     ),
@@ -190,7 +196,7 @@ class _ColorWordClashContent extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -198,9 +204,9 @@ class _ColorWordClashContent extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    const Text(
+                    Text(
                       'High Score',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 14),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -224,6 +230,11 @@ class _ColorWordClashContent extends StatelessWidget {
     BuildContext context,
     ColorWordClashProvider provider,
   ) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+
     return Column(
       children: [
         // Round and Timer
@@ -238,7 +249,7 @@ class _ColorWordClashContent extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -261,7 +272,7 @@ class _ColorWordClashContent extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: provider.timeLeft < 0.5
                       ? Colors.red.withOpacity(0.2)
-                      : const Color(0xFF2A2A2A),
+                      : cardColor,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: provider.timeLeft < 0.5
@@ -303,7 +314,7 @@ class _ColorWordClashContent extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
               value: provider.timeLeft / provider.timeLimit,
-              backgroundColor: const Color(0xFF2A2A2A),
+              backgroundColor: cardColor,
               color: provider.timeLeft < 0.5 ? Colors.red : Colors.blueAccent,
               minHeight: 8,
             ),
@@ -320,7 +331,7 @@ class _ColorWordClashContent extends StatelessWidget {
             margin: const EdgeInsets.all(32),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: const Color(0xFF2A2A2A),
+              color: cardColor,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: provider.lastAnswerCorrect == null
@@ -344,13 +355,16 @@ class _ColorWordClashContent extends StatelessWidget {
                 ),
               ],
             ),
-            child: Text(
-              provider.currentWord,
-              style: TextStyle(
-                color: provider.currentColor,
-                fontSize: 56,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 4,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                provider.currentWord,
+                style: TextStyle(
+                  color: provider.currentColor,
+                  fontSize: 56,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 4,
+                ),
               ),
             ),
           ),
@@ -413,6 +427,12 @@ class _ColorWordClashContent extends StatelessWidget {
     BuildContext context,
     ColorWordClashProvider provider,
   ) {
+    final theme = Theme.of(context);
+    final isDarkTheme = theme.brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -421,10 +441,10 @@ class _ColorWordClashContent extends StatelessWidget {
           children: [
             const Text('💥', style: TextStyle(fontSize: 80)),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Game Over',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
               ),
@@ -433,7 +453,7 @@ class _ColorWordClashContent extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFFFF8A00).withOpacity(0.3),
@@ -446,10 +466,10 @@ class _ColorWordClashContent extends StatelessWidget {
                     children: [
                       Column(
                         children: [
-                          const Text(
+                          Text(
                             'Score',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: secondaryTextColor,
                               fontSize: 14,
                             ),
                           ),
@@ -466,10 +486,10 @@ class _ColorWordClashContent extends StatelessWidget {
                       ),
                       Column(
                         children: [
-                          const Text(
+                          Text(
                             'Rounds',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: secondaryTextColor,
                               fontSize: 14,
                             ),
                           ),
@@ -533,7 +553,7 @@ class _ColorWordClashContent extends StatelessWidget {
                     Navigator.pop(context);
                   },
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white54),
+                    side: BorderSide(color: secondaryTextColor),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 32,
                       vertical: 14,
@@ -542,9 +562,9 @@ class _ColorWordClashContent extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Exit',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    style: TextStyle(color: textColor, fontSize: 16),
                   ),
                 ),
               ],
