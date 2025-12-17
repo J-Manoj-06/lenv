@@ -20,20 +20,25 @@ class _NBackChallengeContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NBackProvider>();
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: appBarColor,
         elevation: 2,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+          icon: Icon(Icons.arrow_back_ios_new, color: iconColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           '🧠 N-Back Challenge',
           style: TextStyle(
-            color: Colors.white,
+            color: textColor,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),

@@ -10,19 +10,25 @@ class BrainGamesMenuScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
+    
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: appBarColor,
         elevation: 2,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+          icon: Icon(Icons.arrow_back_ios_new, color: iconColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           '🎮 Brain Games',
           style: TextStyle(
-            color: Colors.white,
+            color: textColor,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -116,13 +122,18 @@ class _GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF2A2A2A),
+          color: cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withOpacity(0.35)),
         ),
@@ -146,8 +157,8 @@ class _GameCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: textColor,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -155,7 +166,7 @@ class _GameCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    style: TextStyle(color: secondaryTextColor, fontSize: 14),
                   ),
                 ],
               ),
