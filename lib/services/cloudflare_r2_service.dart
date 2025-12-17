@@ -49,9 +49,12 @@ class CloudflareR2Service {
 
       // Generate unique key with timestamp to prevent collisions
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      // Encode only the file name portion so spaces/special chars sign correctly
-      final encodedFileName = Uri.encodeComponent(fileName);
-      final key = 'media/$timestamp/$encodedFileName';
+      // Sanitize filename for the object key to avoid signature issues with
+      // spaces/brackets/special characters. Keep original name for metadata.
+      final safeFileName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final key = 'media/$timestamp/$safeFileName';
+      // Use the same segment-wise encoding for the URL as used in signing
+      final encodedKey = key.split('/').map(Uri.encodeComponent).join('/');
 
       final expiresAt = DateTime.now().add(expiryDuration);
       // X-Amz-Expires is the DURATION in seconds, not Unix timestamp
@@ -72,8 +75,8 @@ class CloudflareR2Service {
 
       // URL format: https://{accountId}.r2.cloudflarestorage.com/{bucketName}/{key}?params
       // IMPORTANT: Query parameters in the URL must match the canonical request exactly
-      final uploadUrl =
-          '$_endpoint/$bucketName/$key'
+        final uploadUrl =
+          '$_endpoint/$bucketName/$encodedKey'
           '?X-Amz-Algorithm=${credential['algorithm']}'
           '&X-Amz-Credential=${credential['credential']}'
           '&X-Amz-Date=${credential['date']}'
@@ -83,6 +86,11 @@ class CloudflareR2Service {
 
       print('✅ Signed URL generated');
       print('🔍 Key: $key');
+      print('🔍 Encoded Key: $encodedKey');
+      if (fileName != safeFileName) {
+        print('🔍 Original filename: $fileName');
+        print('🔍 Sanitized filename: $safeFileName');
+      }
       print(
         '🔍 Expires In: ${expiryDuration.inSeconds} seconds (${(expiryDuration.inHours)} hours)',
       );
@@ -191,10 +199,12 @@ class CloudflareR2Service {
 
     // Create canonical request using account-level endpoint
     // Path includes bucket name: /{bucketName}/{key}
-    // AWS Signature V4 format requires exact structure:
-    // For presigned URLs, query parameters MUST be in sorted order
-    // and credentials must use RFC 3986 encoding (%XX format)
+    // IMPORTANT: The key in the canonical request must be URL-encoded to match
+    // what the HTTP client will send and what R2 will receive
     final encodedCredential = Uri.encodeComponent(credential);
+    final encodedKey = key.split('/').map(Uri.encodeComponent).join('/');
+    print('🔐 Debug - key original: $key');
+    print('🔐 Debug - key encoded : $encodedKey');
     final canonicalQueryString =
         'X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=$encodedCredential&X-Amz-Date=$dateStr&X-Amz-Expires=$expiresAt&X-Amz-SignedHeaders=host';
     final canonicalHeaders = 'host:$uploadHostname';
@@ -202,7 +212,7 @@ class CloudflareR2Service {
     final hashedPayload = 'UNSIGNED-PAYLOAD'; // For pre-signed URLs
 
     final canonicalRequest =
-        '$method\n/$bucketName/$key\n$canonicalQueryString\n$canonicalHeaders\n\n$signedHeaders\n$hashedPayload';
+        '$method\n/$bucketName/$encodedKey\n$canonicalQueryString\n$canonicalHeaders\n\n$signedHeaders\n$hashedPayload';
 
     // Debug: Log canonical request for troubleshooting
     print('🔐 Debug - Canonical Request (escaped):');

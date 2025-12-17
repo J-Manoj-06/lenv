@@ -61,7 +61,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _showEmojiPicker = false;
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
-  late Timer _recordingTimer;
+  Timer? _recordingTimer;
   double _slideOffsetX = 0;
   bool _isCancelled = false;
 
@@ -135,7 +135,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _scrollController.dispose();
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
-    _recordingTimer.cancel();
+    _recordingTimer?.cancel();
     super.dispose();
   }
 
@@ -430,11 +430,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
           print('Error stopping recorder: $e');
         }
 
-        try {
-          _recordingTimer.cancel();
-        } catch (e) {
-          print('Timer cancel error: $e');
-        }
+        _recordingTimer?.cancel();
       }
 
       // IMMEDIATELY update UI
@@ -519,11 +515,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     // Stop recording if active
     if (_isRecording) {
       await _audioRecorder.stop();
-      try {
-        _recordingTimer.cancel();
-      } catch (e) {
-        print('Timer cancel error: $e');
-      }
+      _recordingTimer?.cancel();
     }
 
     // Delete the file

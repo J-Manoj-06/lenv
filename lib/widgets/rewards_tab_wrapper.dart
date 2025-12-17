@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/rewards/rewards_module.dart';
-import '../features/rewards/ui/screens/rewards_catalog_screen.dart';
 
 /// Wraps the Rewards catalog with local Riverpod + GoRouter support
 /// This allows the rewards feature to use its own routing independently

@@ -209,7 +209,7 @@ class _ProductCardState extends State<ProductCard>
               Icon(Icons.star, size: 16, color: Colors.amber[600]),
               const SizedBox(width: 4),
               Text(
-                '${widget.product.rating!.toStringAsFixed(1)}',
+                widget.product.rating!.toStringAsFixed(1),
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: Colors.amber[700],
                   fontWeight: FontWeight.w600,
