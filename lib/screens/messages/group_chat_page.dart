@@ -795,10 +795,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Widget _buildInputBar() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final inputBg = isDark
-        ? theme.colorScheme.surface
-        : theme.colorScheme.surfaceContainerHighest;
-    final borderColor = theme.colorScheme.outline;
+    final inputBg = isDark ? theme.colorScheme.surface : Colors.white;
+    final borderColor = theme.colorScheme.outline.withOpacity(0.35);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -811,177 +809,192 @@ class _GroupChatPageState extends State<GroupChatPage> {
       child: SafeArea(
         top: false,
         minimum: EdgeInsets.zero,
-        child: Row(
-          children: [
-            // Text Input
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: inputBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: borderColor.withOpacity(0.5),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        _showEmojiPicker
-                            ? Icons.keyboard
-                            : Icons.sentiment_satisfied_outlined,
-                        color: theme.iconTheme.color?.withOpacity(0.6),
-                        size: 20,
-                      ),
-                      padding: const EdgeInsets.all(6),
-                      onPressed: () {
-                        setState(() {
-                          _showEmojiPicker = !_showEmojiPicker;
-                        });
-                        if (!_showEmojiPicker) {
-                          _messageFocusNode.requestFocus();
-                        } else {
-                          _messageFocusNode.unfocus();
-                        }
-                      },
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        focusNode: _messageFocusNode,
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface,
-                          fontSize: 15,
-                          height: 1.4,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Message',
-                          hintStyle: TextStyle(
-                            color: theme.textTheme.bodySmall?.color,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 8,
-                          ),
-                        ),
-                        maxLines: null,
-                        textCapitalization: TextCapitalization.sentences,
-                        textInputAction: TextInputAction.send,
-                        enabled: !_isRecording && !_isUploading,
-                        onSubmitted: (_) {
-                          _sendMessage();
-                          Future.delayed(const Duration(milliseconds: 50), () {
-                            _messageFocusNode.requestFocus();
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            IconButton(
-              icon: Icon(
-                Icons.attach_file,
-                color: theme.textTheme.bodySmall?.color,
-                size: 22,
-              ),
-              padding: const EdgeInsets.all(6),
-              onPressed: _isUploading ? null : _showMediaOptions,
-            ),
-            const SizedBox(width: 8),
-            // Mic/Send Button
-            GestureDetector(
-              onTap: () async {
-                if (_messageController.text.trim().isNotEmpty &&
-                    !_isUploading) {
-                  _sendMessage();
-                } else if (!_isRecording &&
-                    _messageController.text.trim().isEmpty &&
-                    !_isUploading) {
-                  // Single tap to start recording
-                  final hasPermission = await _audioRecorder.hasPermission();
-                  if (!hasPermission) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Microphone permission denied. Please enable it in Settings.',
-                          ),
-                        ),
-                      );
-                    }
-                    return;
-                  }
-                  final tempDir = await getTemporaryDirectory();
-                  final path =
-                      '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-                  await _audioRecorder.start(
-                    const RecordConfig(encoder: AudioEncoder.aacLc),
-                    path: path,
-                  );
-                  setState(() {
-                    _isRecording = true;
-                    _recordingPath = path;
-                    _recordingDuration.value = 0;
-                    _slideOffsetX = 0;
-                    _isCancelled = false;
-                  });
-                  _recordingTimer = Timer.periodic(const Duration(seconds: 1), (
-                    _,
-                  ) {
-                    _recordingDuration.value++;
-                  });
-                }
-              },
-              onHorizontalDragUpdate: (details) {
-                if (!_isRecording) return;
-                setState(() {
-                  _slideOffsetX += details.delta.dx;
-                  _isCancelled = _slideOffsetX < -80;
-                });
-              },
-              onHorizontalDragEnd: (details) {
-                if (!_isRecording) return;
-                if (_isCancelled) {
-                  _deleteRecording();
-                }
-                setState(() {
-                  _slideOffsetX = 0;
-                  _isCancelled = false;
-                });
-              },
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _isRecording
-                      ? theme.colorScheme.error
-                      : const Color(0xFFF2800D),
-                  shape: BoxShape.circle,
-                  boxShadow: [
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: inputBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor, width: 1),
+            boxShadow: isDark
+                ? []
+                : [
                     BoxShadow(
-                      color: const Color(0xFFF2800D).withOpacity(0.18),
-                      blurRadius: 8,
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 10,
                       offset: const Offset(0, 3),
                     ),
                   ],
+          ),
+          child: Row(
+            children: [
+              // Emoji toggle
+              IconButton(
+                icon: Icon(
+                  _showEmojiPicker
+                      ? Icons.keyboard
+                      : Icons.sentiment_satisfied_outlined,
+                  color: theme.iconTheme.color?.withOpacity(0.6),
+                  size: 20,
                 ),
-                child: Icon(
-                  _isRecording
-                      ? Icons.mic
-                      : (_messageController.text.trim().isNotEmpty
-                            ? Icons.send_rounded
-                            : Icons.mic),
-                  color: Colors.white,
-                  size: 22,
+                padding: const EdgeInsets.all(6),
+                onPressed: () {
+                  setState(() {
+                    _showEmojiPicker = !_showEmojiPicker;
+                  });
+                  if (!_showEmojiPicker) {
+                    _messageFocusNode.requestFocus();
+                  } else {
+                    _messageFocusNode.unfocus();
+                  }
+                },
+              ),
+              // Text input (embedded)
+              Expanded(
+                child: Theme(
+                  data: theme.copyWith(
+                    textSelectionTheme: TextSelectionThemeData(
+                      cursorColor: theme.colorScheme.onSurface,
+                      selectionColor: theme.colorScheme.onSurface.withOpacity(
+                        0.2,
+                      ),
+                      selectionHandleColor: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _messageController,
+                    focusNode: _messageFocusNode,
+                    cursorColor: theme.colorScheme.onSurface,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontSize: 16,
+                      height: 1.4,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Message',
+                      hintStyle: TextStyle(
+                        color: (theme.textTheme.bodySmall?.color ?? Colors.grey)
+                            .withOpacity(0.8),
+                      ),
+                      border: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    maxLines: null,
+                    textCapitalization: TextCapitalization.sentences,
+                    textInputAction: TextInputAction.send,
+                    enabled: !_isRecording && !_isUploading,
+                    onSubmitted: (_) {
+                      _sendMessage();
+                      Future.delayed(const Duration(milliseconds: 50), () {
+                        _messageFocusNode.requestFocus();
+                      });
+                    },
+                  ),
                 ),
               ),
-            ),
-          ],
+              // Attachment
+              IconButton(
+                icon: Icon(
+                  Icons.attach_file,
+                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                  size: 22,
+                ),
+                padding: const EdgeInsets.all(6),
+                onPressed: _isUploading ? null : _showMediaOptions,
+              ),
+              const SizedBox(width: 4),
+              // Mic/Send Button
+              GestureDetector(
+                onTap: () async {
+                  if (_messageController.text.trim().isNotEmpty &&
+                      !_isUploading) {
+                    _sendMessage();
+                  } else if (!_isRecording &&
+                      _messageController.text.trim().isEmpty &&
+                      !_isUploading) {
+                    // Single tap to start recording
+                    final hasPermission = await _audioRecorder.hasPermission();
+                    if (!hasPermission) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Microphone permission denied. Please enable it in Settings.',
+                            ),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                    final tempDir = await getTemporaryDirectory();
+                    final path =
+                        '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                    await _audioRecorder.start(
+                      const RecordConfig(encoder: AudioEncoder.aacLc),
+                      path: path,
+                    );
+                    setState(() {
+                      _isRecording = true;
+                      _recordingPath = path;
+                      _recordingDuration.value = 0;
+                      _slideOffsetX = 0;
+                      _isCancelled = false;
+                    });
+                    _recordingTimer = Timer.periodic(
+                      const Duration(seconds: 1),
+                      (_) {
+                        _recordingDuration.value++;
+                      },
+                    );
+                  }
+                },
+                onHorizontalDragUpdate: (details) {
+                  if (!_isRecording) return;
+                  setState(() {
+                    _slideOffsetX += details.delta.dx;
+                    _isCancelled = _slideOffsetX < -80;
+                  });
+                },
+                onHorizontalDragEnd: (details) {
+                  if (!_isRecording) return;
+                  if (_isCancelled) {
+                    _deleteRecording();
+                  }
+                  setState(() {
+                    _slideOffsetX = 0;
+                    _isCancelled = false;
+                  });
+                },
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: _isRecording
+                        ? theme.colorScheme.error
+                        : const Color(0xFFF2800D),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF2800D).withOpacity(0.18),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    _isRecording
+                        ? Icons.mic
+                        : (_messageController.text.trim().isNotEmpty
+                              ? Icons.send_rounded
+                              : Icons.mic),
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
