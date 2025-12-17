@@ -337,12 +337,16 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   icon: Icon(_isPdf ? Icons.open_in_new : Icons.play_arrow),
                   label: Text(_isPdf ? 'View PDF' : 'Play Audio'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark
+                    backgroundColor: (_isPdf || _isAudio)
                         ? _accentColor
-                        : _accentColor.withOpacity(0.12),
-                    foregroundColor: isDark
+                        : (isDark
+                            ? _accentColor
+                            : _accentColor.withOpacity(0.12)),
+                    foregroundColor: (_isPdf || _isAudio)
                         ? Colors.white
-                        : const Color(0xFF1A1D21),
+                        : (isDark
+                            ? Colors.white
+                            : const Color(0xFF1A1D21)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -357,12 +361,16 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   icon: const Icon(Icons.download),
                   label: Text('Download ${_formatSize(widget.fileSize)}'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark
-                        ? _accentColor.withOpacity(0.3)
-                        : _accentColor.withOpacity(0.12),
-                    foregroundColor: isDark
+                    backgroundColor: (_isPdf || _isAudio)
+                        ? _accentColor
+                        : (isDark
+                            ? _accentColor.withOpacity(0.3)
+                            : _accentColor.withOpacity(0.12)),
+                    foregroundColor: (_isPdf || _isAudio)
                         ? Colors.white
-                        : const Color(0xFF1A1D21),
+                        : (isDark
+                            ? Colors.white
+                            : const Color(0xFF1A1D21)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
