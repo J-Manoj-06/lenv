@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Badge;
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/student_provider.dart';
 import '../../providers/daily_challenge_provider.dart';
@@ -9,7 +10,7 @@ import '../../models/status_model.dart';
 import '../../models/institute_announcement_model.dart';
 import '../../models/student_model.dart';
 import '../../services/firestore_service.dart';
-import '../../providers/auth_provider.dart';
+import '../../providers/auth_provider.dart' as app_auth;
 import '../../services/parent_service.dart';
 import '../../utils/cache_manager.dart';
 import '../../services/badge_service.dart';
@@ -49,7 +50,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     print('🏠 StudentDashboard: initState called');
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       print('🏠 StudentDashboard: Post-frame callback triggered');
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
       const SizedBox(height: 12);
       print('🏠 StudentDashboard: Calling _loadDashboardData()');
       await _loadDashboardData();
@@ -65,7 +66,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   Future<void> _loadDashboardData() async {
     print('🏠 _loadDashboardData: Starting...');
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
     final studentProvider = Provider.of<StudentProvider>(
       context,
       listen: false,
@@ -83,12 +84,15 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       print('🏠 _loadDashboardData: Auth not initialized, initializing now...');
       await authProvider.initializeAuth();
     }
-    if (authProvider.currentUser == null) {
-      print('❌ _loadDashboardData: No authenticated user found');
+    // Resolve UID robustly: prefer provider uid, else FirebaseAuth
+    String? userId = authProvider.currentUser?.uid;
+    userId ??= FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null || userId.isEmpty) {
+      print('❌ _loadDashboardData: No authenticated user found (provider and Firebase)');
       return;
     }
 
-    final userId = authProvider.currentUser!.uid;
+    final resolvedUserId = userId;
     print('✅ _loadDashboardData: Loading dashboard for user: $userId');
 
     try {
@@ -99,14 +103,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
     // CRITICAL: Initialize daily challenge BEFORE loading student data
     // This ensures challenge state is ready when dashboard renders
-    print('🎯 Initializing daily challenge for user: $userId');
-    await dailyChallengeProvider.initialize(userId);
+    print('🎯 Initializing daily challenge for user: $resolvedUserId');
+    await dailyChallengeProvider.initialize(resolvedUserId);
     print(
-      '✅ Daily challenge initialized. Has answered: ${dailyChallengeProvider.hasAnsweredToday(userId)}',
+      '✅ Daily challenge initialized. Has answered: ${dailyChallengeProvider.hasAnsweredToday(resolvedUserId)}',
     );
 
     // Load student data (with cache integration)
-    await studentProvider.loadDashboardData(userId);
+    await studentProvider.loadDashboardData(resolvedUserId);
   }
 
   @override
@@ -114,9 +118,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     return Consumer<StudentProvider>(
       builder: (context, studentProvider, child) {
         // Show fetching screen while initializing OR loading student data
-        if (_isInitializing ||
-            studentProvider.isLoading ||
-            studentProvider.currentStudent == null) {
+        if (_isInitializing || studentProvider.isLoading) {
           return Scaffold(
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             body: Center(
@@ -142,8 +144,58 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           );
         }
 
+        // Fallback UI: not initializing, not loading, but no student data
+        if (studentProvider.currentStudent == null) {
+          return Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person_search, size: 56, color: _muted(context)),
+                    const SizedBox(height: 12),
+                    Text(
+                      'We couldn\'t load your profile',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: _onSurface(context),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please check your connection and try again.',
+                      style: TextStyle(color: _muted(context)),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        setState(() => _isInitializing = true);
+                        await _loadDashboardData();
+                        if (mounted) {
+                          setState(() => _isInitializing = false);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primary,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         final student = studentProvider.currentStudent;
-        final authUser = Provider.of<AuthProvider>(context).currentUser;
+        final authUser = Provider.of<app_auth.AuthProvider>(context).currentUser;
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -376,7 +428,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   // Announcements Section (WhatsApp-style)
   Widget _buildAnnouncementsSection(StudentModel student) {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
     final currentUserId = authProvider.currentUser?.uid ?? '';
     final schoolIdentifier =
         student.schoolCode ?? student.schoolId ?? student.schoolName ?? '';
@@ -689,7 +741,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     List<StatusModel> announcements,
     int initialIndex,
   ) {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
     final currentUserId = authProvider.currentUser?.uid ?? '';
 
     Navigator.push(
