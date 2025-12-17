@@ -960,11 +960,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 decoration: BoxDecoration(
                   color: _isRecording
                       ? theme.colorScheme.error
-                      : theme.primaryColor,
+                      : const Color(0xFFF2800D),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: theme.primaryColor.withOpacity(0.15),
+                      color: const Color(0xFFF2800D).withOpacity(0.18),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -976,7 +976,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       : (_messageController.text.trim().isNotEmpty
                             ? Icons.send_rounded
                             : Icons.mic),
-                  color: theme.colorScheme.onPrimary,
+                  color: Colors.white,
                   size: 22,
                 ),
               ),
