@@ -29,13 +29,6 @@ class _TimeManagementFullScreenPageState
   Timer? studyTimer;
   bool studyRunning = false;
 
-  // Break Reminder
-  bool breakReminderEnabled = false;
-  int breakIntervalMinutes = 30;
-  Timer? breakReminderTimer;
-  DateTime? nextBreakTime;
-  int breakRemainingSeconds = 0; // countdown to next break
-
   late final AnimationController _headerController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 600),
@@ -60,7 +53,6 @@ class _TimeManagementFullScreenPageState
   void dispose() {
     pomodoroTimer?.cancel();
     studyTimer?.cancel();
-    breakReminderTimer?.cancel();
     _headerController.dispose();
     super.dispose();
   }
@@ -118,43 +110,6 @@ class _TimeManagementFullScreenPageState
     _persistStudySettings();
   }
 
-  void _toggleBreakReminder(bool value) {
-    setState(() => breakReminderEnabled = value);
-    breakReminderTimer?.cancel();
-    if (value) {
-      nextBreakTime = DateTime.now().add(
-        Duration(minutes: breakIntervalMinutes),
-      );
-      breakRemainingSeconds = breakIntervalMinutes * 60;
-      breakReminderTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-        if (nextBreakTime != null) {
-          final diff = nextBreakTime!.difference(DateTime.now()).inSeconds;
-          if (diff <= 0) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Time for a break!'),
-                behavior: SnackBarBehavior.floating,
-                duration: Duration(seconds: 3),
-              ),
-            );
-            nextBreakTime = DateTime.now().add(
-              Duration(minutes: breakIntervalMinutes),
-            );
-            breakRemainingSeconds = breakIntervalMinutes * 60;
-          } else {
-            breakRemainingSeconds = diff;
-          }
-          setState(() {});
-        }
-      });
-      _persistBreakSettings();
-    } else {
-      nextBreakTime = null;
-      breakRemainingSeconds = 0;
-      _persistBreakSettings();
-    }
-  }
-
   String _formatMinutesSeconds(int seconds) {
     final m = seconds ~/ 60;
     final s = seconds % 60;
@@ -172,12 +127,6 @@ class _TimeManagementFullScreenPageState
         prefs.getInt('pomodoro_sessions_${uidPart}_$today') ?? sessionCount;
     studyDurationMinutes =
         prefs.getInt('study_duration_$uidPart') ?? studyDurationMinutes;
-    breakIntervalMinutes =
-        prefs.getInt('break_interval_$uidPart') ?? breakIntervalMinutes;
-    final breakEnabled = prefs.getBool('break_enabled_$uidPart') ?? false;
-    if (breakEnabled) {
-      _toggleBreakReminder(true);
-    }
     setState(() {});
   }
 
@@ -198,27 +147,20 @@ class _TimeManagementFullScreenPageState
     await prefs.setInt('study_duration_$uidPart', studyDurationMinutes);
   }
 
-  Future<void> _persistBreakSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final uidPart = widget.userId ?? 'local';
-    await prefs.setInt('break_interval_$uidPart', breakIntervalMinutes);
-    await prefs.setBool('break_enabled_$uidPart', breakReminderEnabled);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1C),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A1C),
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Time Management',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
         ),
       ),
       body: SingleChildScrollView(
@@ -239,7 +181,7 @@ class _TimeManagementFullScreenPageState
                         SizedBox(width: 8),
                         Text(
                           'Stay focused. Stay disciplined.',
-                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                          style: TextStyle(color: Colors.black54, fontSize: 14),
                         ),
                       ],
                     ),
@@ -267,15 +209,6 @@ class _TimeManagementFullScreenPageState
               onSelectDuration: (m) => setState(() => studyDurationMinutes = m),
               onStart: _startStudyTimer,
               onStop: _stopStudyTimer,
-            ),
-            const SizedBox(height: 18),
-            _BreakReminderCard(
-              enabled: breakReminderEnabled,
-              interval: breakIntervalMinutes,
-              nextBreak: nextBreakTime,
-              onToggle: _toggleBreakReminder,
-              onIntervalChanged: (m) =>
-                  setState(() => breakIntervalMinutes = m),
             ),
           ],
         ),
@@ -315,7 +248,7 @@ class _PomodoroCard extends StatelessWidget {
           const Text(
             'Pomodoro Session',
             style: TextStyle(
-              color: Colors.white,
+              color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -334,7 +267,7 @@ class _PomodoroCard extends StatelessWidget {
                 Text(
                   formatTime(remaining),
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
@@ -405,12 +338,12 @@ class _StudyTimerCard extends StatelessWidget {
         children: [
           Row(
             children: const [
-              Icon(Icons.book, color: Colors.white70, size: 18),
+              Icon(Icons.book, color: Colors.black54, size: 18),
               SizedBox(width: 6),
               Text(
                 'Custom Study Timer',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Colors.black87,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -432,13 +365,13 @@ class _StudyTimerCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: selected
                         ? const Color(0xFF7AB8FF)
-                        : const Color(0xFF2A2A2D),
+                        : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Text(
                     '${m}m',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: selected ? Colors.white : Colors.black87,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -452,14 +385,14 @@ class _StudyTimerCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
-              backgroundColor: const Color(0xFF2A2A2D),
+              backgroundColor: Colors.grey.shade200,
               valueColor: const AlwaysStoppedAnimation(Color(0xFF7EE8A9)),
             ),
           ),
           const SizedBox(height: 10),
           Text(
             running ? 'Remaining: ${formatTime(remainingSeconds)}' : 'Ready',
-            style: const TextStyle(color: Colors.white70),
+            style: const TextStyle(color: Colors.black54),
           ),
           const SizedBox(height: 10),
           Row(
@@ -471,109 +404,6 @@ class _StudyTimerCard extends StatelessWidget {
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BreakReminderCard extends StatelessWidget {
-  final bool enabled;
-  final int interval;
-  final DateTime? nextBreak;
-  final Function(bool) onToggle;
-  final ValueChanged<int> onIntervalChanged;
-  const _BreakReminderCard({
-    required this.enabled,
-    required this.interval,
-    required this.nextBreak,
-    required this.onToggle,
-    required this.onIntervalChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return StitchedCard(
-      accentColor: const Color(0xFF7EE8A9).withOpacity(0.22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: const [
-              Icon(Icons.self_improvement, color: Colors.white70, size: 18),
-              SizedBox(width: 6),
-              Text(
-                'Break Reminder',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Get notified when it\'s time to rest.',
-            style: const TextStyle(color: Colors.white70),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Switch(
-                value: enabled,
-                onChanged: onToggle,
-                activeThumbColor: const Color(0xFF7EE8A9),
-                inactiveThumbColor: const Color(0xFF444446),
-              ),
-              const SizedBox(width: 10),
-              if (enabled)
-                Text(
-                  'Every $interval min',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-            ],
-          ),
-          if (enabled) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [30, 45].map((m) {
-                final selected = m == interval;
-                return GestureDetector(
-                  onTap: () => onIntervalChanged(m),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? const Color(0xFF7EE8A9)
-                          : const Color(0xFF2A2A2D),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Text(
-                      '${m}m',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 12),
-            _BreathingPulse(enabled: enabled),
-            const SizedBox(height: 8),
-            Text(
-              nextBreak != null
-                  ? 'Next break at: ${nextBreak!.hour.toString().padLeft(2, '0')}:${nextBreak!.minute.toString().padLeft(2, '0')}'
-                  : '',
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
-            ),
-          ],
         ],
       ),
     );
@@ -596,11 +426,11 @@ class StitchedCard extends StatelessWidget {
       curve: Curves.easeOut,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFF222224),
+        color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 14,
             offset: const Offset(0, 8),
           ),
@@ -623,7 +453,7 @@ class _RingPainter extends CustomPainter {
     final radius = (size.shortestSide / 2) - 6;
 
     final basePaint = Paint()
-      ..color = const Color(0xFF2A2A2D)
+      ..color = Colors.grey.shade200
       ..style = PaintingStyle.stroke
       ..strokeWidth = 10;
     canvas.drawCircle(center, radius, basePaint);
@@ -708,7 +538,7 @@ class _StatBadge extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            color: Colors.white,
+            color: Colors.black87,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -716,52 +546,10 @@ class _StatBadge extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(color: Colors.white54, fontSize: 12),
+          style: const TextStyle(color: Colors.black54, fontSize: 12),
         ),
       ],
     );
   }
 }
 
-class _BreathingPulse extends StatefulWidget {
-  final bool enabled;
-  const _BreathingPulse({required this.enabled});
-  @override
-  State<_BreathingPulse> createState() => _BreathingPulseState();
-}
-
-class _BreathingPulseState extends State<_BreathingPulse>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 3),
-  )..repeat(reverse: true);
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!widget.enabled) return const SizedBox.shrink();
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final scale = 0.85 + (_controller.value * 0.25);
-        final opacity = 0.3 + (_controller.value * 0.4);
-        return Transform.scale(
-          scale: scale,
-          child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF7EE8A9).withOpacity(opacity),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}

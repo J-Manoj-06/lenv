@@ -10,18 +10,18 @@ class MotivationFullScreenPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F12),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF121216),
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(Icons.close_rounded, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           "Today's Motivation",
           style: TextStyle(
-            color: Colors.white.withOpacity(0.95),
+            color: Colors.black87,
             fontWeight: FontWeight.w700,
             fontSize: 18,
           ),

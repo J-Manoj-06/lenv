@@ -19,18 +19,18 @@ class InsightsFullScreenPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final sections = _splitSections(insightsText);
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F12),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF121216),
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(Icons.close_rounded, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'My Insights',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.95),
+            color: Colors.black87,
             fontWeight: FontWeight.w700,
             fontSize: 18,
           ),
@@ -43,7 +43,7 @@ class InsightsFullScreenPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E22),
+                color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.blue.withOpacity(0.35)),
               ),
@@ -53,7 +53,7 @@ class InsightsFullScreenPage extends StatelessWidget {
                   Text(
                     'Subject Performance',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.black87,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -68,7 +68,7 @@ class InsightsFullScreenPage extends StatelessWidget {
                             child: Text(
                               e.key,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.black54,
                                 fontSize: 14,
                               ),
                             ),
@@ -88,7 +88,7 @@ class InsightsFullScreenPage extends StatelessWidget {
                             child: Text(
                               '${e.value.toStringAsFixed(1)}%',
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: Colors.blue,
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -118,14 +118,14 @@ class _InsightSection extends StatelessWidget {
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E22),
+        color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.black.withOpacity(0.07)),
       ),
       child: Text(
         text.trim(),
         style: TextStyle(
-          color: Colors.white.withOpacity(0.85),
+          color: Colors.black87,
           fontSize: 14,
           height: 1.5,
         ),

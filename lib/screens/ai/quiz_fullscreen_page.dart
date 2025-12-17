@@ -42,18 +42,18 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
   Widget build(BuildContext context) {
     final title = widget.quizData['title']?.toString() ?? 'Quiz';
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F12),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF121216),
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(Icons.close_rounded, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           title,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.95),
+            color: Colors.black87,
             fontWeight: FontWeight.w700,
             fontSize: 18,
           ),
@@ -66,7 +66,7 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
               margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E22),
+                color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.green.withOpacity(0.4)),
               ),
@@ -81,7 +81,7 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
                     child: Text(
                       'Score: $_score / ${_questions.length}',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.black87,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -117,7 +117,7 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: _submitted
-                ? const Color(0xFF2A2A2A)
+                ? Colors.grey.shade300
                 : const Color(0xFFFF8A00),
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
@@ -127,8 +127,8 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
           onPressed: _submitted ? null : _submit,
           child: Text(
             _submitted ? 'Submitted' : 'Submit Quiz',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: _submitted ? Colors.black54 : Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),

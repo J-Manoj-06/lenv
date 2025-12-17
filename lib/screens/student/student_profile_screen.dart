@@ -157,18 +157,31 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         color: theme.scaffoldBackgroundColor.withOpacity(0.85),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            'My Profile',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+          IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new,
               color: isDark ? Colors.white : Colors.black87,
-              letterSpacing: 0.2,
+              size: 20,
+            ),
+            onPressed: () => Navigator.pop(context),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'My Profile',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+                letterSpacing: 0.2,
+              ),
             ),
           ),
+          const SizedBox(width: 48), // Balance the back button
         ],
       ),
     );
