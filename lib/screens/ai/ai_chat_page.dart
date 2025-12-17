@@ -944,13 +944,19 @@ class _AiChatPageState extends State<AiChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
+    
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: appBarColor,
         elevation: 2,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+          icon: Icon(Icons.arrow_back_ios_new, color: iconColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -975,10 +981,10 @@ class _AiChatPageState extends State<AiChatPage> {
               ),
             ),
             const SizedBox(width: 12),
-            const Text(
+            Text(
               'Personal Assistant',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -1346,12 +1352,16 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    
     return InkWell(
       onTap: disabled ? null : onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF2A2A2A),
+          color: cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withOpacity(0.35)),
         ),
@@ -1368,8 +1378,8 @@ class _ActionCard extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: textColor,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),

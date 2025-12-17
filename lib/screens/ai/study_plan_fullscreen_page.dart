@@ -32,19 +32,26 @@ class StudyPlanFullScreenPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dayPlans = _parseDays(planText);
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkTheme ? const Color(0xFF121212) : Colors.white;
+    final appBarColor = isDarkTheme ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.black87),
+          icon: Icon(Icons.close_rounded, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Study Plan',
           style: TextStyle(
-            color: Colors.black87,
+            color: textColor,
             fontWeight: FontWeight.w700,
             fontSize: 18,
           ),
@@ -58,7 +65,7 @@ class StudyPlanFullScreenPage extends StatelessWidget {
           return Container(
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: cardColor,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.purple.withOpacity(0.35)),
             ),
@@ -70,7 +77,7 @@ class StudyPlanFullScreenPage extends StatelessWidget {
                   Text(
                     dp.title,
                     style: TextStyle(
-                      color: Colors.black87,
+                      color: textColor,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -82,10 +89,10 @@ class StudyPlanFullScreenPage extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             '• ',
                             style: TextStyle(
-                              color: Colors.black54,
+                              color: secondaryTextColor,
                               fontSize: 14,
                             ),
                           ),
@@ -93,7 +100,7 @@ class StudyPlanFullScreenPage extends StatelessWidget {
                             child: Text(
                               t,
                               style: TextStyle(
-                                color: Colors.black87,
+                                color: textColor,
                                 fontSize: 14,
                                 height: 1.4,
                               ),

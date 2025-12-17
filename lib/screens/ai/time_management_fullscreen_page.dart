@@ -149,18 +149,24 @@ class _TimeManagementFullScreenPageState
 
   @override
   Widget build(BuildContext context) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkTheme ? const Color(0xFF121212) : Colors.white;
+    final appBarColor = isDarkTheme ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white54 : Colors.black54;
+    
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          icon: Icon(Icons.arrow_back_ios_new, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Time Management',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
         ),
       ),
       body: SingleChildScrollView(
@@ -176,12 +182,12 @@ class _TimeManagementFullScreenPageState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      children: const [
-                        Icon(Icons.bolt, color: Color(0xFFFFB26B)),
-                        SizedBox(width: 8),
+                      children: [
+                        const Icon(Icons.bolt, color: Color(0xFFFFB26B)),
+                        const SizedBox(width: 8),
                         Text(
                           'Stay focused. Stay disciplined.',
-                          style: TextStyle(color: Colors.black54, fontSize: 14),
+                          style: TextStyle(color: secondaryTextColor, fontSize: 14),
                         ),
                       ],
                     ),
@@ -239,16 +245,18 @@ class _PomodoroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
     final progress = 1 - (remaining / total);
     return StitchedCard(
       accentColor: const Color(0xFF7AB8FF).withOpacity(0.25),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Text(
+          Text(
             'Pomodoro Session',
             style: TextStyle(
-              color: Colors.black87,
+              color: textColor,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -262,12 +270,16 @@ class _PomodoroCard extends StatelessWidget {
               children: [
                 CustomPaint(
                   size: const Size(170, 170),
-                  painter: _RingPainter(progress: progress, active: running),
+                  painter: _RingPainter(
+                    progress: progress, 
+                    active: running,
+                    isDarkTheme: isDark,
+                  ),
                 ),
                 Text(
                   formatTime(remaining),
-                  style: const TextStyle(
-                    color: Colors.black87,
+                  style: TextStyle(
+                    color: textColor,
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
@@ -327,6 +339,12 @@ class _StudyTimerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final mutedColor = isDark ? Colors.grey.shade400 : Colors.black54;
+    final chipBg = isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade200;
+    final progressBg = isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade200;
+    
     // Ensure progress is a double for LinearProgressIndicator
     final double progress = running
         ? 1 - (remainingSeconds / (durationMinutes * 60))
@@ -337,13 +355,13 @@ class _StudyTimerCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.book, color: Colors.black54, size: 18),
-              SizedBox(width: 6),
+            children: [
+              Icon(Icons.book, color: mutedColor, size: 18),
+              const SizedBox(width: 6),
               Text(
                 'Custom Study Timer',
                 style: TextStyle(
-                  color: Colors.black87,
+                  color: textColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -365,13 +383,13 @@ class _StudyTimerCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: selected
                         ? const Color(0xFF7AB8FF)
-                        : Colors.grey.shade200,
+                        : chipBg,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Text(
                     '${m}m',
                     style: TextStyle(
-                      color: selected ? Colors.white : Colors.black87,
+                      color: selected ? Colors.white : textColor,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -385,14 +403,14 @@ class _StudyTimerCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: progressBg,
               valueColor: const AlwaysStoppedAnimation(Color(0xFF7EE8A9)),
             ),
           ),
           const SizedBox(height: 10),
           Text(
             running ? 'Remaining: ${formatTime(remainingSeconds)}' : 'Ready',
-            style: const TextStyle(color: Colors.black54),
+            style: TextStyle(color: mutedColor),
           ),
           const SizedBox(height: 10),
           Row(
@@ -421,16 +439,22 @@ class StitchedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
+    final shadowColor = isDarkTheme 
+        ? Colors.black.withOpacity(0.3)
+        : Colors.black.withOpacity(0.08);
+    
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: shadowColor,
             blurRadius: 14,
             offset: const Offset(0, 8),
           ),
@@ -445,15 +469,21 @@ class StitchedCard extends StatelessWidget {
 class _RingPainter extends CustomPainter {
   final double progress;
   final bool active;
-  _RingPainter({required this.progress, required this.active});
+  final bool isDarkTheme;
+  _RingPainter({
+    required this.progress, 
+    required this.active,
+    required this.isDarkTheme,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final radius = (size.shortestSide / 2) - 6;
 
+    final baseColor = isDarkTheme ? Colors.grey.shade700 : Colors.grey.shade300;
     final basePaint = Paint()
-      ..color = Colors.grey.shade200
+      ..color = baseColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 10;
     canvas.drawCircle(center, radius, basePaint);
@@ -485,7 +515,9 @@ class _RingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RingPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.active != active;
+      oldDelegate.progress != progress || 
+      oldDelegate.active != active ||
+      oldDelegate.isDarkTheme != isDarkTheme;
 }
 
 class _PillButton extends StatelessWidget {

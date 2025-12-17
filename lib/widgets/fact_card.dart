@@ -148,11 +148,13 @@ class _FactCardState extends State<FactCard>
                 borderRadius: BorderRadius.circular(30),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E22),
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF1E1E22), Color(0xFF171719)],
+                      colors: [
+                        const Color(0xFFFFF9E6),
+                        const Color(0xFFFFECC0),
+                      ],
                     ),
                   ),
                   child: Stack(
@@ -166,15 +168,15 @@ class _FactCardState extends State<FactCard>
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF69D1C5).withOpacity(0.25),
+                            color: const Color(0xFFFFB26B).withOpacity(0.35),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: const Color(0xFF69D1C5).withOpacity(0.5),
+                              color: const Color(0xFFFF9500).withOpacity(0.6),
                               width: 1.5,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF69D1C5).withOpacity(0.3),
+                                color: const Color(0xFFFF9500).withOpacity(0.2),
                                 blurRadius: 12,
                                 spreadRadius: 2,
                               ),
@@ -183,7 +185,7 @@ class _FactCardState extends State<FactCard>
                           child: const Text(
                             'FACT',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: const Color(0xFF8B4513),
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
@@ -200,7 +202,7 @@ class _FactCardState extends State<FactCard>
                           child: Text(
                             widget.text,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: Color(0xFF2C1810),
                               fontSize: 20,
                               fontWeight: FontWeight.w400,
                               height: 1.5,

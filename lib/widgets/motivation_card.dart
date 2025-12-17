@@ -203,14 +203,13 @@ class _MotivationCardState extends State<MotivationCard>
                 borderRadius: BorderRadius.circular(30),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF232325),
                     border: Border.all(width: 2, color: Colors.transparent),
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF232325),
-                        const Color(0xFF1A1A1C),
+                        const Color(0xFFFFF9E6),
+                        const Color(0xFFFFECC0),
                       ],
                     ),
                   ),
@@ -226,15 +225,15 @@ class _MotivationCardState extends State<MotivationCard>
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFB26B).withOpacity(0.25),
+                            color: const Color(0xFFFFB26B).withOpacity(0.4),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: const Color(0xFFFFB26B).withOpacity(0.5),
+                              color: const Color(0xFFFF9500).withOpacity(0.7),
                               width: 1.5,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFFFB26B).withOpacity(0.3),
+                                color: const Color(0xFFFF9500).withOpacity(0.25),
                                 blurRadius: 12,
                                 spreadRadius: 2,
                               ),
@@ -243,7 +242,7 @@ class _MotivationCardState extends State<MotivationCard>
                           child: const Text(
                             'MOTIVATION',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: const Color(0xFF8B4513),
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
@@ -261,7 +260,7 @@ class _MotivationCardState extends State<MotivationCard>
                           child: Text(
                             widget.text,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: Color(0xFF2C1810),
                               fontSize: 20,
                               fontStyle: FontStyle.italic,
                               fontWeight: FontWeight.w400,
@@ -279,8 +278,8 @@ class _MotivationCardState extends State<MotivationCard>
                         child: Center(
                           child: Text(
                             widget.author,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
+                            style: const TextStyle(
+                              color: Color(0xFF5D3A1A),
                               fontSize: 15,
                               fontWeight: FontWeight.w400,
                             ),

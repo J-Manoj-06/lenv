@@ -18,19 +18,26 @@ class InsightsFullScreenPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sections = _splitSections(insightsText);
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkTheme ? const Color(0xFF121212) : Colors.white;
+    final appBarColor = isDarkTheme ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
+    
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.black87),
+          icon: Icon(Icons.close_rounded, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'My Insights',
           style: TextStyle(
-            color: Colors.black87,
+            color: textColor,
             fontWeight: FontWeight.w700,
             fontSize: 18,
           ),
@@ -43,7 +50,7 @@ class InsightsFullScreenPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.blue.withOpacity(0.35)),
               ),
@@ -53,7 +60,7 @@ class InsightsFullScreenPage extends StatelessWidget {
                   Text(
                     'Subject Performance',
                     style: TextStyle(
-                      color: Colors.black87,
+                      color: textColor,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -68,7 +75,7 @@ class InsightsFullScreenPage extends StatelessWidget {
                             child: Text(
                               e.key,
                               style: TextStyle(
-                                color: Colors.black54,
+                                color: secondaryTextColor,
                                 fontSize: 14,
                               ),
                             ),
@@ -114,18 +121,23 @@ class _InsightSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final borderColor = isDarkTheme ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.07);
+    
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: cardColor,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.black.withOpacity(0.07)),
+        border: Border.all(color: borderColor),
       ),
       child: Text(
         text.trim(),
         style: TextStyle(
-          color: Colors.black87,
+          color: textColor,
           fontSize: 14,
           height: 1.5,
         ),
