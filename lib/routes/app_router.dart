@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:new_reward/screens/test_media_upload_screen.dart';
 import '../screens/common/splash_screen.dart';
 import '../screens/common/role_selection_screen.dart';
 import '../screens/teacher/teacher_login_screen.dart';
@@ -16,7 +15,6 @@ import '../screens/parent/child_profile_screen.dart';
 import '../widgets/parent_main_navigation.dart';
 import '../screens/institute/institute_login_screen.dart';
 import '../widgets/institute_main_navigation.dart';
-import '../screens/dev/dev_tools_screen.dart';
 import '../screens/student/student_test_result_screen.dart';
 import '../screens/rewards/search_rewards_screen.dart';
 import '../screens/rewards/product_detail_screen.dart';
@@ -95,11 +93,6 @@ class AppRouter {
           );
         }
         return MaterialPageRoute(
-          builder: (_) => ProductDetailScreen(product: product),
-        );
-
-      case '/my-reward-requests':
-        return MaterialPageRoute(
           builder: (_) => const MyRewardRequestsScreen(),
         );
 
@@ -151,9 +144,6 @@ class AppRouter {
           ),
         );
 
-      case '/test-media-upload':
-        return MaterialPageRoute(builder: (_) => const TestMediaUploadScreen());
-
       case '/tests':
         return MaterialPageRoute(
           builder: (_) => const TeacherMainNavigation(initialIndex: 2),
@@ -184,9 +174,6 @@ class AppRouter {
 
       case '/my-highlights':
         return MaterialPageRoute(builder: (_) => const MyHighlightsScreen());
-
-      case '/dev-tools':
-        return MaterialPageRoute(builder: (_) => const DevToolsScreen());
 
       case '/student-test-result':
         final args = settings.arguments as Map<String, dynamic>?;

@@ -332,24 +332,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   children: [
                     _buildStreakBadge(),
                     const SizedBox(width: 10),
-                    // Dev Tools Button
-                    GestureDetector(
-                      onTap: () => Navigator.pushNamed(context, '/dev-tools'),
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: _primary.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.build_rounded,
-                          color: Color(0xFFF2800D),
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
                     _buildProfileIcon(),
                   ],
                 ),

@@ -157,40 +157,16 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         color: theme.scaffoldBackgroundColor.withOpacity(0.85),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Left spacer (to balance settings button on right)
-          const SizedBox(width: 40),
-          Expanded(
-            child: Text(
-              'My Profile',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-          InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings coming soon')),
-              );
-            },
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: theme.cardColor.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(
-                Icons.settings,
-                size: 22,
-                color: isDark ? Colors.white.withOpacity(0.8) : Colors.black54,
-              ),
+          Text(
+            'My Profile',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+              letterSpacing: 0.2,
             ),
           ),
         ],
