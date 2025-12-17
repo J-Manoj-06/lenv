@@ -257,8 +257,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         decoration: BoxDecoration(
           color: isDark
               ? (widget.isMe
-                  ? Colors.white.withOpacity(0.08)
-                  : Colors.black.withOpacity(0.08))
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.black.withOpacity(0.08))
               : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
@@ -285,7 +285,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: isDark ? Colors.white : const Color(0xFF1A1D21),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF1A1D21),
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
                         ),
@@ -333,8 +335,12 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   icon: Icon(_isPdf ? Icons.open_in_new : Icons.play_arrow),
                   label: Text(_isPdf ? 'View PDF' : 'Play Audio'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? _accentColor : _accentColor.withOpacity(0.12),
-                    foregroundColor: isDark ? Colors.white : const Color(0xFF1A1D21),
+                    backgroundColor: isDark
+                        ? _accentColor
+                        : _accentColor.withOpacity(0.12),
+                    foregroundColor: isDark
+                        ? Colors.white
+                        : const Color(0xFF1A1D21),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -349,8 +355,12 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   icon: const Icon(Icons.download),
                   label: Text('Download ${_formatSize(widget.fileSize)}'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? _accentColor.withOpacity(0.3) : _accentColor.withOpacity(0.12),
-                    foregroundColor: isDark ? Colors.white : const Color(0xFF1A1D21),
+                    backgroundColor: isDark
+                        ? _accentColor.withOpacity(0.3)
+                        : _accentColor.withOpacity(0.12),
+                    foregroundColor: isDark
+                        ? Colors.white
+                        : const Color(0xFF1A1D21),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
