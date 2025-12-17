@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/test_result_model.dart';
 import '../../services/student_service.dart';
 
@@ -61,11 +63,13 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     final List<QuestionResult> out = [];
     for (int i = 0; i < ans.length; i++) {
       final a = ans[i];
+      print('🔍 Processing answer $i: keys=${a.keys.toList()}, data=$a');
       final questionText = (a['questionText'] ?? 'Question ${i + 1}')
           .toString();
-      final userAnswer = (a['userAnswer'] ?? '').toString();
-      final correctAnswer = (a['correctAnswer'] ?? '').toString();
+      final userAnswer = _extractAnswer(a, forCorrect: false);
+      final correctAnswer = _extractAnswer(a, forCorrect: true);
       final isCorrect = (a['isCorrect'] ?? false) == true;
+      print('   📝 Extracted: user="$userAnswer", correct="$correctAnswer", isCorrect=$isCorrect');
       out.add(
         QuestionResult(
           index: i + 1,
@@ -80,6 +84,74 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
       );
     }
     return out;
+  }
+
+  // Extract an answer string from multiple possible keys and formats
+  String _extractAnswer(Map<String, dynamic> a, {required bool forCorrect}) {
+    final keys = forCorrect
+        ? [
+            'correctAnswer',
+            'answer',
+            'correctOption',
+            'correctLabel',
+            'correctIndex',
+            'correct_index',
+            'expected',
+          ]
+        : [
+            'userAnswer',
+            'selectedAnswer',
+            'selectedOption',
+            'selectedLabel',
+            'selected',
+            'userOption',
+            'userLabel',
+            'userIndex',
+            'selectedIndex',
+            'answer',
+            'studentAnswer',
+            'choice',
+            'response',
+            'value',
+          ];
+
+    dynamic val;
+    for (final k in keys) {
+      if (a.containsKey(k) && a[k] != null) {
+        val = a[k];
+        print('      🔑 Found ${forCorrect ? 'correct' : 'user'} answer in key "$k": $val');
+        break;
+      }
+    }
+    if (val == null) {
+      print('      ❌ No ${forCorrect ? 'correct' : 'user'} answer found in keys: ${a.keys.toList()}');
+    }
+
+    // Resolve single-letter answers against options list when available
+    if (forCorrect && val is String && val.trim().length == 1) {
+      final opts = a['options'];
+      if (opts is List && opts.isNotEmpty) {
+        final letter = val.trim().toUpperCase();
+        final idx = letter.codeUnitAt(0) - 65; // A -> 0
+        if (idx >= 0 && idx < opts.length) {
+          val = opts[idx];
+        }
+      }
+    }
+
+    return _stringifyAnswer(val);
+  }
+
+  String _stringifyAnswer(dynamic v) {
+    if (v == null) return '—';
+    if (v is List) {
+      return v.map((e) => _stringifyAnswer(e)).join(', ');
+    }
+    if (v is Map) {
+      return v.values.map((e) => _stringifyAnswer(e)).join(', ');
+    }
+    final s = v.toString().trim();
+    return s.isEmpty ? 'No answer' : s;
   }
 
   @override
@@ -125,6 +197,16 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
           print('   Answers Array Length: ${result.answers.length}');
           print('   Status: completedAt=${result.completedAt}');
           // Compute percentage safely with fallbacks to new fields
+          final derivedTotal = result.totalQuestions > 0
+              ? result.totalQuestions
+              : (result.answers.isNotEmpty ? result.answers.length : 0);
+          final derivedCorrect = (result.correctAnswers > 0 ||
+                  result.answers.isEmpty)
+              ? result.correctAnswers
+              : result.answers
+                  .where((a) => (a['isCorrect'] ?? false) == true)
+                  .length;
+
           final double pct = (() {
             if (result.percentage != null) {
               final p = result.percentage!;
@@ -132,8 +214,8 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
               return p.clamp(0, 100).toDouble();
             }
             // Fallback: compute from correct/total if available
-            final totalQ = result.totalQuestions;
-            final correct = result.correctAnswers;
+            final totalQ = derivedTotal;
+            final correct = derivedCorrect;
             if (totalQ > 0) {
               final computed = ((correct / totalQ) * 100).clamp(0.0, 100.0);
               print(
@@ -188,62 +270,39 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                       const SizedBox(height: 24),
                       if (pct >= 75) _buildTrophyBanner(),
                       const SizedBox(height: 24),
-                      // Question Breakdown (supports legacy and new formats)
-                      if ((result.questions != null &&
-                              result.questions!.isNotEmpty) ||
-                          result.answers.isNotEmpty) ...[
-                        Text(
-                          'Question Breakdown',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 12),
-                        ..._buildQuestionResults(
-                          result,
-                        ).map((q) => _buildQuestionTile(q)),
-                      ] else ...[
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF1F2937)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF374151)
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.info_outline,
-                                size: 48,
-                                color: isDark ? Colors.white70 : Colors.grey,
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Question details not available',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.white : Colors.black87,
+                      // Gate detailed answers until results are published or after due time
+                      FutureBuilder<_PublishGate>(
+                        future: _fetchPublishGate(result.testId),
+                        builder: (context, gateSnap) {
+                          final gate = gateSnap.data;
+                          final canShow = gate?.canShow ?? true;
+                          if (!canShow) {
+                            return _lockedUntilCard(gate!.endDate, isDark);
+                          }
+
+                          if ((result.questions != null &&
+                                  result.questions!.isNotEmpty) ||
+                              result.answers.isNotEmpty) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Question Breakdown',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.bold),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'This test result does not contain detailed answer information.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: isDark ? Colors.white70 : Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                                const SizedBox(height: 12),
+                                ..._buildQuestionResults(result)
+                                    .map((q) => _buildQuestionTile(q)),
+                              ],
+                            );
+                          }
+
+                          return _noDetailsCard(isDark);
+                        },
+                      ),
                       const SizedBox(height: 24),
                       // Badges (optional)
                       if (result.badges != null &&
@@ -284,6 +343,129 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
       ),
     );
   }
+
+  // --- Result gating helpers ---
+  Future<_PublishGate> _fetchPublishGate(String testId) async {
+    DateTime? endDate;
+    bool resultsPublished = false;
+
+    try {
+      final db = FirebaseFirestore.instance;
+      // Try scheduledTests first (AI tests)
+      final sched = await db.collection('scheduledTests').doc(testId).get();
+      if (sched.exists) {
+        final data = sched.data() as Map<String, dynamic>;
+        resultsPublished = (data['resultsPublished'] as bool?) ?? false;
+        if (data['endDate'] is Timestamp) {
+          endDate = (data['endDate'] as Timestamp).toDate();
+        } else if (data['date'] is String) {
+          // Compute from date + startTime + duration (fallback)
+          try {
+            final dateStr = data['date'] as String;
+            final startTimeStr = (data['startTime'] as String?) ?? '00:00';
+            final duration = (data['duration'] as num?)?.toInt() ?? 60;
+            final start = DateTime.parse('$dateStr $startTimeStr');
+            endDate = start.add(Duration(minutes: duration));
+          } catch (_) {}
+        }
+      } else {
+        // Fallback to tests collection (manually created tests)
+        final t = await db.collection('tests').doc(testId).get();
+        if (t.exists) {
+          final data = t.data() as Map<String, dynamic>;
+          resultsPublished = (data['resultsPublished'] as bool?) ?? false;
+          if (data['endDate'] is Timestamp) {
+            endDate = (data['endDate'] as Timestamp).toDate();
+          }
+        }
+      }
+    } catch (_) {}
+
+    final now = DateTime.now();
+    final canShow = resultsPublished || (endDate != null && now.isAfter(endDate!));
+    return _PublishGate(canShow: canShow, endDate: endDate);
+  }
+
+  Widget _lockedUntilCard(DateTime? endDate, bool isDark) {
+    final dateText = endDate != null ? DateFormat('MMM d, yyyy h:mm a').format(endDate) : 'the due time';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1F2937) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF374151) : Colors.grey.shade300,
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_clock, color: Color(0xFFF97316)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Results locked until $dateText',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Answer details will be visible after the test due time.',
+                  style:
+                      TextStyle(fontSize: 14, color: isDark ? Colors.white70 : Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _noDetailsCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1F2937) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF374151) : Colors.grey.shade300,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 48,
+            color: isDark ? Colors.white70 : Colors.grey,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Question details not available',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'This test result does not contain detailed answer information.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: isDark ? Colors.white70 : Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  
 
   Widget _buildStudentInfo() {
     return FutureBuilder<Map<String, dynamic>>(
@@ -503,8 +685,6 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
               _kvRow('Your Answer', q.yourAnswer),
               const SizedBox(height: 8),
               _kvRow('Correct Answer', q.correctAnswer),
-              const SizedBox(height: 8),
-              _kvRow('Teacher Notes', q.notes),
             ],
           ),
         ),
@@ -683,3 +863,9 @@ class _RingPainter extends CustomPainter {
 }
 
 // _NavItem removed in favor of shared StudentBottomNav.
+
+class _PublishGate {
+  final bool canShow;
+  final DateTime? endDate;
+  _PublishGate({required this.canShow, this.endDate});
+}

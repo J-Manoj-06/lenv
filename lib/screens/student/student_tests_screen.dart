@@ -698,26 +698,34 @@ class _TestCard extends StatelessWidget {
       leadingFg = const Color(0xFFF2800D);
     } else {
       final r = item.result!;
+      final canShow = item.showResult;
       title = r.testTitle;
       subject = r.subject;
       assignedBy = '';
-      // Show results immediately after completion
-      dateLabel = 'Completed:';
-      dateValue = fmt.format(r.completedAt);
-      buttonText = 'View Results';
-      onPressed = () {
-        Navigator.pushNamed(
-          context,
-          '/student-test-result',
-          arguments: {'resultId': r.id},
-        );
-      };
+      if (canShow) {
+        dateLabel = 'Completed:';
+        dateValue = fmt.format(r.completedAt);
+        buttonText = 'View Results';
+        onPressed = () {
+          Navigator.pushNamed(
+            context,
+            '/student-test-result',
+            arguments: {'resultId': r.id},
+          );
+        };
+      } else {
+        // Lock results until due time
+        dateLabel = 'Available After:';
+        dateValue = item.endDate != null ? fmt.format(item.endDate!) : 'Due time';
+        buttonText = 'Results Locked';
+        onPressed = () {};
+      }
       leadingIcon = Icons.history_edu;
       leadingBg = const Color(0xFFE8E9EB);
       leadingFg = const Color(0xFF1C140D);
       statusBg = const Color(0xFFE8E9EB);
       statusText = const Color(0xFF656669);
-      statusLabel = 'Completed';
+      statusLabel = canShow ? 'Completed' : 'Completed';
     }
 
     return Container(
@@ -849,15 +857,15 @@ class _TestCard extends StatelessWidget {
                   ),
                 ],
               ),
-              _PrimaryButton(
+                _PrimaryButton(
                 label: buttonText,
                 onPressed: onPressed,
                 isPrimary: item.isPending && !isExpired,
                 enabled:
-                    (item.isPending &&
-                        !isExpired &&
-                        buttonText != 'Yet to start') ||
-                    buttonText == 'View Results',
+                  (item.isPending &&
+                    !isExpired &&
+                    buttonText != 'Yet to start') ||
+                  buttonText == 'View Results',
               ),
             ],
           ),
