@@ -255,16 +255,18 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         width: 260,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isDark
-              ? (widget.isMe
-                    ? Colors.white.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.08))
-              : Colors.white,
+          // Keep inner background on the theme default in both light and dark.
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isDark
-                ? _accentColor.withOpacity(0.35)
-                : Colors.grey.withOpacity(0.25),
+            // For PDF and audio, highlight the border with the accent color
+            // while keeping the inner background on the theme default.
+            color: (_isPdf || _isAudio)
+                ? _accentColor.withOpacity(isDark ? 0.5 : 0.4)
+                : (isDark
+                    ? _accentColor.withOpacity(0.35)
+                    : Colors.grey.withOpacity(0.25)),
+            width: (_isPdf || _isAudio) ? 1.4 : 1.0,
           ),
         ),
         child: Column(
