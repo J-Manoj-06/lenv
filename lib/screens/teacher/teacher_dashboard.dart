@@ -2721,8 +2721,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       'text': text ?? '',
       'imageUrl': imageUrl ?? '',
       'createdAt': FieldValue.serverTimestamp(),
-      // also store client timestamps for queries without server latency
-      'createdAtClient': Timestamp.fromDate(now),
       'expiresAt': Timestamp.fromDate(expiresAt),
       // Audience targeting
       'audienceType': audienceType,

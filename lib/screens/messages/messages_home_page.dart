@@ -44,6 +44,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         centerTitle: true,
+        automaticallyImplyLeading: false,
         title: Text(
           'Messages',
           style: TextStyle(

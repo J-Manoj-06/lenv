@@ -17,7 +17,6 @@ import '../screens/institute/institute_login_screen.dart';
 import '../widgets/institute_main_navigation.dart';
 import '../screens/student/student_test_result_screen.dart';
 import '../screens/rewards/search_rewards_screen.dart';
-import '../screens/rewards/product_detail_screen.dart';
 import '../models/product_model.dart';
 import '../screens/rewards/my_requests_screen.dart';
 import '../widgets/student_main_navigation.dart';

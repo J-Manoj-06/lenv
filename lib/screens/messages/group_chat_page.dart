@@ -64,6 +64,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Timer? _recordingTimer;
   double _slideOffsetX = 0;
   bool _isCancelled = false;
+  final Set<String> _selectedMessages = {};
+  bool _isSelectionMode = false;
 
   // Extract R2 key from full URL
   // https://files.lenv1.tech/media/1234567/file.pdf → media/1234567/file.pdf
@@ -650,32 +652,50 @@ class _GroupChatPageState extends State<GroupChatPage> {
             elevation: 0,
             leading: IconButton(
               icon: Icon(
-                Icons.arrow_back_ios_new,
+                _isSelectionMode ? Icons.close : Icons.arrow_back_ios_new,
                 color: theme.iconTheme.color,
                 size: 20,
               ),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                if (_isSelectionMode) {
+                  setState(() {
+                    _isSelectionMode = false;
+                    _selectedMessages.clear();
+                  });
+                } else {
+                  Navigator.pop(context);
+                }
+              },
             ),
-            title: Row(
-              children: [
-                Text(widget.icon, style: const TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            title: _isSelectionMode
+                ? Text(
+                    '${_selectedMessages.length} selected',
+                    style: TextStyle(
+                      color: theme.textTheme.bodyLarge?.color,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                : Row(
                     children: [
-                      Text(
-                        widget.subjectName,
-                        style: TextStyle(
-                          color: theme.textTheme.bodyLarge?.color,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.className != null && widget.section != null
+                      Text(widget.icon, style: const TextStyle(fontSize: 20)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.subjectName,
+                              style: TextStyle(
+                                color: theme.textTheme.bodyLarge?.color,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.className != null && widget.section != null
                             ? '${widget.className} - Section ${widget.section}'
                             : widget.teacherName,
                         style: TextStyle(
@@ -689,6 +709,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 ),
               ],
             ),
+            actions: _isSelectionMode
+                ? [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.redAccent,
+                        size: 24,
+                      ),
+                      onPressed:
+                          _selectedMessages.isEmpty ? null : _showDeleteDialog,
+                    ),
+                  ]
+                : null,
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(1),
               child: Container(
@@ -724,7 +757,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       );
                     }
 
-                    final messages = snapshot.data!;
+                    // Filter out messages deleted by current user
+                    final messages = snapshot.data!
+                        .where((m) =>
+                            !(m.deletedFor?.contains(currentUserId) ?? false))
+                        .toList();
 
                     if (messages.isEmpty) {
                       return const Center(
@@ -744,8 +781,51 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       itemBuilder: (context, index) {
                         final message = messages[index];
                         final isMe = message.senderId == currentUserId;
+                        final isSelected = _selectedMessages.contains(message.id);
 
-                        return _MessageBubble(message: message, isMe: isMe);
+                        return GestureDetector(
+                          onLongPress: () {
+                            setState(() {
+                              _isSelectionMode = true;
+                              _selectedMessages.add(message.id);
+                            });
+                          },
+                          onTap: _isSelectionMode
+                              ? () {
+                                  setState(() {
+                                    if (isSelected) {
+                                      _selectedMessages.remove(message.id);
+                                      if (_selectedMessages.isEmpty) {
+                                        _isSelectionMode = false;
+                                      }
+                                    } else {
+                                      _selectedMessages.add(message.id);
+                                    }
+                                  });
+                                }
+                              : null,
+                          child: Row(
+                            children: [
+                              if (_isSelectionMode)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: Icon(
+                                    isSelected
+                                        ? Icons.check_circle
+                                        : Icons.radio_button_unchecked,
+                                    color: isSelected
+                                        ? const Color(0xFFFFA929)
+                                        : Colors.grey,
+                                    size: 24,
+                                  ),
+                                ),
+                              Expanded(
+                                child: _MessageBubble(
+                                    message: message, isMe: isMe),
+                              ),
+                            ],
+                          ),
+                        );
                       },
                     );
                   },
@@ -998,6 +1078,153 @@ class _GroupChatPageState extends State<GroupChatPage> {
       onImageTap: _pickAndSendImage,
       onPdfTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
+    );
+  }
+
+  Future<void> _deleteMessages(bool deleteForEveryone) async {
+    final messagesToDelete = _selectedMessages.toList();
+    if (messagesToDelete.isEmpty) return;
+
+    try {
+      for (final messageId in messagesToDelete) {
+        if (deleteForEveryone) {
+          // Get message to check for media
+          final docSnapshot = await FirebaseFirestore.instance
+              .collection('classes')
+              .doc(widget.classId)
+              .collection('subjects')
+              .doc(widget.subjectId)
+              .collection('messages')
+              .doc(messageId)
+              .get();
+
+          if (docSnapshot.exists) {
+            final data = docSnapshot.data();
+            // Delete media from Cloudflare if exists
+            if (data?['mediaMetadata'] != null) {
+              final r2Key = data!['mediaMetadata']['r2Key'] as String?;
+              if (r2Key != null) {
+                try {
+                  final r2Service = CloudflareR2Service(
+                    accountId: CloudflareConfig.accountId,
+                    bucketName: CloudflareConfig.bucketName,
+                    accessKeyId: CloudflareConfig.accessKeyId,
+                    secretAccessKey: CloudflareConfig.secretAccessKey,
+                    r2Domain: CloudflareConfig.r2Domain,
+                  );
+                  await r2Service.deleteFile(key: r2Key);
+                  print('🗑️ Deleted media from Cloudflare: $r2Key');
+                } catch (e) {
+                  print('⚠️ Failed to delete media from Cloudflare: $e');
+                }
+              }
+            }
+          }
+
+          // Delete message from Firestore for everyone
+          await FirebaseFirestore.instance
+              .collection('classes')
+              .doc(widget.classId)
+              .collection('subjects')
+              .doc(widget.subjectId)
+              .collection('messages')
+              .doc(messageId)
+              .delete();
+        } else {
+          // Delete for me only - mark as deleted for this user
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final currentUserId = authProvider.currentUser?.uid;
+          if (currentUserId != null) {
+            await FirebaseFirestore.instance
+                .collection('classes')
+                .doc(widget.classId)
+                .collection('subjects')
+                .doc(widget.subjectId)
+                .collection('messages')
+                .doc(messageId)
+                .update({
+              'deletedFor': FieldValue.arrayUnion([currentUserId]),
+            });
+          }
+        }
+      }
+
+      setState(() {
+        _selectedMessages.clear();
+        _isSelectionMode = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              deleteForEveryone
+                  ? 'Deleted for everyone'
+                  : 'Deleted for you',
+            ),
+            backgroundColor: const Color(0xFF4CAF50),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error deleting messages: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Delete Messages',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Choose delete option',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteMessages(false);
+            },
+            child: const Text(
+              'Delete for me',
+              style: TextStyle(color: Color(0xFFFFA929)),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteMessages(true);
+            },
+            child: const Text(
+              'Delete for everyone',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

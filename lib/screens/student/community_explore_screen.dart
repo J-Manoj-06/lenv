@@ -166,7 +166,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),
+          icon: Icon(Icons.arrow_back_ios_new, color: theme.iconTheme.color),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -233,7 +233,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF7A5CFF)
+                          ? const Color(0xFFFFA929)
                           : (isDark
                                 ? theme.colorScheme.surface
                                 : theme.colorScheme.surfaceContainerHighest.withOpacity(

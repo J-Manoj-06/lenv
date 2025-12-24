@@ -12,6 +12,7 @@ import 'providers/student_provider.dart';
 import 'providers/daily_challenge_provider.dart';
 import 'providers/parent_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/unread_count_provider.dart';
 import 'routes/app_router.dart';
 import 'services/local_cache_service.dart';
 
@@ -95,6 +96,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => StudentProvider()),
         ChangeNotifierProvider(create: (_) => ParentProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => UnreadCountProvider()),
         ChangeNotifierProxyProvider<
           local_auth.AuthProvider,
           DailyChallengeProvider

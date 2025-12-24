@@ -1,0 +1,19 @@
+{
+	"name": "daily-content-worker",
+	"main": "dist/daily-content-worker.js",
+	"compatibility_date": "2024-12-10",
+	
+	// Scheduled cron trigger - runs daily at 2:00 AM Asia/Kolkata (8:30 PM UTC previous day)
+	"triggers": {
+		"crons": ["30 20 * * *"]
+	},
+	
+	// Environment variables
+	"vars": {
+		"ENVIRONMENT": "production"
+	}
+	
+	// To set Firebase service account credentials (one-time setup):
+	// wrangler secret put FIREBASE_SERVICE_ACCOUNT --config wrangler-daily-content.jsonc
+	// Then paste your entire service account JSON as a single line
+}

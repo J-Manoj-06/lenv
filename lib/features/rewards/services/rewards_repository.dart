@@ -176,10 +176,11 @@ class RewardsRepository {
         );
 
         // Check if student has enough points
-        // TODO: Re-enable this check after testing or adding points to student account
-        // if (availablePoints < pointsRequired) {
-        //   throw Exception('Insufficient points');
-        // }
+        if (availablePoints < pointsRequired) {
+          throw Exception(
+            'Insufficient points: You have $availablePoints points but need $pointsRequired points',
+          );
+        }
 
         // Create audit entry
         final auditEntry = AuditEntry(

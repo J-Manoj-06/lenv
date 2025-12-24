@@ -8,6 +8,7 @@ class GroupChatMessage {
   final String? imageUrl;
   final MediaMetadata? mediaMetadata; // WhatsApp-style media metadata
   final int timestamp;
+  final List<String>? deletedFor; // List of user IDs who deleted this message
 
   GroupChatMessage({
     required this.id,
@@ -17,6 +18,7 @@ class GroupChatMessage {
     this.imageUrl,
     this.mediaMetadata,
     required this.timestamp,
+    this.deletedFor,
   });
 
   factory GroupChatMessage.fromFirestore(Map<String, dynamic> data, String id) {
@@ -30,6 +32,9 @@ class GroupChatMessage {
           ? MediaMetadata.fromFirestore(data['mediaMetadata'])
           : null,
       timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+      deletedFor: data['deletedFor'] != null
+          ? List<String>.from(data['deletedFor'])
+          : null,
     );
   }
 
@@ -41,6 +46,7 @@ class GroupChatMessage {
       'imageUrl': imageUrl,
       'mediaMetadata': mediaMetadata?.toFirestore(),
       'timestamp': timestamp,
+      'deletedFor': deletedFor,
     };
   }
 }

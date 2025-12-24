@@ -98,5 +98,16 @@ service cloud.firestore {
     function isAdmin() {
       return hasRole('admin');
     }
+
+    // Daily content (pre-fetched by Cloudflare Worker, read-only for all)
+    // Collection: daily_content/{YYYY-MM-DD}
+    // Fields: quote, fact, history, fetchedAt, status
+    match /daily_content/{date} {
+      // All authenticated users can read
+      allow read: if request.auth != null;
+      
+      // No client writes - only Cloudflare Worker via service account
+      allow write: if false;
+    }
   }
 }

@@ -58,6 +58,7 @@ class InstituteAnnouncementModel {
 
   /// Convert to Firestore document
   /// Note: viewedBy tracking is now handled via subcollection 'views/{userId}'
+  /// Uses server timestamp for consistency and cost optimization (no duplicate client timestamp)
   Map<String, dynamic> toFirestore() {
     return {
       'principalId': principalId,

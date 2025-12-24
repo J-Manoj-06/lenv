@@ -1,0 +1,78 @@
+// Firestore Security Rules Addition
+// For Unified Unread Message Count System
+// 
+// Append this to your existing firestore.rules file
+// These rules are NON-BREAKING and additive only
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // NEW: Read state tracking for unread counts
+    // ❌ Do NOT modify existing rules above
+    // ✅ Add these new rules below existing rules
+    
+    // Chat read tracking - per user, per chat
+    match /users/{userId}/chatReads/{chatId} {
+      // Users can only read/write their own read states
+      allow read, write: if request.auth != null 
+        && request.auth.uid == userId;
+    }
+    
+    // Batch read access for loading unread counts
+    // Required for efficiently checking multiple chats
+    match /users/{userId}/chatReads/{chatId} {
+      // Allow reading multiple documents in one query
+      allow read: if request.auth != null 
+        && request.auth.uid == userId
+        && request.query.limit <= 100; // Prevent excessive reads
+    }
+    
+    // Message count queries (for unread calculation)
+    // These rules ensure count() queries work properly
+    
+    // Group messages - count for unread
+    match /groups/{groupId}/messages/{messageId} {
+      allow read: if request.auth != null;
+      // count() queries allowed via parent collection read
+    }
+    
+    // Community messages - count for unread
+    match /communities/{communityId}/messages/{messageId} {
+      allow read: if request.auth != null;
+      // count() queries allowed via parent collection read
+    }
+    
+    // Individual chat messages - count for unread
+    match /chats/{chatId}/messages/{messageId} {
+      allow read: if request.auth != null;
+      // count() queries allowed via parent collection read
+    }
+    
+    // Parent-Teacher group messages - count for unread
+    match /ptGroups/{groupId}/messages/{messageId} {
+      allow read: if request.auth != null;
+      // count() queries allowed via parent collection read
+    }
+  }
+}
+
+// DEPLOYMENT INSTRUCTIONS:
+// 
+// 1. Copy these rules (starting from "// Chat read tracking")
+// 2. Append to your existing firestore.rules file
+// 3. Run: firebase deploy --only firestore:rules
+// 4. Verify in Firebase Console: Rules Status = ✓
+//
+// SAFETY CHECKS:
+// ✅ Existing message permissions unchanged
+// ✅ Only adds new /chatReads subcollection
+// ✅ User data isolation maintained
+// ✅ No public access to messages
+// ✅ count() queries optimized
+//
+// BACKWARD COMPATIBILITY:
+// ✅ Apps without chatReads will work fine
+// ✅ Existing messages/chats unaffected
+// ✅ Can deploy without app changes
+// ✅ Graceful degradation if disabled

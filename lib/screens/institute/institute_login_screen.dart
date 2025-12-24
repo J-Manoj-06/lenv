@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/unread_count_provider.dart';
 import '../../models/user_model.dart';
 import '../../services/school_service.dart';
 import '../../models/school_model.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
+import '../../services/announcement_cleanup_service.dart';
 
 class InstituteLoginScreen extends StatefulWidget {
   const InstituteLoginScreen({super.key});
@@ -119,6 +121,20 @@ class _InstituteLoginScreenState extends State<InstituteLoginScreen> {
               userRole: 'institute',
               schoolId: user.instituteId,
             );
+            
+            // Initialize unread count provider for institute user
+            if (mounted) {
+              final unreadProvider = Provider.of<UnreadCountProvider>(
+                context,
+                listen: false,
+              );
+              unreadProvider.initialize(user.uid);
+            }
+            
+            // Trigger cleanup of expired announcements (non-blocking)
+            AnnouncementCleanupService.runAllCleanup()
+              .catchError((e) => print('Cleanup error: $e'));
+            
             if (mounted) {
               Navigator.pushReplacementNamed(context, '/institute-dashboard');
             }

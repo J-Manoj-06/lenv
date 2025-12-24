@@ -1,0 +1,18 @@
+{
+	"name": "firestore-cleanup-worker",
+	"main": "src/cleanup-worker.ts",
+	"compatibility_date": "2024-12-10",
+	
+	// Cron trigger: Run every 6 hours
+	"triggers": {
+		"crons": ["0 */6 * * *"]
+	},
+	
+	// Environment variables (set via: wrangler secret put)
+	"vars": {
+		"FIREBASE_PROJECT_ID": "lenv-cb08e"
+	}
+	
+	// Required secrets (set these):
+	// wrangler secret put FIREBASE_SERVICE_ACCOUNT_KEY --config wrangler-cleanup.jsonc
+}

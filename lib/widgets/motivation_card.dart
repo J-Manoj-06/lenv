@@ -242,7 +242,7 @@ class _MotivationCardState extends State<MotivationCard>
                           child: const Text(
                             'MOTIVATION',
                             style: TextStyle(
-                              color: const Color(0xFF8B4513),
+                              color: Color(0xFF8B4513),
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,

@@ -24,6 +24,7 @@ class CommunityMessageModel {
   final int replyCount;
   final bool isReported;
   final int reportCount;
+  final List<String>? deletedFor; // List of user IDs who deleted this message
 
   CommunityMessageModel({
     required this.messageId,
@@ -48,6 +49,7 @@ class CommunityMessageModel {
     required this.replyCount,
     required this.isReported,
     required this.reportCount,
+    this.deletedFor,
   });
 
   factory CommunityMessageModel.fromFirestore(DocumentSnapshot doc) {
@@ -89,6 +91,9 @@ class CommunityMessageModel {
       replyCount: data['replyCount'] ?? 0,
       isReported: data['isReported'] ?? false,
       reportCount: data['reportCount'] ?? 0,
+      deletedFor: data['deletedFor'] != null
+          ? List<String>.from(data['deletedFor'])
+          : null,
     );
   }
 
@@ -116,6 +121,7 @@ class CommunityMessageModel {
       'replyCount': replyCount,
       'isReported': isReported,
       'reportCount': reportCount,
+      'deletedFor': deletedFor,
     };
   }
 

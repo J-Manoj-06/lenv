@@ -50,6 +50,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   late Timer _recordingTimer;
   double _slideOffsetX = 0;
   bool _isCancelled = false;
+  final Set<String> _selectedMessages = {};
+  bool _isSelectionMode = false;
 
   // Theme helpers
   Color get _primary => const Color(0xFFF2800D);
@@ -796,70 +798,77 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       elevation: 0,
       leading: IconButton(
         icon: Icon(
-          Icons.arrow_back_ios_new,
+          _isSelectionMode ? Icons.close : Icons.arrow_back_ios_new,
           color: theme.iconTheme.color,
           size: 20,
         ),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () {
+          if (_isSelectionMode) {
+            setState(() {
+              _isSelectionMode = false;
+              _selectedMessages.clear();
+            });
+          } else {
+            Navigator.pop(context);
+          }
+        },
       ),
-      title: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: theme.primaryColor.withOpacity(0.15),
-              border: Border.all(
-                color: theme.primaryColor.withOpacity(0.2),
-                width: 1,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                widget.community.getCategoryIcon(),
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              widget.community.name,
+      title: _isSelectionMode
+          ? Text(
+              '${_selectedMessages.length} selected',
               style: TextStyle(
                 color: theme.textTheme.bodyLarge?.color,
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
-                letterSpacing: -0.3,
               ),
-              overflow: TextOverflow.ellipsis,
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: theme.primaryColor.withOpacity(0.15),
+                    border: Border.all(
+                      color: theme.primaryColor.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.community.getCategoryIcon(),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.community.name,
+                    style: TextStyle(
+                      color: theme.textTheme.bodyLarge?.color,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.3,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-      actions: [
-        IconButton(
-          icon: Icon(
-            Icons.search_rounded,
-            color: theme.iconTheme.color?.withOpacity(0.6),
-            size: 20,
-          ),
-          onPressed: () {
-            // TODO: Implement message search
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Search coming soon!')),
-            );
-          },
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.info_outline,
-            color: theme.iconTheme.color?.withOpacity(0.6),
-            size: 20,
-          ),
-          onPressed: () => _showCommunityInfo(),
-        ),
-      ],
+      actions: _isSelectionMode
+          ? [
+              IconButton(
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                  size: 24,
+                ),
+                onPressed: _selectedMessages.isEmpty ? null : _showDeleteDialog,
+              ),
+            ]
+          : null,
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
         child: Container(height: 1, color: theme.dividerColor.withOpacity(0.1)),
@@ -942,14 +951,49 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     bool isCurrentUser,
     String currentUserName,
   ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment: isCurrentUser
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
+    final isSelected = _selectedMessages.contains(message.messageId);
+    return GestureDetector(
+      onLongPress: () {
+        setState(() {
+          _isSelectionMode = true;
+          _selectedMessages.add(message.messageId);
+        });
+      },
+      onTap: _isSelectionMode
+          ? () {
+              setState(() {
+                if (isSelected) {
+                  _selectedMessages.remove(message.messageId);
+                  if (_selectedMessages.isEmpty) {
+                    _isSelectionMode = false;
+                  }
+                } else {
+                  _selectedMessages.add(message.messageId);
+                }
+              });
+            }
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Row(
+          mainAxisAlignment: isCurrentUser
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (_isSelectionMode)
+              Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 8),
+                child: Icon(
+                  isSelected
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  color: isSelected
+                      ? const Color(0xFFFFA929)
+                      : Colors.grey,
+                  size: 24,
+                ),
+              ),
           if (!isCurrentUser) ...[
             Container(
               width: 32,
@@ -1100,6 +1144,150 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    ),
+    );
+  }
+
+  Future<void> _deleteMessages(bool deleteForEveryone) async {
+    final messagesToDelete = _selectedMessages.toList();
+    if (messagesToDelete.isEmpty) return;
+
+    try {
+      for (final messageId in messagesToDelete) {
+        if (deleteForEveryone) {
+          // Get message to check for media
+          final docSnapshot = await FirebaseFirestore.instance
+              .collection('communities')
+              .doc(widget.community.id)
+              .collection('messages')
+              .doc(messageId)
+              .get();
+
+          if (docSnapshot.exists) {
+            final data = docSnapshot.data();
+            // Delete media from Cloudflare if exists
+            if (data?['mediaMetadata'] != null) {
+              final r2Key = data!['mediaMetadata']['r2Key'] as String?;
+              if (r2Key != null) {
+                try {
+                  await CloudflareR2Service(
+                    accountId: CloudflareConfig.accountId,
+                    bucketName: CloudflareConfig.bucketName,
+                    accessKeyId: CloudflareConfig.accessKeyId,
+                    secretAccessKey: CloudflareConfig.secretAccessKey,
+                    r2Domain: CloudflareConfig.r2Domain,
+                  ).deleteFile(key: r2Key);
+                  print('🗑️ Deleted media from Cloudflare: $r2Key');
+                } catch (e) {
+                  print('⚠️ Failed to delete media from Cloudflare: $e');
+                }
+              }
+            }
+          }
+
+          // Delete message from Firestore for everyone
+          await FirebaseFirestore.instance
+              .collection('communities')
+              .doc(widget.community.id)
+              .collection('messages')
+              .doc(messageId)
+              .delete();
+        } else {
+          // Delete for me only - mark as deleted for this user
+          final student = Provider.of<StudentProvider>(
+              context,
+              listen: false,
+            ).currentStudent;
+          final currentUserId = student?.uid;
+          if (currentUserId != null) {
+            await FirebaseFirestore.instance
+                .collection('communities')
+                .doc(widget.community.id)
+                .collection('messages')
+                .doc(messageId)
+                .update({
+              'deletedFor': FieldValue.arrayUnion([currentUserId]),
+            });
+          }
+        }
+      }
+
+      setState(() {
+        _selectedMessages.clear();
+        _isSelectionMode = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              deleteForEveryone
+                  ? 'Deleted for everyone'
+                  : 'Deleted for you',
+            ),
+            backgroundColor: const Color(0xFF4CAF50),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error deleting messages: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Delete Messages',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Choose delete option',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteMessages(false);
+            },
+            child: const Text(
+              'Delete for me',
+              style: TextStyle(color: Color(0xFFFFA929)),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteMessages(true);
+            },
+            child: const Text(
+              'Delete for everyone',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey),
             ),
           ),
         ],
@@ -1256,7 +1444,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                         ? const Color(0xFFE57373)
                         : (_messageController.text.trim().isNotEmpty
                               ? const Color(0xFFFFA726)
-                              : const Color(0xFF2A2D31)),
+                              : const Color(0xFFFFA929)),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -1265,11 +1453,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                         : (_messageController.text.trim().isNotEmpty
                               ? Icons.send_rounded
                               : Icons.mic_none),
-                    color:
-                        _messageController.text.trim().isNotEmpty ||
-                            _isRecording
-                        ? Colors.white
-                        : const Color(0xFF6B7075),
+                    color: Colors.white,
                     size: 20,
                   ),
                 ),
@@ -1412,14 +1596,15 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       );
                     }
 
-                    // Filter out expired announcements (24h visibility)
+                    // Filter out expired announcements (24h visibility) and deleted messages
                     final now = DateTime.now();
                     final messages = (snapshot.data ?? [])
                         .where(
                           (m) =>
-                              m.type != 'announcement' ||
-                              now.difference(m.createdAt) <
-                                  const Duration(hours: 24),
+                              (m.type != 'announcement' ||
+                                  now.difference(m.createdAt) <
+                                      const Duration(hours: 24)) &&
+                              !(m.deletedFor?.contains(student.uid) ?? false),
                         )
                         .toList();
                     if (messages.isEmpty) {

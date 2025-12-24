@@ -240,7 +240,7 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                     children: [
                       IconButton(
                         icon: Icon(
-                          Icons.arrow_back,
+                          Icons.arrow_back_ios_new,
                           color: Theme.of(context).iconTheme.color,
                         ),
                         onPressed: () => Navigator.pop(context),
@@ -382,7 +382,7 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     } catch (_) {}
 
     final now = DateTime.now();
-    final canShow = resultsPublished || (endDate != null && now.isAfter(endDate!));
+    final canShow = resultsPublished || (endDate != null && now.isAfter(endDate));
     return _PublishGate(canShow: canShow, endDate: endDate);
   }
 
