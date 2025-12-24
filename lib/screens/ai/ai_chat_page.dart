@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import '../../services/deepseek_service.dart';
 import '../../services/ai_insights_service.dart';
 import '../../services/test_result_service.dart';
 import '../../services/student_profile_service.dart';
+import '../../services/daily_content_service.dart';
 import '../../providers/auth_provider.dart';
 import '../games/brain_games_menu_screen.dart';
 import '../../widgets/swipe_card_deck.dart';
@@ -34,6 +34,7 @@ class _AiChatPageState extends State<AiChatPage> {
   final AiInsightsService _insightsService = AiInsightsService();
   final TestResultService _testService = TestResultService();
   final StudentProfileService _profileService = StudentProfileService();
+  final DailyContentService _dailyContentService = DailyContentService();
   final List<ChatMessage> _messages = [];
   bool _isProcessing = false;
   bool _insightsUsedToday = false;
@@ -43,6 +44,11 @@ class _AiChatPageState extends State<AiChatPage> {
   String? _todayInsightsText;
   Map<String, double>? _todayInsightsAverages;
   String? _todayStudyPlanText;
+  
+  // Daily content loading states
+  bool _isQuoteLoading = true;
+  bool _isFactLoading = true;
+  bool _isHistoryLoading = true;
 
   @override
   void initState() {
@@ -285,22 +291,23 @@ class _AiChatPageState extends State<AiChatPage> {
 
   Future<void> _handleMotivationQuotes() async {
     try {
-      setState(() => _isProcessing = true);
-      final uri = Uri.parse('https://zenquotes.io/api/today');
-      final resp = await http.get(uri).timeout(const Duration(seconds: 10));
-
-      if (resp.statusCode != 200) {
-        throw Exception('HTTP ${resp.statusCode}');
+      setState(() => _isQuoteLoading = true);
+      
+      // Fetch from Firestore (pre-fetched by Cloudflare Worker)
+      final dailyQuote = await _dailyContentService.getTodayQuote();
+      
+      String quote;
+      String author;
+      
+      if (dailyQuote != null) {
+        quote = dailyQuote.text;
+        author = dailyQuote.author;
+      } else {
+        // Fallback if Firestore data not available yet
+        final fallback = DailyQuote.randomFallback();
+        quote = fallback.text;
+        author = fallback.author;
       }
-
-      final decoded = json.decode(resp.body);
-      if (decoded is! List || decoded.isEmpty) {
-        throw Exception('Unexpected response');
-      }
-
-      final item = decoded.first as Map<String, dynamic>;
-      final quote = (item['q'] ?? '').toString();
-      final author = (item['a'] ?? 'Unknown').toString();
 
       await _showSwipeableMotivation(
         quote,
@@ -317,7 +324,7 @@ class _AiChatPageState extends State<AiChatPage> {
         ).showSnackBar(SnackBar(content: Text('Failed to load quote: $e')));
       }
     } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isQuoteLoading = false);
       _scrollToEnd();
     }
   }
@@ -346,39 +353,24 @@ class _AiChatPageState extends State<AiChatPage> {
 
   Future<void> _handleDailyFact() async {
     try {
-      setState(() => _isProcessing = true);
-      final uri = Uri.parse(
-        'https://uselessfacts.jsph.pl/random.json?language=en',
-      );
+      setState(() => _isFactLoading = true);
+      
+      // Fetch from Firestore (pre-fetched by Cloudflare Worker)
+      final dailyFact = await _dailyContentService.getTodayFact();
+      
       String factText;
-      try {
-        final resp = await http.get(uri).timeout(const Duration(seconds: 10));
-        if (resp.statusCode != 200) {
-          throw Exception('HTTP ${resp.statusCode}');
-        }
-        final decoded = json.decode(resp.body);
-        if (decoded is Map && decoded['text'] != null) {
-          factText = decoded['text'].toString();
-        } else {
-          throw Exception('Unexpected response shape');
-        }
-      } catch (e) {
-        // Fallback list if API fails
-        final fallback = [
-          'The Eiffel Tower can be 15 cm taller during hot days due to thermal expansion.',
-          'Octopuses have three hearts and blue blood.',
-          'Bananas are berries, but strawberries are not.',
-          'Honeybees can recognize human faces.',
-          'A day on Venus is longer than its year.',
-        ];
-        factText = (fallback..shuffle()).first;
+      
+      if (dailyFact != null) {
+        factText = dailyFact.text;
+      } else {
+        // Fallback if Firestore data not available yet
+        factText = DailyFact.randomFallback().text;
       }
 
       await _showFactFullscreen(factText);
 
       setState(() {
         _messages.add(ChatMessage(sender: 'ai', text: factText));
-        _isProcessing = false;
       });
       _scrollToEnd();
       await _persistChat();
@@ -387,10 +379,11 @@ class _AiChatPageState extends State<AiChatPage> {
         _messages.add(
           ChatMessage(sender: 'ai', text: 'Failed to load daily fact: $e'),
         );
-        _isProcessing = false;
       });
       _scrollToEnd();
       await _persistChat();
+    } finally {
+      if (mounted) setState(() => _isFactLoading = false);
     }
   }
 
@@ -414,85 +407,19 @@ class _AiChatPageState extends State<AiChatPage> {
 
   Future<void> _handleTodayInHistory() async {
     try {
-      setState(() => _isProcessing = true);
-      final now = DateTime.now();
-      final mm = now.month.toString().padLeft(2, '0');
-      final dd = now.day.toString().padLeft(2, '0');
-      final uri = Uri.parse(
-        'https://api.wikimedia.org/feed/v1/wikipedia/en/onthisday/all/$mm/$dd',
-      );
-
-      final resp = await http
-          .get(
-            uri,
-            headers: const {
-              'Accept': 'application/json',
-              'User-Agent': 'LenV-Edu/1.0 (AI Assistant)',
-            },
-          )
-          .timeout(
-            const Duration(seconds: 15),
-            onTimeout: () {
-              throw TimeoutException(
-                'The request took too long. Please check your internet connection and try again.',
-              );
-            },
-          );
-
-      if (resp.statusCode != 200) {
-        if (resp.statusCode == 404) {
-          throw Exception(
-            'No historical events found for today. Please try again later.',
-          );
-        } else if (resp.statusCode >= 500) {
-          throw Exception(
-            'The history service is temporarily unavailable. Please try again in a few moments.',
-          );
-        } else {
-          throw Exception(
-            'Unable to fetch history (Error ${resp.statusCode}). Please try again.',
-          );
-        }
-      }
-
-      final data = json.decode(resp.body) as Map<String, dynamic>;
-
+      setState(() => _isHistoryLoading = true);
+      
+      // Fetch from Firestore (pre-fetched by Cloudflare Worker)
+      final dailyHistory = await _dailyContentService.getTodayHistory();
+      
       List<Map<String, String>> items = [];
-
-      List<Map<String, String>> extract(List? arr, String category) {
-        if (arr == null) return [];
-        return arr
-            .take(8)
-            .map<Map<String, String>>((e) {
-              final m = e as Map<String, dynamic>;
-              String title = '';
-              String thumb = '';
-              final pages = m['pages'];
-              if (pages is List && pages.isNotEmpty) {
-                final p0 = pages.first as Map<String, dynamic>;
-                final titles = p0['titles'] as Map<String, dynamic>?;
-                title = (titles?['display'] ?? p0['title'] ?? '').toString();
-                final thumbMap = p0['thumbnail'] as Map<String, dynamic>?;
-                thumb = (thumbMap?['source'] ?? '').toString();
-              }
-              return {
-                'text': (m['text'] ?? '').toString(),
-                'year': (m['year'] ?? '').toString(),
-                'title': title,
-                'thumb': thumb,
-                'category': category,
-              };
-            })
-            .where((m) => (m['text'] ?? '').isNotEmpty)
-            .toList();
-      }
-
-      items.addAll(extract(data['selected'] as List?, 'Selected'));
-      items.addAll(extract(data['events'] as List?, 'Event'));
-      if (items.isEmpty) {
-        throw Exception(
-          'No historical events available for today. Please try again later.',
-        );
+      
+      if (dailyHistory != null && dailyHistory.events.isNotEmpty) {
+        items = dailyHistory.events.map((e) => e.toMap()).toList();
+      } else {
+        // Fallback if Firestore data not available yet
+        final fallback = DailyHistory.randomFallback();
+        items = fallback.events.map((e) => e.toMap()).toList();
       }
 
       await _showHistorySheet(items);
@@ -511,7 +438,6 @@ class _AiChatPageState extends State<AiChatPage> {
       await _persistChat();
     } on TimeoutException {
       if (mounted) {
-        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -533,7 +459,6 @@ class _AiChatPageState extends State<AiChatPage> {
       }
     } on FormatException {
       if (mounted) {
-        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -553,7 +478,6 @@ class _AiChatPageState extends State<AiChatPage> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isProcessing = false);
         final errorMessage = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -582,7 +506,7 @@ class _AiChatPageState extends State<AiChatPage> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isHistoryLoading = false);
       _scrollToEnd();
     }
   }
@@ -1050,23 +974,26 @@ class _AiChatPageState extends State<AiChatPage> {
             disabled: false,
             onTap: _handleStudyPlanRequest,
           ),
-          _ActionCard(
+          _DailyContentLoadingCard(
             title: 'Motivation Quotes',
             icon: Icons.format_quote,
             color: Colors.purpleAccent,
             onTap: _handleMotivationQuotes,
+            isLoading: _isQuoteLoading,
           ),
-          _ActionCard(
+          _DailyContentLoadingCard(
             title: 'Daily Fact',
             icon: Icons.lightbulb_outline,
             color: Colors.amber,
             onTap: _handleDailyFact,
+            isLoading: _isFactLoading,
           ),
-          _ActionCard(
+          _DailyContentLoadingCard(
             title: 'Today in History',
             icon: Icons.history_edu,
             color: Colors.deepOrange,
             onTap: _handleTodayInHistory,
+            isLoading: _isHistoryLoading,
           ),
           _ActionCard(
             title: 'Study Time Manager',
@@ -1330,6 +1257,182 @@ class _QuizWidgetState extends State<_QuizWidget> {
 }
 
 // Removed ActionBubble since mini actions were removed.
+
+/// Skeleton placeholder for loading state - displays animated placeholder
+class _DailyContentSkeleton extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+
+  const _DailyContentSkeleton({
+    required this.title,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  State<_DailyContentSkeleton> createState() => _DailyContentSkeletonState();
+}
+
+class _DailyContentSkeletonState extends State<_DailyContentSkeleton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    _controller = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    );
+
+    _opacityAnimation = Tween<double>(begin: 0.4, end: 0.8).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+  
+  void _startAnimation() {
+    // Respect reduced-motion preference - check in build
+    final mediaQuery = MediaQuery.of(context);
+    final respectReducedMotion =
+        mediaQuery.disableAnimations || mediaQuery.boldText;
+    
+    if (!respectReducedMotion && !_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Start animation after first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startAnimation();
+    });
+
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
+    final skeletonColor =
+        isDarkTheme ? Colors.grey[800] ?? Colors.grey : Colors.grey[300] ?? Colors.grey;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: widget.color.withOpacity(0.35)),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Icon(widget.icon, color: widget.color, size: 24),
+          const SizedBox(height: 4),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                widget.title,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Loading indicator dots
+          FadeTransition(
+            opacity: _opacityAnimation,
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: skeletonColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: skeletonColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: skeletonColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Action card that shows loading skeleton while fetching, then content
+class _DailyContentLoadingCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+  final bool isLoading;
+  final bool disabled;
+
+  const _DailyContentLoadingCard({
+    required this.title,
+    required this.icon,
+    required this.color,
+    this.onTap,
+    this.isLoading = false,
+    this.disabled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return GestureDetector(
+        onTap: disabled ? null : onTap,
+        child: _DailyContentSkeleton(
+          title: title,
+          icon: icon,
+          color: color,
+        ),
+      );
+    }
+
+    return _ActionCard(
+      title: title,
+      icon: icon,
+      color: color,
+      onTap: onTap,
+      disabled: disabled,
+    );
+  }
+}
 
 class _ActionCard extends StatelessWidget {
   final String title;
