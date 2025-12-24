@@ -388,6 +388,25 @@ class _GroupChatPageState extends State<GroupChatPage> {
       setState(() => _isUploading = false);
 
       final r2Key = _extractR2Key(mediaMessage.r2Url);
+      
+      // Copy the picked audio file to app directory so sender can play immediately
+      String? cachedPath;
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        final cacheDir = Directory('${appDir.path}/audio_cache');
+        if (!await cacheDir.exists()) {
+          await cacheDir.create(recursive: true);
+        }
+        
+        final fileName = r2Key.split('/').last;
+        final cachedFile = File('${cacheDir.path}/$fileName');
+        await file.copy(cachedFile.path);
+        cachedPath = cachedFile.path;
+        print('✅ Cached picked audio locally at: $cachedPath');
+      } catch (e) {
+        print('⚠️ Failed to cache audio: $e');
+      }
+      
       final metadata = MediaMetadata(
         messageId: mediaMessage.id,
         r2Key: r2Key,
@@ -397,6 +416,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
+        localPath: cachedPath, // Include local path for immediate playback
       );
 
       await _sendMessage(mediaMetadata: metadata);
@@ -457,6 +477,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
       );
 
       final r2Key = _extractR2Key(mediaMessage.r2Url);
+      
+      // Copy the recorded audio to app directory so sender can play immediately
+      String? cachedPath;
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        final cacheDir = Directory('${appDir.path}/audio_cache');
+        if (!await cacheDir.exists()) {
+          await cacheDir.create(recursive: true);
+        }
+        
+        final fileName = r2Key.split('/').last;
+        final cachedFile = File('${cacheDir.path}/$fileName');
+        await File(_recordingPath!).copy(cachedFile.path);
+        cachedPath = cachedFile.path;
+        print('✅ Cached audio locally at: $cachedPath');
+      } catch (e) {
+        print('⚠️ Failed to cache audio: $e');
+        // Continue anyway - user will download if needed
+      }
+      
       final metadata = MediaMetadata(
         messageId: mediaMessage.id,
         r2Key: r2Key,
@@ -466,11 +506,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
+        localPath: cachedPath, // Include local path for immediate playback
       );
 
       await _sendMessage(mediaMetadata: metadata);
 
-      // Delete temp file
+      // Now safe to delete temp recording file (we have it cached)
       try {
         final file = File(_recordingPath!);
         if (await file.exists()) {
