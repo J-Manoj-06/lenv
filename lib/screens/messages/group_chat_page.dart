@@ -80,7 +80,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   @override
   void initState() {
     super.initState();
-    _messageController.addListener(() => setState(() {}));
+    // Remove global setState - it causes image blinking
+    // Only rebuild when focus/emoji picker changes
     _messageFocusNode.addListener(() {
       if (_messageFocusNode.hasFocus && _showEmojiPicker) {
         setState(() => _showEmojiPicker = false);
@@ -976,15 +977,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 onPressed: _isUploading ? null : _showMediaOptions,
               ),
               const SizedBox(width: 4),
-              // Mic/Send Button
-              GestureDetector(
-                onTap: () async {
-                  if (_messageController.text.trim().isNotEmpty &&
-                      !_isUploading) {
-                    _sendMessage();
-                  } else if (!_isRecording &&
-                      _messageController.text.trim().isEmpty &&
-                      !_isUploading) {
+              // Mic/Send Button - Use ValueListenableBuilder to avoid rebuilding entire screen
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _messageController,
+                builder: (context, value, child) {
+                  final hasText = value.text.trim().isNotEmpty;
+                  return GestureDetector(
+                    onTap: () async {
+                      if (hasText && !_isUploading) {
+                        _sendMessage();
+                      } else if (!_isRecording &&
+                          !hasText &&
+                          !_isUploading) {
                     // Single tap to start recording
                     final hasPermission = await _audioRecorder.hasPermission();
                     if (!hasPermission) {
@@ -1057,13 +1061,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   child: Icon(
                     _isRecording
                         ? Icons.mic
-                        : (_messageController.text.trim().isNotEmpty
+                        : (hasText
                               ? Icons.send_rounded
                               : Icons.mic),
                     color: Colors.white,
                     size: 22,
                   ),
                 ),
+              );
+                },
               ),
             ],
           ),
