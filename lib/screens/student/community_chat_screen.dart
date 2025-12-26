@@ -399,6 +399,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
       );
 
       // Send message with metadata (not just URL)
@@ -499,6 +500,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
       );
 
       // Send message with metadata
@@ -778,6 +780,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   }
 
   String _getFileNameFromMetadata(MediaMetadata metadata) {
+    // Prefer exact original filename if present
+    final orig = metadata.originalFileName;
+    if (orig != null && orig.isNotEmpty) return orig;
     final parts = metadata.r2Key.split('/').where((p) => p.isNotEmpty).toList();
     if (parts.isNotEmpty) return parts.last;
     return _getFileNameFromUrl(metadata.publicUrl);

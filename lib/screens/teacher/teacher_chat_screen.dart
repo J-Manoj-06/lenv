@@ -471,6 +471,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
       );
 
       if (mounted) {
@@ -520,6 +521,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
       );
 
       if (mounted) {
@@ -566,6 +568,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
       );
 
       if (mounted) {

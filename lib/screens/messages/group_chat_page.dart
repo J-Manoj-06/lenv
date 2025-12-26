@@ -71,6 +71,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final List<GroupChatMessage> _pendingMessages = [];
   // Track upload progress per pending messageId
   final Map<String, double> _pendingUploadProgress = {};
+  // Local media paths for the sender (so they view from disk, no re-download)
+  final Map<String, String> _localSenderMediaPaths = {};
 
   // Extract R2 key from full URL
   // https://files.lenv1.tech/media/1234567/file.pdf → media/1234567/file.pdf
@@ -355,6 +357,36 @@ class _GroupChatPageState extends State<GroupChatPage> {
         _uploadingMediaType = 'pdf';
       });
 
+      // Optimistic pending message
+      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+      final pendingMetadata = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: file.path, // show immediately from disk for sender
+        thumbnail: '',
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType: 'application/pdf',
+      );
+      final pendingMsg = GroupChatMessage(
+        id: 'pending:$messageId',
+        senderId: currentUserId,
+        senderName: authProvider.currentUser?.name ?? 'You',
+        message: '',
+        imageUrl: null,
+        mediaMetadata: pendingMetadata,
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      );
+      setState(() {
+        _pendingMessages.insert(0, pendingMsg);
+        _pendingUploadProgress[messageId] = 0.0;
+      });
+      _scrollToLatest();
+
       // Upload to Cloudflare R2 using MediaUploadService
       final conversationId = '${widget.classId}_${widget.subjectId}';
 
@@ -365,7 +397,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
         senderRole: 'student',
         mediaType: 'message', // Permanent storage for group messages
         onProgress: (progress) {
-          print('Upload progress: $progress%');
+          final doubleVal = (progress as num).toDouble();
+          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
+          setState(() {
+            _pendingUploadProgress[messageId] = normalized;
+          });
         },
       );
 
@@ -388,7 +424,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
+        // Do NOT persist sender local path to Firestore; keep it locally only
       );
+
+      // Keep sender-local path for immediate viewing without download
+      _localSenderMediaPaths[mediaMessage.id] = file.path;
 
       print('📝 Creating metadata:');
       print('   R2 Key: ${metadata.r2Key}');
@@ -397,6 +438,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       // Send message with metadata (not just URL)
       await _sendMessage(mediaMetadata: metadata);
+      setState(() {
+        _pendingMessages.removeWhere(
+          (m) => m.mediaMetadata?.messageId == messageId,
+        );
+        _pendingUploadProgress.remove(messageId);
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(
@@ -405,6 +452,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
       }
     } catch (e) {
       setState(() => _isUploading = false);
+      setState(() {
+        _pendingMessages.removeWhere((m) => m.id.startsWith('pending:'));
+        _pendingUploadProgress.clear();
+      });
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -436,6 +487,45 @@ class _GroupChatPageState extends State<GroupChatPage> {
         _uploadingMediaType = 'audio';
       });
 
+      // Optimistic pending message for picked audio
+      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+      final ext = file.path.split('.').last.toLowerCase();
+      final mime = ext == 'mp3'
+          ? 'audio/mpeg'
+          : ext == 'm4a'
+              ? 'audio/aac'
+              : ext == 'wav'
+                  ? 'audio/wav'
+                  : 'audio/aac';
+      final pendingMetadata = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: file.path, // allow immediate playback
+        thumbnail: '',
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType: mime,
+        originalFileName: file.uri.pathSegments.isNotEmpty ? file.uri.pathSegments.last : null,
+      );
+      final pendingMsg = GroupChatMessage(
+        id: 'pending:$messageId',
+        senderId: currentUserId,
+        senderName: authProvider.currentUser?.name ?? 'You',
+        message: '',
+        imageUrl: null,
+        mediaMetadata: pendingMetadata,
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      );
+      setState(() {
+        _pendingMessages.insert(0, pendingMsg);
+        _pendingUploadProgress[messageId] = 0.0;
+      });
+      _scrollToLatest();
+
       final conversationId = '${widget.classId}_${widget.subjectId}';
 
       final mediaMessage = await _mediaUploadService.uploadMedia(
@@ -445,7 +535,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
         senderRole: 'student',
         mediaType: 'message',
         onProgress: (progress) {
-          print('Upload progress: $progress%');
+          final doubleVal = (progress as num).toDouble();
+          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
+          setState(() {
+            _pendingUploadProgress[messageId] = normalized;
+          });
         },
       );
 
@@ -481,9 +575,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
         localPath: cachedPath, // Include local path for immediate playback
+        originalFileName: mediaMessage.fileName,
       );
 
       await _sendMessage(mediaMetadata: metadata);
+      setState(() {
+        _pendingMessages.removeWhere(
+          (m) => m.mediaMetadata?.messageId == messageId,
+        );
+        _pendingUploadProgress.remove(messageId);
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -492,6 +593,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
       }
     } catch (e) {
       setState(() => _isUploading = false);
+      setState(() {
+        _pendingMessages.removeWhere((m) => m.id.startsWith('pending:'));
+        _pendingUploadProgress.clear();
+      });
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -520,11 +625,39 @@ class _GroupChatPageState extends State<GroupChatPage> {
         _recordingTimer?.cancel();
       }
 
-      // IMMEDIATELY update UI
+      // Optimistic pending message for recorded audio
+      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+      final pendingMetadata = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: _recordingPath,
+        thumbnail: '',
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: _recordingPath != null ? await File(_recordingPath!).length() : null,
+        mimeType: 'audio/aac',
+        originalFileName: _recordingPath != null ? Uri.file(_recordingPath!).pathSegments.last : null,
+      );
+      final pendingMsg = GroupChatMessage(
+        id: 'pending:$messageId',
+        senderId: currentUserId,
+        senderName: authProvider.currentUser?.name ?? 'You',
+        message: '',
+        imageUrl: null,
+        mediaMetadata: pendingMetadata,
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      );
       setState(() {
         _isRecording = false;
         _isUploading = true;
+        _uploadingMediaType = 'audio';
+        _pendingMessages.insert(0, pendingMsg);
+        _pendingUploadProgress[messageId] = 0.0;
       });
+      _scrollToLatest();
 
       // Upload to Cloudflare R2 using MediaUploadService
       final conversationId = '${widget.classId}_${widget.subjectId}';
@@ -536,7 +669,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
         senderRole: 'student',
         mediaType: 'message',
         onProgress: (progress) {
-          print('Upload progress: $progress%');
+          final doubleVal = (progress as num).toDouble();
+          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
+          setState(() {
+            _pendingUploadProgress[messageId] = normalized;
+          });
         },
       );
 
@@ -571,9 +708,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
         localPath: cachedPath, // Include local path for immediate playback
+        originalFileName: mediaMessage.fileName,
       );
 
       await _sendMessage(mediaMetadata: metadata);
+      setState(() {
+        _pendingMessages.removeWhere(
+          (m) => m.mediaMetadata?.messageId == messageId,
+        );
+        _pendingUploadProgress.remove(messageId);
+      });
 
       // Now safe to delete temp recording file (we have it cached)
       try {
@@ -608,6 +752,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
         setState(() {
           _isUploading = false;
           _isRecording = false;
+        });
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.id.startsWith('pending:'));
+          _pendingUploadProgress.clear();
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -649,8 +797,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Widget _buildRecordingOverlay() {
-    // Hide bottom bar entirely while an IMAGE is uploading
-    if (_isUploading && _uploadingMediaType == 'image') {
+    // Hide bottom bar entirely while any media is uploading (image/pdf/audio)
+    if (_isUploading &&
+        (_uploadingMediaType == 'image' ||
+         _uploadingMediaType == 'pdf' ||
+         _uploadingMediaType == 'audio')) {
       return const SizedBox();
     }
     if (_recordingPath == null && !_isUploading) return const SizedBox();
@@ -973,6 +1124,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                   isMe: isMe,
                                   uploading: isPending,
                                   uploadProgress: uploadProgress,
+                                  localSenderMediaPaths: _localSenderMediaPaths,
                                   key: ValueKey('bubble-${message.id}'),
                                 ),
                               ),
@@ -1392,6 +1544,7 @@ class _MessageBubble extends StatelessWidget {
   final bool isMe;
   final bool uploading; // for pending messages
   final double? uploadProgress;
+  final Map<String, String> localSenderMediaPaths;
 
   const _MessageBubble({
     super.key,
@@ -1399,6 +1552,7 @@ class _MessageBubble extends StatelessWidget {
     required this.isMe,
     this.uploading = false,
     this.uploadProgress,
+    required this.localSenderMediaPaths,
   });
 
   @override
@@ -1536,7 +1690,8 @@ class _MessageBubble extends StatelessWidget {
       mimeType: metadata.mimeType ?? 'application/octet-stream',
       fileSize: fileSize,
       thumbnailBase64: metadata.thumbnail,
-      localPath: metadata.localPath, // Use already-saved path
+      localPath:
+          metadata.localPath ?? localSenderMediaPaths[metadata.messageId],
       isMe: isMe,
       uploading: uploading,
       uploadProgress: uploadProgress,
@@ -1575,6 +1730,11 @@ class _MessageBubble extends StatelessWidget {
   }
 
   String _fileNameFromMetadata(MediaMetadata metadata) {
+    // Prefer exact original file name if available
+    final orig = metadata.originalFileName;
+    if (orig != null && orig.isNotEmpty) {
+      return orig;
+    }
     final parts = metadata.r2Key.split('/').where((p) => p.isNotEmpty).toList();
     if (parts.isNotEmpty) return parts.last;
     return _fileNameFromUrl(metadata.publicUrl);

@@ -272,20 +272,17 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     // For PDFs, Audio, etc: Show file card with download button
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
-    return InkWell(
+    final card = InkWell(
       onTap: _isDownloaded ? _open : null,
       onLongPress: _isDownloaded ? _delete : null,
       child: Container(
         width: 260,
+        constraints: const BoxConstraints(minWidth: 220, minHeight: 140),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          // Keep inner background on the theme default in both light and dark.
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            // For PDF and audio, highlight the border with the accent color
-            // while keeping the inner background on the theme default.
             color: (_isPdf || _isAudio)
                 ? _accentColor.withOpacity(isDark ? 0.5 : 0.4)
                 : (isDark
@@ -335,7 +332,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             const SizedBox(height: 10),
 
             // Action button (Download/Open/Progress)
-            // For sender (isMe), only show Open button if downloaded, otherwise show nothing
             if (_isDownloading && !widget.isMe)
               Column(
                 children: [
@@ -378,7 +374,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   ),
                 ),
               )
-            else if (!widget.isMe) // Only show download button for receiver
+            else if (!widget.isMe)
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -405,6 +401,51 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           ],
         ),
       ),
+    );
+
+    if (!widget.uploading) return card;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        card,
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.45),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: CircularProgressIndicator(
+                      value: widget.uploadProgress,
+                      strokeWidth: 4,
+                      color: Colors.white,
+                      backgroundColor: Colors.white24,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    widget.uploadProgress == null
+                        ? 'Sending...'
+                        : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

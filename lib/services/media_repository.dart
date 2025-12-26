@@ -98,12 +98,31 @@ class MediaRepository {
       final url = '$cloudflareBaseUrl/$r2Key';
       debugPrint('🔗 Download URL: $url');
 
-      // Make HTTP request
-      debugPrint('🌐 Making HTTP request to: $url');
-      final request = http.Request('GET', Uri.parse(url));
-      final streamedResponse = await request.send();
+      const maxRetries = 3;
+      int attempt = 0;
+      http.StreamedResponse streamedResponse;
 
-      if (streamedResponse.statusCode != 200) {
+      while (true) {
+        attempt++;
+        debugPrint('🌐 HTTP request (attempt $attempt/$maxRetries): $url');
+        final request = http.Request('GET', Uri.parse(url));
+        streamedResponse = await request.send();
+
+        if (streamedResponse.statusCode == 200) {
+          break;
+        }
+
+        // Retry on 404/403/5xx to handle propagation delays
+        if (attempt < maxRetries &&
+            (streamedResponse.statusCode == 404 ||
+                streamedResponse.statusCode == 403 ||
+                streamedResponse.statusCode >= 500)) {
+          debugPrint(
+              '❌ HTTP ${streamedResponse.statusCode}; retrying after short delay');
+          await Future.delayed(const Duration(milliseconds: 800));
+          continue;
+        }
+
         debugPrint('❌ HTTP Error: ${streamedResponse.statusCode}');
         return DownloadResult(
           success: false,

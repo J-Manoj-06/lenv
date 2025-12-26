@@ -14,6 +14,8 @@ class MediaMetadata {
   final DateTime uploadedAt;
   final int? fileSize;
   final String? mimeType;
+  // Original filename to display in UI (preserves user-provided name)
+  final String? originalFileName;
 
   MediaMetadata({
     required this.messageId,
@@ -27,6 +29,7 @@ class MediaMetadata {
     required this.uploadedAt,
     this.fileSize,
     this.mimeType,
+    this.originalFileName,
   });
 
   /// Create from Firestore document
@@ -48,6 +51,7 @@ class MediaMetadata {
           (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       fileSize: data['fileSize'] as int?,
       mimeType: data['mimeType'] as String?,
+      originalFileName: data['originalFileName'] as String?,
     );
   }
 
@@ -65,6 +69,7 @@ class MediaMetadata {
       'uploadedAt': Timestamp.fromDate(uploadedAt),
       'fileSize': fileSize,
       'mimeType': mimeType,
+      'originalFileName': originalFileName,
     };
   }
 
@@ -105,6 +110,7 @@ class MediaMetadata {
     DateTime? uploadedAt,
     int? fileSize,
     String? mimeType,
+    String? originalFileName,
   }) {
     return MediaMetadata(
       messageId: messageId ?? this.messageId,
@@ -118,6 +124,7 @@ class MediaMetadata {
       uploadedAt: uploadedAt ?? this.uploadedAt,
       fileSize: fileSize ?? this.fileSize,
       mimeType: mimeType ?? this.mimeType,
+      originalFileName: originalFileName ?? this.originalFileName,
     );
   }
 }
