@@ -25,6 +25,9 @@ class MediaPreviewCard extends StatefulWidget {
   final String? thumbnailBase64; // For images
   final String? localPath; // Already saved path (for WhatsApp uploads)
   final bool isMe;
+  // Uploading state (for optimistic pending messages)
+  final bool uploading;
+  final double? uploadProgress; // 0.0 - 1.0
 
   const MediaPreviewCard({
     super.key,
@@ -35,6 +38,8 @@ class MediaPreviewCard extends StatefulWidget {
     this.thumbnailBase64,
     this.localPath,
     this.isMe = false,
+    this.uploading = false,
+    this.uploadProgress,
   });
 
   @override
@@ -58,6 +63,26 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     // If localPath provided (WhatsApp upload), use it directly
     if (widget.localPath != null && widget.localPath!.isNotEmpty) {
       final file = File(widget.localPath!);
+      
+      // Validate that the file extension matches the media type
+      final filePath = widget.localPath!.toLowerCase();
+      final isAudioFile = filePath.endsWith('.m4a') || 
+                          filePath.endsWith('.mp3') || 
+                          filePath.endsWith('.aac') ||
+                          filePath.endsWith('.wav');
+      
+      // If this is supposed to be an image but localPath points to audio, ignore it
+      if (_isImage && isAudioFile) {
+        print('⚠️ Skipping invalid localPath: audio file for image type: ${widget.localPath}');
+        if (mounted) {
+          setState(() {
+            _isDownloaded = false;
+            _localPath = null;
+          });
+        }
+        return;
+      }
+      
       final exists = await file.exists();
 
       print('📋 Using provided localPath: ${widget.localPath}');
@@ -414,17 +439,33 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             children: [
               // Show downloaded image or thumbnail
               if (_isDownloaded && _localPath != null)
-                Image.file(
-                  File(_localPath!),
-                  height: 260,
-                  width: 260,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    print('❌ Error loading image from: $_localPath');
+                () {
+                  // Double-check the file is actually an image before loading
+                  final filePath = _localPath!.toLowerCase();
+                  final isImageFile = filePath.endsWith('.jpg') || 
+                                     filePath.endsWith('.jpeg') || 
+                                     filePath.endsWith('.png') ||
+                                     filePath.endsWith('.gif') ||
+                                     filePath.endsWith('.webp');
+                  
+                  if (!isImageFile) {
+                    print('⚠️ Invalid image file type: $_localPath');
                     return _buildThumbnailFallback();
-                  },
-                )
-              else if (widget.thumbnailBase64 != null)
+                  }
+                  
+                  return Image.file(
+                    File(_localPath!),
+                    height: 260,
+                    width: 260,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      print('❌ Error loading image from: $_localPath');
+                      return _buildThumbnailFallback();
+                    },
+                  );
+                }()
+              else if (widget.thumbnailBase64 != null &&
+                  widget.thumbnailBase64!.isNotEmpty)
                 ImageFiltered(
                   imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                   child: ColorFiltered(
@@ -493,6 +534,42 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   ),
                 ),
 
+              // Uploading overlay centered inside the image (for sender pending)
+              if (widget.uploading)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.45),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: CircularProgressIndicator(
+                              value: widget.uploadProgress,
+                              strokeWidth: 4,
+                              color: Colors.white,
+                              backgroundColor: Colors.white24,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            widget.uploadProgress == null
+                                ? 'Sending...'
+                                : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
               // Download progress overlay
               if (_isDownloading)
                 Positioned.fill(
@@ -524,6 +601,19 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   Widget _buildThumbnailFallback() {
+    if (widget.thumbnailBase64 == null || widget.thumbnailBase64!.isEmpty) {
+      return Container(
+        height: 260,
+        width: 260,
+        color: Colors.grey[800],
+        child: const Icon(
+          Icons.image,
+          size: 64,
+          color: Colors.white54,
+        ),
+      );
+    }
+
     return Image.memory(
       base64Decode(widget.thumbnailBase64!),
       height: 260,

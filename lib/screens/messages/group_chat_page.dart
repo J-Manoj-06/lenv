@@ -48,6 +48,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final GroupMessagingService _messagingService = GroupMessagingService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  String? _lastTopMessageId;
   final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -66,6 +67,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _isCancelled = false;
   final Set<String> _selectedMessages = {};
   bool _isSelectionMode = false;
+  // Optimistic UI: pending messages added locally before Firestore confirms
+  final List<GroupChatMessage> _pendingMessages = [];
+  // Track upload progress per pending messageId
+  final Map<String, double> _pendingUploadProgress = {};
 
   // Extract R2 key from full URL
   // https://files.lenv1.tech/media/1234567/file.pdf → media/1234567/file.pdf
@@ -201,8 +206,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
         message,
       );
       print('✅ Message sent successfully');
-
-      // Don't auto-scroll - let user stay where they are
+      // Scroll to latest so sender immediately sees their message
+      _scrollToLatest();
     } catch (e) {
       print('❌ Error sending message: $e');
       if (mounted) {
@@ -211,6 +216,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
       }
     }
+  }
+
+  void _scrollToLatest() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _pickAndSendImage() async {
@@ -237,6 +251,37 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final conversationId = '${widget.classId}_${widget.subjectId}';
       final messageId = DateTime.now().millisecondsSinceEpoch.toString();
 
+      // Optimistic: show local bubble immediately using original image path
+      // This avoids waiting for upload and Firestore stream
+      final pendingMetadata = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: image.path,
+        thumbnail: '',
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 30)),
+        uploadedAt: DateTime.now(),
+        fileSize: null,
+        mimeType: 'image/jpeg',
+      );
+
+      final pendingMsg = GroupChatMessage(
+        id: 'pending:$messageId',
+        senderId: currentUserId,
+        senderName: authProvider.currentUser?.name ?? 'You',
+        message: '',
+        imageUrl: null,
+        mediaMetadata: pendingMetadata,
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMsg);
+      });
+      _scrollToLatest();
+
       final result = await _whatsappMediaUpload.uploadImage(
         imageFile: File(image.path),
         messageId: messageId,
@@ -244,6 +289,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
         senderId: currentUserId,
         onProgress: (progress) {
           print('Upload progress: ${(progress * 100).toInt()}%');
+          setState(() {
+            _pendingUploadProgress[messageId] = progress;
+          });
         },
       );
 
@@ -253,13 +301,29 @@ class _GroupChatPageState extends State<GroupChatPage> {
       });
 
       if (result.success && result.metadata != null) {
+        // Replace pending bubble with final Firestore-backed message
         // Send message with media metadata (no imageUrl for WhatsApp-style)
         await _sendMessage(mediaMetadata: result.metadata);
+        // Remove pending item; Firestore stream will re-render with real doc
+        setState(() {
+          _pendingMessages.removeWhere(
+            (m) => m.mediaMetadata?.messageId == messageId,
+          );
+          _pendingUploadProgress.remove(messageId);
+        });
       } else {
         throw Exception(result.error?.message ?? 'Upload failed');
       }
     } catch (e) {
       setState(() => _isUploading = false);
+      // On failure, clear pending message if any
+      setState(() {
+        _pendingMessages.removeWhere(
+          (m) => m.id.startsWith('pending:'),
+        );
+        // Clear any progress tracked
+        _pendingUploadProgress.clear();
+      });
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -585,6 +649,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Widget _buildRecordingOverlay() {
+    // Hide bottom bar entirely while an IMAGE is uploading
+    if (_isUploading && _uploadingMediaType == 'image') {
+      return const SizedBox();
+    }
     if (_recordingPath == null && !_isUploading) return const SizedBox();
 
     return Positioned(
@@ -612,9 +680,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      _uploadingMediaType == 'image'
-                          ? 'Sending image...'
-                          : _uploadingMediaType == 'pdf'
+                      _uploadingMediaType == 'pdf'
                           ? 'Sending PDF...'
                           : _uploadingMediaType == 'audio'
                           ? 'Sending audio...'
@@ -800,10 +866,44 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     }
 
                     // Filter out messages deleted by current user
-                    final messages = snapshot.data!
-                        .where((m) =>
-                            !(m.deletedFor?.contains(currentUserId) ?? false))
-                        .toList();
+                    var messages = snapshot.data!
+                      .where((m) =>
+                        !(m.deletedFor?.contains(currentUserId) ?? false))
+                      .toList();
+
+                    // Merge optimistic pending messages
+                    // Dedupe using mediaMetadata.messageId when available
+                    final deliveredIds = messages
+                      .map((m) => m.mediaMetadata?.messageId)
+                      .where((id) => id != null)
+                      .cast<String>()
+                      .toSet();
+
+                    final pendingVisible = _pendingMessages
+                      .where((m) =>
+                        m.mediaMetadata?.messageId == null ||
+                        !deliveredIds
+                          .contains(m.mediaMetadata!.messageId))
+                      .toList();
+
+                    messages = [
+                      ...pendingVisible,
+                      ...messages,
+                    ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+                    print(
+                      '🧭 Messages snapshot: count=${messages.length}, newestId=${messages.isNotEmpty ? messages.first.id : 'none'}',
+                    );
+
+                    // Auto-scroll when a new newest message arrives (keep latest in view)
+                    final newestId = messages.isNotEmpty ? messages.first.id : null;
+                    if (newestId != null && newestId != _lastTopMessageId) {
+                      _lastTopMessageId = newestId;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        print('🧭 Auto-scroll to latest for id: $newestId');
+                        _scrollToLatest();
+                      });
+                    }
 
                     if (messages.isEmpty) {
                       return const Center(
@@ -824,8 +924,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         final message = messages[index];
                         final isMe = message.senderId == currentUserId;
                         final isSelected = _selectedMessages.contains(message.id);
+                        final isPending = message.id.startsWith('pending:') ||
+                            (message.mediaMetadata?.r2Key.startsWith('pending/') ?? false);
+                        final uploadProgress = isPending
+                            ? _pendingUploadProgress[message.mediaMetadata?.messageId]
+                            : null;
 
                         return GestureDetector(
+                          key: ValueKey('msg-${message.id}'),
                           onLongPress: () {
                             setState(() {
                               _isSelectionMode = true;
@@ -863,7 +969,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 ),
                               Expanded(
                                 child: _MessageBubble(
-                                    message: message, isMe: isMe),
+                                  message: message,
+                                  isMe: isMe,
+                                  uploading: isPending,
+                                  uploadProgress: uploadProgress,
+                                  key: ValueKey('bubble-${message.id}'),
+                                ),
                               ),
                             ],
                           ),
@@ -1279,8 +1390,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
 class _MessageBubble extends StatelessWidget {
   final GroupChatMessage message;
   final bool isMe;
+  final bool uploading; // for pending messages
+  final double? uploadProgress;
 
-  const _MessageBubble({required this.message, required this.isMe});
+  const _MessageBubble({
+    super.key,
+    required this.message,
+    required this.isMe,
+    this.uploading = false,
+    this.uploadProgress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1411,6 +1530,7 @@ class _MessageBubble extends StatelessWidget {
     );
 
     return MediaPreviewCard(
+      key: ValueKey('media-${metadata.messageId}-${metadata.r2Key}'),
       r2Key: metadata.r2Key,
       fileName: _fileNameFromMetadata(metadata),
       mimeType: metadata.mimeType ?? 'application/octet-stream',
@@ -1418,6 +1538,8 @@ class _MessageBubble extends StatelessWidget {
       thumbnailBase64: metadata.thumbnail,
       localPath: metadata.localPath, // Use already-saved path
       isMe: isMe,
+      uploading: uploading,
+      uploadProgress: uploadProgress,
     );
   }
 
@@ -1433,6 +1555,7 @@ class _MessageBubble extends StatelessWidget {
     final mimeType = _guessMimeType(fileName);
 
     return MediaPreviewCard(
+      key: ValueKey('legacy-$r2Key'),
       r2Key: r2Key,
       fileName: fileName,
       mimeType: mimeType,
