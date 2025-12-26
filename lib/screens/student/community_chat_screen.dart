@@ -301,6 +301,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       ).currentStudent;
       if (student == null) return;
 
+      if (!mounted) return;
       setState(() => _isUploading = true);
       // WhatsApp-style upload with optimistic pending
       final messageId = DateTime.now().millisecondsSinceEpoch.toString();
@@ -349,11 +350,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         deletedFor: const [],
       );
 
-      setState(() {
-        _pendingMessages.insert(0, pendingMessage);
-        _pendingUploadProgress[messageId] = 0.0;
-      });
-      _scrollToBottom(force: true);
+      if (mounted) {
+        setState(() {
+          _pendingMessages.insert(0, pendingMessage);
+          _pendingUploadProgress[messageId] = 0.0;
+        });
+        _scrollToBottom(force: true);
+      }
 
       final result = await _whatsappMediaUpload.uploadImage(
         imageFile: File(image.path),
@@ -361,6 +364,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         conversationId: widget.community.id,
         senderId: student.uid,
         onProgress: (progress) {
+          if (!mounted) return;
           final doubleVal = (progress as num).toDouble();
           final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
           setState(() {
@@ -369,11 +373,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         },
       );
 
-      setState(() => _isUploading = false);
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
 
       if (result.success && result.metadata != null) {
         // Keep sender-local path to avoid re-download
         _localSenderMediaPaths[result.metadata!.messageId] = image.path;
+        debugPrint('📌 Cached sender local path: ${image.path} for messageId: ${result.metadata!.messageId}');
 
         await _communityService.sendMessage(
           communityId: widget.community.id,
@@ -386,12 +393,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           mediaMetadata: result.metadata,
         );
 
-        setState(() {
-          _pendingMessages.removeWhere(
-            (m) => m.mediaMetadata?.messageId == messageId,
-          );
-          _pendingUploadProgress.remove(messageId);
-        });
+        if (mounted) {
+          setState(() {
+            _pendingMessages.removeWhere(
+              (m) => m.mediaMetadata?.messageId == messageId,
+            );
+            _pendingUploadProgress.remove(messageId);
+          });
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -406,11 +415,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         throw Exception(result.errorMessage ?? result.error?.message ?? 'Upload failed');
       }
     } catch (e, st) {
-      setState(() => _isUploading = false);
-      setState(() {
-        _pendingMessages.removeWhere((m) => m.messageId.startsWith('pending:'));
-        _pendingUploadProgress.clear();
-      });
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _pendingMessages.removeWhere((m) => m.messageId.startsWith('pending:'));
+          _pendingUploadProgress.clear();
+        });
+      }
       debugPrint('❌ CommunityChat image send failed: $e');
       debugPrint('📄 Stacktrace: $st');
       

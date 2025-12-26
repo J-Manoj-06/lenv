@@ -43,18 +43,15 @@ class WhatsAppMediaUploadService {
         );
       }
 
-      // Step 2: Generate thumbnail
+      // Step 2 & 3: Generate thumbnail and compress in parallel
       onProgress?.call(0.1);
-      debugPrint('📸 Generating thumbnail...');
-      final thumbnail = await _compressionService.generateThumbnail(
-        imageFile,
-        returnBase64: true,
-      );
-
-      // Step 3: Compress full image
-      onProgress?.call(0.3);
-      debugPrint('🗜️ Compressing image...');
-      final compressedBytes = await _compressionService.compressImage(imageFile);
+      debugPrint('🚀 Compressing and generating thumbnail in parallel...');
+      final results = await Future.wait([
+        _compressionService.generateThumbnail(imageFile, returnBase64: true),
+        _compressionService.compressImage(imageFile),
+      ]);
+      final thumbnail = results[0] as String;
+      final compressedBytes = results[1] as Uint8List;
 
       debugPrint('✅ Compressed: ${compressedBytes.length} bytes');
 
@@ -82,14 +79,15 @@ class WhatsAppMediaUploadService {
 
       onProgress?.call(0.9);
 
-      // Step 5: Save locally
-      debugPrint('💾 Saving locally...');
+      // Step 5: Create metadata with sender's local path
+      debugPrint('✅ Upload complete!');
+      
+      // Save to local storage for consistency across app restarts
       final localPath = await _storageService.saveImage(
         messageId: messageId,
         imageBytes: compressedBytes,
       );
-
-      // Step 6: Create metadata
+      
       final metadata = MediaMetadata(
         messageId: messageId,
         r2Key: uploadResponse.r2Key!,
@@ -105,7 +103,7 @@ class WhatsAppMediaUploadService {
       );
 
       onProgress?.call(1.0);
-      debugPrint('✅ Upload complete!');
+
 
       return UploadResult(success: true, metadata: metadata);
     } catch (e) {
@@ -202,8 +200,8 @@ class WhatsAppMediaUploadService {
 
       debugPrint('📨 Worker request: fields=${request.fields} fileExt=$fileExt contentType=$mimeType bytes=${imageBytes.length}');
       final streamedResponse = await request.send().timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => throw TimeoutException('Upload timeout after 30s'),
+        const Duration(seconds: 60),
+        onTimeout: () => throw TimeoutException('Upload timeout after 60s'),
       );
 
       final response = await http.Response.fromStream(streamedResponse);

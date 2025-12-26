@@ -9,7 +9,7 @@ import 'package:mime/mime.dart';
 class ImageCompressionService {
   static const int maxWidth = 1080;
   static const int maxHeight = 1920;
-  static const int quality = 75; // 70-80 range for good balance
+  static const int quality = 65; // Optimized for speed and size
   static const int thumbnailSize = 200;
   static const int thumbnailQuality = 60;
   static const int maxThumbnailSizeBytes = 20 * 1024; // 20 KB
