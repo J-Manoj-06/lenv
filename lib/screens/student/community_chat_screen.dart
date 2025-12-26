@@ -22,6 +22,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../models/media_metadata.dart';
 import '../../widgets/media_preview_card.dart';
+import 'package:mime/mime.dart';
 
 class CommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -52,6 +53,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   bool _isCancelled = false;
   final Set<String> _selectedMessages = {};
   bool _isSelectionMode = false;
+  // Optimistic pending messages and per-upload progress
+  final List<CommunityMessageModel> _pendingMessages = [];
+  final Map<String, double> _pendingUploadProgress = {};
+  // Sender-only local paths to avoid re-downloading our own uploads
+  final Map<String, String> _localSenderMediaPaths = {};
 
   // Theme helpers
   Color get _primary => const Color(0xFFF2800D);
@@ -296,9 +302,58 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       if (student == null) return;
 
       setState(() => _isUploading = true);
-
-      // WhatsApp-style upload: compression + thumbnails + temporary storage
+      // WhatsApp-style upload with optimistic pending
       final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      // Pending metadata for immediate render
+      final pendingMetadata = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: image.path,
+        thumbnail: '',
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await File(image.path).length(),
+        // We compress to JPEG in the worker upload flow
+        mimeType: 'image/jpeg',
+        originalFileName:
+            image.name.isNotEmpty ? image.name : image.path.split('/').last,
+      );
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: 'pending:$messageId',
+        communityId: widget.community.id,
+        senderId: student.uid,
+        senderName: student.name,
+        senderRole: 'Student',
+        senderAvatar: '',
+        type: 'image',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: '',
+        mediaMetadata: pendingMetadata,
+        createdAt: DateTime.now(),
+        updatedAt: null,
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+        deletedFor: const [],
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[messageId] = 0.0;
+      });
+      _scrollToBottom(force: true);
 
       final result = await _whatsappMediaUpload.uploadImage(
         imageFile: File(image.path),
@@ -306,24 +361,37 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         conversationId: widget.community.id,
         senderId: student.uid,
         onProgress: (progress) {
-          print('Upload progress: ${(progress * 100).toInt()}%');
+          final doubleVal = (progress as num).toDouble();
+          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
+          setState(() {
+            _pendingUploadProgress[messageId] = normalized;
+          });
         },
       );
 
       setState(() => _isUploading = false);
 
       if (result.success && result.metadata != null) {
-        // Send message with media metadata
+        // Keep sender-local path to avoid re-download
+        _localSenderMediaPaths[result.metadata!.messageId] = image.path;
+
         await _communityService.sendMessage(
           communityId: widget.community.id,
           senderId: student.uid,
           senderName: student.name,
           senderRole: 'Student',
-          content: '', // Empty content for image-only messages
-          imageUrl: '', // Keep empty, using mediaMetadata instead
+          content: '',
+          imageUrl: '',
           mediaType: 'image',
           mediaMetadata: result.metadata,
         );
+
+        setState(() {
+          _pendingMessages.removeWhere(
+            (m) => m.mediaMetadata?.messageId == messageId,
+          );
+          _pendingUploadProgress.remove(messageId);
+        });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -334,15 +402,40 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           );
         }
       } else {
-        throw Exception(result.error?.message ?? 'Upload failed');
+        debugPrint('❌ UploadResult failure: error=${result.error} message=${result.errorMessage}');
+        throw Exception(result.errorMessage ?? result.error?.message ?? 'Upload failed');
       }
-    } catch (e) {
+    } catch (e, st) {
       setState(() => _isUploading = false);
+      setState(() {
+        _pendingMessages.removeWhere((m) => m.messageId.startsWith('pending:'));
+        _pendingUploadProgress.clear();
+      });
+      debugPrint('❌ CommunityChat image send failed: $e');
+      debugPrint('📄 Stacktrace: $st');
+      
+      // User-friendly error message
+      String userMessage = 'Failed to send image';
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('network') || errorStr.contains('connection')) {
+        userMessage = 'Network error. Please check your connection and try again.';
+      } else if (errorStr.contains('timeout')) {
+        userMessage = 'Upload timeout. Please check your connection.';
+      } else if (errorStr.contains('invalid')) {
+        userMessage = 'Invalid image file. Please try another image.';
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send image: $e'),
+            content: Text(userMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () => _pickAndSendImage(),
+            ),
           ),
         );
       }
@@ -368,16 +461,68 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       if (student == null) return;
 
       setState(() => _isUploading = true);
+      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
 
-      // Upload to Cloudflare R2 using MediaUploadService
+      // Pending metadata for immediate render from local disk
+      final pendingMetadata = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: file.path,
+        thumbnail: '',
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType: 'application/pdf',
+        originalFileName: fileName,
+      );
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: 'pending:$messageId',
+        communityId: widget.community.id,
+        senderId: student.uid,
+        senderName: student.name,
+        senderRole: 'Student',
+        senderAvatar: '',
+        type: 'pdf',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: fileName,
+        mediaMetadata: pendingMetadata,
+        createdAt: DateTime.now(),
+        updatedAt: null,
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+        deletedFor: const [],
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[messageId] = 0.0;
+      });
+      _scrollToBottom(force: true);
+
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: file,
         conversationId: widget.community.id,
         senderId: student.uid,
         senderRole: 'Student',
-        mediaType: 'community', // Permanent storage for community messages
+        mediaType: 'community',
         onProgress: (progress) {
-          print('Upload progress: $progress%');
+          final doubleVal = (progress as num).toDouble();
+          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
+          setState(() {
+            _pendingUploadProgress[messageId] = normalized;
+          });
         },
       );
 
@@ -388,13 +533,12 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       debugPrint('   File type: ${mediaMessage.fileType}');
       debugPrint('   R2 URL: ${mediaMessage.r2Url}');
 
-      // Create MediaMetadata with file size for proper display
       final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
       final metadata = MediaMetadata(
         messageId: mediaMessage.id,
         r2Key: r2Key,
         publicUrl: mediaMessage.r2Url,
-        thumbnail: '', // No thumbnail for PDF
+        thumbnail: '',
         expiresAt: DateTime.now().add(const Duration(days: 365)),
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
@@ -402,7 +546,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         originalFileName: mediaMessage.fileName,
       );
 
-      // Send message with metadata (not just URL)
+      // Keep sender-local path to avoid re-download
+      _localSenderMediaPaths[mediaMessage.id] = file.path;
+
       await _communityService.sendMessage(
         communityId: widget.community.id,
         senderId: student.uid,
@@ -412,6 +558,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         mediaType: 'pdf',
         mediaMetadata: metadata,
       );
+
+      setState(() {
+        _pendingMessages.removeWhere(
+          (m) => m.mediaMetadata?.messageId == messageId,
+        );
+        _pendingUploadProgress.remove(messageId);
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -423,6 +576,10 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       }
     } catch (e) {
       setState(() => _isUploading = false);
+      setState(() {
+        _pendingMessages.removeWhere((m) => m.messageId.startsWith('pending:'));
+        _pendingUploadProgress.clear();
+      });
       if (mounted) {
         final errorMessage = e.toString();
         final isTimeSyncError = errorMessage.contains('RequestTimeTooSkewed');
@@ -471,6 +628,54 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       if (student == null) return;
 
       setState(() => _isUploading = true);
+      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      final pendingMetadata = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: file.path,
+        thumbnail: '',
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType: _guessMimeType(fileName),
+        originalFileName: fileName,
+      );
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: 'pending:$messageId',
+        communityId: widget.community.id,
+        senderId: student.uid,
+        senderName: student.name,
+        senderRole: 'Student',
+        senderAvatar: '',
+        type: 'audio',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: fileName,
+        mediaMetadata: pendingMetadata,
+        createdAt: DateTime.now(),
+        updatedAt: null,
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+        deletedFor: const [],
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[messageId] = 0.0;
+      });
+      _scrollToBottom(force: true);
 
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: file,
@@ -479,7 +684,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         senderRole: 'Student',
         mediaType: 'community',
         onProgress: (progress) {
-          print('Upload progress: $progress%');
+          final doubleVal = (progress as num).toDouble();
+          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
+          setState(() {
+            _pendingUploadProgress[messageId] = normalized;
+          });
         },
       );
 
@@ -489,7 +698,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       debugPrint('   File size: ${mediaMessage.fileSize} bytes');
       debugPrint('   R2 URL: ${mediaMessage.r2Url}');
 
-      // Create MediaMetadata with file size
       final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
       final metadata = MediaMetadata(
         messageId: mediaMessage.id,
@@ -503,7 +711,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         originalFileName: mediaMessage.fileName,
       );
 
-      // Send message with metadata
+      // Keep sender-local path so playback is instant without download
+      _localSenderMediaPaths[mediaMessage.id] = file.path;
+
       await _communityService.sendMessage(
         communityId: widget.community.id,
         senderId: student.uid,
@@ -513,6 +723,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         mediaType: 'audio',
         mediaMetadata: metadata,
       );
+
+      setState(() {
+        _pendingMessages.removeWhere(
+          (m) => m.mediaMetadata?.messageId == messageId,
+        );
+        _pendingUploadProgress.remove(messageId);
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -524,6 +741,10 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       }
     } catch (e) {
       setState(() => _isUploading = false);
+      setState(() {
+        _pendingMessages.removeWhere((m) => m.messageId.startsWith('pending:'));
+        _pendingUploadProgress.clear();
+      });
       if (mounted) {
         final errorMessage = e.toString();
         final isTimeSyncError = errorMessage.contains('RequestTimeTooSkewed');
@@ -617,6 +838,59 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       _isUploading = true;
     });
 
+    final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    // Pending metadata/message for optimistic render
+    final pendingMetadata = MediaMetadata(
+      messageId: messageId,
+      r2Key: 'pending/$messageId',
+      publicUrl: '',
+      localPath: _recordingPath,
+      thumbnail: '',
+      deletedLocally: false,
+      serverStatus: ServerStatus.available,
+      expiresAt: DateTime.now().add(const Duration(days: 365)),
+      uploadedAt: DateTime.now(),
+      fileSize:
+          _recordingPath != null ? await File(_recordingPath!).length() : null,
+      mimeType: 'audio/aac',
+      originalFileName: _recordingPath != null
+          ? Uri.file(_recordingPath!).pathSegments.last
+          : null,
+    );
+
+    final pendingMessage = CommunityMessageModel(
+      messageId: 'pending:$messageId',
+      communityId: widget.community.id,
+      senderId: student.uid,
+      senderName: student.name,
+      senderRole: 'Student',
+      senderAvatar: '',
+      type: 'audio',
+      content: '',
+      imageUrl: '',
+      fileUrl: '',
+      fileName: pendingMetadata.originalFileName ?? '',
+      mediaMetadata: pendingMetadata,
+      createdAt: DateTime.now(),
+      updatedAt: null,
+      isEdited: false,
+      isDeleted: false,
+      isPinned: false,
+      reactions: {},
+      replyTo: '',
+      replyCount: 0,
+      isReported: false,
+      reportCount: 0,
+      deletedFor: const [],
+    );
+
+    setState(() {
+      _pendingMessages.insert(0, pendingMessage);
+      _pendingUploadProgress[messageId] = 0.0;
+    });
+    _scrollToBottom(force: true);
+
     try {
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: File(_recordingPath!),
@@ -625,7 +899,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         senderRole: 'Student',
         mediaType: 'community',
         onProgress: (progress) {
-          print('Upload progress: $progress%');
+          final doubleVal = (progress as num).toDouble();
+          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
+          setState(() {
+            _pendingUploadProgress[messageId] = normalized;
+          });
         },
       );
 
@@ -633,7 +911,23 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       debugPrint('   File size: ${mediaMessage.fileSize} bytes');
       debugPrint('   R2 URL: ${mediaMessage.r2Url}');
 
-      // Create MediaMetadata with file size
+      // Copy recorded audio to cache for local playback before deleting temp
+      String? cachedPath;
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        final cacheDir = Directory('${appDir.path}/audio_cache');
+        if (!await cacheDir.exists()) {
+          await cacheDir.create(recursive: true);
+        }
+        final fileName = mediaMessage.r2Url.split('/').last;
+        final cachedFile = File('${cacheDir.path}/$fileName');
+        await File(_recordingPath!).copy(cachedFile.path);
+        cachedPath = cachedFile.path;
+        print('✅ Cached recorded audio locally at: $cachedPath');
+      } catch (e) {
+        print('⚠️ Failed to cache audio: $e');
+      }
+
       final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
       final metadata = MediaMetadata(
         messageId: mediaMessage.id,
@@ -644,7 +938,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
-        localPath: _recordingPath, // Keep track of the local file
+        localPath: cachedPath,
+        originalFileName: mediaMessage.fileName,
       );
 
       await _communityService.sendMessage(
@@ -657,7 +952,20 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         mediaMetadata: metadata,
       );
 
-      // Delete the temporary file
+      // Remove pending and progress
+      setState(() {
+        _pendingMessages.removeWhere(
+          (m) => m.mediaMetadata?.messageId == messageId,
+        );
+        _pendingUploadProgress.remove(messageId);
+      });
+
+      // Store sender-local path for playback
+      if (cachedPath != null) {
+        _localSenderMediaPaths[mediaMessage.id] = cachedPath;
+      }
+
+      // Delete the temporary recording file
       try {
         final file = File(_recordingPath!);
         if (await file.exists()) {
@@ -677,7 +985,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         );
       }
 
-      // Clear all recording state
       if (mounted) {
         setState(() {
           _isUploading = false;
@@ -692,6 +999,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         setState(() {
           _isUploading = false;
           _isRecording = false;
+          _pendingMessages.removeWhere((m) => m.messageId.startsWith('pending:'));
+          _pendingUploadProgress.clear();
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -794,6 +1103,18 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       return uri.pathSegments.last;
     }
     return 'file';
+  }
+
+  String _guessMimeType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.m4a') || lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
+    return 'application/octet-stream';
   }
 
   PreferredSizeWidget _buildAppBar() {
@@ -955,6 +1276,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     CommunityMessageModel message,
     bool isCurrentUser,
     String currentUserName,
+    bool isUploading,
+    double? uploadProgress,
+    Map<String, String> localSenderMediaPaths,
   ) {
     final isSelected = _selectedMessages.contains(message.messageId);
     return GestureDetector(
@@ -1076,8 +1400,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                   'application/octet-stream',
                               fileSize: message.mediaMetadata!.fileSize ?? 0,
                               thumbnailBase64: message.mediaMetadata!.thumbnail,
-                              localPath: message.mediaMetadata!.localPath,
+                              localPath: message.mediaMetadata!.localPath ??
+                                  localSenderMediaPaths[
+                                    message.mediaMetadata!.messageId
+                                  ],
                               isMe: isCurrentUser,
+                              uploading: isUploading,
+                              uploadProgress: uploadProgress,
                             ),
                             if (message.content.isNotEmpty)
                               const SizedBox(height: 8),
@@ -1603,7 +1932,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
                     // Filter out expired announcements (24h visibility) and deleted messages
                     final now = DateTime.now();
-                    final messages = (snapshot.data ?? [])
+                    final messagesFromServer = (snapshot.data ?? [])
                         .where(
                           (m) =>
                               (m.type != 'announcement' ||
@@ -1612,7 +1941,26 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                               !(m.deletedFor?.contains(student.uid) ?? false),
                         )
                         .toList();
-                    if (messages.isEmpty) {
+
+                    // Merge pending optimistic messages
+                    final combined = <CommunityMessageModel>[];
+                    combined.addAll(messagesFromServer);
+                    final seenIds = messagesFromServer
+                        .map((m) => m.mediaMetadata?.messageId ?? m.messageId)
+                        .toSet();
+                    for (final pending in _pendingMessages) {
+                      final key =
+                          pending.mediaMetadata?.messageId ?? pending.messageId;
+                      if (!seenIds.contains(key)) {
+                        combined.add(pending);
+                      }
+                    }
+
+                    combined.sort(
+                      (a, b) => b.createdAt.compareTo(a.createdAt),
+                    );
+
+                    if (combined.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1647,14 +1995,22 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       controller: _scrollController,
                       reverse: true,
                       padding: const EdgeInsets.all(16),
-                      itemCount: messages.length,
+                      itemCount: combined.length,
                       itemBuilder: (context, index) {
-                        final message = messages[index];
+                        final message = combined[index];
                         final isCurrentUser = message.senderId == student.uid;
+                        final metaId =
+                            message.mediaMetadata?.messageId ?? message.messageId;
+                        final isPending = message.messageId.startsWith('pending:') ||
+                            (message.mediaMetadata?.r2Key
+                                    .startsWith('pending/') ??
+                                false);
+                        final uploadProgress =
+                            isPending ? _pendingUploadProgress[metaId] : null;
                         final showDateDivider =
-                            index == messages.length - 1 ||
+                            index == combined.length - 1 ||
                             _formatDate(message.createdAt) !=
-                                _formatDate(messages[index + 1].createdAt);
+                                _formatDate(combined[index + 1].createdAt);
 
                         return Column(
                           children: [
@@ -1665,6 +2021,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                 message,
                                 isCurrentUser,
                                 student.name,
+                                isPending,
+                                uploadProgress,
+                                _localSenderMediaPaths,
                               ),
                             if (showDateDivider)
                               _buildDateDivider(message.createdAt),

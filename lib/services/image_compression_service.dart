@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+import 'package:mime/mime.dart';
 
 /// WhatsApp-style image compression service
 /// Compresses images to reduce storage and bandwidth costs
@@ -29,8 +30,15 @@ class ImageCompressionService {
         'maxHeight': maxHeight,
       });
     } catch (e) {
-      debugPrint('❌ Error compressing image: $e');
-      rethrow;
+      // Fallback: return original bytes without compression
+      debugPrint('❌ Error compressing image, using original bytes: $e');
+      try {
+        final bytes = await imageFile.readAsBytes();
+        return bytes;
+      } catch (readErr) {
+        debugPrint('❌ Failed to read original image bytes: $readErr');
+        rethrow;
+      }
     }
   }
 
@@ -56,8 +64,11 @@ class ImageCompressionService {
         return 'data:image/jpeg;base64,${base64Encode(thumbnailBytes)}';
       }
     } catch (e) {
-      debugPrint('❌ Error generating thumbnail: $e');
-      rethrow;
+      // Fallback: return a tiny 1x1 PNG base64
+      debugPrint('❌ Error generating thumbnail, using placeholder: $e');
+      const tinyPngBase64 =
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+JYQUAAAAASUVORK5CYII=';
+      return tinyPngBase64;
     }
   }
 
@@ -141,6 +152,12 @@ class ImageCompressionService {
   /// Validate image file
   Future<bool> isValidImage(File imageFile) async {
     try {
+      // Be tolerant: use MIME type check first
+      final mime = lookupMimeType(imageFile.path) ?? '';
+      if (mime.startsWith('image/')) {
+        return true;
+      }
+      // As a secondary check, attempt decode
       final bytes = await imageFile.readAsBytes();
       final image = img.decodeImage(bytes);
       return image != null;

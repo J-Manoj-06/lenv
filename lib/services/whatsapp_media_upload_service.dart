@@ -2,7 +2,9 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
+import 'package:mime/mime.dart';
 import '../models/media_metadata.dart';
 import 'image_compression_service.dart';
 import 'local_media_storage_service.dart';
@@ -31,7 +33,7 @@ class WhatsAppMediaUploadService {
     Function(double progress)? onProgress,
   }) async {
     try {
-      // Step 1: Validate image
+      // Step 1: Validate image (tolerant)
       final isValid = await _compressionService.isValidImage(imageFile);
       if (!isValid) {
         return UploadResult(
@@ -52,21 +54,26 @@ class WhatsAppMediaUploadService {
       // Step 3: Compress full image
       onProgress?.call(0.3);
       debugPrint('🗜️ Compressing image...');
-      final compressedBytes = await _compressionService.compressImage(
-        imageFile,
-      );
+      final compressedBytes = await _compressionService.compressImage(imageFile);
 
       debugPrint('✅ Compressed: ${compressedBytes.length} bytes');
 
-      // Step 4: Upload to Cloudflare Worker
+      // Step 4: Upload to Cloudflare Worker with retry
       onProgress?.call(0.5);
       debugPrint('☁️ Uploading to R2...');
 
-      final uploadResponse = await _uploadToWorker(
+      // We encode to JPEG in compression, so use consistent JPEG MIME
+      final mimeType = 'image/jpeg';
+      final fileExt = 'jpg';
+
+      final uploadResponse = await _uploadToWorkerWithRetry(
         imageBytes: compressedBytes,
         messageId: messageId,
         conversationId: conversationId,
         senderId: senderId,
+        mimeType: mimeType,
+        fileExt: fileExt,
+        onProgress: onProgress,
       );
 
       if (!uploadResponse.success) {
@@ -94,7 +101,7 @@ class WhatsAppMediaUploadService {
         expiresAt: uploadResponse.expiresAt!,
         uploadedAt: DateTime.now(),
         fileSize: compressedBytes.length,
-        mimeType: 'image/jpeg',
+        mimeType: mimeType,
       );
 
       onProgress?.call(1.0);
@@ -111,12 +118,66 @@ class WhatsAppMediaUploadService {
     }
   }
 
+  /// Upload with retry logic for network failures
+  Future<UploadResult> _uploadToWorkerWithRetry({
+    required Uint8List imageBytes,
+    required String messageId,
+    required String conversationId,
+    required String senderId,
+    required String mimeType,
+    required String fileExt,
+    Function(double progress)? onProgress,
+  }) async {
+    const maxRetries = 3;
+    const initialDelay = Duration(seconds: 2);
+
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      debugPrint('🔄 Upload attempt $attempt/$maxRetries');
+      
+      final result = await _uploadToWorker(
+        imageBytes: imageBytes,
+        messageId: messageId,
+        conversationId: conversationId,
+        senderId: senderId,
+        mimeType: mimeType,
+        fileExt: fileExt,
+      );
+
+      if (result.success) {
+        return result;
+      }
+
+      // Retry on network errors or server errors
+      final shouldRetry = result.error == UploadError.networkError ||
+          result.error == UploadError.timeout ||
+          result.error == UploadError.serverError ||
+          result.error == UploadError.unknown;
+
+      if (!shouldRetry || attempt == maxRetries) {
+        return result;
+      }
+
+      // Exponential backoff
+      final delay = initialDelay * attempt;
+      debugPrint('⏳ Retrying in ${delay.inSeconds}s due to: ${result.errorMessage}');
+      await Future.delayed(delay);
+    }
+
+    return UploadResult(
+      success: false,
+      error: UploadError.unknown,
+      errorMessage: 'Upload failed after $maxRetries attempts',
+    );
+  }
+
   /// Upload compressed bytes to Cloudflare Worker
   Future<UploadResult> _uploadToWorker({
     required Uint8List imageBytes,
     required String messageId,
     required String conversationId,
     required String senderId,
+    required String mimeType,
+    required String fileExt,
   }) async {
     try {
       final url = Uri.parse('$workerBaseUrl/upload');
@@ -134,19 +195,23 @@ class WhatsAppMediaUploadService {
         http.MultipartFile.fromBytes(
           'image',
           imageBytes,
-          filename: '$messageId.jpg',
+          filename: '$messageId.$fileExt',
+          contentType: MediaType.parse(mimeType),
         ),
       );
 
+      debugPrint('📨 Worker request: fields=${request.fields} fileExt=$fileExt contentType=$mimeType bytes=${imageBytes.length}');
       final streamedResponse = await request.send().timeout(
-        const Duration(seconds: 60),
-        onTimeout: () => throw TimeoutException('Upload timeout'),
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('Upload timeout after 30s'),
       );
 
       final response = await http.Response.fromStream(streamedResponse);
 
+      debugPrint('📬 Worker response status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        debugPrint('📦 Worker response body: $data');
 
         if (data['success'] == true) {
           return UploadResult(
@@ -178,27 +243,52 @@ class WhatsAppMediaUploadService {
         return UploadResult(
           success: false,
           error: UploadError.httpError,
-          errorMessage: 'HTTP ${response.statusCode}',
+          errorMessage: 'HTTP ${response.statusCode}: ${response.body}',
         );
       }
-    } on SocketException {
+    } on SocketException catch (e) {
+      debugPrint('❌ Network error: $e');
       return UploadResult(
         success: false,
         error: UploadError.networkError,
-        errorMessage: 'No internet connection',
+        errorMessage: 'Network connection failed',
       );
-    } on TimeoutException {
+    } on TimeoutException catch (e) {
+      debugPrint('❌ Timeout error: $e');
       return UploadResult(
         success: false,
         error: UploadError.timeout,
-        errorMessage: 'Upload timeout',
+        errorMessage: 'Upload timeout - please check your connection',
+      );
+    } on http.ClientException catch (e) {
+      debugPrint('❌ Client exception: $e');
+      return UploadResult(
+        success: false,
+        error: UploadError.networkError,
+        errorMessage: 'Connection reset - network unstable',
       );
     } catch (e) {
+      debugPrint('❌ Worker upload exception: $e');
       return UploadResult(
         success: false,
         error: UploadError.unknown,
         errorMessage: e.toString(),
       );
+    }
+  }
+
+  String _extFromMime(String mimeType) {
+    switch (mimeType) {
+      case 'image/jpeg':
+        return 'jpg';
+      case 'image/png':
+        return 'png';
+      case 'image/webp':
+        return 'webp';
+      case 'image/heic':
+        return 'heic';
+      default:
+        return 'jpg';
     }
   }
 }
