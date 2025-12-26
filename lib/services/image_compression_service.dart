@@ -10,6 +10,10 @@ class ImageCompressionService {
   static const int maxWidth = 1080;
   static const int maxHeight = 1920;
   static const int quality = 65; // Optimized for speed and size
+  // Aggressive mode for community chat
+  static const int aggressiveMaxWidth = 720;
+  static const int aggressiveMaxHeight = 1280;
+  static const int aggressiveQuality = 55;
   static const int thumbnailSize = 200;
   static const int thumbnailQuality = 60;
   static const int maxThumbnailSizeBytes = 20 * 1024; // 20 KB
@@ -20,14 +24,15 @@ class ImageCompressionService {
     File imageFile, {
     int? customQuality,
     int? customMaxWidth,
+    bool aggressive = false,
   }) async {
     try {
       final bytes = await imageFile.readAsBytes();
       return await compute(_compressImageIsolate, {
         'bytes': bytes,
-        'quality': customQuality ?? quality,
-        'maxWidth': customMaxWidth ?? maxWidth,
-        'maxHeight': maxHeight,
+        'quality': customQuality ?? (aggressive ? aggressiveQuality : quality),
+        'maxWidth': customMaxWidth ?? (aggressive ? aggressiveMaxWidth : maxWidth),
+        'maxHeight': aggressive ? aggressiveMaxHeight : maxHeight,
       });
     } catch (e) {
       // Fallback: return original bytes without compression

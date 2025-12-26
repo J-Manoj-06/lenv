@@ -33,10 +33,12 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
 
     if (student == null) return;
 
+    debugPrint('🔄 Loading communities for student: ${student.uid}');
     setState(() => _isLoading = true);
 
     final communities = await _communityService.getMyComm(student.uid);
 
+    debugPrint('📋 Loaded ${communities.length} communities');
     setState(() {
       _myCommunities = communities;
       _isLoading = false;
@@ -68,13 +70,17 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const CommunityExploreScreen(),
             ),
-          ).then((_) => _loadMyCommunities()); // Reload after exploring
+          );
+          // Reload if any communities were joined
+          if (result == true) {
+            await _loadMyCommunities();
+          }
         },
         backgroundColor: const Color(0xFFF2800D),
         icon: const Icon(Icons.explore, color: Colors.white),
@@ -130,13 +136,16 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
           ),
           const SizedBox(height: 32),
           ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const CommunityExploreScreen(),
                 ),
-              ).then((_) => _loadMyCommunities());
+              );
+              if (result == true) {
+                await _loadMyCommunities();
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF2800D),

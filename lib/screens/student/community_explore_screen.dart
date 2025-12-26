@@ -145,6 +145,9 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
       setState(() {
         _joinedCommunities.add(community.id);
       });
+      
+      // Small delay to ensure Firestore write propagates
+      await Future.delayed(const Duration(milliseconds: 500));
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -160,26 +163,32 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
+    return WillPopScope(
+      onWillPop: () async {
+        // Return true if any communities were joined to trigger refresh
+        Navigator.of(context).pop(_joinedCommunities.isNotEmpty);
+        return false;
+      },
+      child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: theme.iconTheme.color),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Explore Communities',
-          style: TextStyle(
-            color: theme.textTheme.bodyLarge?.color,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        appBar: AppBar(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new, color: theme.iconTheme.color),
+            onPressed: () => Navigator.pop(context),
           ),
+          title: Text(
+            'Explore Communities',
+            style: TextStyle(
+              color: theme.textTheme.bodyLarge?.color,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          centerTitle: true,
         ),
-        centerTitle: true,
-      ),
-      body: Column(
+        body: Column(
         children: [
           // Search Bar
           Padding(
@@ -315,6 +324,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
                   ),
           ),
         ],
+      ),
       ),
     );
   }

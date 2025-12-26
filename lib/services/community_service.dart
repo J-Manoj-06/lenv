@@ -128,11 +128,43 @@ class CommunityService {
       }
 
       final indexData = indexDoc.data()!;
-      final communityIds =
+      final fromIndex =
           (indexData['communityIds'] as List<dynamic>?)
-              ?.whereType<String>()
-              .toList() ??
-          [];
+                  ?.whereType<String>()
+                  .toList() ??
+              [];
+
+      // 🔎 Self-healing: also scan membership to catch any missing IDs
+      // This is a single collectionGroup query and only runs once per load.
+      final memberQuery = await _firestore
+          .collectionGroup('members')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'active')
+          .get();
+
+      final fromMembership = memberQuery.docs
+          .map((doc) => doc.reference.parent.parent!.id)
+          .toSet()
+          .toList();
+
+      // Union of IDs from index and membership (deduped)
+      final communityIds = <String>{...fromIndex, ...fromMembership}.toList();
+
+      // If membership discovered extra IDs, update the index asynchronously
+      final missingInIndex =
+          fromMembership.where((id) => !fromIndex.contains(id)).toList();
+      if (missingInIndex.isNotEmpty) {
+        try {
+          await _firestore.collection('user_communities').doc(userId).set({
+            'communityIds': FieldValue.arrayUnion(missingInIndex),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          debugPrint(
+              '🩺 Self-healed user_communities by adding ${missingInIndex.length} missing id(s)');
+        } catch (e) {
+          debugPrint('⚠️ Failed to self-heal user_communities: $e');
+        }
+      }
 
       if (communityIds.isEmpty) {
         return [];
@@ -332,8 +364,20 @@ class CommunityService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      // ✅ CRITICAL: Update user_communities index for immediate display
+      final userCommRef = _firestore
+          .collection('user_communities')
+          .doc(student.uid);
+      
+      batch.set(userCommRef, {
+        'userId': student.uid,
+        'communityIds': FieldValue.arrayUnion([communityId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
       await batch.commit();
       debugPrint('✅ Successfully joined community: $communityId');
+      debugPrint('✅ Updated user_communities index for: ${student.uid}');
       return true;
     } catch (e) {
       debugPrint('❌ Error joining community: $e');
@@ -387,8 +431,20 @@ class CommunityService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      // ✅ CRITICAL: Update user_communities index for immediate display
+      final userCommRef = _firestore
+          .collection('user_communities')
+          .doc(teacherId);
+      
+      batch.set(userCommRef, {
+        'userId': teacherId,
+        'communityIds': FieldValue.arrayUnion([communityId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
       await batch.commit();
       debugPrint('✅ Teacher successfully joined community: $communityId');
+      debugPrint('✅ Updated user_communities index for teacher: $teacherId');
       return true;
     } catch (e) {
       debugPrint('❌ Error teacher joining community: $e');

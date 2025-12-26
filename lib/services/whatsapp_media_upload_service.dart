@@ -31,6 +31,7 @@ class WhatsAppMediaUploadService {
     required String conversationId,
     required String senderId,
     Function(double progress)? onProgress,
+    bool aggressiveCompression = false,
   }) async {
     try {
       // Step 1: Validate image (tolerant)
@@ -57,6 +58,7 @@ class WhatsAppMediaUploadService {
 
       // Step 4: Upload to Cloudflare Worker with retry
       onProgress?.call(0.5);
+      final uploadStartTime = DateTime.now();
       debugPrint('☁️ Uploading to R2...');
 
       // We encode to JPEG in compression, so use consistent JPEG MIME
@@ -76,6 +78,10 @@ class WhatsAppMediaUploadService {
       if (!uploadResponse.success) {
         return uploadResponse;
       }
+      
+      final uploadDuration = DateTime.now().difference(uploadStartTime);
+      final speedKBps = (compressedBytes.length / 1024) / uploadDuration.inSeconds;
+      debugPrint('⚡ Upload speed: ${speedKBps.toStringAsFixed(1)} KB/s');
 
       onProgress?.call(0.9);
 

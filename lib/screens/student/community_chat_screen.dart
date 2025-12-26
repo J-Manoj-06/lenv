@@ -363,6 +363,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         messageId: messageId,
         conversationId: widget.community.id,
         senderId: student.uid,
+        aggressiveCompression: true, // Use aggressive mode for community chat
         onProgress: (progress) {
           if (!mounted) return;
           final doubleVal = (progress as num).toDouble();
