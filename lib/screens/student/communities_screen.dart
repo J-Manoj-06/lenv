@@ -70,6 +70,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'student_communities_explore_fab',
         onPressed: () async {
           final result = await Navigator.push(
             context,

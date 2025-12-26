@@ -44,6 +44,7 @@ class MessagesScreen extends StatelessWidget {
       ),
       body: _buildBody(context),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'teacher_messages_new_message_fab',
         onPressed: () {
           // Placeholder for compose action
           _showComposeDialog(context);

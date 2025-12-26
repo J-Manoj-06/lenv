@@ -172,6 +172,7 @@ class _SearchRewardsScreenState extends State<SearchRewardsScreen> {
 
   Widget _buildFab() {
     return FloatingActionButton.extended(
+      heroTag: 'rewards_my_requests_fab',
       onPressed: () => Navigator.pushNamed(context, '/my-reward-requests'),
       backgroundColor: const Color(0xFF1777FF),
       icon: const Icon(Icons.bookmark_border),

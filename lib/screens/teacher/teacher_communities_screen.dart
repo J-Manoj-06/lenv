@@ -71,6 +71,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'teacher_communities_explore_fab',
         onPressed: () {
           Navigator.push(
             context,

@@ -7,6 +7,7 @@ import '../../services/school_service.dart';
 import '../../models/school_model.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
+import '../auth/forgot_password_screen.dart';
 
 class TeacherLoginScreen extends StatefulWidget {
   const TeacherLoginScreen({super.key});
@@ -161,27 +162,13 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   }
 
   void _handleForgotPassword() async {
-    if (_emailController.text.trim().isEmpty) {
-      _showErrorSnackBar('Please enter your email address');
-      return;
-    }
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final success = await authProvider.resetPassword(
-      _emailController.text.trim(),
-    );
-
-    if (success) {
-      if (mounted) {
-        showSuccessSnackbar(
-          context,
-          'Password reset email sent! Check your inbox.',
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const ForgotPasswordScreen(
           role: 'teacher',
-        );
-      }
-    } else {
-      _showErrorSnackBar('Failed to send reset email');
-    }
+        ),
+      ),
+    );
   }
 
   @override
