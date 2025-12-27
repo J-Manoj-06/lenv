@@ -76,8 +76,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final community = _myCommunities[index];
-                  final unreadCount = getUnreadCount(community.id);
-                  return _buildCommunityCard(community, unreadCount);
+                  return _buildCommunityCard(community);
                 },
               ),
             ),
@@ -180,7 +179,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
     );
   }
 
-  Widget _buildCommunityCard(CommunityModel community, int unreadCount) {
+  Widget _buildCommunityCard(CommunityModel community) {
     final theme = Theme.of(context);
     return GestureDetector(
       onTap: () {
@@ -356,11 +355,16 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
           ],
           ),
             ),
-            // Unread badge at top-right
-            PositionedUnreadBadge(
-              count: unreadCount,
-              rightOffset: 12,
-              topOffset: 12,
+            // Unread badge at top-right (reactive)
+            Positioned(
+              right: 12,
+              top: 12,
+              child: Consumer<UnreadCountProvider>(
+                builder: (_, provider, __) {
+                  final count = provider.getUnreadCount(community.id);
+                  return UnreadBadge(count: count);
+                },
+              ),
             ),
           ],
         ),

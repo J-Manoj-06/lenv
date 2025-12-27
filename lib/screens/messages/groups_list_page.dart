@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../utils/unread_count_mixins.dart';
 import '../../utils/chat_type_config.dart';
@@ -24,6 +25,7 @@ class _GroupsListPageState extends State<GroupsListPage>
   bool _isLoading = true;
   String? _classId;
   bool _hasAttemptedLoad = false;
+  final Map<String, int> _lastMessageTs = {}; // chatId -> latest timestamp
 
   @override
   bool get wantKeepAlive => true;
@@ -121,6 +123,39 @@ class _GroupsListPageState extends State<GroupsListPage>
         for (final s in subjects) '${_classId}|${s.id}': ChatTypeConfig.groupChat,
       };
       await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
+
+      // Fetch latest message timestamp for sorting like WhatsApp
+      for (final s in subjects) {
+        final chatId = '${_classId}|${s.id}';
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('classes')
+              .doc(_classId!)
+              .collection('subjects')
+              .doc(s.id)
+              .collection('messages')
+              .orderBy('timestamp', descending: true)
+              .limit(1)
+              .get();
+          if (snap.docs.isNotEmpty) {
+            final ts = (snap.docs.first.data()['timestamp'] as int?) ?? 0;
+            _lastMessageTs[chatId] = ts;
+          } else {
+            _lastMessageTs[chatId] = 0;
+          }
+        } catch (_) {
+          _lastMessageTs[chatId] = 0;
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _subjects.sort((a, b) {
+            final at = _lastMessageTs['${_classId}|${a.id}'] ?? 0;
+            final bt = _lastMessageTs['${_classId}|${b.id}'] ?? 0;
+            return bt.compareTo(at);
+          });
+        });
+      }
     } catch (e, stackTrace) {
       print('❌ GroupsListPage error: $e');
       print('Stack trace: $stackTrace');
@@ -227,11 +262,10 @@ class _GroupsListPageState extends State<GroupsListPage>
       itemBuilder: (context, index) {
         final subject = _subjects[index];
         final chatId = '${_classId}|${subject.id}';
-        final unreadCount = getUnreadCount(chatId);
 
         return _SubjectGroupCard(
           subject: subject,
-          unreadCount: unreadCount,
+          chatId: chatId,
           onTap: () {
             // Optimistically mark as read so badge clears immediately
             markChatAsRead(chatId);
@@ -261,10 +295,10 @@ class _GroupsListPageState extends State<GroupsListPage>
 
 class _SubjectGroupCard extends StatelessWidget {
   final GroupSubject subject;
-  final int unreadCount;
+  final String chatId;
   final VoidCallback onTap;
 
-  const _SubjectGroupCard({required this.subject, required this.unreadCount, required this.onTap});
+  const _SubjectGroupCard({required this.subject, required this.chatId, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -362,10 +396,16 @@ class _SubjectGroupCard extends StatelessWidget {
           ),
             ),
             // Unread badge at top-right
-            PositionedUnreadBadge(
-              count: unreadCount,
-              rightOffset: 10,
-              topOffset: 10,
+            // Live unread badge
+            Positioned(
+              right: 10,
+              top: 10,
+              child: Consumer<UnreadCountProvider>(
+                builder: (_, provider, __) {
+                  final count = provider.getUnreadCount(chatId);
+                  return UnreadBadge(count: count);
+                },
+              ),
             ),
           ],
         ),

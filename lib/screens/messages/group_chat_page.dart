@@ -18,6 +18,7 @@ import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/unread_count_provider.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 
@@ -74,6 +75,17 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final Map<String, double> _pendingUploadProgress = {};
   // Local media paths for the sender (so they view from disk, no re-download)
   final Map<String, String> _localSenderMediaPaths = {};
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Mark chat as read on open to clear badges immediately
+    try {
+      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+      final chatId = '${widget.classId}|${widget.subjectId}';
+      unread.markChatAsRead(chatId);
+    } catch (_) {}
+  }
 
   // ===== Date helpers for day separators =====
   String _formatDayLabel(DateTime dt) {
