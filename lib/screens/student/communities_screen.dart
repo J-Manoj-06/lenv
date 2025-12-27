@@ -94,10 +94,13 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
     debugPrint('🔄 Loading communities for student: ${student.uid}');
     setState(() => _isLoading = true);
 
-    // Ensure unread provider has user
+    // Ensure unread provider has user (fallback to student uid if Auth not ready)
     try {
       final unread = Provider.of<UnreadCountProvider>(context, listen: false);
-      unread.initialize(student.uid);
+      final uid = studentProvider.currentStudent?.uid;
+      if (uid != null && uid.isNotEmpty) {
+        unread.initialize(uid);
+      }
     } catch (_) {}
 
     final communities = await _communityService.getMyComm(student.uid);
@@ -282,8 +285,6 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
     final theme = Theme.of(context);
     return GestureDetector(
       onTap: () {
-        // Mark as read before navigation
-        markChatAsRead(community.id);
         Navigator.push(
           context,
           MaterialPageRoute(

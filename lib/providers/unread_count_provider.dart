@@ -6,30 +6,30 @@ import '../utils/chat_type_config.dart';
 /// Handles caching and state updates
 class UnreadCountProvider with ChangeNotifier {
   final UnreadCountService _service = UnreadCountService();
-  
+
   // Storage: chatId -> unreadCount
   final Map<String, int> _unreadCounts = {};
-  
+
   // Loading states
   final Set<String> _loadingChats = {};
-  
+
   String? _currentUserId;
-  
+
   /// Initialize with current user ID
   void initialize(String userId) {
     _currentUserId = userId;
   }
-  
+
   /// Get unread count for a specific chat
   int getUnreadCount(String chatId) {
     return _unreadCounts[chatId] ?? 0;
   }
-  
+
   /// Check if count is loading
   bool isLoading(String chatId) {
     return _loadingChats.contains(chatId);
   }
-  
+
   /// Load unread count for a single chat
   /// Non-blocking: shows cached value while loading
   Future<void> loadUnreadCount({
@@ -37,27 +37,34 @@ class UnreadCountProvider with ChangeNotifier {
     required String chatType,
   }) async {
     if (_currentUserId == null) {
-      debugPrint('[UnreadProvider] skip loadUnreadCount (no user) chatId=$chatId type=$chatType');
+      debugPrint(
+        '[UnreadProvider] skip loadUnreadCount (no user) chatId=$chatId type=$chatType',
+      );
       return;
     }
-    
+
     _loadingChats.add(chatId);
     notifyListeners();
-    
+
     try {
       final collection = ChatTypeConfig.getMessagesCollectionPath(
         chatType: chatType,
         chatId: chatId,
       );
-      debugPrint('[UnreadProvider] loadUnreadCount chatId=$chatId type=$chatType collection=$collection user=$_currentUserId');
-      
+      debugPrint(
+        '[UnreadProvider] loadUnreadCount chatId=$chatId type=$chatType collection=$collection user=$_currentUserId',
+      );
+
+      // Force refresh so new messages are counted immediately
+      _service.refreshCache(chatId, _currentUserId!);
       final count = await _service.getUnreadCount(
         userId: _currentUserId!,
         chatId: chatId,
         chatType: chatType,
         messageCollection: collection,
+        forceRefresh: true,
       );
-      
+
       _unreadCounts[chatId] = count;
       debugPrint('[UnreadProvider] loaded count=$count chatId=$chatId');
       notifyListeners();
@@ -68,21 +75,23 @@ class UnreadCountProvider with ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
   /// Load unread counts for multiple chats (batch)
   Future<void> loadUnreadCountsBatch({
     required List<String> chatIds,
     required Map<String, String> chatTypes, // chatId -> chatType
   }) async {
     if (_currentUserId == null || chatIds.isEmpty) {
-      debugPrint('[UnreadProvider] skip batch (user=${_currentUserId ?? 'null'} chatIds=${chatIds.length})');
+      debugPrint(
+        '[UnreadProvider] skip batch (user=${_currentUserId ?? 'null'} chatIds=${chatIds.length})',
+      );
       return;
     }
-    
+
     // Mark all as loading
     _loadingChats.addAll(chatIds);
     notifyListeners();
-    
+
     try {
       // Build collection map
       final collections = <String, String>{};
@@ -95,19 +104,30 @@ class UnreadCountProvider with ChangeNotifier {
           );
         }
       }
-      debugPrint('[UnreadProvider] batch load chatIds=${chatIds.length} collections=${collections.length} user=$_currentUserId');
-      
-      // Fetch batch
+      debugPrint(
+        '[UnreadProvider] batch load chatIds=${chatIds.length} collections=${collections.length} user=$_currentUserId',
+      );
+      debugPrint('[UnreadProvider] chatIds: ${chatIds.join(", ")}');
+
+      // Clear caches for these chats to avoid stale zeros
+      for (final id in chatIds) {
+        _service.refreshCache(id, _currentUserId!);
+      }
+
+      // Fetch batch (force refresh inside service)
       final counts = await _service.getUnreadCountsBatch(
         userId: _currentUserId!,
         chatIds: chatIds,
         chatTypesMap: chatTypes,
         messageCollectionsMap: collections,
+        forceRefresh: true,
       );
-      
+
       // Update cache
       _unreadCounts.addAll(counts);
-      debugPrint('[UnreadProvider] batch counts loaded: ${counts.entries.map((e) => '${e.key}:${e.value}').join(', ')}');
+      debugPrint(
+        '[UnreadProvider] batch counts loaded: ${counts.entries.map((e) => '${e.key}:${e.value}').join(', ')}',
+      );
       notifyListeners();
     } catch (e) {
       print('⚠️ Error loading batch counts: $e');
@@ -116,43 +136,44 @@ class UnreadCountProvider with ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
   /// Mark chat as read (safe operation)
   Future<void> markChatAsRead(String chatId) async {
     if (_currentUserId == null) return;
-    
+
     // Immediately clear badge (optimistic)
     _unreadCounts[chatId] = 0;
     notifyListeners();
-    
+
     // Update Firestore (non-blocking)
-    _service.markChatAsRead(
-      userId: _currentUserId!,
-      chatId: chatId,
-    ).catchError((e) {
-      print('⚠️ Error marking chat as read: $e');
-      // If fails, next load will fix it
-    });
+    _service.markChatAsRead(userId: _currentUserId!, chatId: chatId).catchError(
+      (e) {
+        print('⚠️ Error marking chat as read: $e');
+        // If fails, next load will fix it
+      },
+    );
   }
-  
+
   /// Refresh specific chat's count
   void refreshChat(String chatId) {
     _service.refreshCache(chatId, _currentUserId ?? '');
-    _unreadCounts.remove(chatId);
+    // Do not remove local count to avoid badge disappearing/flicker
+    // Next load will overwrite with fresh value
+    notifyListeners();
   }
-  
+
   /// Refresh all unread counts
   void refreshAll() {
     _service.clearCache();
     _unreadCounts.clear();
     notifyListeners();
   }
-  
+
   /// Get total unread count across all chats
   int getTotalUnreadCount() {
     return _unreadCounts.values.fold(0, (a, b) => a + b);
   }
-  
+
   /// Get all unread chat IDs
   List<String> getUnreadChatIds() {
     return _unreadCounts.entries
@@ -160,7 +181,7 @@ class UnreadCountProvider with ChangeNotifier {
         .map((e) => e.key)
         .toList();
   }
-  
+
   /// Clear all on logout
   void logout() {
     _unreadCounts.clear();
@@ -169,7 +190,7 @@ class UnreadCountProvider with ChangeNotifier {
     _service.clearCache();
     notifyListeners();
   }
-  
+
   @override
   void dispose() {
     _service.clearCache();

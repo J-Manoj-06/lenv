@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/unread_count_provider.dart';
+import '../../utils/chat_type_config.dart';
+import '../../widgets/unread_badge_widget.dart';
 import '../messages/group_chat_page.dart';
 
 class StudentGroupsScreen extends StatefulWidget {
@@ -22,6 +25,18 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
     super.initState();
     // ✅ NEW: Ensure auth is initialized before loading data
     _initializeAndLoad();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload unread counts when returning from chat
+    if (_classData != null) {
+      _prefetchUnreadCountsForSubjects(
+        classId: _classData!['id'] as String,
+        subjects: _classData!['subjects'] as List<dynamic>?,
+      );
+    }
   }
 
   /// Initialize auth and load class data
@@ -63,6 +78,12 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
         });
         return;
       }
+
+      // Ensure unread provider is ready for this user so badges work
+      Provider.of<UnreadCountProvider>(
+        context,
+        listen: false,
+      ).initialize(currentUser.uid);
 
       // Get student data to find their class and section
       final studentDoc = await _firestore
@@ -119,6 +140,12 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
       print('✅ Found class: ${classDoc.id}');
       print('📚 Subjects: ${classData['subjects']}');
       print('👨‍🏫 Teachers: ${classData['subjectTeachers']}');
+
+      // Prime unread badges for all subjects in one batch so list shows counts
+      await _prefetchUnreadCountsForSubjects(
+        classId: classDoc.id,
+        subjects: classData['subjects'] as List<dynamic>?,
+      );
 
       setState(() {
         _classData = classData;
@@ -334,13 +361,10 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
                         as Map<String, dynamic>?;
                 final teacherName =
                     teacherData?['teacherName'] as String? ?? 'Teacher';
-                final teacherId = teacherData?['teacherId'] as String? ?? '';
-
                 return _buildSubjectCard(
                   context,
                   subject,
                   teacherName,
-                  teacherId,
                   classId,
                   isDark,
                 );
@@ -352,14 +376,52 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
     );
   }
 
+  Future<void> _prefetchUnreadCountsForSubjects({
+    required String classId,
+    required List<dynamic>? subjects,
+  }) async {
+    if (subjects == null || subjects.isEmpty) {
+      print('⚠️ No subjects to prefetch unread counts for');
+      return;
+    }
+
+    final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+
+    // Build chatIds and types for batch loader
+    final chatIds = <String>[];
+    final chatTypes = <String, String>{};
+
+    for (final subject in subjects) {
+      if (subject is! String || subject.isEmpty) continue;
+      final subjectId = subject.toLowerCase().replaceAll(' ', '_');
+      final chatId = '$classId|$subjectId';
+      chatIds.add(chatId);
+      chatTypes[chatId] = ChatTypeConfig.groupChat;
+    }
+
+    print(
+      '🔢 Prefetching unread counts for ${chatIds.length} subjects: ${chatIds.join(", ")}',
+    );
+    await unread.loadUnreadCountsBatch(chatIds: chatIds, chatTypes: chatTypes);
+    print('✅ Unread counts prefetched');
+  }
+
   Widget _buildSubjectCard(
     BuildContext context,
     String subject,
     String teacherName,
-    String teacherId,
     String classId,
     bool isDark,
   ) {
+    final unread = Provider.of<UnreadCountProvider>(context);
+    final subjectId = subject.toLowerCase().replaceAll(' ', '_');
+    final chatId = '$classId|$subjectId';
+    final unreadCount = unread.getUnreadCount(chatId);
+
+    print(
+      '🔔 Badge check - Subject: $subject, ChatId: $chatId, Count: $unreadCount',
+    );
+
     final icon = _getSubjectIcon(subject);
     final color = _getSubjectColor(subject);
 
@@ -382,8 +444,9 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Navigator.push(
+          onTap: () async {
+            // Navigate to chat and wait for return
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => GroupChatPage(
@@ -395,6 +458,21 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
                 ),
               ),
             );
+
+            // Force refresh unread counts when returning from chat
+            print('🔄 Returned from chat, refreshing unread counts');
+            if (mounted) {
+              final unreadProvider = Provider.of<UnreadCountProvider>(
+                context,
+                listen: false,
+              );
+              final refreshChatId =
+                  '$classId|${subject.toLowerCase().replaceAll(' ', '_')}';
+              await unreadProvider.loadUnreadCount(
+                chatId: refreshChatId,
+                chatType: ChatTypeConfig.groupChat,
+              );
+            }
           },
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -452,6 +530,10 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          if (unreadCount > 0) ...[
+                            const SizedBox(width: 8),
+                            InlineUnreadBadge(count: unreadCount),
+                          ],
                         ],
                       ),
                     ],

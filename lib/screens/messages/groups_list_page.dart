@@ -121,13 +121,15 @@ class _GroupsListPageState extends State<GroupsListPage>
     _hasAttemptedLoad = true;
 
     try {
-      // Ensure unread provider has user
+      // Ensure unread provider has user (fallback to studentId if Auth not ready)
       try {
+        final unread = Provider.of<UnreadCountProvider>(context, listen: false);
         final auth = Provider.of<AuthProvider>(context, listen: false);
         final uid = auth.currentUser?.uid;
-        if (uid != null) {
-          final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+        if (uid != null && uid.isNotEmpty) {
           unread.initialize(uid);
+        } else if (widget.studentId.isNotEmpty) {
+          unread.initialize(widget.studentId);
         }
       } catch (_) {}
 
@@ -339,8 +341,6 @@ class _GroupsListPageState extends State<GroupsListPage>
           subject: subject,
           chatId: chatId,
           onTap: () {
-            // Optimistically mark as read so badge clears immediately
-            markChatAsRead(chatId);
             Navigator.push(
               context,
               MaterialPageRoute(

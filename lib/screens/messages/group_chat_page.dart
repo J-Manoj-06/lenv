@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
@@ -75,16 +76,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final Map<String, double> _pendingUploadProgress = {};
   // Local media paths for the sender (so they view from disk, no re-download)
   final Map<String, String> _localSenderMediaPaths = {};
-  
+  // Stream lastReadAt dynamically for real-time splitter updates
+  late Stream<Timestamp?> _lastReadAtStream;
+  bool _initializedFirstSnapshot = false;
+  String? _lastIncomingTopMessageId;
+  DateTime _lastSoundPlayedAt = DateTime.fromMillisecondsSinceEpoch(0);
+  final Duration _soundDebounce = const Duration(milliseconds: 500);
+  // Show unread split inside chat to aid context (user requested)
+  final bool _showUnreadDivider = true;
+  DateTime _lastMarkedReadAt = DateTime.fromMillisecondsSinceEpoch(0);
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Mark chat as read on open to clear badges immediately
-    try {
-      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
-      final chatId = '${widget.classId}|${widget.subjectId}';
-      unread.markChatAsRead(chatId);
-    } catch (_) {}
   }
 
   // ===== Date helpers for day separators =====
@@ -118,6 +122,134 @@ class _GroupChatPageState extends State<GroupChatPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildUnreadDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: const [
+          Expanded(child: Divider(color: Color(0x339E9E9E), thickness: 1)),
+          SizedBox(width: 8),
+          Text(
+            'Unread messages',
+            style: TextStyle(
+              color: Color(0xFFFF8800),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(width: 8),
+          Expanded(child: Divider(color: Color(0x339E9E9E), thickness: 1)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageList(
+    List<GroupChatMessage> messages,
+    int lastReadMs,
+    String? currentUserId,
+  ) {
+    return ListView.builder(
+      controller: _scrollController,
+      reverse: true,
+      padding: const EdgeInsets.all(16),
+      itemCount: messages.length,
+      itemBuilder: (context, index) {
+        final message = messages[index];
+        final isMe = message.senderId == currentUserId;
+        final isSelected = _selectedMessages.contains(message.id);
+        final isPending =
+            message.id.startsWith('pending:') ||
+            (message.mediaMetadata?.r2Key.startsWith('pending/') ?? false);
+        final uploadProgress = isPending
+            ? _pendingUploadProgress[message.mediaMetadata?.messageId]
+            : null;
+
+        // Show a day divider above the first message of each day.
+        // List is reverse + sorted desc, so the "next" item (index+1)
+        // is the previous day in the vertical order.
+        final currentDate = DateTime.fromMillisecondsSinceEpoch(
+          message.timestamp,
+        );
+        final isOldest = index == messages.length - 1;
+        final nextDate = isOldest
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(
+                messages[index + 1].timestamp,
+              );
+        final showDayDivider =
+            isOldest ||
+            _formatDayLabel(currentDate) != _formatDayLabel(nextDate!);
+
+        // Determine unread divider placement
+        final isUnread = message.timestamp > lastReadMs;
+        final shouldShowUnreadDivider =
+            _showUnreadDivider &&
+            !isUnread &&
+            index > 0 &&
+            messages[index - 1].timestamp > lastReadMs;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (shouldShowUnreadDivider) _buildUnreadDivider(),
+            if (showDayDivider) _buildDayDivider(currentDate),
+            GestureDetector(
+              key: ValueKey('msg-${message.id}'),
+              onLongPress: () {
+                setState(() {
+                  _isSelectionMode = true;
+                  _selectedMessages.add(message.id);
+                });
+              },
+              onTap: _isSelectionMode
+                  ? () {
+                      setState(() {
+                        if (isSelected) {
+                          _selectedMessages.remove(message.id);
+                          if (_selectedMessages.isEmpty) {
+                            _isSelectionMode = false;
+                          }
+                        } else {
+                          _selectedMessages.add(message.id);
+                        }
+                      });
+                    }
+                  : null,
+              child: Row(
+                children: [
+                  if (_isSelectionMode)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        isSelected
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        color: isSelected
+                            ? const Color(0xFFFFA929)
+                            : Colors.grey,
+                        size: 24,
+                      ),
+                    ),
+                  Expanded(
+                    child: _MessageBubble(
+                      message: message,
+                      isMe: isMe,
+                      uploading: isPending,
+                      uploadProgress: uploadProgress,
+                      localSenderMediaPaths: _localSenderMediaPaths,
+                      key: ValueKey('bubble-${message.id}'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -162,12 +294,52 @@ class _GroupChatPageState extends State<GroupChatPage> {
           'https://whatsapp-media-worker.giridharannj.workers.dev', // TODO: Update with actual worker URL
     );
 
-    // Mark as read when entering chat
+    // Set up stream to track lastReadAt in real-time
+    _setupLastReadStream();
+
+    // Mark as read on entry so splitter can detect read messages
     _markAsRead();
+
     // Scroll to bottom on initial load
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToBottom(force: true),
     );
+  }
+
+  void _setupLastReadStream() {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) return;
+      final chatId = '${widget.classId}|${widget.subjectId}';
+
+      print(
+        '📖 Setting up lastReadAt stream for chatId: $chatId, user: ${currentUser.uid}',
+      );
+
+      _lastReadAtStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('chatReads')
+          .doc(chatId)
+          .snapshots()
+          .map((doc) {
+            if (doc.exists && doc.data() != null && doc['lastReadAt'] != null) {
+              final timestamp = doc['lastReadAt'] as Timestamp;
+              print('📖 lastReadAt updated: ${timestamp.toDate()}');
+              return timestamp;
+            }
+            print('📖 No lastReadAt found, using default (30 days ago)');
+            return Timestamp.fromDate(
+              DateTime.now().subtract(const Duration(days: 30)),
+            );
+          });
+    } catch (e) {
+      // Fallback to static stream
+      _lastReadAtStream = Stream.value(
+        Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 30))),
+      );
+    }
   }
 
   Future<void> _markAsRead() async {
@@ -175,26 +347,73 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       if (currentUser != null) {
+        final chatId = '${widget.classId}|${widget.subjectId}';
+        print('✅ Marking chat as read: $chatId');
+
+        // Update centralized unread tracker (this updates Firestore)
+        await _markChatAsReadForUser();
+
+        // Update legacy group doc for backward compatibility
         await _messagingService.markGroupAsRead(
           widget.classId,
           widget.subjectId,
           currentUser.uid,
         );
+
+        print('✅ Chat marked as read successfully');
       }
     } catch (e) {
-      print('Error marking as read: $e');
+      print('❌ Error marking as read: $e');
     }
+  }
+
+  Future<void> _markChatAsReadForUser() async {
+    try {
+      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+      final chatId = '${widget.classId}|${widget.subjectId}';
+      await unread.markChatAsRead(chatId);
+    } catch (e) {
+      print('❌ Error marking chat read in provider: $e');
+    }
+  }
+
+  void _maybeMarkAsRead(int lastReadMs, List<GroupChatMessage> messages) {
+    if (messages.isEmpty) return;
+
+    final newestTimestamp = messages.first.timestamp;
+    // If already read, no need to mark again
+    if (newestTimestamp <= lastReadMs) return;
+
+    // Check if user is near bottom (actively viewing latest messages)
+    final nearBottom =
+        !_scrollController.hasClients || _scrollController.offset < 120;
+    if (!nearBottom) return;
+
+    // Debounce to avoid excessive writes
+    final now = DateTime.now();
+    if (now.difference(_lastMarkedReadAt) < const Duration(milliseconds: 800))
+      return;
+
+    print('🔔 Auto-marking as read (user at bottom, unread messages present)');
+    _lastMarkedReadAt = now;
+    // Mark as read asynchronously without waiting
+    _markChatAsReadForUser().catchError((e) {
+      print('⚠️ Auto mark-as-read failed: $e');
+    });
   }
 
   @override
   void dispose() {
-    // Mark chat as read when leaving to prevent self-unread badges
+    // Final mark as read when leaving to ensure badge clears
     try {
       final unread = Provider.of<UnreadCountProvider>(context, listen: false);
       final chatId = '${widget.classId}|${widget.subjectId}';
+      print('👋 Exiting chat, final mark as read: $chatId');
       unread.markChatAsRead(chatId);
-    } catch (_) {}
-    
+    } catch (e) {
+      print('⚠️ Error in dispose mark-as-read: $e');
+    }
+
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
@@ -374,9 +593,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       setState(() => _isUploading = false);
       // On failure, clear pending message if any
       setState(() {
-        _pendingMessages.removeWhere(
-          (m) => m.id.startsWith('pending:'),
-        );
+        _pendingMessages.removeWhere((m) => m.id.startsWith('pending:'));
         // Clear any progress tracked
         _pendingUploadProgress.clear();
       });
@@ -547,10 +764,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final mime = ext == 'mp3'
           ? 'audio/mpeg'
           : ext == 'm4a'
-              ? 'audio/aac'
-              : ext == 'wav'
-                  ? 'audio/wav'
-                  : 'audio/aac';
+          ? 'audio/aac'
+          : ext == 'wav'
+          ? 'audio/wav'
+          : 'audio/aac';
       final pendingMetadata = MediaMetadata(
         messageId: messageId,
         r2Key: 'pending/$messageId',
@@ -563,7 +780,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
         uploadedAt: DateTime.now(),
         fileSize: await file.length(),
         mimeType: mime,
-        originalFileName: file.uri.pathSegments.isNotEmpty ? file.uri.pathSegments.last : null,
+        originalFileName: file.uri.pathSegments.isNotEmpty
+            ? file.uri.pathSegments.last
+            : null,
       );
       final pendingMsg = GroupChatMessage(
         id: 'pending:$messageId',
@@ -600,7 +819,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       setState(() => _isUploading = false);
 
       final r2Key = _extractR2Key(mediaMessage.r2Url);
-      
+
       // Copy the picked audio file to app directory so sender can play immediately
       String? cachedPath;
       try {
@@ -609,7 +828,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         if (!await cacheDir.exists()) {
           await cacheDir.create(recursive: true);
         }
-        
+
         final fileName = r2Key.split('/').last;
         final cachedFile = File('${cacheDir.path}/$fileName');
         await file.copy(cachedFile.path);
@@ -618,7 +837,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       } catch (e) {
         print('⚠️ Failed to cache audio: $e');
       }
-      
+
       final metadata = MediaMetadata(
         messageId: mediaMessage.id,
         r2Key: r2Key,
@@ -691,9 +910,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
         serverStatus: ServerStatus.available,
         expiresAt: DateTime.now().add(const Duration(days: 365)),
         uploadedAt: DateTime.now(),
-        fileSize: _recordingPath != null ? await File(_recordingPath!).length() : null,
+        fileSize: _recordingPath != null
+            ? await File(_recordingPath!).length()
+            : null,
         mimeType: 'audio/aac',
-        originalFileName: _recordingPath != null ? Uri.file(_recordingPath!).pathSegments.last : null,
+        originalFileName: _recordingPath != null
+            ? Uri.file(_recordingPath!).pathSegments.last
+            : null,
       );
       final pendingMsg = GroupChatMessage(
         id: 'pending:$messageId',
@@ -732,7 +955,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       );
 
       final r2Key = _extractR2Key(mediaMessage.r2Url);
-      
+
       // Copy the recorded audio to app directory so sender can play immediately
       String? cachedPath;
       try {
@@ -741,7 +964,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         if (!await cacheDir.exists()) {
           await cacheDir.create(recursive: true);
         }
-        
+
         final fileName = r2Key.split('/').last;
         final cachedFile = File('${cacheDir.path}/$fileName');
         await File(_recordingPath!).copy(cachedFile.path);
@@ -751,7 +974,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         print('⚠️ Failed to cache audio: $e');
         // Continue anyway - user will download if needed
       }
-      
+
       final metadata = MediaMetadata(
         messageId: mediaMessage.id,
         r2Key: r2Key,
@@ -854,8 +1077,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
     // Hide bottom bar entirely while any media is uploading (image/pdf/audio)
     if (_isUploading &&
         (_uploadingMediaType == 'image' ||
-         _uploadingMediaType == 'pdf' ||
-         _uploadingMediaType == 'audio')) {
+            _uploadingMediaType == 'pdf' ||
+            _uploadingMediaType == 'audio')) {
       return const SizedBox();
     }
     if (_recordingPath == null && !_isUploading) return const SizedBox();
@@ -1009,19 +1232,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             const SizedBox(height: 2),
                             Text(
                               widget.className != null && widget.section != null
-                            ? '${widget.className} - Section ${widget.section}'
-                            : widget.teacherName,
-                        style: TextStyle(
-                          color: theme.textTheme.bodySmall?.color,
-                          fontSize: 12,
+                                  ? '${widget.className} - Section ${widget.section}'
+                                  : widget.teacherName,
+                              style: TextStyle(
+                                color: theme.textTheme.bodySmall?.color,
+                                fontSize: 12,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
             actions: _isSelectionMode
                 ? [
                     IconButton(
@@ -1030,8 +1253,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         color: Colors.redAccent,
                         size: 24,
                       ),
-                      onPressed:
-                          _selectedMessages.isEmpty ? null : _showDeleteDialog,
+                      onPressed: _selectedMessages.isEmpty
+                          ? null
+                          : _showDeleteDialog,
                     ),
                   ]
                 : null,
@@ -1072,42 +1296,63 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
                     // Filter out messages deleted by current user
                     var messages = snapshot.data!
-                      .where((m) =>
-                        !(m.deletedFor?.contains(currentUserId) ?? false))
-                      .toList();
+                        .where(
+                          (m) =>
+                              !(m.deletedFor?.contains(currentUserId) ?? false),
+                        )
+                        .toList();
 
                     // Merge optimistic pending messages
                     // Dedupe using mediaMetadata.messageId when available
                     final deliveredIds = messages
-                      .map((m) => m.mediaMetadata?.messageId)
-                      .where((id) => id != null)
-                      .cast<String>()
-                      .toSet();
+                        .map((m) => m.mediaMetadata?.messageId)
+                        .where((id) => id != null)
+                        .cast<String>()
+                        .toSet();
 
                     final pendingVisible = _pendingMessages
-                      .where((m) =>
-                        m.mediaMetadata?.messageId == null ||
-                        !deliveredIds
-                          .contains(m.mediaMetadata!.messageId))
-                      .toList();
+                        .where(
+                          (m) =>
+                              m.mediaMetadata?.messageId == null ||
+                              !deliveredIds.contains(
+                                m.mediaMetadata!.messageId,
+                              ),
+                        )
+                        .toList();
 
-                    messages = [
-                      ...pendingVisible,
-                      ...messages,
-                    ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+                    messages = [...pendingVisible, ...messages]
+                      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
                     print(
                       '🧭 Messages snapshot: count=${messages.length}, newestId=${messages.isNotEmpty ? messages.first.id : 'none'}',
                     );
 
                     // Auto-scroll when a new newest message arrives (keep latest in view)
-                    final newestId = messages.isNotEmpty ? messages.first.id : null;
+                    final newestId = messages.isNotEmpty
+                        ? messages.first.id
+                        : null;
                     if (newestId != null && newestId != _lastTopMessageId) {
                       _lastTopMessageId = newestId;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         print('🧭 Auto-scroll to latest for id: $newestId');
                         _scrollToLatest();
                       });
+                      // Play subtle pop for new incoming messages (not self, not pending)
+                      final newestMsg = messages.first;
+                      final isIncoming =
+                          newestMsg.senderId != currentUserId &&
+                          !(newestMsg.id.startsWith('pending:'));
+                      final now = DateTime.now();
+                      if (_initializedFirstSnapshot &&
+                          isIncoming &&
+                          now.difference(_lastSoundPlayedAt) > _soundDebounce &&
+                          _lastIncomingTopMessageId != newestId) {
+                        _lastIncomingTopMessageId = newestId;
+                        _lastSoundPlayedAt = now;
+                        SystemSound.play(SystemSoundType.click);
+                      }
+                      // Avoid playing sound on the very first snapshot
+                      _initializedFirstSnapshot = true;
                     }
 
                     if (messages.isEmpty) {
@@ -1120,88 +1365,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       );
                     }
 
-                    return ListView.builder(
-                      controller: _scrollController,
-                      reverse: true,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        final message = messages[index];
-                        final isMe = message.senderId == currentUserId;
-                        final isSelected = _selectedMessages.contains(message.id);
-                        final isPending = message.id.startsWith('pending:') ||
-                            (message.mediaMetadata?.r2Key.startsWith('pending/') ?? false);
-                        final uploadProgress = isPending
-                            ? _pendingUploadProgress[message.mediaMetadata?.messageId]
-                            : null;
-
-                        // Show a day divider above the first message of each day.
-                        // List is reverse + sorted desc, so the "next" item (index+1)
-                        // is the previous day in the vertical order.
-                        final currentDate = DateTime.fromMillisecondsSinceEpoch(message.timestamp);
-                        final isOldest = index == messages.length - 1;
-                        final nextDate = isOldest
-                            ? null
-                            : DateTime.fromMillisecondsSinceEpoch(messages[index + 1].timestamp);
-                        final showDayDivider = isOldest ||
-                            _formatDayLabel(currentDate) != _formatDayLabel(nextDate!);
-
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (showDayDivider) _buildDayDivider(currentDate),
-                            GestureDetector(
-                              key: ValueKey('msg-${message.id}'),
-                              onLongPress: () {
-                                setState(() {
-                                  _isSelectionMode = true;
-                                  _selectedMessages.add(message.id);
-                                });
-                              },
-                              onTap: _isSelectionMode
-                                  ? () {
-                                      setState(() {
-                                        if (isSelected) {
-                                          _selectedMessages.remove(message.id);
-                                          if (_selectedMessages.isEmpty) {
-                                            _isSelectionMode = false;
-                                          }
-                                        } else {
-                                          _selectedMessages.add(message.id);
-                                        }
-                                      });
-                                    }
-                                  : null,
-                              child: Row(
-                                children: [
-                                  if (_isSelectionMode)
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 8),
-                                      child: Icon(
-                                        isSelected
-                                            ? Icons.check_circle
-                                            : Icons.radio_button_unchecked,
-                                        color: isSelected
-                                            ? const Color(0xFFFFA929)
-                                            : Colors.grey,
-                                        size: 24,
-                                      ),
-                                    ),
-                                  Expanded(
-                                    child: _MessageBubble(
-                                      message: message,
-                                      isMe: isMe,
-                                      uploading: isPending,
-                                      uploadProgress: uploadProgress,
-                                      localSenderMediaPaths: _localSenderMediaPaths,
-                                      key: ValueKey('bubble-${message.id}'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Divider shown above the day's first message
-                          ],
+                    return StreamBuilder<Timestamp?>(
+                      stream: _lastReadAtStream,
+                      builder: (context, readSnapshot) {
+                        final lastReadMs =
+                            readSnapshot.data
+                                ?.toDate()
+                                .millisecondsSinceEpoch ??
+                            0;
+                        _maybeMarkAsRead(lastReadMs, messages);
+                        return _buildMessageList(
+                          messages,
+                          lastReadMs,
+                          currentUserId,
                         );
                       },
                     );
@@ -1362,89 +1538,86 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     onTap: () async {
                       if (hasText && !_isUploading) {
                         _sendMessage();
-                      } else if (!_isRecording &&
-                          !hasText &&
-                          !_isUploading) {
-                    // Single tap to start recording
-                    final hasPermission = await _audioRecorder.hasPermission();
-                    if (!hasPermission) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Microphone permission denied. Please enable it in Settings.',
-                            ),
-                          ),
+                      } else if (!_isRecording && !hasText && !_isUploading) {
+                        // Single tap to start recording
+                        final hasPermission = await _audioRecorder
+                            .hasPermission();
+                        if (!hasPermission) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Microphone permission denied. Please enable it in Settings.',
+                                ),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+                        final tempDir = await getTemporaryDirectory();
+                        final path =
+                            '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                        await _audioRecorder.start(
+                          const RecordConfig(encoder: AudioEncoder.aacLc),
+                          path: path,
+                        );
+                        setState(() {
+                          _isRecording = true;
+                          _recordingPath = path;
+                          _recordingDuration.value = 0;
+                          _slideOffsetX = 0;
+                          _isCancelled = false;
+                        });
+                        _recordingTimer = Timer.periodic(
+                          const Duration(seconds: 1),
+                          (_) {
+                            _recordingDuration.value++;
+                          },
                         );
                       }
-                      return;
-                    }
-                    final tempDir = await getTemporaryDirectory();
-                    final path =
-                        '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-                    await _audioRecorder.start(
-                      const RecordConfig(encoder: AudioEncoder.aacLc),
-                      path: path,
-                    );
-                    setState(() {
-                      _isRecording = true;
-                      _recordingPath = path;
-                      _recordingDuration.value = 0;
-                      _slideOffsetX = 0;
-                      _isCancelled = false;
-                    });
-                    _recordingTimer = Timer.periodic(
-                      const Duration(seconds: 1),
-                      (_) {
-                        _recordingDuration.value++;
-                      },
-                    );
-                  }
-                },
-                onHorizontalDragUpdate: (details) {
-                  if (!_isRecording) return;
-                  setState(() {
-                    _slideOffsetX += details.delta.dx;
-                    _isCancelled = _slideOffsetX < -80;
-                  });
-                },
-                onHorizontalDragEnd: (details) {
-                  if (!_isRecording) return;
-                  if (_isCancelled) {
-                    _deleteRecording();
-                  }
-                  setState(() {
-                    _slideOffsetX = 0;
-                    _isCancelled = false;
-                  });
-                },
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: _isRecording
-                        ? theme.colorScheme.error
-                        : const Color(0xFFF2800D),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFF2800D).withOpacity(0.18),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
+                    },
+                    onHorizontalDragUpdate: (details) {
+                      if (!_isRecording) return;
+                      setState(() {
+                        _slideOffsetX += details.delta.dx;
+                        _isCancelled = _slideOffsetX < -80;
+                      });
+                    },
+                    onHorizontalDragEnd: (details) {
+                      if (!_isRecording) return;
+                      if (_isCancelled) {
+                        _deleteRecording();
+                      }
+                      setState(() {
+                        _slideOffsetX = 0;
+                        _isCancelled = false;
+                      });
+                    },
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: _isRecording
+                            ? theme.colorScheme.error
+                            : const Color(0xFFF2800D),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFF2800D).withOpacity(0.18),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: Icon(
-                    _isRecording
-                        ? Icons.mic
-                        : (hasText
-                              ? Icons.send_rounded
-                              : Icons.mic),
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-              );
+                      child: Icon(
+                        _isRecording
+                            ? Icons.mic
+                            : (hasText ? Icons.send_rounded : Icons.mic),
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  );
                 },
               ),
             ],
@@ -1514,7 +1687,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
               .delete();
         } else {
           // Delete for me only - mark as deleted for this user
-          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final authProvider = Provider.of<AuthProvider>(
+            context,
+            listen: false,
+          );
           final currentUserId = authProvider.currentUser?.uid;
           if (currentUserId != null) {
             await FirebaseFirestore.instance
@@ -1525,8 +1701,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 .collection('messages')
                 .doc(messageId)
                 .update({
-              'deletedFor': FieldValue.arrayUnion([currentUserId]),
-            });
+                  'deletedFor': FieldValue.arrayUnion([currentUserId]),
+                });
           }
         }
       }
@@ -1540,9 +1716,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              deleteForEveryone
-                  ? 'Deleted for everyone'
-                  : 'Deleted for you',
+              deleteForEveryone ? 'Deleted for everyone' : 'Deleted for you',
             ),
             backgroundColor: const Color(0xFF4CAF50),
           ),
@@ -1566,9 +1740,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Delete Messages',
           style: TextStyle(color: Colors.white),
@@ -1600,10 +1772,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.grey),
-            ),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
         ],
       ),
