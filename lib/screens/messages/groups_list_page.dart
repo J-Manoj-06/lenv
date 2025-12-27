@@ -380,9 +380,7 @@ class _SubjectGroupCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
-      child: Stack(
-        children: [
-          Container(
+      child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: theme.cardColor,
@@ -426,6 +424,7 @@ class _SubjectGroupCard extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     subject.name,
@@ -434,6 +433,8 @@ class _SubjectGroupCard extends StatelessWidget {
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -445,6 +446,8 @@ class _SubjectGroupCard extends StatelessWidget {
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -453,35 +456,30 @@ class _SubjectGroupCard extends StatelessWidget {
                       color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                       fontSize: 12,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
 
-            // Arrow Icon
-            Icon(
-              Icons.arrow_forward_ios,
-              color: theme.iconTheme.color?.withOpacity(0.35),
-              size: 18,
-            ),
-          ],
-          ),
-            ),
-            // Unread badge at top-right
-            // Live unread badge
-            Positioned(
-              right: 10,
-              top: 10,
-              child: Consumer<UnreadCountProvider>(
-                builder: (_, provider, __) {
-                  final count = provider.getUnreadCount(chatId);
-                  debugPrint('[GroupsList] badge chatId=$chatId count=$count');
-                  return UnreadBadge(count: count);
-                },
+            // Fixed width container for badge to prevent layout shift
+            SizedBox(
+              width: 56,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Consumer<UnreadCountProvider>(
+                  builder: (_, provider, __) {
+                    final count = provider.getUnreadCount(chatId);
+                    debugPrint('[GroupsList] badge chatId=$chatId count=$count');
+                    return UnreadBadge(count: count);
+                  },
+                ),
               ),
             ),
           ],
         ),
+      ),
     );
   }
 }
