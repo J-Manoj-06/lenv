@@ -8,6 +8,7 @@ import '../../widgets/unread_badge_widget.dart';
 import '../../models/group_subject.dart';
 import '../../services/group_messaging_service.dart';
 import 'group_chat_page.dart';
+import '../../providers/auth_provider.dart';
 
 class GroupsListPage extends StatefulWidget {
   final String studentId;
@@ -89,6 +90,12 @@ class _GroupsListPageState extends State<GroupsListPage>
           // Update timestamp and resort immediately
           _lastMessageTs[chatId] = newTs;
           _resortGroups();
+
+          // Refresh unread count for this chat
+          try {
+            final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+            unread.loadUnreadCount(chatId: chatId, chatType: ChatTypeConfig.groupChat);
+          } catch (_) {}
         }
       },
       onError: (e) => print('Error listening to messages for $chatId: $e'),
@@ -114,6 +121,16 @@ class _GroupsListPageState extends State<GroupsListPage>
     _hasAttemptedLoad = true;
 
     try {
+      // Ensure unread provider has user
+      try {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        final uid = auth.currentUser?.uid;
+        if (uid != null) {
+          final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+          unread.initialize(uid);
+        }
+      } catch (_) {}
+
       // Use studentId directly (already authenticated from AuthProvider)
       final studentUid = widget.studentId;
 
@@ -200,6 +217,12 @@ class _GroupsListPageState extends State<GroupsListPage>
           });
         });
       }
+
+      // Cancel old listeners before setting up new ones
+      for (final listener in _messageListeners.values) {
+        listener?.cancel?.call();
+      }
+      _messageListeners.clear();
 
       // Set up real-time listeners for all subjects to resort on new messages
       for (final s in subjects) {
@@ -452,6 +475,7 @@ class _SubjectGroupCard extends StatelessWidget {
               child: Consumer<UnreadCountProvider>(
                 builder: (_, provider, __) {
                   final count = provider.getUnreadCount(chatId);
+                  debugPrint('[GroupsList] badge chatId=$chatId count=$count');
                   return UnreadBadge(count: count);
                 },
               ),

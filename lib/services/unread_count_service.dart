@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/chat_type_config.dart';
 
@@ -51,18 +52,40 @@ class UnreadCountService {
           ? lastReadAt.toDate().millisecondsSinceEpoch
           : lastReadAt;
       
-      // Query unread messages (count only)
-      final query = _firestore
+      // Count all unread messages
+      final totalSnapshot = await _firestore
           .collection(messageCollection)
-          .where(fieldName, isGreaterThan: compareValue);
-      
-      final snapshot = await query.count().get();
-      final count = snapshot.count ?? 0;
+          .where(fieldName, isGreaterThan: compareValue)
+          .count()
+          .get();
+      final totalCount = totalSnapshot.count ?? 0;
+
+      // Count messages sent by current user in the unread window, then subtract
+      int selfCount = 0;
+      // Try common sender field names
+      for (final senderField in ['senderId', 'senderUid', 'senderID', 'sender']) {
+        try {
+          final selfSnapshot = await _firestore
+              .collection(messageCollection)
+              .where(fieldName, isGreaterThan: compareValue)
+              .where(senderField, isEqualTo: userId)
+              .count()
+              .get();
+          selfCount = selfSnapshot.count ?? 0;
+          break; // stop after first successful field
+        } catch (_) {
+          continue;
+        }
+      }
+
+      final count = totalCount - selfCount;
+      final safeCount = count < 0 ? 0 : count;
+      debugPrint('[UnreadService] chatId=$chatId type=$chatType collection=$messageCollection lastRead=$compareValue total=$totalCount self=$selfCount final=$safeCount');
       
       // Cache the result
-      _unreadCache[cacheKey] = count;
+      _unreadCache[cacheKey] = safeCount;
       
-      return count;
+      return safeCount;
     } catch (e) {
       print('⚠️ Error getting unread count for $chatId: $e');
       return 0; // Fail gracefully

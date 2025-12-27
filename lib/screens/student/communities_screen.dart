@@ -58,6 +58,12 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
           // Update timestamp and resort immediately
           _lastMessageTs[communityId] = newTs;
           _resortCommunities();
+
+          // Refresh unread count for this community
+          try {
+            final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+            unread.loadUnreadCount(chatId: communityId, chatType: ChatTypeConfig.communityChat);
+          } catch (_) {}
         }
       },
       onError: (e) => print('Error listening to messages for community $communityId: $e'),
@@ -87,6 +93,12 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
 
     debugPrint('🔄 Loading communities for student: ${student.uid}');
     setState(() => _isLoading = true);
+
+    // Ensure unread provider has user
+    try {
+      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+      unread.initialize(student.uid);
+    } catch (_) {}
 
     final communities = await _communityService.getMyComm(student.uid);
 
@@ -130,6 +142,12 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
       for (final c in communities) c.id: ChatTypeConfig.communityChat,
     };
     await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
+
+    // Cancel old listeners before setting up new ones
+    for (final listener in _messageListeners.values) {
+      listener?.cancel?.call();
+    }
+    _messageListeners.clear();
 
     // Set up real-time listeners for all communities to resort on new messages
     for (final c in communities) {

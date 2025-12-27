@@ -36,7 +36,10 @@ class UnreadCountProvider with ChangeNotifier {
     required String chatId,
     required String chatType,
   }) async {
-    if (_currentUserId == null) return;
+    if (_currentUserId == null) {
+      debugPrint('[UnreadProvider] skip loadUnreadCount (no user) chatId=$chatId type=$chatType');
+      return;
+    }
     
     _loadingChats.add(chatId);
     notifyListeners();
@@ -46,6 +49,7 @@ class UnreadCountProvider with ChangeNotifier {
         chatType: chatType,
         chatId: chatId,
       );
+      debugPrint('[UnreadProvider] loadUnreadCount chatId=$chatId type=$chatType collection=$collection user=$_currentUserId');
       
       final count = await _service.getUnreadCount(
         userId: _currentUserId!,
@@ -55,6 +59,7 @@ class UnreadCountProvider with ChangeNotifier {
       );
       
       _unreadCounts[chatId] = count;
+      debugPrint('[UnreadProvider] loaded count=$count chatId=$chatId');
       notifyListeners();
     } catch (e) {
       print('⚠️ Error loading unread count: $e');
@@ -69,7 +74,10 @@ class UnreadCountProvider with ChangeNotifier {
     required List<String> chatIds,
     required Map<String, String> chatTypes, // chatId -> chatType
   }) async {
-    if (_currentUserId == null || chatIds.isEmpty) return;
+    if (_currentUserId == null || chatIds.isEmpty) {
+      debugPrint('[UnreadProvider] skip batch (user=${_currentUserId ?? 'null'} chatIds=${chatIds.length})');
+      return;
+    }
     
     // Mark all as loading
     _loadingChats.addAll(chatIds);
@@ -87,6 +95,7 @@ class UnreadCountProvider with ChangeNotifier {
           );
         }
       }
+      debugPrint('[UnreadProvider] batch load chatIds=${chatIds.length} collections=${collections.length} user=$_currentUserId');
       
       // Fetch batch
       final counts = await _service.getUnreadCountsBatch(
@@ -98,6 +107,7 @@ class UnreadCountProvider with ChangeNotifier {
       
       // Update cache
       _unreadCounts.addAll(counts);
+      debugPrint('[UnreadProvider] batch counts loaded: ${counts.entries.map((e) => '${e.key}:${e.value}').join(', ')}');
       notifyListeners();
     } catch (e) {
       print('⚠️ Error loading batch counts: $e');
