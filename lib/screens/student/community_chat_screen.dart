@@ -71,8 +71,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   @override
   void initState() {
     super.initState();
-    _messageController.addListener(() => setState(() {}));
-
+    // Avoid full-screen rebuild on each keystroke; use local ValueListenableBuilder instead
     _messageFocusNode.addListener(() {
       if (_messageFocusNode.hasFocus && _showEmojiPicker) {
         setState(() => _showEmojiPicker = false);
@@ -1782,26 +1781,32 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     _isCancelled = false;
                   });
                 },
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: _isRecording
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _messageController,
+                  builder: (context, value, _) {
+                    final hasText = value.text.trim().isNotEmpty;
+                    final bgColor = _isRecording
                         ? const Color(0xFFE57373)
-                        : (_messageController.text.trim().isNotEmpty
-                              ? const Color(0xFFFFA726)
-                              : const Color(0xFFFFA929)),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _isRecording
+                        : (hasText
+                            ? const Color(0xFFFFA726)
+                            : const Color(0xFFFFA929));
+                    final icon = _isRecording
                         ? Icons.mic
-                        : (_messageController.text.trim().isNotEmpty
-                              ? Icons.send_rounded
-                              : Icons.mic_none),
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                        : (hasText ? Icons.send_rounded : Icons.mic_none);
+                    return Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -2019,12 +2024,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                 false);
                         final uploadProgress =
                             isPending ? _pendingUploadProgress[metaId] : null;
-                        // Reverse ListView with messages sorted desc: compare with next item (index+1)
-                        // because that is visually above. Oldest message must always show divider.
+                        // Messages sorted desc; ListView reversed. The visually previous item is index+1 (older).
+                        // Show divider above the oldest message of each day (day boundary with older item),
+                        // and always above the global oldest.
                         final isOldest = index == combined.length - 1;
+                        final older = isOldest ? null : combined[index + 1];
                         final showDateDivider = isOldest ||
                           _formatDate(message.createdAt) !=
-                            _formatDate(combined[index + 1].createdAt);
+                            _formatDate(older!.createdAt);
 
                         return Column(
                           mainAxisSize: MainAxisSize.min,
