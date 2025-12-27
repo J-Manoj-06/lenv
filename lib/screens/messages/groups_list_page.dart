@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/unread_count_provider.dart';
+import '../../utils/unread_count_mixins.dart';
+import '../../utils/chat_type_config.dart';
+import '../../widgets/unread_badge_widget.dart';
 import '../../models/group_subject.dart';
 import '../../services/group_messaging_service.dart';
 import 'group_chat_page.dart';
@@ -13,7 +18,7 @@ class GroupsListPage extends StatefulWidget {
 }
 
 class _GroupsListPageState extends State<GroupsListPage>
-    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
+  with AutomaticKeepAliveClientMixin, WidgetsBindingObserver, UnreadCountMixin<GroupsListPage> {
   final GroupMessagingService _messagingService = GroupMessagingService();
   List<GroupSubject> _subjects = [];
   bool _isLoading = true;
@@ -109,6 +114,13 @@ class _GroupsListPageState extends State<GroupsListPage>
         _subjects = subjects;
         _isLoading = false;
       });
+
+      // Load unread counts for these subjects
+      final chatIds = subjects.map((s) => '${_classId}|${s.id}').toList();
+      final chatTypes = {
+        for (final s in subjects) '${_classId}|${s.id}': ChatTypeConfig.groupChat,
+      };
+      await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
     } catch (e, stackTrace) {
       print('❌ GroupsListPage error: $e');
       print('Stack trace: $stackTrace');
@@ -214,9 +226,15 @@ class _GroupsListPageState extends State<GroupsListPage>
       separatorBuilder: (context, index) => const SizedBox(height: 14),
       itemBuilder: (context, index) {
         final subject = _subjects[index];
+        final chatId = '${_classId}|${subject.id}';
+        final unreadCount = getUnreadCount(chatId);
+
         return _SubjectGroupCard(
           subject: subject,
+          unreadCount: unreadCount,
           onTap: () {
+            // Optimistically mark as read so badge clears immediately
+            markChatAsRead(chatId);
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -228,7 +246,12 @@ class _GroupsListPageState extends State<GroupsListPage>
                   icon: subject.icon,
                 ),
               ),
-            );
+            ).then((_) {
+              // Refresh this chat's count on return
+              final unreadProvider = Provider.of<UnreadCountProvider>(context, listen: false);
+              unreadProvider.refreshChat(chatId);
+              unreadProvider.loadUnreadCount(chatId: chatId, chatType: ChatTypeConfig.groupChat);
+            });
           },
         );
       },
@@ -238,9 +261,10 @@ class _GroupsListPageState extends State<GroupsListPage>
 
 class _SubjectGroupCard extends StatelessWidget {
   final GroupSubject subject;
+  final int unreadCount;
   final VoidCallback onTap;
 
-  const _SubjectGroupCard({required this.subject, required this.onTap});
+  const _SubjectGroupCard({required this.subject, required this.unreadCount, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -250,7 +274,9 @@ class _SubjectGroupCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
-      child: Container(
+      child: Stack(
+        children: [
+          Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: theme.cardColor,
@@ -333,8 +359,16 @@ class _SubjectGroupCard extends StatelessWidget {
               size: 18,
             ),
           ],
+          ),
+            ),
+            // Unread badge at top-right
+            PositionedUnreadBadge(
+              count: unreadCount,
+              rightOffset: 10,
+              topOffset: 10,
+            ),
+          ],
         ),
-      ),
     );
   }
 }

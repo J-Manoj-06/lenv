@@ -4,7 +4,9 @@
 class ChatTypeConfig {
   // Group chats
   static const String groupChat = 'group';
-  static const String groupMessagesCollection = 'groups/{groupId}/messages';
+  // Student group chats live under classes/{classId}/subjects/{subjectId}/messages
+  // We encode chatId as "{classId}|{subjectId}" for unread count APIs
+  static const String groupMessagesCollection = 'classes/{classId}/subjects/{subjectId}/messages';
   
   // Community chats
   static const String communityChat = 'community';
@@ -25,7 +27,17 @@ class ChatTypeConfig {
   }) {
     switch (chatType) {
       case groupChat:
-        return groupMessagesCollection.replaceFirst('{groupId}', chatId);
+        // Expect chatId formatted as "classId|subjectId"
+        final parts = chatId.split('|');
+        if (parts.length == 2) {
+          final classId = parts[0];
+          final subjectId = parts[1];
+          return groupMessagesCollection
+              .replaceFirst('{classId}', classId)
+              .replaceFirst('{subjectId}', subjectId);
+        }
+        // Fallback: treat chatId as a groupId (legacy)
+        return 'groups/$chatId/messages';
       case communityChat:
         return communityMessagesCollection.replaceFirst('{communityId}', chatId);
       case individualChat:

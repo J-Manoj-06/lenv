@@ -8,18 +8,17 @@ import '../utils/chat_type_config.dart';
 /// ✅ Reusable: works for all chat types
 /// ✅ Safe: fail-silent approach
 mixin UnreadCountMixin<T extends StatefulWidget> on State<T> {
-  late UnreadCountProvider _unreadProvider;
-  
+  UnreadCountProvider? _unreadProvider;
+
+  void _ensureProvider() {
+    _unreadProvider ??=
+        Provider.of<UnreadCountProvider>(context, listen: false);
+  }
+
   @override
-  void initState() {
-    super.initState();
-    // Access provider after build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _unreadProvider = Provider.of<UnreadCountProvider>(
-        context,
-        listen: false,
-      );
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureProvider();
   }
   
   /// Load unread counts for multiple chats
@@ -37,8 +36,9 @@ mixin UnreadCountMixin<T extends StatefulWidget> on State<T> {
     required Map<String, String> chatTypes,
   }) async {
     if (chatIds.isEmpty) return;
-    
-    await _unreadProvider.loadUnreadCountsBatch(
+    _ensureProvider();
+    if (_unreadProvider == null) return;
+    await _unreadProvider!.loadUnreadCountsBatch(
       chatIds: chatIds,
       chatTypes: chatTypes,
     );
@@ -46,7 +46,8 @@ mixin UnreadCountMixin<T extends StatefulWidget> on State<T> {
   
   /// Get unread count for a specific chat
   int getUnreadCount(String chatId) {
-    return _unreadProvider.getUnreadCount(chatId);
+    _ensureProvider();
+    return _unreadProvider?.getUnreadCount(chatId) ?? 0;
   }
   
   /// Mark chat as read when user opens it
@@ -62,33 +63,37 @@ mixin UnreadCountMixin<T extends StatefulWidget> on State<T> {
   /// )
   /// ```
   Future<void> markChatAsRead(String chatId) async {
-    await _unreadProvider.markChatAsRead(chatId);
+    _ensureProvider();
+    if (_unreadProvider == null) return;
+    await _unreadProvider!.markChatAsRead(chatId);
   }
   
   /// Refresh unread counts when screen resumes
   /// Call this in didChangeAppLifecycleState or on screen focus
   void refreshUnreadCounts() {
-    _unreadProvider.refreshAll();
+    _ensureProvider();
+    _unreadProvider?.refreshAll();
   }
 }
 
 /// Mixin for individual chat screens to mark as read
 /// ✅ Call this once when opening chat
 mixin ChatReadMixin<T extends StatefulWidget> on State<T> {
-  late UnreadCountProvider _unreadProvider;
+  UnreadCountProvider? _unreadProvider;
   late String _chatId;
-  
+
+  void _ensureProviderCR() {
+    _unreadProvider ??=
+        Provider.of<UnreadCountProvider>(context, listen: false);
+  }
+
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _unreadProvider = Provider.of<UnreadCountProvider>(
-        context,
-        listen: false,
-      );
-      // Mark chat as read when screen opens
-      _unreadProvider.markChatAsRead(_chatId);
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureProviderCR();
+    if (_unreadProvider != null && _chatId.isNotEmpty) {
+      _unreadProvider!.markChatAsRead(_chatId);
+    }
   }
   
   /// Initialize with chat ID (call in initState)
@@ -98,6 +103,7 @@ mixin ChatReadMixin<T extends StatefulWidget> on State<T> {
   
   /// Refresh read status when returning from nested navigation
   void refreshReadStatus() {
-    _unreadProvider.refreshChat(_chatId);
+    _ensureProviderCR();
+    _unreadProvider?.refreshChat(_chatId);
   }
 }
