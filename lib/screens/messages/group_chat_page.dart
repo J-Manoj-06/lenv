@@ -188,6 +188,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   @override
   void dispose() {
+    // Mark chat as read when leaving to prevent self-unread badges
+    try {
+      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+      final chatId = '${widget.classId}|${widget.subjectId}';
+      unread.markChatAsRead(chatId);
+    } catch (_) {}
+    
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();

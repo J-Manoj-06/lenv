@@ -8,6 +8,7 @@ import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/unread_count_provider.dart';
 import '../../widgets/media_preview_card.dart';
 
 class CommunityChatPage extends StatefulWidget {
@@ -84,6 +85,12 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
   @override
   void dispose() {
+    // Mark chat as read when leaving to prevent self-unread badges
+    try {
+      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+      unread.markChatAsRead(widget.communityId);
+    } catch (_) {}
+    
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();

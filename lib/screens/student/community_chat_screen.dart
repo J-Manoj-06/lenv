@@ -11,6 +11,7 @@ import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/student_provider.dart';
+import '../../providers/unread_count_provider.dart';
 import '../../services/community_service.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../../services/media_upload_service.dart';
@@ -106,6 +107,12 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
   @override
   void dispose() {
+    // Mark chat as read when leaving to prevent self-unread badges
+    try {
+      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+      unread.markChatAsRead(widget.community.id);
+    } catch (_) {}
+    
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
