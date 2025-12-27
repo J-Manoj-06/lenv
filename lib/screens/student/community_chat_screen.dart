@@ -2019,13 +2019,18 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                 false);
                         final uploadProgress =
                             isPending ? _pendingUploadProgress[metaId] : null;
-                        final showDateDivider =
-                            index == combined.length - 1 ||
-                            _formatDate(message.createdAt) !=
-                                _formatDate(combined[index + 1].createdAt);
+                        // Reverse ListView with messages sorted desc: compare with next item (index+1)
+                        // because that is visually above. Oldest message must always show divider.
+                        final isOldest = index == combined.length - 1;
+                        final showDateDivider = isOldest ||
+                          _formatDate(message.createdAt) !=
+                            _formatDate(combined[index + 1].createdAt);
 
                         return Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (showDateDivider)
+                              _buildDateDivider(message.createdAt),
                             if (message.type == 'announcement')
                               _buildAnnouncement(message)
                             else
@@ -2037,8 +2042,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                 uploadProgress,
                                 _localSenderMediaPaths,
                               ),
-                            if (showDateDivider)
-                              _buildDateDivider(message.createdAt),
                           ],
                         );
                       },

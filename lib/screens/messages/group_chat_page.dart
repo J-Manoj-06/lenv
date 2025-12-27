@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:intl/intl.dart';
 import '../../models/group_chat_message.dart';
 import '../../models/media_metadata.dart';
 import '../../services/group_messaging_service.dart';
@@ -73,6 +74,40 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final Map<String, double> _pendingUploadProgress = {};
   // Local media paths for the sender (so they view from disk, no re-download)
   final Map<String, String> _localSenderMediaPaths = {};
+
+  // ===== Date helpers for day separators =====
+  String _formatDayLabel(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final d = DateTime(dt.year, dt.month, dt.day);
+    if (d == today) return 'Today';
+    if (d == yesterday) return 'Yesterday';
+    return DateFormat('MMM dd, yyyy').format(dt);
+  }
+
+  Widget _buildDayDivider(DateTime dt) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F1F1F),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            _formatDayLabel(dt),
+            style: const TextStyle(
+              color: Color(0xFF9E9E9E),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   // Extract R2 key from full URL
   // https://files.lenv1.tech/media/1234567/file.pdf → media/1234567/file.pdf
@@ -1081,55 +1116,73 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             ? _pendingUploadProgress[message.mediaMetadata?.messageId]
                             : null;
 
-                        return GestureDetector(
-                          key: ValueKey('msg-${message.id}'),
-                          onLongPress: () {
-                            setState(() {
-                              _isSelectionMode = true;
-                              _selectedMessages.add(message.id);
-                            });
-                          },
-                          onTap: _isSelectionMode
-                              ? () {
-                                  setState(() {
-                                    if (isSelected) {
-                                      _selectedMessages.remove(message.id);
-                                      if (_selectedMessages.isEmpty) {
-                                        _isSelectionMode = false;
-                                      }
-                                    } else {
-                                      _selectedMessages.add(message.id);
+                        // Show a day divider above the first message of each day.
+                        // List is reverse + sorted desc, so the "next" item (index+1)
+                        // is the previous day in the vertical order.
+                        final currentDate = DateTime.fromMillisecondsSinceEpoch(message.timestamp);
+                        final isOldest = index == messages.length - 1;
+                        final nextDate = isOldest
+                            ? null
+                            : DateTime.fromMillisecondsSinceEpoch(messages[index + 1].timestamp);
+                        final showDayDivider = isOldest ||
+                            _formatDayLabel(currentDate) != _formatDayLabel(nextDate!);
+
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (showDayDivider) _buildDayDivider(currentDate),
+                            GestureDetector(
+                              key: ValueKey('msg-${message.id}'),
+                              onLongPress: () {
+                                setState(() {
+                                  _isSelectionMode = true;
+                                  _selectedMessages.add(message.id);
+                                });
+                              },
+                              onTap: _isSelectionMode
+                                  ? () {
+                                      setState(() {
+                                        if (isSelected) {
+                                          _selectedMessages.remove(message.id);
+                                          if (_selectedMessages.isEmpty) {
+                                            _isSelectionMode = false;
+                                          }
+                                        } else {
+                                          _selectedMessages.add(message.id);
+                                        }
+                                      });
                                     }
-                                  });
-                                }
-                              : null,
-                          child: Row(
-                            children: [
-                              if (_isSelectionMode)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: Icon(
-                                    isSelected
-                                        ? Icons.check_circle
-                                        : Icons.radio_button_unchecked,
-                                    color: isSelected
-                                        ? const Color(0xFFFFA929)
-                                        : Colors.grey,
-                                    size: 24,
+                                  : null,
+                              child: Row(
+                                children: [
+                                  if (_isSelectionMode)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: Icon(
+                                        isSelected
+                                            ? Icons.check_circle
+                                            : Icons.radio_button_unchecked,
+                                        color: isSelected
+                                            ? const Color(0xFFFFA929)
+                                            : Colors.grey,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  Expanded(
+                                    child: _MessageBubble(
+                                      message: message,
+                                      isMe: isMe,
+                                      uploading: isPending,
+                                      uploadProgress: uploadProgress,
+                                      localSenderMediaPaths: _localSenderMediaPaths,
+                                      key: ValueKey('bubble-${message.id}'),
+                                    ),
                                   ),
-                                ),
-                              Expanded(
-                                child: _MessageBubble(
-                                  message: message,
-                                  isMe: isMe,
-                                  uploading: isPending,
-                                  uploadProgress: uploadProgress,
-                                  localSenderMediaPaths: _localSenderMediaPaths,
-                                  key: ValueKey('bubble-${message.id}'),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                            // Divider shown above the day's first message
+                          ],
                         );
                       },
                     );

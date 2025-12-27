@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -29,6 +30,39 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final GroupMessagingService _messagingService = GroupMessagingService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+    // ===== Date helpers for day separators =====
+    String _formatDayLabel(DateTime dt) {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final yesterday = today.subtract(const Duration(days: 1));
+      final d = DateTime(dt.year, dt.month, dt.day);
+      if (d == today) return 'Today';
+      if (d == yesterday) return 'Yesterday';
+      return DateFormat('MMM dd, yyyy').format(dt);
+    }
+
+    Widget _buildDayDivider(DateTime dt) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF222222),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              _formatDayLabel(dt),
+              style: const TextStyle(
+                color: Color(0xFF9E9E9E),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
   final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
   bool _showEmojiPicker = false;
@@ -229,8 +263,27 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   itemBuilder: (context, index) {
                     final message = messages[index];
                     final isMe = message.senderId == currentUserId;
+                    final currentDate =
+                        DateTime.fromMillisecondsSinceEpoch(message.timestamp);
+                    // Reverse ListView with messages sorted desc: compare with next item (index+1)
+                    // because that is visually above. Oldest message must always show divider.
+                    final isOldest = index == messages.length - 1;
+                    final nextDate = isOldest
+                      ? null
+                      : DateTime.fromMillisecondsSinceEpoch(
+                        messages[index + 1].timestamp,
+                        );
+                    final showDayDivider = isOldest ||
+                      _formatDayLabel(currentDate) !=
+                        _formatDayLabel(nextDate!);
 
-                    return _MessageBubble(message: message, isMe: isMe);
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showDayDivider) _buildDayDivider(currentDate),
+                        _MessageBubble(message: message, isMe: isMe),
+                      ],
+                    );
                   },
                 );
               },
