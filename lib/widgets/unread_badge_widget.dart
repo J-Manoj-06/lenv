@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 class UnreadBadge extends StatelessWidget {
   final int count;
   final Color? backgroundColor;
-  final Color textColor;
+  final Color? textColor;
   final double? badgeSize;
   final double? fontSize;
   
@@ -13,9 +13,9 @@ class UnreadBadge extends StatelessWidget {
     Key? key,
     required this.count,
     this.backgroundColor,
-    this.textColor = Colors.white,
-    this.badgeSize = 24,
-    this.fontSize = 12,
+    this.textColor,
+    this.badgeSize = 32,
+    this.fontSize = 14,
   }) : super(key: key);
   
   @override
@@ -28,8 +28,10 @@ class UnreadBadge extends StatelessWidget {
     // Cap display at 99+
     final displayCount = count > 99 ? '99+' : count.toString();
     
-    // Get primary color from theme
-    final bgColor = backgroundColor ?? Theme.of(context).primaryColor;
+    // Get theme-aware colors
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = backgroundColor ?? const Color(0xFFF97316); // Orange (primary)
+    final textCol = textColor ?? Colors.white;
     
     return Container(
       width: badgeSize,
@@ -37,14 +39,22 @@ class UnreadBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: bgColor,
         shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: bgColor.withOpacity(0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Center(
         child: Text(
           displayCount,
           style: TextStyle(
-            color: textColor,
+            color: textCol,
             fontSize: fontSize,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
           ),
         ),
       ),
@@ -56,7 +66,7 @@ class UnreadBadge extends StatelessWidget {
 class PositionedUnreadBadge extends StatelessWidget {
   final int count;
   final Color? backgroundColor;
-  final Color textColor;
+  final Color? textColor;
   final double? badgeSize;
   final double? fontSize;
   final double rightOffset;
@@ -66,9 +76,9 @@ class PositionedUnreadBadge extends StatelessWidget {
     Key? key,
     required this.count,
     this.backgroundColor,
-    this.textColor = Colors.white,
-    this.badgeSize = 24,
-    this.fontSize = 12,
+    this.textColor,
+    this.badgeSize = 32,
+    this.fontSize = 14,
     this.rightOffset = 8,
     this.topOffset = 8,
   }) : super(key: key);
@@ -98,13 +108,13 @@ class PositionedUnreadBadge extends StatelessWidget {
 class InlineUnreadBadge extends StatelessWidget {
   final int count;
   final Color? backgroundColor;
-  final Color textColor;
+  final Color? textColor;
   
   const InlineUnreadBadge({
     Key? key,
     required this.count,
     this.backgroundColor,
-    this.textColor = Colors.white,
+    this.textColor,
   }) : super(key: key);
   
   @override
@@ -114,20 +124,29 @@ class InlineUnreadBadge extends StatelessWidget {
     }
     
     final displayCount = count > 99 ? '99+' : count.toString();
-    final bgColor = backgroundColor ?? Theme.of(context).primaryColor;
+    final bgColor = backgroundColor ?? const Color(0xFFF97316);
+    final textCol = textColor ?? Colors.white;
     
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: bgColor.withOpacity(0.3),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Text(
         displayCount,
         style: TextStyle(
-          color: textColor,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
+          color: textCol,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.2,
         ),
       ),
     );

@@ -26,6 +26,7 @@ class _GroupsListPageState extends State<GroupsListPage>
   String? _classId;
   bool _hasAttemptedLoad = false;
   final Map<String, int> _lastMessageTs = {}; // chatId -> latest timestamp
+  final Map<String, dynamic> _messageListeners = {}; // Store listeners for cleanup
 
   @override
   bool get wantKeepAlive => true;
@@ -43,6 +44,11 @@ class _GroupsListPageState extends State<GroupsListPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // Cancel all message listeners
+    for (final listener in _messageListeners.values) {
+      listener?.cancel?.call();
+    }
+    _messageListeners.clear();
     super.dispose();
   }
 
@@ -60,6 +66,44 @@ class _GroupsListPageState extends State<GroupsListPage>
     // Reload if studentId changes
     if (oldWidget.studentId != widget.studentId) {
       _loadClassSubjects();
+    }
+  }
+
+  void _listenForMessageUpdates(String classId, GroupSubject subject) {
+    final chatId = '${classId}|${subject.id}';
+    // Listen to all messages, not just the latest one, to ensure we catch every update
+    final query = FirebaseFirestore.instance
+        .collection('classes')
+        .doc(classId)
+        .collection('subjects')
+        .doc(subject.id)
+        .collection('messages')
+        .orderBy('timestamp', descending: true);
+    
+    // Store the listener so we can cancel it on dispose
+    _messageListeners[chatId] = query.snapshots().listen(
+      (snapshot) {
+        if (snapshot.docs.isNotEmpty && mounted) {
+          final newTs = (snapshot.docs.first.data()['timestamp'] as int?) ?? 0;
+          
+          // Update timestamp and resort immediately
+          _lastMessageTs[chatId] = newTs;
+          _resortGroups();
+        }
+      },
+      onError: (e) => print('Error listening to messages for $chatId: $e'),
+    );
+  }
+
+  void _resortGroups() {
+    if (mounted) {
+      setState(() {
+        _subjects.sort((a, b) {
+          final at = _lastMessageTs['${_classId}|${a.id}'] ?? 0;
+          final bt = _lastMessageTs['${_classId}|${b.id}'] ?? 0;
+          return bt.compareTo(at);
+        });
+      });
     }
   }
 
@@ -155,6 +199,11 @@ class _GroupsListPageState extends State<GroupsListPage>
             return bt.compareTo(at);
           });
         });
+      }
+
+      // Set up real-time listeners for all subjects to resort on new messages
+      for (final s in subjects) {
+        _listenForMessageUpdates(_classId!, s);
       }
     } catch (e, stackTrace) {
       print('❌ GroupsListPage error: $e');

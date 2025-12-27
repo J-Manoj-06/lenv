@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../utils/unread_count_mixins.dart';
 import '../../utils/chat_type_config.dart';
@@ -21,11 +22,58 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
   final CommunityService _communityService = CommunityService();
   bool _isLoading = true;
   List<CommunityModel> _myCommunities = [];
+  final Map<String, int> _lastMessageTs = {}; // communityId -> latest timestamp
+  final Map<String, dynamic> _messageListeners = {}; // Store listeners for cleanup
 
   @override
   void initState() {
     super.initState();
     _loadMyCommunities();
+  }
+
+  @override
+  void dispose() {
+    // Cancel all message listeners
+    for (final listener in _messageListeners.values) {
+      listener?.cancel?.call();
+    }
+    _messageListeners.clear();
+    super.dispose();
+  }
+
+  void _listenForCommunityMessageUpdates(String communityId) {
+    // Listen to all messages, not just the latest one, to ensure we catch every update
+    final query = FirebaseFirestore.instance
+        .collection('communities')
+        .doc(communityId)
+        .collection('messages')
+        .orderBy('createdAt', descending: true);
+    
+    // Store the listener so we can cancel it on dispose
+    _messageListeners[communityId] = query.snapshots().listen(
+      (snapshot) {
+        if (snapshot.docs.isNotEmpty && mounted) {
+          final newTs = (snapshot.docs.first.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+          
+          // Update timestamp and resort immediately
+          _lastMessageTs[communityId] = newTs;
+          _resortCommunities();
+        }
+      },
+      onError: (e) => print('Error listening to messages for community $communityId: $e'),
+    );
+  }
+
+  void _resortCommunities() {
+    if (mounted) {
+      setState(() {
+        _myCommunities.sort((a, b) {
+          final at = _lastMessageTs[a.id] ?? 0;
+          final bt = _lastMessageTs[b.id] ?? 0;
+          return bt.compareTo(at);
+        });
+      });
+    }
   }
 
   Future<void> _loadMyCommunities() async {
@@ -43,8 +91,36 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
     final communities = await _communityService.getMyComm(student.uid);
 
     debugPrint('📋 Loaded ${communities.length} communities');
+    
+    // Fetch latest message timestamp for each community
+    for (final c in communities) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('communities')
+            .doc(c.id)
+            .collection('messages')
+            .orderBy('createdAt', descending: true)
+            .limit(1)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          final ts = (snap.docs.first.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+          _lastMessageTs[c.id] = ts;
+        } else {
+          _lastMessageTs[c.id] = 0;
+        }
+      } catch (_) {
+        _lastMessageTs[c.id] = 0;
+      }
+    }
+
     setState(() {
       _myCommunities = communities;
+      // Sort by latest message
+      _myCommunities.sort((a, b) {
+        final at = _lastMessageTs[a.id] ?? 0;
+        final bt = _lastMessageTs[b.id] ?? 0;
+        return bt.compareTo(at);
+      });
       _isLoading = false;
     });
 
@@ -54,6 +130,11 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
       for (final c in communities) c.id: ChatTypeConfig.communityChat,
     };
     await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
+
+    // Set up real-time listeners for all communities to resort on new messages
+    for (final c in communities) {
+      _listenForCommunityMessageUpdates(c.id);
+    }
   }
 
   @override
