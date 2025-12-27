@@ -296,9 +296,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
           unreadProvider.loadUnreadCount(chatId: community.id, chatType: ChatTypeConfig.communityChat);
         });
       },
-      child: Stack(
-        children: [
-          Container(
+      child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: theme.cardColor,
@@ -332,6 +330,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
@@ -443,30 +442,22 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
               ),
             ),
 
-            const SizedBox(width: 12),
-
-            // Arrow
-            Icon(
-              Icons.arrow_forward_ios,
-              color: theme.iconTheme.color?.withOpacity(0.3),
-              size: 16,
-            ),
-          ],
-          ),
-            ),
-            // Unread badge at top-right (reactive)
-            Positioned(
-              right: 12,
-              top: 12,
-              child: Consumer<UnreadCountProvider>(
-                builder: (_, provider, __) {
-                  final count = provider.getUnreadCount(community.id);
-                  return UnreadBadge(count: count);
-                },
+            // Fixed width container for badge to prevent layout shift
+            SizedBox(
+              width: 56,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Consumer<UnreadCountProvider>(
+                  builder: (_, provider, __) {
+                    final count = provider.getUnreadCount(community.id);
+                    return UnreadBadge(count: count);
+                  },
+                ),
               ),
             ),
           ],
         ),
+      ),
     );
   }
 
