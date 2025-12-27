@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/chat_type_config.dart';
 
 /// Unified unread message count service for all chat types
 /// Supports: Group chats, Community chats, Parent-Teacher individual, Parent-Teacher groups
@@ -41,10 +42,19 @@ class UnreadCountService {
       // Get last read timestamp
       final lastReadAt = await _getLastReadAt(userId, chatId);
       
+      // Determine field and comparison value by chat type
+      // Groups use integer 'timestamp' (ms since epoch)
+      // Communities and others use Firestore Timestamp 'createdAt'
+      final isGroup = chatType == ChatTypeConfig.groupChat;
+      final fieldName = isGroup ? 'timestamp' : 'createdAt';
+      final compareValue = isGroup
+          ? lastReadAt.toDate().millisecondsSinceEpoch
+          : lastReadAt;
+      
       // Query unread messages (count only)
       final query = _firestore
           .collection(messageCollection)
-          .where('createdAt', isGreaterThan: lastReadAt);
+          .where(fieldName, isGreaterThan: compareValue);
       
       final snapshot = await query.count().get();
       final count = snapshot.count ?? 0;
@@ -172,6 +182,7 @@ class UnreadCountService {
     required String userId,
     required String chatId,
     required String messageCollection,
+    String chatType = ChatTypeConfig.communityChat,
   }) {
     return _firestore
         .collection('users')
@@ -184,10 +195,16 @@ class UnreadCountService {
               ?? Timestamp.fromDate(
                 DateTime.now().subtract(const Duration(days: 30)),
               );
+          // Determine field and comparison value
+          final isGroup = chatType == ChatTypeConfig.groupChat;
+          final fieldName = isGroup ? 'timestamp' : 'createdAt';
+          final compareValue = isGroup
+              ? lastReadAt.toDate().millisecondsSinceEpoch
+              : lastReadAt;
           
           final query = _firestore
               .collection(messageCollection)
-              .where('createdAt', isGreaterThan: lastReadAt);
+              .where(fieldName, isGreaterThan: compareValue);
           
           final snapshot = await query.count().get();
           return snapshot.count ?? 0;

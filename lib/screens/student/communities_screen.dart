@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../providers/unread_count_provider.dart';
+import '../../utils/unread_count_mixins.dart';
+import '../../utils/chat_type_config.dart';
+import '../../widgets/unread_badge_widget.dart';
 import '../../models/community_model.dart';
 import '../../providers/student_provider.dart';
 import '../../services/community_service.dart';
@@ -13,7 +17,7 @@ class CommunitiesScreen extends StatefulWidget {
   State<CommunitiesScreen> createState() => _CommunitiesScreenState();
 }
 
-class _CommunitiesScreenState extends State<CommunitiesScreen> {
+class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountMixin<CommunitiesScreen> {
   final CommunityService _communityService = CommunityService();
   bool _isLoading = true;
   List<CommunityModel> _myCommunities = [];
@@ -43,6 +47,13 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
       _myCommunities = communities;
       _isLoading = false;
     });
+
+    // Load unread counts for all joined communities
+    final chatIds = communities.map((c) => c.id).toList();
+    final chatTypes = {
+      for (final c in communities) c.id: ChatTypeConfig.communityChat,
+    };
+    await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
   }
 
   @override
@@ -65,7 +76,8 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final community = _myCommunities[index];
-                  return _buildCommunityCard(community);
+                  final unreadCount = getUnreadCount(community.id);
+                  return _buildCommunityCard(community, unreadCount);
                 },
               ),
             ),
@@ -168,18 +180,27 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
     );
   }
 
-  Widget _buildCommunityCard(CommunityModel community) {
+  Widget _buildCommunityCard(CommunityModel community, int unreadCount) {
     final theme = Theme.of(context);
     return GestureDetector(
       onTap: () {
+        // Mark as read before navigation
+        markChatAsRead(community.id);
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => CommunityChatScreen(community: community),
           ),
-        );
+        ).then((_) {
+          // Refresh count on return
+          final unreadProvider = Provider.of<UnreadCountProvider>(context, listen: false);
+          unreadProvider.refreshChat(community.id);
+          unreadProvider.loadUnreadCount(chatId: community.id, chatType: ChatTypeConfig.communityChat);
+        });
       },
-      child: Container(
+      child: Stack(
+        children: [
+          Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: theme.cardColor,
@@ -333,8 +354,16 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
               size: 16,
             ),
           ],
+          ),
+            ),
+            // Unread badge at top-right
+            PositionedUnreadBadge(
+              count: unreadCount,
+              rightOffset: 12,
+              topOffset: 12,
+            ),
+          ],
         ),
-      ),
     );
   }
 
