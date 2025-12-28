@@ -147,8 +147,10 @@ class LeaderboardService {
   }
 
   // Ensure only one entry per studentId, keep highest score, and re-rank
-  List<LeaderboardEntry> _dedupeAndRank(List<LeaderboardEntry> entries,
-      {int limit = 50}) {
+  List<LeaderboardEntry> _dedupeAndRank(
+    List<LeaderboardEntry> entries, {
+    int limit = 50,
+  }) {
     final bestByStudent = <String, LeaderboardEntry>{};
 
     for (final entry in entries) {
