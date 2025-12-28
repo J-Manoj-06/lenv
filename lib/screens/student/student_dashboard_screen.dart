@@ -31,7 +31,6 @@ class StudentDashboardScreen extends StatefulWidget {
 }
 
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
-
   // Theme helpers
   Color get _primary => const Color(0xFFF2800D);
   Color _surface(BuildContext context) => Theme.of(context).cardColor;
@@ -48,7 +47,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     // Pre-load cached data synchronously during initState
     // This ensures student data is available for immediate display
     _preloadCachedData();
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       print('🏠 StudentDashboard: Post-frame callback triggered');
       print('🏠 StudentDashboard: Calling _loadDashboardData()');
@@ -58,27 +57,41 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   void _preloadCachedData() {
     print('🏠 _preloadCachedData: Attempting to load cached student data...');
-    final studentProvider = Provider.of<StudentProvider>(context, listen: false);
-    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
-    
-    final userId = authProvider.currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+    final authProvider = Provider.of<app_auth.AuthProvider>(
+      context,
+      listen: false,
+    );
+
+    final userId =
+        authProvider.currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
       // Load cached data asynchronously and update provider
-      CacheManager.getStudentDataCache(studentId: userId).then((cachedStudent) {
-        if (cachedStudent != null && mounted) {
-          print('🏠 _preloadCachedData: Found cached student, updating provider');
-          // Directly update the provider's student to show cached data immediately
-          studentProvider.setCurrentStudentFromCache(cachedStudent);
-        }
-      }).catchError((e) {
-        print('🏠 _preloadCachedData: Cache load error (non-fatal): $e');
-      });
+      CacheManager.getStudentDataCache(studentId: userId)
+          .then((cachedStudent) {
+            if (cachedStudent != null && mounted) {
+              print(
+                '🏠 _preloadCachedData: Found cached student, updating provider',
+              );
+              // Directly update the provider's student to show cached data immediately
+              studentProvider.setCurrentStudentFromCache(cachedStudent);
+            }
+          })
+          .catchError((e) {
+            print('🏠 _preloadCachedData: Cache load error (non-fatal): $e');
+          });
     }
   }
 
   Future<void> _loadDashboardData() async {
     print('🏠 _loadDashboardData: Starting...');
-    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<app_auth.AuthProvider>(
+      context,
+      listen: false,
+    );
     final studentProvider = Provider.of<StudentProvider>(
       context,
       listen: false,
@@ -100,7 +113,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     String? userId = authProvider.currentUser?.uid;
     userId ??= FirebaseAuth.instance.currentUser?.uid;
     if (userId == null || userId.isEmpty) {
-      print('❌ _loadDashboardData: No authenticated user found (provider and Firebase)');
+      print(
+        '❌ _loadDashboardData: No authenticated user found (provider and Firebase)',
+      );
       return;
     }
 
@@ -130,7 +145,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     return Consumer<StudentProvider>(
       builder: (context, studentProvider, child) {
         final student = studentProvider.currentStudent;
-        final authUser = Provider.of<app_auth.AuthProvider>(context).currentUser;
+        final authUser = Provider.of<app_auth.AuthProvider>(
+          context,
+        ).currentUser;
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -345,7 +362,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   // Announcements Section (WhatsApp-style)
   Widget _buildAnnouncementsSection(StudentModel student) {
-    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<app_auth.AuthProvider>(
+      context,
+      listen: false,
+    );
     final currentUserId = authProvider.currentUser?.uid ?? '';
     final schoolIdentifier =
         student.schoolCode ?? student.schoolId ?? student.schoolName ?? '';
@@ -653,8 +673,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       ),
     );
   }
-
-
 
   /// Open cross-person announcement viewer - chains through all creators
   /// starting from the tapped one
