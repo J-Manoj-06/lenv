@@ -105,18 +105,7 @@ class LeaderboardService {
       }
 
       // 3) Sort by score (descending) and assign ranks
-      entries.sort((a, b) => b.score.compareTo(a.score));
-      for (var i = 0; i < entries.length; i++) {
-        entries[i] = LeaderboardEntry(
-          studentId: entries[i].studentId,
-          name: entries[i].name,
-          photoUrl: entries[i].photoUrl,
-          rank: i + 1,
-          score: entries[i].score,
-        );
-      }
-
-      return entries.take(limit).toList();
+      return _dedupeAndRank(entries, limit: limit);
     } catch (e) {
       print('❌ Error getting overall leaderboard: $e');
       return [];
@@ -155,6 +144,34 @@ class LeaderboardService {
           ),
         )
         .toList();
+  }
+
+  // Ensure only one entry per studentId, keep highest score, and re-rank
+  List<LeaderboardEntry> _dedupeAndRank(List<LeaderboardEntry> entries,
+      {int limit = 50}) {
+    final bestByStudent = <String, LeaderboardEntry>{};
+
+    for (final entry in entries) {
+      final existing = bestByStudent[entry.studentId];
+      if (existing == null || entry.score > existing.score) {
+        bestByStudent[entry.studentId] = entry;
+      }
+    }
+
+    final unique = bestByStudent.values.toList();
+    unique.sort((a, b) => b.score.compareTo(a.score));
+
+    for (var i = 0; i < unique.length; i++) {
+      unique[i] = LeaderboardEntry(
+        studentId: unique[i].studentId,
+        name: unique[i].name,
+        photoUrl: unique[i].photoUrl,
+        rank: i + 1,
+        score: unique[i].score,
+      );
+    }
+
+    return unique.take(limit).toList();
   }
 
   /// Get overall leaderboard with caching - fetches from cache first, then updates
