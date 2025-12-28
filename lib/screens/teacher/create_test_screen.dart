@@ -267,7 +267,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(Icons.arrow_back_ios_new),
                 onPressed: () => Navigator.pop(context),
                 color: Theme.of(context).iconTheme.color,
               ),
@@ -279,13 +279,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                   color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () {
-                  // Handle more options
-                },
-                color: Theme.of(context).iconTheme.color,
-              ),
+              const SizedBox(width: 48),
             ],
           ),
         ),

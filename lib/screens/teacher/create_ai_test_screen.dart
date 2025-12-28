@@ -206,10 +206,43 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Generate Test with AI'), elevation: 0),
-      body: _generatedQuestions == null
-          ? _buildFormView()
-          : _buildPreviewView(),
+      body: Column(
+        children: [
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new),
+                      onPressed: () => Navigator.pop(context),
+                      color: Theme.of(context).iconTheme.color,
+                    ),
+                    Text(
+                      'Generate Test with AI',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _generatedQuestions == null
+                ? _buildFormView()
+                : _buildPreviewView(),
+          ),
+        ],
+      ),
       bottomNavigationBar: _generatedQuestions == null
           ? _buildBottomSection()
           : null,
