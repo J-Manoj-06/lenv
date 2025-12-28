@@ -16,12 +16,10 @@ import '../../utils/cache_manager.dart';
 import '../../services/badge_service.dart';
 import '../../badges/badge_model.dart';
 import '../../badges/badge_master.dart';
-import '../teacher/status_view_screen.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
 import 'badge_gallery_screen.dart';
 import '../ai/ai_chat_page.dart';
-import '../common/announcement_view_screen.dart';
 import '../common/announcement_pageview_screen.dart';
 import 'dart:math' as math;
 
@@ -33,7 +31,6 @@ class StudentDashboardScreen extends StatefulWidget {
 }
 
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
-  bool _isInitializing = true;
 
   // Theme helpers
   Color get _primary => const Color(0xFFF2800D);
@@ -48,20 +45,35 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   void initState() {
     super.initState();
     print('🏠 StudentDashboard: initState called');
+    // Pre-load cached data synchronously during initState
+    // This ensures student data is available for immediate display
+    _preloadCachedData();
+    
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       print('🏠 StudentDashboard: Post-frame callback triggered');
-      final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
-      const SizedBox(height: 12);
       print('🏠 StudentDashboard: Calling _loadDashboardData()');
       await _loadDashboardData();
-      // Mark initialization complete
-      if (mounted) {
-        print('🏠 StudentDashboard: Setting _isInitializing = false');
-        setState(() {
-          _isInitializing = false;
-        });
-      }
     });
+  }
+
+  void _preloadCachedData() {
+    print('🏠 _preloadCachedData: Attempting to load cached student data...');
+    final studentProvider = Provider.of<StudentProvider>(context, listen: false);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
+    
+    final userId = authProvider.currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      // Load cached data asynchronously and update provider
+      CacheManager.getStudentDataCache(studentId: userId).then((cachedStudent) {
+        if (cachedStudent != null && mounted) {
+          print('🏠 _preloadCachedData: Found cached student, updating provider');
+          // Directly update the provider's student to show cached data immediately
+          studentProvider.setCurrentStudentFromCache(cachedStudent);
+        }
+      }).catchError((e) {
+        print('🏠 _preloadCachedData: Cache load error (non-fatal): $e');
+      });
+    }
   }
 
   Future<void> _loadDashboardData() async {
@@ -117,83 +129,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Widget build(BuildContext context) {
     return Consumer<StudentProvider>(
       builder: (context, studentProvider, child) {
-        // Show fetching screen while initializing OR loading student data
-        if (_isInitializing || studentProvider.isLoading) {
-          return Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(_primary),
-                  ),
-                  SizedBox(height: 20),
-                  Text(
-                    'Fetching your details...',
-                    style: TextStyle(
-                      color: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.color?.withOpacity(0.65),
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        // Fallback UI: not initializing, not loading, but no student data
-        if (studentProvider.currentStudent == null) {
-          return Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.person_search, size: 56, color: _muted(context)),
-                    const SizedBox(height: 12),
-                    Text(
-                      'We couldn\'t load your profile',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: _onSurface(context),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Please check your connection and try again.',
-                      style: TextStyle(color: _muted(context)),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        setState(() => _isInitializing = true);
-                        await _loadDashboardData();
-                        if (mounted) {
-                          setState(() => _isInitializing = false);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primary,
-                        foregroundColor: Colors.white,
-                      ),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
         final student = studentProvider.currentStudent;
         final authUser = Provider.of<app_auth.AuthProvider>(context).currentUser;
 
@@ -719,39 +654,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
   }
 
-  void _openAnnouncementViewer(
-    List<StatusModel> announcements,
-    int initialIndex,
-  ) {
-    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
-    final currentUserId = authProvider.currentUser?.uid ?? '';
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => StatusViewScreen(
-          statuses: announcements,
-          initialIndex: initialIndex,
-          currentUserId: currentUserId,
-        ),
-      ),
-    );
-  }
-
-  void _showPrincipalAnnouncement(InstituteAnnouncementModel announcement) {
-    openAnnouncementView(
-      context,
-      role: 'principal',
-      title: announcement.hasText
-          ? announcement.text
-          : 'Principal Announcement',
-      subtitle: '',
-      postedByLabel: 'Posted by ${announcement.principalName}',
-      avatarUrl: null,
-      postedAt: announcement.createdAt,
-      expiresAt: announcement.expiresAt,
-    );
-  }
 
   /// Open cross-person announcement viewer - chains through all creators
   /// starting from the tapped one
@@ -960,63 +863,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         });
   }
 
-  /// Check if ANY principal announcement in the group has NOT been viewed
-  Future<bool> _hasAnyPrincipalAnnouncementUnread(
-    List<Map<String, dynamic>> creatorAnnouncements,
-    String userId,
-  ) async {
-    try {
-      for (final item in creatorAnnouncements) {
-        if (item['type'] == 'principal') {
-          final announcement = item['data'] as InstituteAnnouncementModel;
-          final isViewed = await _hasPrincipalAnnouncementBeenViewed(
-            announcement.id,
-            userId,
-          );
-          if (!isViewed) {
-            return true; // Has at least one unread
-          }
-        }
-      }
-      return false; // All are read
-    } catch (e) {
-      print('Error checking principal announcements: $e');
-      return true; // Default to unread on error
-    }
-  }
-
   /// Check if a principal announcement has been viewed by the current user
-  Future<bool> _hasPrincipalAnnouncementBeenViewed(
-    String announcementId,
-    String userId,
-  ) async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('institute_announcements')
-          .doc(announcementId)
-          .collection('views')
-          .doc(userId)
-          .get();
-      return doc.exists;
-    } catch (e) {
-      print('Error checking if announcement viewed: $e');
-      return false;
-    }
-  }
-
-  String _formatAnnouncementTime(DateTime time) {
-    final now = DateTime.now();
-    final difference = now.difference(time);
-
-    if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else {
-      return '${difference.inDays}d ago';
-    }
-  }
-
   // Combine announcements from both teachers and principals
   Stream<List<Map<String, dynamic>>> _combineAnnouncementStreams(
     String instituteId,

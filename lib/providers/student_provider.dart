@@ -27,6 +27,13 @@ class StudentProvider with ChangeNotifier {
     return _notifications.where((n) => !n.isRead).length;
   }
 
+  // Set current student from cache immediately (no async, just notify listeners)
+  void setCurrentStudentFromCache(StudentModel student) {
+    _currentStudent = student;
+    notifyListeners();
+    print('📱 StudentProvider: Cached student set: ${student.name}');
+  }
+
   // Load student dashboard data
   Future<void> loadDashboardData(String studentId) async {
     // Skip if already loaded to prevent flickering (but check if same student)
