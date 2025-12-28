@@ -328,9 +328,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                         ? const Color(0xFF7A5CFF)
                         : (isDark
                               ? const Color(0xFF1A1C20)
-                              : theme.colorScheme.surfaceContainerHighest.withOpacity(
-                                  0.25,
-                                )),
+                              : theme.colorScheme.surfaceContainerHighest
+                                    .withOpacity(0.25)),
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: isSelected
                         ? [
@@ -645,9 +644,10 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                     decoration: BoxDecoration(
                       color: Theme.of(context).brightness == Brightness.dark
                           ? const Color(0xFF111315)
-                          : Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                          : Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withOpacity(0.6),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(subjectIcon, color: iconColor, size: 22),
