@@ -257,19 +257,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   : null,
               child: Row(
                 children: [
-                  if (_isSelectionMode)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Icon(
-                        isSelected
-                            ? Icons.check_circle
-                            : Icons.radio_button_unchecked,
-                        color: isSelected
-                            ? const Color(0xFFFFA929)
-                            : Colors.grey,
-                        size: 24,
-                      ),
-                    ),
                   Expanded(
                     child: _MessageBubble(
                       message: message,
@@ -280,6 +267,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       key: ValueKey('bubble-${message.id}'),
                     ),
                   ),
+                  if (_isSelectionMode && isMe)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Icon(
+                        isSelected
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        color: isSelected
+                            ? const Color(0xFFFFA929)
+                            : Colors.grey,
+                        size: 24,
+                      ),
+                    ),
                 ],
               ),
             ),

@@ -1339,17 +1339,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
               : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            if (_isSelectionMode)
-              Padding(
-                padding: const EdgeInsets.only(right: 8, bottom: 8),
-                child: Icon(
-                  isSelected
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
-                  color: isSelected ? const Color(0xFFFFA929) : Colors.grey,
-                  size: 24,
-                ),
-              ),
             if (!isCurrentUser) ...[
               Container(
                 width: 32,
@@ -1511,6 +1500,17 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                 ],
               ),
             ),
+            if (_isSelectionMode && isCurrentUser)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, bottom: 8),
+                child: Icon(
+                  isSelected
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  color: isSelected ? const Color(0xFFFFA929) : Colors.grey,
+                  size: 24,
+                ),
+              ),
           ],
         ),
       ),
