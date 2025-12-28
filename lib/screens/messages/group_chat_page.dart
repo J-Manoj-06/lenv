@@ -150,8 +150,39 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Widget _buildMessageList(
     List<GroupChatMessage> messages,
     int lastReadMs,
-    String? currentUserId,
-  ) {
+    String? currentUserId, {
+    bool showDivider = true,
+  }) {
+    // Pre-compute a single divider position: the first read message after unread ones
+    int? unreadDividerIndex;
+    bool hasUnread = false;
+    bool hasRead = false;
+    for (int i = 0; i < messages.length; i++) {
+      final isUnread = messages[i].timestamp > lastReadMs;
+      hasUnread = hasUnread || isUnread;
+      hasRead = hasRead || !isUnread;
+      if (i > 0) {
+        final prevUnread = messages[i - 1].timestamp > lastReadMs;
+        final currUnread = isUnread;
+        if (prevUnread && !currUnread && unreadDividerIndex == null) {
+          unreadDividerIndex = i;
+          print(
+            '🔴 Divider found at index $i - prev unread, curr read (lastReadMs=$lastReadMs)',
+          );
+        }
+      }
+    }
+    // If both read and unread exist but no boundary found (edge cases), place at last item
+    if (unreadDividerIndex == null && hasUnread && hasRead) {
+      unreadDividerIndex = messages.length - 1;
+      print(
+        '🟡 Divider placed at last index (${messages.length - 1}) - edge case',
+      );
+    }
+    print(
+      '📊 Divider index=$unreadDividerIndex, hasUnread=$hasUnread, hasRead=$hasRead, totalMessages=${messages.length}',
+    );
+
     return ListView.builder(
       controller: _scrollController,
       reverse: true,
@@ -184,18 +215,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
             isOldest ||
             _formatDayLabel(currentDate) != _formatDayLabel(nextDate!);
 
-        // Determine unread divider placement
-        final isUnread = message.timestamp > lastReadMs;
-        final shouldShowUnreadDivider =
-            _showUnreadDivider &&
-            !isUnread &&
-            index > 0 &&
-            messages[index - 1].timestamp > lastReadMs;
+        if (_showUnreadDivider && showDivider && unreadDividerIndex == index) {
+          print('✅ Rendering divider at index $index');
+        }
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (shouldShowUnreadDivider) _buildUnreadDivider(),
+            if (_showUnreadDivider && showDivider && unreadDividerIndex == index)
+              _buildUnreadDivider(),
             if (showDayDivider) _buildDayDivider(currentDate),
             GestureDetector(
               key: ValueKey('msg-${message.id}'),
@@ -389,16 +417,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
         !_scrollController.hasClients || _scrollController.offset < 120;
     if (!nearBottom) return;
 
-    // Debounce to avoid excessive writes
+    // Debounce to avoid excessive writes - use 5 seconds to prevent feedback loop
     final now = DateTime.now();
-    if (now.difference(_lastMarkedReadAt) < const Duration(milliseconds: 800))
+    if (now.difference(_lastMarkedReadAt) < const Duration(seconds: 5))
       return;
 
-    print('🔔 Auto-marking as read (user at bottom, unread messages present)');
+    print('🔔 Scheduling auto-mark-as-read in 2 seconds');
     _lastMarkedReadAt = now;
-    // Mark as read asynchronously without waiting
-    _markChatAsReadForUser().catchError((e) {
-      print('⚠️ Auto mark-as-read failed: $e');
+    
+    // Delay mark-as-read by 2 seconds to allow user to see the unread divider
+    Future.delayed(const Duration(seconds: 2), () {
+      // Check if widget is still mounted and still at bottom
+      if (!mounted) return;
+      final stillNearBottom =
+          !_scrollController.hasClients || _scrollController.offset < 120;
+      if (!stillNearBottom) return;
+      
+      print('✅ Executing delayed mark-as-read');
+      _markChatAsReadForUser().catchError((e) {
+        print('⚠️ Auto mark-as-read failed: $e');
+      });
     });
   }
 
@@ -1368,16 +1406,23 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     return StreamBuilder<Timestamp?>(
                       stream: _lastReadAtStream,
                       builder: (context, readSnapshot) {
+                        // Only consider it valid data if we actually received a non-null timestamp
+                        final hasValidData = readSnapshot.data != null;
                         final lastReadMs =
-                            readSnapshot.data
-                                ?.toDate()
-                                .millisecondsSinceEpoch ??
-                            0;
-                        _maybeMarkAsRead(lastReadMs, messages);
+                            readSnapshot.data?.toDate().millisecondsSinceEpoch ??
+                            DateTime.now()
+                                .subtract(const Duration(days: 30))
+                                .millisecondsSinceEpoch;
+                        print(
+                          '🔍 StreamBuilder lastReadAt: ${readSnapshot.data?.toDate() ?? "null"}, lastReadMs=$lastReadMs, hasValidData=$hasValidData',
+                        );
+                        // Schedule mark-as-read after build completes to avoid setState during build
+                        Future.microtask(() => _maybeMarkAsRead(lastReadMs, messages));
                         return _buildMessageList(
                           messages,
                           lastReadMs,
                           currentUserId,
+                          showDivider: hasValidData, // Only show divider with valid Firestore data
                         );
                       },
                     );

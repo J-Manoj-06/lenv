@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/group_chat_message.dart';
@@ -31,8 +32,11 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final GroupMessagingService _messagingService = GroupMessagingService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-    // ===== Date helpers for day separators =====
-    String _formatDayLabel(DateTime dt) {
+  late Stream<Timestamp?> _lastReadAtStream;
+  final bool _showUnreadDivider = true;
+
+  // ===== Date helpers for day separators =====
+  String _formatDayLabel(DateTime dt) {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final yesterday = today.subtract(const Duration(days: 1));
@@ -42,28 +46,50 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       return DateFormat('MMM dd, yyyy').format(dt);
     }
 
-    Widget _buildDayDivider(DateTime dt) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF222222),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              _formatDayLabel(dt),
-              style: const TextStyle(
-                color: Color(0xFF9E9E9E),
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
+  Widget _buildDayDivider(DateTime dt) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF222222),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            _formatDayLabel(dt),
+            style: const TextStyle(
+              color: Color(0xFF9E9E9E),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  Widget _buildUnreadDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: const [
+          Expanded(child: Divider(color: Color(0x339E9E9E), thickness: 1)),
+          SizedBox(width: 8),
+          Text(
+            'Unread messages',
+            style: TextStyle(
+              color: Color(0xFFFF8800),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(width: 8),
+          Expanded(child: Divider(color: Color(0x339E9E9E), thickness: 1)),
+        ],
+      ),
+    );
+  }
   final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
   bool _showEmojiPicker = false;
@@ -77,10 +103,56 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         setState(() => _showEmojiPicker = false);
       }
     });
+    // Setup last read stream for unread divider
+    _setupLastReadStream();
+    // Mark as read on entry
+    _markAsRead();
     // Scroll to bottom on initial load only
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom(force: true);
     });
+  }
+
+  void _setupLastReadStream() {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) return;
+      
+      _lastReadAtStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('chatReads')
+          .doc(widget.communityId)
+          .snapshots()
+          .map((doc) {
+            if (doc.exists && doc.data() != null && doc['lastReadAt'] != null) {
+              return doc['lastReadAt'] as Timestamp?;
+            }
+            return Timestamp.fromDate(
+              DateTime.now().subtract(const Duration(days: 30)),
+            );
+          });
+    } catch (e) {
+      _lastReadAtStream = Stream.value(
+        Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(days: 30)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _markAsRead() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser != null) {
+        final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+        await unread.markChatAsRead(widget.communityId);
+      }
+    } catch (e) {
+      print('Error marking as read: $e');
+    }
   }
 
   @override
@@ -262,34 +334,64 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   );
                 }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe = message.senderId == currentUserId;
-                    final currentDate =
-                        DateTime.fromMillisecondsSinceEpoch(message.timestamp);
-                    // Reverse ListView with messages sorted desc: compare with next item (index+1)
-                    // because that is visually above. Oldest message must always show divider.
-                    final isOldest = index == messages.length - 1;
-                    final nextDate = isOldest
-                      ? null
-                      : DateTime.fromMillisecondsSinceEpoch(
-                        messages[index + 1].timestamp,
-                        );
-                    final showDayDivider = isOldest ||
-                      _formatDayLabel(currentDate) !=
-                        _formatDayLabel(nextDate!);
+                return StreamBuilder<Timestamp?>(
+                  stream: _lastReadAtStream,
+                  builder: (context, readSnapshot) {
+                    final lastReadMs = readSnapshot.data?.toDate().millisecondsSinceEpoch ?? 0;
+                    
+                    // Pre-compute a single divider position: the first read message after unread ones
+                    int? unreadDividerIndex;
+                    bool hasUnread = false;
+                    bool hasRead = false;
+                    for (int i = 0; i < messages.length; i++) {
+                      final isUnread = messages[i].timestamp > lastReadMs;
+                      hasUnread = hasUnread || isUnread;
+                      hasRead = hasRead || !isUnread;
+                      if (i > 0) {
+                        final prevUnread = messages[i - 1].timestamp > lastReadMs;
+                        final currUnread = isUnread;
+                        if (prevUnread && !currUnread && unreadDividerIndex == null) {
+                          unreadDividerIndex = i;
+                        }
+                      }
+                    }
+                    // If both read and unread exist but no boundary found, place at last item
+                    if (unreadDividerIndex == null && hasUnread && hasRead) {
+                      unreadDividerIndex = messages.length - 1;
+                    }
+                    
+                    return ListView.builder(
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final message = messages[index];
+                        final isMe = message.senderId == currentUserId;
+                        final currentDate =
+                            DateTime.fromMillisecondsSinceEpoch(message.timestamp);
+                        // Reverse ListView with messages sorted desc: compare with next item (index+1)
+                        // because that is visually above. Oldest message must always show divider.
+                        final isOldest = index == messages.length - 1;
+                        final nextDate = isOldest
+                          ? null
+                          : DateTime.fromMillisecondsSinceEpoch(
+                            messages[index + 1].timestamp,
+                            );
+                        final showDayDivider = isOldest ||
+                          _formatDayLabel(currentDate) !=
+                            _formatDayLabel(nextDate!);
 
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (showDayDivider) _buildDayDivider(currentDate),
-                        _MessageBubble(message: message, isMe: isMe),
-                      ],
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_showUnreadDivider && unreadDividerIndex == index)
+                              _buildUnreadDivider(),
+                            if (showDayDivider) _buildDayDivider(currentDate),
+                            _MessageBubble(message: message, isMe: isMe),
+                          ],
+                        );
+                      },
                     );
                   },
                 );

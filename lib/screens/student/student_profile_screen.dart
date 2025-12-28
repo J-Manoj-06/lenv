@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart';
@@ -21,13 +22,13 @@ class StudentProfileScreen extends StatefulWidget {
 class _StudentProfileScreenState extends State<StudentProfileScreen> {
   final _leaderboardService = LeaderboardService();
   final _studentService = StudentService();
-  Future<StudentStats>? _statsFuture;
   StudentModel? _studentData;
-  bool _isLoadingStudent = true;
   // Live performance + attendance
   double? _attendancePct;
   bool _attendanceLoading = true;
   int? _classRank; // from leaderboard stats (static until refresh)
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _attendanceSub;
+  StreamSubscription<List<LeaderboardEntry>>? _rankSub;
 
   @override
   void didChangeDependencies() {
@@ -35,10 +36,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     final uid = authProvider.currentUser?.uid;
     if (uid != null) {
-      _statsFuture ??= _leaderboardService.getStudentStats(
-        studentId: uid,
-        email: authProvider.currentUser?.email,
-      );
       _loadStudentData(uid);
     }
   }
@@ -49,74 +46,112 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       if (mounted) {
         setState(() {
           _studentData = data;
-          _isLoadingStudent = false;
         });
       }
-      // After loading student data, compute attendance once
-      await _fetchAttendancePercentage();
-      // Resolve class rank from stats future
-      final stats = await _statsFuture;
-      if (mounted) setState(() => _classRank = stats?.classRank);
+      // Start live streams (attendance and class rank) after student data loads
+      _startLiveAttendanceStream();
+      _startLiveClassRankStream();
     } catch (e) {
       print('Error loading student data: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingStudent = false;
-        });
-      }
     }
   }
 
-  Future<void> _fetchAttendancePercentage() async {
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final schoolCode = authProvider.currentUser?.instituteId ?? '';
-      if (schoolCode.isEmpty) {
-        setState(() => _attendanceLoading = false);
-        return;
-      }
-      final className =
-          _studentData?.className; // e.g. "Grade 10" or "Grade 10 - B"
-      if (className == null || className.isEmpty) {
-        setState(() => _attendanceLoading = false);
-        return;
-      }
-      final gradeMatch = RegExp(r'Grade\s+(\d+)').firstMatch(className);
-      final sectionMatch = RegExp(r'-\s*([A-Za-z])').firstMatch(className);
-      final grade = gradeMatch?.group(1);
-      final section = sectionMatch?.group(1); // may be null
-      if (grade == null) {
-        setState(() => _attendanceLoading = false);
-        return;
-      }
-      var query = FirebaseFirestore.instance
-          .collection('attendance')
-          .where('schoolCode', isEqualTo: schoolCode)
-          .where('standard', isEqualTo: grade);
-      if (section != null && section.isNotEmpty) {
-        query = query.where('section', isEqualTo: section);
-      }
-      final snapshot = await query.limit(120).get();
-      int total = 0;
-      int present = 0;
-      for (final doc in snapshot.docs) {
-        final students = doc.data()['students'] as Map<String, dynamic>?;
-        if (students == null) continue;
-        // Direct lookup by auth UID (simplified schema)
-        final info = students[_studentData?.uid] as Map<String, dynamic>?;
-        if (info == null) continue; // student not found in this attendance doc
-        total++;
-        if ((info['status']?.toString().toLowerCase() ?? 'present') ==
-            'present') {
-          present++;
-        }
-      }
-      if (total > 0) _attendancePct = (present / total * 100).clamp(0, 100);
-    } catch (e) {
-      print('⚠️ attendance fetch error (profile): $e');
-    } finally {
-      if (mounted) setState(() => _attendanceLoading = false);
+  void _startLiveAttendanceStream() {
+    // Requires _studentData
+    final s = _studentData;
+    if (s == null) return;
+    setState(() => _attendanceLoading = true);
+
+    // Derive grade and section
+    final className = s.className ?? '';
+    final gradeMatch = RegExp(r'Grade\s+(\d+)').firstMatch(className);
+    final sectionMatch = RegExp(r'-\s*([A-Za-z])').firstMatch(className);
+    final grade = gradeMatch?.group(1);
+    final section = sectionMatch?.group(1);
+    final schoolCode = s.schoolCode ?? '';
+
+    // Validate
+    if (schoolCode.isEmpty || grade == null) {
+      setState(() => _attendanceLoading = false);
+      return;
     }
+
+    // Cancel previous
+    _attendanceSub?.cancel();
+
+    var query = FirebaseFirestore.instance
+        .collection('attendance')
+        .where('schoolCode', isEqualTo: schoolCode)
+        .where('standard', isEqualTo: grade);
+    if (section != null && section.isNotEmpty) {
+      query = query.where('section', isEqualTo: section);
+    }
+
+    _attendanceSub = query
+        .limit(120)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            int total = 0;
+            int present = 0;
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              final students = data['students'] as Map<String, dynamic>?;
+              if (students == null) continue;
+              final info = students[s.uid] as Map<String, dynamic>?;
+              if (info == null) continue;
+              total++;
+              if ((info['status']?.toString().toLowerCase() ?? 'present') ==
+                  'present') {
+                present++;
+              }
+            }
+            final pct = total > 0
+                ? (present / total * 100).clamp(0, 100)
+                : null;
+            if (mounted) {
+              setState(() {
+                _attendancePct = pct?.toDouble();
+                _attendanceLoading = false;
+              });
+            }
+          },
+          onError: (e) {
+            print('⚠️ attendance stream error (profile): $e');
+            if (mounted) setState(() => _attendanceLoading = false);
+          },
+        );
+  }
+
+  void _startLiveClassRankStream() {
+    final s = _studentData;
+    if (s == null) return;
+    final schoolCode = s.schoolCode ?? '';
+    final className = s.className ?? '';
+    final section = s.section;
+    if (schoolCode.isEmpty || className.isEmpty) return;
+
+    _rankSub?.cancel();
+    _rankSub = _leaderboardService
+        .getOverallLeaderboardStreamForClass(
+          schoolCode: schoolCode,
+          className: className,
+          section: section,
+          limit: 200,
+        )
+        .listen(
+          (entries) {
+            final idx = entries.indexWhere((e) => e.studentId == s.uid);
+            if (mounted) {
+              setState(() {
+                _classRank = idx == -1 ? _classRank : (idx + 1);
+              });
+            }
+          },
+          onError: (e) {
+            print('⚠️ class rank stream error: $e');
+          },
+        );
   }
 
   @override
@@ -198,54 +233,52 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     final String? imageUrl = _studentData?.photoUrl ?? user?.profileImage;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: _isLoadingStudent
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Avatar
-                Container(
-                  width: 128,
-                  height: 128,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: theme.cardColor,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                    border: Border.all(color: theme.cardColor, width: 4),
-                  ),
-                  child: ClipOval(
-                    child: imageUrl != null
-                        ? Image.network(imageUrl, fit: BoxFit.cover)
-                        : Center(
-                            child: Text(
-                              _initialsFromName(name),
-                              style: const TextStyle(
-                                fontSize: 42,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFFF8A00),
-                              ),
-                            ),
-                          ),
-                  ),
+      child: Column(
+        children: [
+          // Avatar
+          Container(
+            width: 128,
+            height: 128,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: theme.cardColor,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _buildClassAndSectionBadges(theme),
               ],
+              border: Border.all(color: theme.cardColor, width: 4),
             ),
+            child: ClipOval(
+              child: imageUrl != null
+                  ? Image.network(imageUrl, fit: BoxFit.cover)
+                  : Center(
+                      child: Text(
+                        _initialsFromName(name),
+                        style: const TextStyle(
+                          fontSize: 42,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFFF8A00),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            name,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildClassAndSectionBadges(theme),
+        ],
+      ),
     );
   }
 
@@ -700,6 +733,13 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         );
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _attendanceSub?.cancel();
+    _rankSub?.cancel();
+    super.dispose();
   }
 }
 
