@@ -588,7 +588,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color: theme.brightness == Brightness.dark
-                                        ? const Color(0xFFFF7B00).withOpacity(0.2)
+                                        ? const Color(
+                                            0xFFFF7B00,
+                                          ).withOpacity(0.2)
                                         : Colors.black.withOpacity(0.05),
                                   ),
                                 ),
@@ -599,14 +601,16 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                       width: 48,
                                       height: 48,
                                       decoration: BoxDecoration(
-                                        color: theme.brightness == Brightness.dark
+                                        color:
+                                            theme.brightness == Brightness.dark
                                             ? const Color(0xFF27272A)
                                             : const Color(0xFFF5F5F5),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Icon(
                                         Icons.menu_book,
-                                        color: theme.brightness == Brightness.dark
+                                        color:
+                                            theme.brightness == Brightness.dark
                                             ? Colors.white
                                             : const Color(0xFF1A1D21),
                                         size: 24,
@@ -621,7 +625,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                           Text(
                                             title,
                                             style: TextStyle(
-                                              color: theme.brightness == Brightness.dark
+                                              color:
+                                                  theme.brightness ==
+                                                      Brightness.dark
                                                   ? Colors.white
                                                   : const Color(0xFF1A1D21),
                                               fontSize: 16,
@@ -633,7 +639,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                             Text(
                                               subject,
                                               style: TextStyle(
-                                                color: theme.brightness == Brightness.dark
+                                                color:
+                                                    theme.brightness ==
+                                                        Brightness.dark
                                                     ? const Color(0xFFA1A1AA)
                                                     : Colors.black54,
                                                 fontSize: 14,
@@ -645,7 +653,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                             Text(
                                               dateStr,
                                               style: TextStyle(
-                                                color: theme.brightness == Brightness.dark
+                                                color:
+                                                    theme.brightness ==
+                                                        Brightness.dark
                                                     ? const Color(0xFF71717A)
                                                     : Colors.black45,
                                                 fontSize: 12,

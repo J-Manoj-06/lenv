@@ -53,7 +53,9 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                           'Leaderboard',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: isDark ? Colors.white : const Color(0xFF1A1D21),
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF1A1D21),
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
@@ -100,20 +102,26 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                             width: 96,
                             height: 96,
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                              color: isDark
+                                  ? const Color(0xFF1A1A1A)
+                                  : Colors.white,
                               borderRadius: BorderRadius.circular(48),
                             ),
                             child: Icon(
                               Icons.menu_book,
                               size: 48,
-                              color: isDark ? const Color(0xFF52525B) : Colors.black26,
+                              color: isDark
+                                  ? const Color(0xFF52525B)
+                                  : Colors.black26,
                             ),
                           ),
                           const SizedBox(height: 16),
                           Text(
                             'No students assigned yet',
                             style: TextStyle(
-                              color: isDark ? Colors.white : const Color(0xFF1A1D21),
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF1A1D21),
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                             ),
@@ -122,7 +130,9 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                           Text(
                             'Students will appear once test is assigned',
                             style: TextStyle(
-                              color: isDark ? const Color(0xFF71717A) : Colors.black54,
+                              color: isDark
+                                  ? const Color(0xFF71717A)
+                                  : Colors.black54,
                               fontSize: 14,
                             ),
                           ),
@@ -176,7 +186,12 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                         final isCurrentUser =
                             result['studentId'] == currentStudentId;
 
-                        return _buildUserRow(index + 1, result, isCurrentUser, isDark);
+                        return _buildUserRow(
+                          index + 1,
+                          result,
+                          isCurrentUser,
+                          isDark,
+                        );
                       },
                     ),
                   );
@@ -295,7 +310,9 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
       case 3:
         return const Color(0xFFD97706); // Bronze
       default:
-        return isDark ? const Color(0xFF3F3F46) : const Color(0xFFE5E7EB); // Gray
+        return isDark
+            ? const Color(0xFF3F3F46)
+            : const Color(0xFFE5E7EB); // Gray
     }
   }
 
