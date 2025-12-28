@@ -151,8 +151,6 @@ class _RequestDetailContent extends StatelessWidget {
               const SizedBox(height: 20),
               _RequestDetailsCard(
                 request: request,
-                productName: productName,
-                pointsNeeded: pointsNeeded,
               ),
 
               const SizedBox(height: 20),
@@ -535,13 +533,9 @@ class _TimelineRow extends StatelessWidget {
 
 class _RequestDetailsCard extends StatelessWidget {
   final RewardRequestModel request;
-  final String productName;
-  final int pointsNeeded;
 
   const _RequestDetailsCard({
     required this.request,
-    required this.productName,
-    required this.pointsNeeded,
   });
 
   @override
@@ -556,16 +550,6 @@ class _RequestDetailsCard extends StatelessWidget {
           request.timestamps.requestedAt,
         ),
         icon: Icons.calendar_today,
-      ),
-      _DetailTile(
-        label: 'Points Required',
-        value: '${PointsCalculator.formatPoints(pointsNeeded)} pts',
-        icon: Icons.workspace_premium_outlined,
-      ),
-      _DetailTile(
-        label: 'Parent',
-        value: request.parentId.isNotEmpty ? request.parentId : '—',
-        icon: Icons.group,
       ),
       _DetailTile(
         label: 'Product ID',
@@ -663,6 +647,7 @@ class _DetailTile extends StatelessWidget {
   }
 }
 
+
 class _StatusPill extends StatelessWidget {
   final RewardRequestStatus status;
 
@@ -721,175 +706,6 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 18, color: Colors.grey[600]),
-            const SizedBox(width: 8),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ),
-        Text(
-          value,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-        ),
-      ],
-    );
-  }
-}
-
-class _PointsBar extends StatelessWidget {
-  final String label;
-  final int points;
-  final Color color;
-
-  const _PointsBar({
-    required this.label,
-    required this.points,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.labelSmall),
-            Text(
-              '$points pts',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Container(
-          height: 8,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: FractionallySizedBox(
-            widthFactor: 0.7,
-            child: Container(
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusTimeline extends StatelessWidget {
-  final RewardRequestModel request;
-
-  const _StatusTimeline({required this.request});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Status History',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            children: [
-              ...request.audit.asMap().entries.map((entry) {
-                final isLast = entry.key == request.audit.length - 1;
-                return Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: Colors.orange[700],
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                entry.value.action,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              Text(
-                                reward_date_utils.DateUtils.formatDateTime(
-                                  entry.value.timestamp,
-                                ),
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(color: Colors.grey[600]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!isLast) ...[
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 5),
-                        child: Container(
-                          width: 2,
-                          height: 16,
-                          color: Colors.grey[400],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                  ],
-                );
-              }),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _ActionButtons extends StatelessWidget {
   final RewardRequestModel request;
@@ -908,29 +724,8 @@ class _ActionButtons extends StatelessWidget {
 
     // Show action buttons based on status
     if (request.status == RewardRequestStatus.pendingParentApproval) {
-      buttons.addAll([
-        ElevatedButton(
-          onPressed: isLoading
-              ? null
-              : () async {
-                  await onStatusChanged(
-                    request,
-                    RewardRequestStatus.approvedPurchaseInProgress,
-                  );
-                },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            minimumSize: const Size(double.infinity, 48),
-          ),
-          child: isLoading
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Approve Request'),
-        ),
-        const SizedBox(height: 12),
+      // Student view: allow only cancel request
+      buttons.add(
         ElevatedButton(
           onPressed: isLoading
               ? null
@@ -941,9 +736,9 @@ class _ActionButtons extends StatelessWidget {
             backgroundColor: Colors.red,
             minimumSize: const Size(double.infinity, 48),
           ),
-          child: const Text('Reject Request'),
+          child: const Text('Cancel Request'),
         ),
-      ]);
+      );
     } else if (request.status ==
         RewardRequestStatus.awaitingDeliveryConfirmation) {
       buttons.add(
