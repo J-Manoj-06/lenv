@@ -28,6 +28,7 @@ class MediaPreviewCard extends StatefulWidget {
   // Uploading state (for optimistic pending messages)
   final bool uploading;
   final double? uploadProgress; // 0.0 - 1.0
+  final bool selectionMode; // Disable gestures when in selection mode
 
   const MediaPreviewCard({
     super.key,
@@ -40,6 +41,7 @@ class MediaPreviewCard extends StatefulWidget {
     this.isMe = false,
     this.uploading = false,
     this.uploadProgress,
+    this.selectionMode = false,
   });
 
   @override
@@ -63,17 +65,20 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     // If localPath provided (WhatsApp upload), use it directly
     if (widget.localPath != null && widget.localPath!.isNotEmpty) {
       final file = File(widget.localPath!);
-      
+
       // Validate that the file extension matches the media type
       final filePath = widget.localPath!.toLowerCase();
-      final isAudioFile = filePath.endsWith('.m4a') || 
-                          filePath.endsWith('.mp3') || 
-                          filePath.endsWith('.aac') ||
-                          filePath.endsWith('.wav');
-      
+      final isAudioFile =
+          filePath.endsWith('.m4a') ||
+          filePath.endsWith('.mp3') ||
+          filePath.endsWith('.aac') ||
+          filePath.endsWith('.wav');
+
       // If this is supposed to be an image but localPath points to audio, ignore it
       if (_isImage && isAudioFile) {
-        print('⚠️ Skipping invalid localPath: audio file for image type: ${widget.localPath}');
+        print(
+          '⚠️ Skipping invalid localPath: audio file for image type: ${widget.localPath}',
+        );
         if (mounted) {
           setState(() {
             _isDownloaded = false;
@@ -82,7 +87,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         }
         return;
       }
-      
+
       final exists = await file.exists();
 
       print('📋 Using provided localPath: ${widget.localPath}');
@@ -273,8 +278,10 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final card = InkWell(
-      onTap: _isDownloaded ? _open : null,
-      onLongPress: _isDownloaded ? _delete : null,
+      onTap: widget.selectionMode ? null : (_isDownloaded ? _open : null),
+      onLongPress: widget.selectionMode
+          ? null
+          : (_isDownloaded ? _delete : null),
       child: Container(
         width: 260,
         constraints: const BoxConstraints(minWidth: 220, minHeight: 140),
@@ -282,14 +289,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: (_isPdf || _isAudio)
-                ? _accentColor.withOpacity(isDark ? 0.5 : 0.4)
-                : (isDark
-                    ? _accentColor.withOpacity(0.35)
-                    : Colors.grey.withOpacity(0.25)),
-            width: (_isPdf || _isAudio) ? 1.4 : 1.0,
-          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,20 +353,18 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _open,
+                  onPressed: widget.selectionMode ? null : _open,
                   icon: Icon(_isPdf ? Icons.open_in_new : Icons.play_arrow),
                   label: Text(_isPdf ? 'View PDF' : 'Play Audio'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: (_isPdf || _isAudio)
                         ? _accentColor
                         : (isDark
-                            ? _accentColor
-                            : _accentColor.withOpacity(0.12)),
+                              ? _accentColor
+                              : _accentColor.withOpacity(0.12)),
                     foregroundColor: (_isPdf || _isAudio)
                         ? Colors.white
-                        : (isDark
-                            ? Colors.white
-                            : const Color(0xFF1A1D21)),
+                        : (isDark ? Colors.white : const Color(0xFF1A1D21)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -378,20 +375,18 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _download,
+                  onPressed: widget.selectionMode ? null : _download,
                   icon: const Icon(Icons.download),
                   label: Text('Download ${_formatSize(widget.fileSize)}'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: (_isPdf || _isAudio)
                         ? _accentColor
                         : (isDark
-                            ? _accentColor.withOpacity(0.3)
-                            : _accentColor.withOpacity(0.12)),
+                              ? _accentColor.withOpacity(0.3)
+                              : _accentColor.withOpacity(0.12)),
                     foregroundColor: (_isPdf || _isAudio)
                         ? Colors.white
-                        : (isDark
-                            ? Colors.white
-                            : const Color(0xFF1A1D21)),
+                        : (isDark ? Colors.white : const Color(0xFF1A1D21)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -452,22 +447,26 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   /// Build WhatsApp-style image preview
   Widget _buildImagePreview() {
     return GestureDetector(
-      onTap: () {
-        if (_isDownloaded && _localPath != null) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => _FullImageViewer(
-                imagePath: _localPath!,
-                fileName: widget.fileName,
-              ),
-            ),
-          );
-        } else {
-          // Block viewing until download; start download instead
-          _download();
-        }
-      },
-      onLongPress: _isDownloaded ? _delete : null,
+      onTap: widget.selectionMode
+          ? null
+          : () {
+              if (_isDownloaded && _localPath != null) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => _FullImageViewer(
+                      imagePath: _localPath!,
+                      fileName: widget.fileName,
+                    ),
+                  ),
+                );
+              } else {
+                // Block viewing until download; start download instead
+                _download();
+              }
+            },
+      onLongPress: widget.selectionMode
+          ? null
+          : (_isDownloaded ? _delete : null),
       child: Container(
         width: 260,
         decoration: BoxDecoration(
@@ -483,17 +482,18 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 () {
                   // Double-check the file is actually an image before loading
                   final filePath = _localPath!.toLowerCase();
-                  final isImageFile = filePath.endsWith('.jpg') || 
-                                     filePath.endsWith('.jpeg') || 
-                                     filePath.endsWith('.png') ||
-                                     filePath.endsWith('.gif') ||
-                                     filePath.endsWith('.webp');
-                  
+                  final isImageFile =
+                      filePath.endsWith('.jpg') ||
+                      filePath.endsWith('.jpeg') ||
+                      filePath.endsWith('.png') ||
+                      filePath.endsWith('.gif') ||
+                      filePath.endsWith('.webp');
+
                   if (!isImageFile) {
                     print('⚠️ Invalid image file type: $_localPath');
                     return _buildThumbnailFallback();
                   }
-                  
+
                   return Image.file(
                     File(_localPath!),
                     height: 260,
@@ -647,11 +647,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         height: 260,
         width: 260,
         color: Colors.grey[800],
-        child: const Icon(
-          Icons.image,
-          size: 64,
-          color: Colors.white54,
-        ),
+        child: const Icon(Icons.image, size: 64, color: Colors.white54),
       );
     }
 

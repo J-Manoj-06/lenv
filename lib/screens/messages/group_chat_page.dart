@@ -264,6 +264,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       uploading: isPending,
                       uploadProgress: uploadProgress,
                       localSenderMediaPaths: _localSenderMediaPaths,
+                      selectionMode: _isSelectionMode,
                       key: ValueKey('bubble-${message.id}'),
                     ),
                   ),
@@ -1826,6 +1827,7 @@ class _MessageBubble extends StatelessWidget {
   final bool uploading; // for pending messages
   final double? uploadProgress;
   final Map<String, String> localSenderMediaPaths;
+  final bool selectionMode;
 
   const _MessageBubble({
     super.key,
@@ -1834,6 +1836,7 @@ class _MessageBubble extends StatelessWidget {
     this.uploading = false,
     this.uploadProgress,
     required this.localSenderMediaPaths,
+    this.selectionMode = false,
   });
 
   @override
@@ -1891,7 +1894,7 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ),
                 Material(
-                  elevation: isDark ? 0 : 1,
+                  elevation: 0,
                   color: isMe ? myBubbleColor : otherBubbleColor,
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(12),
@@ -1900,9 +1903,9 @@ class _MessageBubble extends StatelessWidget {
                     bottomRight: Radius.circular(isMe ? 6 : 12),
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: (message.mediaMetadata != null || message.imageUrl != null) && message.message.isEmpty ? 4 : 14,
+                      vertical: (message.mediaMetadata != null || message.imageUrl != null) && message.message.isEmpty ? 4 : 12,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1976,6 +1979,7 @@ class _MessageBubble extends StatelessWidget {
       isMe: isMe,
       uploading: uploading,
       uploadProgress: uploadProgress,
+      selectionMode: selectionMode,
     );
   }
 
@@ -1997,6 +2001,7 @@ class _MessageBubble extends StatelessWidget {
       mimeType: mimeType,
       fileSize: 0, // Unknown for legacy
       isMe: isMe,
+      selectionMode: selectionMode,
     );
   }
 

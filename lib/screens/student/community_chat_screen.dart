@@ -1386,9 +1386,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     clipBehavior: Clip.none,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 11,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: message.mediaMetadata != null && message.content.isEmpty ? 4 : 14,
+                          vertical: message.mediaMetadata != null && message.content.isEmpty ? 4 : 11,
                         ),
                         decoration: BoxDecoration(
                           color: isCurrentUser
@@ -1427,6 +1427,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                 isMe: isCurrentUser,
                                 uploading: isUploading,
                                 uploadProgress: uploadProgress,
+                                selectionMode: _isSelectionMode,
                               ),
                               if (message.content.isNotEmpty)
                                 const SizedBox(height: 8),
