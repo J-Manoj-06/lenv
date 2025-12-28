@@ -879,6 +879,7 @@ class CommunityService {
   }
 
   /// Delete message (soft delete)
+  /// Only the original sender can delete for everyone.
   Future<bool> deleteMessage({
     required String communityId,
     required String messageId,
@@ -891,10 +892,28 @@ class CommunityService {
           .collection('messages')
           .doc(messageId);
 
+      final snapshot = await messageRef.get();
+      if (!snapshot.exists) {
+        debugPrint('❌ Message not found: $messageId');
+        return false;
+      }
+
+      final data = snapshot.data();
+      final senderId = data?['senderId'] as String?;
+      if (senderId == null || senderId != userId) {
+        debugPrint('🚫 Unauthorized delete attempt by $userId for $messageId');
+        return false;
+      }
+
       await messageRef.update({
         'isDeleted': true,
         'deletedAt': FieldValue.serverTimestamp(),
         'content': 'This message was deleted',
+        'imageUrl': '',
+        'fileUrl': '',
+        'fileName': '',
+        'mediaMetadata': null,
+        'reactions': {},
       });
 
       debugPrint('✅ Message deleted: $messageId');

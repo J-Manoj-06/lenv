@@ -9,6 +9,7 @@ class GroupChatMessage {
   final MediaMetadata? mediaMetadata; // WhatsApp-style media metadata
   final int timestamp;
   final List<String>? deletedFor; // List of user IDs who deleted this message
+  final bool isDeleted; // Whether message was deleted by sender
 
   GroupChatMessage({
     required this.id,
@@ -19,6 +20,7 @@ class GroupChatMessage {
     this.mediaMetadata,
     required this.timestamp,
     this.deletedFor,
+    this.isDeleted = false,
   });
 
   factory GroupChatMessage.fromFirestore(Map<String, dynamic> data, String id) {
@@ -35,6 +37,7 @@ class GroupChatMessage {
       deletedFor: data['deletedFor'] != null
           ? List<String>.from(data['deletedFor'])
           : null,
+      isDeleted: data['isDeleted'] ?? false,
     );
   }
 
@@ -47,6 +50,7 @@ class GroupChatMessage {
       'mediaMetadata': mediaMetadata?.toFirestore(),
       'timestamp': timestamp,
       'deletedFor': deletedFor,
+      'isDeleted': isDeleted,
     };
   }
 }

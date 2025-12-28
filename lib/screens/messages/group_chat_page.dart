@@ -190,6 +190,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
       itemCount: messages.length,
       itemBuilder: (context, index) {
         final message = messages[index];
+        // Skip deleted messages - don't display them at all
+        if (message.isDeleted) {
+          return const SizedBox.shrink();
+        }
         final isMe = message.senderId == currentUserId;
         final isSelected = _selectedMessages.contains(message.id);
         final isPending =
@@ -227,13 +231,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
             if (showDayDivider) _buildDayDivider(currentDate),
             GestureDetector(
               key: ValueKey('msg-${message.id}'),
-              onLongPress: () {
+              onLongPress: isMe ? () {
                 setState(() {
                   _isSelectionMode = true;
                   _selectedMessages.add(message.id);
                 });
-              },
-              onTap: _isSelectionMode
+              } : null,
+              onTap: _isSelectionMode && isMe
                   ? () {
                       setState(() {
                         if (isSelected) {
@@ -1686,70 +1690,68 @@ class _GroupChatPageState extends State<GroupChatPage> {
     if (messagesToDelete.isEmpty) return;
 
     try {
-      for (final messageId in messagesToDelete) {
-        if (deleteForEveryone) {
-          // Get message to check for media
-          final docSnapshot = await FirebaseFirestore.instance
-              .collection('classes')
-              .doc(widget.classId)
-              .collection('subjects')
-              .doc(widget.subjectId)
-              .collection('messages')
-              .doc(messageId)
-              .get();
+      final authProvider = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      );
+      final currentUserId = authProvider.currentUser?.uid;
+      if (currentUserId == null) {
+        throw Exception('User not found');
+      }
 
-          if (docSnapshot.exists) {
-            final data = docSnapshot.data();
-            // Delete media from Cloudflare if exists
-            if (data?['mediaMetadata'] != null) {
-              final r2Key = data!['mediaMetadata']['r2Key'] as String?;
-              if (r2Key != null) {
-                try {
-                  final r2Service = CloudflareR2Service(
-                    accountId: CloudflareConfig.accountId,
-                    bucketName: CloudflareConfig.bucketName,
-                    accessKeyId: CloudflareConfig.accessKeyId,
-                    secretAccessKey: CloudflareConfig.secretAccessKey,
-                    r2Domain: CloudflareConfig.r2Domain,
-                  );
-                  await r2Service.deleteFile(key: r2Key);
-                  print('🗑️ Deleted media from Cloudflare: $r2Key');
-                } catch (e) {
-                  print('⚠️ Failed to delete media from Cloudflare: $e');
-                }
-              }
+      for (final messageId in messagesToDelete) {
+        final messageRef = FirebaseFirestore.instance
+            .collection('classes')
+            .doc(widget.classId)
+            .collection('subjects')
+            .doc(widget.subjectId)
+            .collection('messages')
+            .doc(messageId);
+
+        // Get message to check sender and media
+        final docSnapshot = await messageRef.get();
+
+        if (!docSnapshot.exists) {
+          print('⚠️ Message not found: $messageId');
+          continue;
+        }
+
+        final data = docSnapshot.data();
+        final senderId = data?['senderId'] as String?;
+        if (senderId == null || senderId != currentUserId) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('You can only delete your own messages'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          continue;
+        }
+
+        // Delete media from Cloudflare if exists
+        if (data?['mediaMetadata'] != null) {
+          final r2Key = data!['mediaMetadata']['r2Key'] as String?;
+          if (r2Key != null) {
+            try {
+              final r2Service = CloudflareR2Service(
+                accountId: CloudflareConfig.accountId,
+                bucketName: CloudflareConfig.bucketName,
+                accessKeyId: CloudflareConfig.accessKeyId,
+                secretAccessKey: CloudflareConfig.secretAccessKey,
+                r2Domain: CloudflareConfig.r2Domain,
+              );
+              await r2Service.deleteFile(key: r2Key);
+              print('🗑️ Deleted media from Cloudflare: $r2Key');
+            } catch (e) {
+              print('⚠️ Failed to delete media from Cloudflare: $e');
             }
           }
-
-          // Delete message from Firestore for everyone
-          await FirebaseFirestore.instance
-              .collection('classes')
-              .doc(widget.classId)
-              .collection('subjects')
-              .doc(widget.subjectId)
-              .collection('messages')
-              .doc(messageId)
-              .delete();
-        } else {
-          // Delete for me only - mark as deleted for this user
-          final authProvider = Provider.of<AuthProvider>(
-            context,
-            listen: false,
-          );
-          final currentUserId = authProvider.currentUser?.uid;
-          if (currentUserId != null) {
-            await FirebaseFirestore.instance
-                .collection('classes')
-                .doc(widget.classId)
-                .collection('subjects')
-                .doc(widget.subjectId)
-                .collection('messages')
-                .doc(messageId)
-                .update({
-                  'deletedFor': FieldValue.arrayUnion([currentUserId]),
-                });
-          }
         }
+
+        // Delete message completely for everyone
+        await messageRef.delete();
       }
 
       setState(() {
@@ -1759,10 +1761,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              deleteForEveryone ? 'Deleted for everyone' : 'Deleted for you',
-            ),
+          const SnackBar(
+            content: Text('Message deleted'),
             backgroundColor: const Color(0xFF4CAF50),
           ),
         );
@@ -1791,27 +1791,17 @@ class _GroupChatPageState extends State<GroupChatPage> {
           style: TextStyle(color: Colors.white),
         ),
         content: const Text(
-          'Choose delete option',
+          'Delete message for everyone?',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _deleteMessages(false);
-            },
-            child: const Text(
-              'Delete for me',
-              style: TextStyle(color: Color(0xFFFFA929)),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
               _deleteMessages(true);
             },
             child: const Text(
-              'Delete for everyone',
+              'Delete',
               style: TextStyle(color: Colors.redAccent),
             ),
           ),

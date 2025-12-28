@@ -23,7 +23,6 @@ import 'package:path_provider/path_provider.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../models/media_metadata.dart';
 import '../../widgets/media_preview_card.dart';
-import 'package:mime/mime.dart';
 
 class CommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -150,8 +149,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showCommunityInfo() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       backgroundColor: _surface(context),
@@ -248,7 +247,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   }
 
   Widget _buildRuleChip(String text, bool isAllowed) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -1509,63 +1507,65 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     if (messagesToDelete.isEmpty) return;
 
     try {
-      for (final messageId in messagesToDelete) {
-        if (deleteForEveryone) {
-          // Get message to check for media
-          final docSnapshot = await FirebaseFirestore.instance
-              .collection('communities')
-              .doc(widget.community.id)
-              .collection('messages')
-              .doc(messageId)
-              .get();
+      final currentUserId = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      ).currentStudent?.uid;
 
-          if (docSnapshot.exists) {
-            final data = docSnapshot.data();
-            // Delete media from Cloudflare if exists
-            if (data?['mediaMetadata'] != null) {
-              final r2Key = data!['mediaMetadata']['r2Key'] as String?;
-              if (r2Key != null) {
-                try {
-                  await CloudflareR2Service(
-                    accountId: CloudflareConfig.accountId,
-                    bucketName: CloudflareConfig.bucketName,
-                    accessKeyId: CloudflareConfig.accessKeyId,
-                    secretAccessKey: CloudflareConfig.secretAccessKey,
-                    r2Domain: CloudflareConfig.r2Domain,
-                  ).deleteFile(key: r2Key);
-                  print('🗑️ Deleted media from Cloudflare: $r2Key');
-                } catch (e) {
-                  print('⚠️ Failed to delete media from Cloudflare: $e');
-                }
-              }
+      if (currentUserId == null) {
+        throw Exception('User not found');
+      }
+
+      for (final messageId in messagesToDelete) {
+        final messageRef = FirebaseFirestore.instance
+            .collection('communities')
+            .doc(widget.community.id)
+            .collection('messages')
+            .doc(messageId);
+
+        // Get message to check sender and media
+        final docSnapshot = await messageRef.get();
+
+        if (!docSnapshot.exists) {
+          print('⚠️ Message not found: $messageId');
+          continue;
+        }
+
+        final data = docSnapshot.data();
+        final senderId = data?['senderId'] as String?;
+        if (senderId == null || senderId != currentUserId) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('You can only delete your own messages'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          continue;
+        }
+
+        // Delete media from Cloudflare if exists
+        if (data?['mediaMetadata'] != null) {
+          final r2Key = data!['mediaMetadata']['r2Key'] as String?;
+          if (r2Key != null) {
+            try {
+              await CloudflareR2Service(
+                accountId: CloudflareConfig.accountId,
+                bucketName: CloudflareConfig.bucketName,
+                accessKeyId: CloudflareConfig.accessKeyId,
+                secretAccessKey: CloudflareConfig.secretAccessKey,
+                r2Domain: CloudflareConfig.r2Domain,
+              ).deleteFile(key: r2Key);
+              print('🗑️ Deleted media from Cloudflare: $r2Key');
+            } catch (e) {
+              print('⚠️ Failed to delete media from Cloudflare: $e');
             }
           }
-
-          // Delete message from Firestore for everyone
-          await FirebaseFirestore.instance
-              .collection('communities')
-              .doc(widget.community.id)
-              .collection('messages')
-              .doc(messageId)
-              .delete();
-        } else {
-          // Delete for me only - mark as deleted for this user
-          final student = Provider.of<StudentProvider>(
-              context,
-              listen: false,
-            ).currentStudent;
-          final currentUserId = student?.uid;
-          if (currentUserId != null) {
-            await FirebaseFirestore.instance
-                .collection('communities')
-                .doc(widget.community.id)
-                .collection('messages')
-                .doc(messageId)
-                .update({
-              'deletedFor': FieldValue.arrayUnion([currentUserId]),
-            });
-          }
         }
+
+        // Delete message completely
+        await messageRef.delete();
       }
 
       setState(() {
@@ -1575,12 +1575,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              deleteForEveryone
-                  ? 'Deleted for everyone'
-                  : 'Deleted for you',
-            ),
+          const SnackBar(
+            content: Text('Message deleted'),
             backgroundColor: const Color(0xFF4CAF50),
           ),
         );
@@ -1611,27 +1607,17 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           style: TextStyle(color: Colors.white),
         ),
         content: const Text(
-          'Choose delete option',
+          'Delete message for everyone?',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _deleteMessages(false);
-            },
-            child: const Text(
-              'Delete for me',
-              style: TextStyle(color: Color(0xFFFFA929)),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
               _deleteMessages(true);
             },
             child: const Text(
-              'Delete for everyone',
+              'Delete',
               style: TextStyle(color: Colors.redAccent),
             ),
           ),
@@ -1921,8 +1907,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     if (student == null) {
       return const Scaffold(body: Center(child: Text('No student data')));
     }
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Stack(
       children: [
