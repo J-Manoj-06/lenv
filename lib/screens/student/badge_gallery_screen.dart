@@ -36,15 +36,22 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1C1C1E),
+        backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? Colors.white : const Color(0xFF1A1D21),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Badge Collection',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: isDark ? Colors.white : const Color(0xFF1A1D21),
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       body: FutureBuilder<List<Badge>>(
@@ -76,7 +83,7 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
                 margin: const EdgeInsets.all(20),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E),
+                  color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0xFFFF8800), width: 2),
                 ),
@@ -114,7 +121,9 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
                         label: Text(
                           entry.value,
                           style: TextStyle(
-                            color: isSelected ? Colors.black : Colors.white70,
+                            color: isSelected
+                                ? Colors.black
+                                : (isDark ? Colors.white70 : Colors.black54),
                             fontWeight: isSelected
                                 ? FontWeight.bold
                                 : FontWeight.normal,
@@ -126,14 +135,15 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
                             _selectedCategory = entry.key;
                           });
                         },
-                        backgroundColor: const Color(0xFF1C1C1E),
+                        backgroundColor:
+                            isDark ? const Color(0xFF1C1C1E) : Colors.white,
                         selectedColor: const Color(0xFFFF8800),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                           side: BorderSide(
                             color: isSelected
                                 ? const Color(0xFFFF8800)
-                                : Colors.white24,
+                                : (isDark ? Colors.white24 : Colors.black12),
                           ),
                         ),
                       ),
@@ -150,7 +160,7 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
                   padding: const EdgeInsets.all(20),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
-                    childAspectRatio: 0.85,
+                    childAspectRatio: 0.9,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                   ),
@@ -170,6 +180,7 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
   }
 
   Widget _buildStatItem(String label, String value, Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
         Text(
@@ -183,21 +194,27 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: Colors.white54),
+          style: TextStyle(
+            fontSize: 12,
+            color: isDark ? Colors.white54 : Colors.black54,
+          ),
         ),
       ],
     );
   }
 
   Widget _buildBadgeCard(Badge badge, bool isEarned) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () => _showBadgeDetail(badge, isEarned),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1E),
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isEarned ? const Color(0xFFFF8800) : Colors.white12,
+            color: isEarned
+                ? const Color(0xFFFF8800)
+                : (isDark ? Colors.white12 : Colors.black12),
             width: isEarned ? 2 : 1,
           ),
           boxShadow: isEarned
@@ -210,58 +227,74 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
                 ]
               : null,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              badge.emoji,
-              style: TextStyle(
-                fontSize: 36,
-                color: isEarned ? null : Colors.white.withValues(alpha: 0.2),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                badge.title,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                badge.emoji,
                 style: TextStyle(
-                  fontSize: 11,
-                  color: isEarned ? Colors.white : Colors.white38,
-                  fontWeight: isEarned ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 32,
+                  color: isEarned
+                      ? null
+                      : (isDark
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : Colors.black.withValues(alpha: 0.2)),
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            if (isEarned)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  '✓',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Color(0xFF4CAF50),
-                    fontWeight: FontWeight.bold,
+              const SizedBox(height: 6),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    badge.title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      height: 1.2,
+                      color: isEarned
+                          ? (isDark ? Colors.white : const Color(0xFF1A1D21))
+                          : (isDark ? Colors.white38 : Colors.black38),
+                      fontWeight:
+                          isEarned ? FontWeight.w600 : FontWeight.normal,
+                    ),
                   ),
                 ),
               ),
-          ],
+              const SizedBox(height: 4),
+              if (isEarned)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    '✓',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF4CAF50),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   void _showBadgeDetail(Badge badge, bool isEarned) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
+      backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -283,7 +316,11 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
               badge.emoji,
               style: TextStyle(
                 fontSize: 64,
-                color: isEarned ? null : Colors.white.withValues(alpha: 0.3),
+                color: isEarned
+                    ? null
+                    : (isDark
+                        ? Colors.white.withValues(alpha: 0.3)
+                        : Colors.black.withValues(alpha: 0.3)),
               ),
             ),
             const SizedBox(height: 16),
@@ -292,16 +329,18 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: isEarned ? Colors.white : Colors.white54,
+                color: isEarned
+                    ? (isDark ? Colors.white : const Color(0xFF1A1D21))
+                    : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),
             const SizedBox(height: 16),
             Text(
               badge.description,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
-                color: Colors.white70,
+                color: isDark ? Colors.white70 : Colors.black87,
                 height: 1.4,
               ),
             ),

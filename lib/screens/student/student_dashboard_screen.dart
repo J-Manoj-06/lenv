@@ -2111,24 +2111,24 @@ class _PremiumBadgeTileState extends State<_PremiumBadgeTile>
                 end: Alignment.bottomRight,
                 colors: widget.isUnlocked
                     ? (Theme.of(context).brightness == Brightness.dark
-                        ? [const Color(0xFF1A1C1F), const Color(0xFF252729)]
-                        : [Colors.white, const Color(0xFFFAFAFA)])
+                          ? [const Color(0xFF1A1C1F), const Color(0xFF252729)]
+                          : [Colors.white, const Color(0xFFFAFAFA)])
                     : (Theme.of(context).brightness == Brightness.dark
-                        ? [
-                            const Color(0xFF1A1C1F).withValues(alpha: 0.5),
-                            const Color(0xFF1A1C1F).withValues(alpha: 0.3),
-                          ]
-                        : [
-                            const Color(0xFFE0E0E0).withValues(alpha: 0.5),
-                            const Color(0xFFE0E0E0).withValues(alpha: 0.3),
-                          ]),
+                          ? [
+                              const Color(0xFF1A1C1F).withValues(alpha: 0.5),
+                              const Color(0xFF1A1C1F).withValues(alpha: 0.3),
+                            ]
+                          : [
+                              const Color(0xFFE0E0E0).withValues(alpha: 0.5),
+                              const Color(0xFFE0E0E0).withValues(alpha: 0.3),
+                            ]),
               ),
               border: Border.all(
                 color: widget.isUnlocked
                     ? const Color(0xFFFF8800)
                     : (Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF303236)
-                        : const Color(0xFFD0D0D0)),
+                          ? const Color(0xFF303236)
+                          : const Color(0xFFD0D0D0)),
                 width: widget.isUnlocked ? 2 : 1,
               ),
               boxShadow: [
@@ -2221,12 +2221,14 @@ class _PremiumBadgeTileState extends State<_PremiumBadgeTile>
                             fontSize: 11,
                             height: 1.2,
                             color: widget.isUnlocked
-                                ? (Theme.of(context).brightness == Brightness.dark
-                                    ? Colors.white
-                                    : const Color(0xFF1A1C1F))
-                                : (Theme.of(context).brightness == Brightness.dark
-                                    ? Colors.white.withValues(alpha: 0.4)
-                                    : Colors.black.withValues(alpha: 0.4)),
+                                ? (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.white
+                                      : const Color(0xFF1A1C1F))
+                                : (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.white.withValues(alpha: 0.4)
+                                      : Colors.black.withValues(alpha: 0.4)),
                             fontWeight: widget.isUnlocked
                                 ? FontWeight.w600
                                 : FontWeight.normal,
