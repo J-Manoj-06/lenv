@@ -16,9 +16,9 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   // Theme colors matching the HTML design
-  static const Color _primaryColor = Color(0xFFF2800D);
+  static const Color _primaryColor = Color(0xFF8B5CF6);
 
-  bool _isDarkMode = true; // Default to dark mode as per design
+  bool? _isDarkMode = true; // Default to dark mode as per design
   bool _isLoading = true;
   String? _error;
 
@@ -28,7 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _currentUserId; // Store user ID for stream query
 
   // Theme helpers
-  Color get _primary => const Color(0xFFF2800D);
+  Color get _primary => const Color(0xFF8B5CF6);
   Color _surface(BuildContext context) => Theme.of(context).cardColor;
   Color _onSurface(BuildContext context) =>
       Theme.of(context).colorScheme.onSurface;
@@ -177,7 +177,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  const SizedBox(width: 48),
+                  IconButton(
+                    icon: Icon(
+                      Icons.arrow_back_ios_new,
+                      color: _onSurface(context),
+                      size: 20,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                   Expanded(
                     child: Column(
                       children: [
@@ -210,26 +217,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.transparent,
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.settings_outlined,
-                        size: 24,
-                        color: _onSurface(context),
-                      ),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Settings')),
-                        );
-                      },
-                    ),
-                  ),
+                  const SizedBox(width: 48),
                 ],
               ),
             ),
@@ -464,6 +452,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildPersonalInformation() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
+    
+    // Get email from auth user or teacherData
+    final email = user?.email ?? _teacherData?['email'] ?? 'N/A';
+    final phone = user?.phone ?? _teacherData?['phone'] ?? _teacherData?['phoneNumber'];
+    
     final department =
         _teacherData?['department']?.toString() ??
         (_teacherData?['subjectsHandled'] is List
@@ -471,13 +464,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : _teacherData?['subjectsHandled']?.toString());
 
     final infoItems = <Map<String, dynamic>>[
-      if (user?.email != null)
-        {'icon': Icons.mail_outline, 'label': 'Email', 'value': user!.email},
-      if (user?.phone != null && user!.phone!.isNotEmpty)
+      {
+        'icon': Icons.mail_outline,
+        'label': 'Email',
+        'value': email,
+      },
+      if (phone != null && phone.toString().isNotEmpty)
         {
           'icon': Icons.phone_outlined,
           'label': 'Phone Number',
-          'value': user.phone!,
+          'value': phone.toString(),
         },
       if (department != null && department.isNotEmpty)
         {
@@ -485,13 +481,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'label': 'Department',
           'value': department,
         },
-      if (_teacherData?['experience'] != null)
+      if (_teacherData?['experience'] != null && _teacherData!['experience'].toString().isNotEmpty)
         {
           'icon': Icons.timeline_outlined,
           'label': 'Experience',
-          'value': _teacherData!['experience'].toString(),
+          'value': '${_teacherData!['experience']} years',
         },
-      if (_teacherData?['qualification'] != null)
+      if (_teacherData?['qualification'] != null && _teacherData!['qualification'].toString().isNotEmpty)
         {
           'icon': Icons.school_outlined,
           'label': 'Qualification',
@@ -515,7 +511,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Container(
           decoration: BoxDecoration(
             color: _surface(context),
-            borderRadius: BorderRadius.circular(16),
             border: Border(
               left: BorderSide(color: _primary, width: 4),
               top: BorderSide(
@@ -613,11 +608,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'route': '/my-highlights',
       },
       {'icon': Icons.lock_outline, 'label': 'Change Password'},
-      {'icon': Icons.notifications_outlined, 'label': 'Manage Notifications'},
-      {
-        'icon': Icons.schedule_outlined,
-        'label': 'Set Availability / Office Hours',
-      },
     ];
 
     return Column(
@@ -726,14 +716,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Container(
+        Column(
+          children: [
+            _buildThemeOptionCard('Light', false),
+            const SizedBox(height: 12),
+            _buildThemeOptionCard('Dark', true),
+            const SizedBox(height: 12),
+            _buildThemeOptionCard('System Default', null),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThemeOptionCard(String label, bool? isDarkTheme) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isSelected = (isDarkTheme == null && _isDarkMode == null) ||
+        (isDarkTheme != null && _isDarkMode == isDarkTheme);
+    
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _isDarkMode = isDarkTheme;
+          });
+          String message = 'Light theme applied';
+          if (isDarkTheme == true) {
+            message = 'Dark theme applied';
+          } else if (isDarkTheme == null) {
+            message = 'System theme applied';
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _surface(context),
+            color: isSelected ? _primary.withOpacity(0.1) : _surface(context),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Theme.of(context).dividerColor.withOpacity(0.3),
-              width: 1,
+              color: isSelected
+                  ? _primary
+                  : Theme.of(context).dividerColor.withOpacity(0.3),
+              width: isSelected ? 2 : 1,
             ),
             boxShadow: [
               BoxShadow(
@@ -746,14 +774,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   color: _primary.withOpacity(0.12),
                 ),
                 child: Icon(
-                  Icons.dark_mode_outlined,
+                  isDarkTheme == null
+                      ? Icons.brightness_auto
+                      : isDarkTheme
+                          ? Icons.dark_mode
+                          : Icons.light_mode,
                   color: _primary,
                   size: 22,
                 ),
@@ -761,66 +793,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
-                  'Dark Mode',
+                  label,
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: _onSurface(context),
                   ),
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _isDarkMode = !_isDarkMode;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        _isDarkMode
-                            ? 'Dark mode enabled'
-                            : 'Dark mode disabled',
-                      ),
-                    ),
-                  );
-                },
-                child: Container(
-                  width: 48,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: _isDarkMode ? _primary : Colors.grey[400],
-                    boxShadow: _isDarkMode
-                        ? [
-                            BoxShadow(
-                              color: _primary.withOpacity(0.5),
-                              blurRadius: 10,
-                              spreadRadius: 0,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: AnimatedAlign(
-                    duration: const Duration(milliseconds: 200),
-                    alignment: _isDarkMode
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
+              if (isSelected)
+                Icon(
+                  Icons.check_circle,
+                  color: _primary,
+                  size: 20,
                 ),
-              ),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 
