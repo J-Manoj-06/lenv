@@ -325,7 +325,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? theme.primaryColor.withOpacity(0.18)
+                        ? const Color(0xFF7A5CFF)
                         : (isDark
                               ? const Color(0xFF1A1C20)
                               : theme.colorScheme.surfaceContainerHighest.withOpacity(
@@ -335,7 +335,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                              color: theme.primaryColor.withOpacity(0.12),
+                              color: const Color(0xFF7A5CFF).withOpacity(0.3),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -349,7 +349,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: isSelected
-                            ? theme.colorScheme.onPrimary
+                            ? Colors.white
                             : theme.textTheme.bodySmall?.color?.withOpacity(
                                 0.8,
                               ),
@@ -937,8 +937,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
       right: 20,
       child: FloatingActionButton(
         onPressed: () => Navigator.pushNamed(context, '/create-test-entry'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        backgroundColor: const Color(0xFF8B5CF6),
+        foregroundColor: Colors.white,
         elevation: 1,
         child: const Icon(Icons.add),
       ),

@@ -26,19 +26,25 @@ class CreateTestEntryScreen extends StatelessWidget {
             // Top bar
             SizedBox(
               height: 56,
-              child: Row(
+              child: Stack(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.pop(context),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Create a Test',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textTheme.bodyLarge?.color,
+                  Center(
+                    child: Text(
+                      'Create a Test',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
                     ),
                   ),
                 ],
