@@ -1387,8 +1387,16 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     children: [
                       Container(
                         padding: EdgeInsets.symmetric(
-                          horizontal: message.mediaMetadata != null && message.content.isEmpty ? 4 : 14,
-                          vertical: message.mediaMetadata != null && message.content.isEmpty ? 4 : 11,
+                          horizontal:
+                              message.mediaMetadata != null &&
+                                  message.content.isEmpty
+                              ? 4
+                              : 14,
+                          vertical:
+                              message.mediaMetadata != null &&
+                                  message.content.isEmpty
+                              ? 4
+                              : 11,
                         ),
                         decoration: BoxDecoration(
                           color: isCurrentUser

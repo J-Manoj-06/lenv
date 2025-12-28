@@ -1904,8 +1904,18 @@ class _MessageBubble extends StatelessWidget {
                   ),
                   child: Padding(
                     padding: EdgeInsets.symmetric(
-                      horizontal: (message.mediaMetadata != null || message.imageUrl != null) && message.message.isEmpty ? 4 : 14,
-                      vertical: (message.mediaMetadata != null || message.imageUrl != null) && message.message.isEmpty ? 4 : 12,
+                      horizontal:
+                          (message.mediaMetadata != null ||
+                                  message.imageUrl != null) &&
+                              message.message.isEmpty
+                          ? 4
+                          : 14,
+                      vertical:
+                          (message.mediaMetadata != null ||
+                                  message.imageUrl != null) &&
+                              message.message.isEmpty
+                          ? 4
+                          : 12,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

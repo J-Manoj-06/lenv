@@ -156,10 +156,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           _isDownloaded = true;
           _localPath = result.localPath;
         });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Downloaded successfully')),
-        );
       } else {
         ScaffoldMessenger.of(
           context,
