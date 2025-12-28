@@ -735,8 +735,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final targetMode = isDarkTheme == null
         ? ThemeMode.system
         : isDarkTheme
-            ? ThemeMode.dark
-            : ThemeMode.light;
+        ? ThemeMode.dark
+        : ThemeMode.light;
 
     final isSelected = themeProvider.themeMode == targetMode;
 
@@ -745,15 +745,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: InkWell(
         onTap: () {
           themeProvider.setThemeMode(targetMode);
-          String message = 'Light theme applied';
-          if (isDarkTheme == true) {
-            message = 'Dark theme applied';
-          } else if (isDarkTheme == null) {
-            message = 'System theme applied';
-          }
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(message)));
         },
         borderRadius: BorderRadius.circular(16),
         child: Container(
@@ -788,8 +779,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   isDarkTheme == null
                       ? Icons.brightness_auto
                       : isDarkTheme
-                          ? Icons.dark_mode
-                          : Icons.light_mode,
+                      ? Icons.dark_mode
+                      : Icons.light_mode,
                   color: _primary,
                   size: 22,
                 ),
