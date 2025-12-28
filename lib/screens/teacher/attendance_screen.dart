@@ -464,7 +464,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
           const Expanded(
@@ -478,10 +478,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () {},
-          ),
+          const SizedBox(width: 48),
         ],
       ),
     );
