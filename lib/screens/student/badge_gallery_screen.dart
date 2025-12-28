@@ -135,8 +135,9 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
                             _selectedCategory = entry.key;
                           });
                         },
-                        backgroundColor:
-                            isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                        backgroundColor: isDark
+                            ? const Color(0xFF1C1C1E)
+                            : Colors.white,
                         selectedColor: const Color(0xFFFF8800),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
@@ -240,8 +241,8 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
                   color: isEarned
                       ? null
                       : (isDark
-                          ? Colors.white.withValues(alpha: 0.2)
-                          : Colors.black.withValues(alpha: 0.2)),
+                            ? Colors.white.withValues(alpha: 0.2)
+                            : Colors.black.withValues(alpha: 0.2)),
                 ),
               ),
               const SizedBox(height: 6),
@@ -259,8 +260,9 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
                       color: isEarned
                           ? (isDark ? Colors.white : const Color(0xFF1A1D21))
                           : (isDark ? Colors.white38 : Colors.black38),
-                      fontWeight:
-                          isEarned ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isEarned
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -268,8 +270,10 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
               const SizedBox(height: 4),
               if (isEarned)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
@@ -319,8 +323,8 @@ class _BadgeGalleryScreenState extends State<BadgeGalleryScreen> {
                 color: isEarned
                     ? null
                     : (isDark
-                        ? Colors.white.withValues(alpha: 0.3)
-                        : Colors.black.withValues(alpha: 0.3)),
+                          ? Colors.white.withValues(alpha: 0.3)
+                          : Colors.black.withValues(alpha: 0.3)),
               ),
             ),
             const SizedBox(height: 16),

@@ -9,18 +9,19 @@ class PerTestLeaderboardList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final studentId = authProvider.currentUser?.uid;
 
     if (studentId == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF111111),
-        body: Center(child: Text('Not logged in')),
+      return Scaffold(
+        backgroundColor: isDark ? const Color(0xFF111111) : Colors.grey[50],
+        body: const Center(child: Text('Not logged in')),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF111111),
+      backgroundColor: isDark ? const Color(0xFF111111) : Colors.grey[50],
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,21 +35,21 @@ class PerTestLeaderboardList extends StatelessWidget {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.arrow_back_ios_new,
-                          color: Colors.white60,
+                          color: isDark ? Colors.white60 : Colors.black54,
                           size: 24,
                         ),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
                   ),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 0),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 0),
                     child: Text(
                       'Leaderboards',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: isDark ? Colors.white : const Color(0xFF1A1D21),
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                         height: 1.2,
@@ -65,8 +66,9 @@ class PerTestLeaderboardList extends StatelessWidget {
               child: Container(
                 height: 40,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
+                  color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
                   borderRadius: BorderRadius.circular(8),
+                  border: isDark ? null : Border.all(color: Colors.black12),
                 ),
                 padding: const EdgeInsets.all(4),
                 child: Row(
@@ -80,10 +82,10 @@ class PerTestLeaderboardList extends StatelessWidget {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           alignment: Alignment.center,
-                          child: const Text(
+                          child: Text(
                             'Overall',
                             style: TextStyle(
-                              color: Colors.white60,
+                              color: isDark ? Colors.white60 : Colors.black54,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
@@ -145,29 +147,29 @@ class PerTestLeaderboardList extends StatelessWidget {
                             width: 96,
                             height: 96,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1A1A1A),
+                              color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
                               borderRadius: BorderRadius.circular(48),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.menu_book,
                               size: 48,
-                              color: Color(0xFF52525B),
+                              color: isDark ? const Color(0xFF52525B) : Colors.black26,
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
+                          Text(
                             'No tests assigned yet',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: isDark ? Colors.white : const Color(0xFF1A1D21),
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
+                          Text(
                             'Tests will appear here once assigned',
                             style: TextStyle(
-                              color: Color(0xFF71717A),
+                              color: isDark ? const Color(0xFF71717A) : Colors.black54,
                               fontSize: 14,
                             ),
                           ),
@@ -215,6 +217,7 @@ class PerTestLeaderboardList extends StatelessWidget {
   }
 
   Widget _buildTestItem(BuildContext context, Map<String, dynamic> test) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final testTitle = test['testTitle'] as String? ?? 'Unnamed Test';
     final subject = test['subject'] as String? ?? '';
     final assignedAt = (test['assignedAt'] as Timestamp?)?.toDate();
@@ -240,9 +243,13 @@ class PerTestLeaderboardList extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
+            color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFFF7B00).withOpacity(0.2)),
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFFFF7B00).withOpacity(0.2)
+                  : Colors.black.withOpacity(0.05),
+            ),
           ),
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -251,12 +258,12 @@ class PerTestLeaderboardList extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF27272A),
+                  color: isDark ? const Color(0xFF27272A) : const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.menu_book,
-                  color: Colors.white,
+                  color: isDark ? Colors.white : const Color(0xFF1A1D21),
                   size: 24,
                 ),
               ),
@@ -267,8 +274,8 @@ class PerTestLeaderboardList extends StatelessWidget {
                   children: [
                     Text(
                       testTitle,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : const Color(0xFF1A1D21),
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                       ),
@@ -277,8 +284,8 @@ class PerTestLeaderboardList extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         subject,
-                        style: const TextStyle(
-                          color: Color(0xFFA1A1AA),
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFFA1A1AA) : Colors.black54,
                           fontSize: 14,
                         ),
                       ),
@@ -287,8 +294,8 @@ class PerTestLeaderboardList extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         dateStr,
-                        style: const TextStyle(
-                          color: Color(0xFF71717A),
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFF71717A) : Colors.black45,
                           fontSize: 12,
                         ),
                       ),
@@ -296,9 +303,9 @@ class PerTestLeaderboardList extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.arrow_forward_ios,
-                color: Colors.white30,
+                color: isDark ? Colors.white30 : Colors.black26,
                 size: 20,
               ),
             ],

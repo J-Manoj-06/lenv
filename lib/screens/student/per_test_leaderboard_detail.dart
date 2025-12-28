@@ -23,11 +23,12 @@ class PerTestLeaderboardDetail extends StatefulWidget {
 class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentStudentId = authProvider.currentUser?.uid;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF111111),
+      backgroundColor: isDark ? const Color(0xFF111111) : Colors.grey[50],
       body: SafeArea(
         child: Column(
           children: [
@@ -39,9 +40,9 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.arrow_back_ios_new,
-                          color: Colors.white,
+                          color: isDark ? Colors.white : Colors.black87,
                           size: 24,
                         ),
                         padding: EdgeInsets.zero,
@@ -51,8 +52,8 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                         child: Text(
                           'Leaderboard',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : const Color(0xFF1A1D21),
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
@@ -65,8 +66,8 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                   Text(
                     '${widget.testTitle}${widget.subject.isNotEmpty ? ' - ${widget.subject}' : ''}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFFA1A1AA),
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFA1A1AA) : Colors.black54,
                       fontSize: 14,
                     ),
                   ),
@@ -99,29 +100,29 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                             width: 96,
                             height: 96,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1A1A1A),
+                              color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
                               borderRadius: BorderRadius.circular(48),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.menu_book,
                               size: 48,
-                              color: Color(0xFF52525B),
+                              color: isDark ? const Color(0xFF52525B) : Colors.black26,
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
+                          Text(
                             'No students assigned yet',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: isDark ? Colors.white : const Color(0xFF1A1D21),
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
+                          Text(
                             'Students will appear once test is assigned',
                             style: TextStyle(
-                              color: Color(0xFF71717A),
+                              color: isDark ? const Color(0xFF71717A) : Colors.black54,
                               fontSize: 14,
                             ),
                           ),
@@ -175,7 +176,7 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                         final isCurrentUser =
                             result['studentId'] == currentStudentId;
 
-                        return _buildUserRow(index + 1, result, isCurrentUser);
+                        return _buildUserRow(index + 1, result, isCurrentUser, isDark);
                       },
                     ),
                   );
@@ -192,6 +193,7 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
     int rank,
     Map<String, dynamic> data,
     bool isHighlighted,
+    bool isDark,
   ) {
     final name = isHighlighted ? 'You' : (data['studentName'] as String);
     final className = data['className'] as String;
@@ -221,11 +223,11 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: _getRankColor(awardRank),
+              color: _getRankColor(awardRank, isDark),
               borderRadius: BorderRadius.circular(20),
             ),
             alignment: Alignment.center,
-            child: _getRankDisplay(rank, awardRank),
+            child: _getRankDisplay(rank, awardRank, isDark),
           ),
           const SizedBox(width: 16),
           // User Info
@@ -235,8 +237,8 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF1A1D21),
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -245,8 +247,8 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                   const SizedBox(height: 2),
                   Text(
                     classInfo,
-                    style: const TextStyle(
-                      color: Color(0xFFA1A1AA),
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFA1A1AA) : Colors.black54,
                       fontSize: 14,
                     ),
                   ),
@@ -283,7 +285,7 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
     );
   }
 
-  Color _getRankColor(int? awardRank) {
+  Color _getRankColor(int? awardRank, bool isDark) {
     // Only award colors for top 3 with positive scores
     switch (awardRank) {
       case 1:
@@ -293,11 +295,11 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
       case 3:
         return const Color(0xFFD97706); // Bronze
       default:
-        return const Color(0xFF3F3F46); // Gray
+        return isDark ? const Color(0xFF3F3F46) : const Color(0xFFE5E7EB); // Gray
     }
   }
 
-  Widget _getRankDisplay(int displayRank, int? awardRank) {
+  Widget _getRankDisplay(int displayRank, int? awardRank, bool isDark) {
     // Show medal emoji only if awardRank is 1..3 (score > 0)
     switch (awardRank) {
       case 1:
@@ -309,8 +311,8 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
       default:
         return Text(
           '$displayRank',
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: isDark ? Colors.white : const Color(0xFF1A1D21),
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),

@@ -449,11 +449,24 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                   onSubmitted: (value) {
                     _applySearch();
                   },
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: theme.brightness == Brightness.dark
+                        ? Colors.white
+                        : const Color(0xFF1A1D21),
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Search tests...',
-                    hintStyle: const TextStyle(color: Colors.white54),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                    hintStyle: TextStyle(
+                      color: theme.brightness == Brightness.dark
+                          ? Colors.white54
+                          : Colors.black54,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: theme.brightness == Brightness.dark
+                          ? Colors.white54
+                          : Colors.black54,
+                    ),
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -461,18 +474,22 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                             _pendingSearchText != _searchQuery)
                           IconButton(
                             tooltip: 'Apply search',
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.search,
-                              color: Colors.white70,
+                              color: theme.brightness == Brightness.dark
+                                  ? Colors.white70
+                                  : Colors.black54,
                             ),
                             onPressed: _applySearch,
                           ),
                         if (_searchQuery.isNotEmpty)
                           IconButton(
                             tooltip: 'Clear search',
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.clear,
-                              color: Colors.white54,
+                              color: theme.brightness == Brightness.dark
+                                  ? Colors.white54
+                                  : Colors.black54,
                             ),
                             onPressed: () {
                               _searchController.clear();
@@ -488,7 +505,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                     filled: true,
                     fillColor: theme.brightness == Brightness.dark
                         ? Colors.white.withOpacity(0.1)
-                        : const Color(0xFF1A1A1A),
+                        : Colors.white.withOpacity(0.05),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -508,7 +525,12 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                           _searchQuery.isNotEmpty
                               ? 'No tests found'
                               : 'No tests assigned yet',
-                          style: TextStyle(color: Colors.white54, fontSize: 16),
+                          style: TextStyle(
+                            color: theme.brightness == Brightness.dark
+                                ? Colors.white54
+                                : Colors.black54,
+                            fontSize: 16,
+                          ),
                         ),
                       )
                     : ListView.separated(
@@ -560,12 +582,14 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF1A1A1A),
+                                  color: theme.brightness == Brightness.dark
+                                      ? const Color(0xFF1A1A1A)
+                                      : Colors.white,
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: const Color(
-                                      0xFFFF7B00,
-                                    ).withOpacity(0.2),
+                                    color: theme.brightness == Brightness.dark
+                                        ? const Color(0xFFFF7B00).withOpacity(0.2)
+                                        : Colors.black.withOpacity(0.05),
                                   ),
                                 ),
                                 padding: const EdgeInsets.all(16),
@@ -575,12 +599,16 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                       width: 48,
                                       height: 48,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF27272A),
+                                        color: theme.brightness == Brightness.dark
+                                            ? const Color(0xFF27272A)
+                                            : const Color(0xFFF5F5F5),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         Icons.menu_book,
-                                        color: Colors.white,
+                                        color: theme.brightness == Brightness.dark
+                                            ? Colors.white
+                                            : const Color(0xFF1A1D21),
                                         size: 24,
                                       ),
                                     ),
@@ -592,8 +620,10 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                         children: [
                                           Text(
                                             title,
-                                            style: const TextStyle(
-                                              color: Colors.white,
+                                            style: TextStyle(
+                                              color: theme.brightness == Brightness.dark
+                                                  ? Colors.white
+                                                  : const Color(0xFF1A1D21),
                                               fontSize: 16,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -602,8 +632,10 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                             const SizedBox(height: 4),
                                             Text(
                                               subject,
-                                              style: const TextStyle(
-                                                color: Color(0xFFA1A1AA),
+                                              style: TextStyle(
+                                                color: theme.brightness == Brightness.dark
+                                                    ? const Color(0xFFA1A1AA)
+                                                    : Colors.black54,
                                                 fontSize: 14,
                                               ),
                                             ),
@@ -612,8 +644,10 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                             const SizedBox(height: 2),
                                             Text(
                                               dateStr,
-                                              style: const TextStyle(
-                                                color: Color(0xFF71717A),
+                                              style: TextStyle(
+                                                color: theme.brightness == Brightness.dark
+                                                    ? const Color(0xFF71717A)
+                                                    : Colors.black45,
                                                 fontSize: 12,
                                               ),
                                             ),
@@ -621,9 +655,11 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                                         ],
                                       ),
                                     ),
-                                    const Icon(
+                                    Icon(
                                       Icons.arrow_forward_ios,
-                                      color: Colors.white30,
+                                      color: theme.brightness == Brightness.dark
+                                          ? Colors.white30
+                                          : Colors.black26,
                                       size: 20,
                                     ),
                                   ],
