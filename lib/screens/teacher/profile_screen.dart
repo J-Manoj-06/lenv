@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/session_manager.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../services/teacher_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -18,7 +19,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // Theme colors matching the HTML design
   static const Color _primaryColor = Color(0xFF8B5CF6);
 
-  bool? _isDarkMode = true; // Default to dark mode as per design
   bool _isLoading = true;
   String? _error;
 
@@ -452,11 +452,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildPersonalInformation() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
-    
+
     // Get email from auth user or teacherData
     final email = user?.email ?? _teacherData?['email'] ?? 'N/A';
-    final phone = user?.phone ?? _teacherData?['phone'] ?? _teacherData?['phoneNumber'];
-    
+    final phone =
+        user?.phone ?? _teacherData?['phone'] ?? _teacherData?['phoneNumber'];
+
     final department =
         _teacherData?['department']?.toString() ??
         (_teacherData?['subjectsHandled'] is List
@@ -464,11 +465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : _teacherData?['subjectsHandled']?.toString());
 
     final infoItems = <Map<String, dynamic>>[
-      {
-        'icon': Icons.mail_outline,
-        'label': 'Email',
-        'value': email,
-      },
+      {'icon': Icons.mail_outline, 'label': 'Email', 'value': email},
       if (phone != null && phone.toString().isNotEmpty)
         {
           'icon': Icons.phone_outlined,
@@ -481,13 +478,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'label': 'Department',
           'value': department,
         },
-      if (_teacherData?['experience'] != null && _teacherData!['experience'].toString().isNotEmpty)
+      if (_teacherData?['experience'] != null &&
+          _teacherData!['experience'].toString().isNotEmpty)
         {
           'icon': Icons.timeline_outlined,
           'label': 'Experience',
           'value': '${_teacherData!['experience']} years',
         },
-      if (_teacherData?['qualification'] != null && _teacherData!['qualification'].toString().isNotEmpty)
+      if (_teacherData?['qualification'] != null &&
+          _teacherData!['qualification'].toString().isNotEmpty)
         {
           'icon': Icons.school_outlined,
           'label': 'Qualification',
@@ -731,25 +730,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildThemeOptionCard(String label, bool? isDarkTheme) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isSelected = (isDarkTheme == null && _isDarkMode == null) ||
-        (isDarkTheme != null && _isDarkMode == isDarkTheme);
-    
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    final targetMode = isDarkTheme == null
+        ? ThemeMode.system
+        : isDarkTheme
+            ? ThemeMode.dark
+            : ThemeMode.light;
+
+    final isSelected = themeProvider.themeMode == targetMode;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          setState(() {
-            _isDarkMode = isDarkTheme;
-          });
+          themeProvider.setThemeMode(targetMode);
           String message = 'Light theme applied';
           if (isDarkTheme == true) {
             message = 'Dark theme applied';
           } else if (isDarkTheme == null) {
             message = 'System theme applied';
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
         },
         borderRadius: BorderRadius.circular(16),
         child: Container(
@@ -802,11 +806,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               if (isSelected)
-                Icon(
-                  Icons.check_circle,
-                  color: _primary,
-                  size: 20,
-                ),
+                Icon(Icons.check_circle, color: _primary, size: 20),
             ],
           ),
         ),

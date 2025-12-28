@@ -395,17 +395,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.palette_outlined),
-                        color: Theme.of(context).iconTheme.color,
-                        tooltip: 'Theme Settings',
-                        onPressed: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/teacher/theme-settings',
-                          );
-                        },
-                      ),
-                      IconButton(
                         icon: const Icon(Icons.person_outline),
                         color: Theme.of(context).iconTheme.color,
                         tooltip: 'Profile',
