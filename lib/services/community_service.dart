@@ -130,9 +130,9 @@ class CommunityService {
       final indexData = indexDoc.data()!;
       final fromIndex =
           (indexData['communityIds'] as List<dynamic>?)
-                  ?.whereType<String>()
-                  .toList() ??
-              [];
+              ?.whereType<String>()
+              .toList() ??
+          [];
 
       // 🔎 Self-healing: also scan membership to catch any missing IDs
       // This is a single collectionGroup query and only runs once per load.
@@ -151,8 +151,9 @@ class CommunityService {
       final communityIds = <String>{...fromIndex, ...fromMembership}.toList();
 
       // If membership discovered extra IDs, update the index asynchronously
-      final missingInIndex =
-          fromMembership.where((id) => !fromIndex.contains(id)).toList();
+      final missingInIndex = fromMembership
+          .where((id) => !fromIndex.contains(id))
+          .toList();
       if (missingInIndex.isNotEmpty) {
         try {
           await _firestore.collection('user_communities').doc(userId).set({
@@ -160,7 +161,8 @@ class CommunityService {
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
           debugPrint(
-              '🩺 Self-healed user_communities by adding ${missingInIndex.length} missing id(s)');
+            '🩺 Self-healed user_communities by adding ${missingInIndex.length} missing id(s)',
+          );
         } catch (e) {
           debugPrint('⚠️ Failed to self-heal user_communities: $e');
         }
@@ -368,7 +370,7 @@ class CommunityService {
       final userCommRef = _firestore
           .collection('user_communities')
           .doc(student.uid);
-      
+
       batch.set(userCommRef, {
         'userId': student.uid,
         'communityIds': FieldValue.arrayUnion([communityId]),
@@ -435,7 +437,7 @@ class CommunityService {
       final userCommRef = _firestore
           .collection('user_communities')
           .doc(teacherId);
-      
+
       batch.set(userCommRef, {
         'userId': teacherId,
         'communityIds': FieldValue.arrayUnion([communityId]),

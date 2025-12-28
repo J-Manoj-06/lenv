@@ -226,17 +226,21 @@ class _GroupChatPageState extends State<GroupChatPage> {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_showUnreadDivider && showDivider && unreadDividerIndex == index)
+            if (_showUnreadDivider &&
+                showDivider &&
+                unreadDividerIndex == index)
               _buildUnreadDivider(),
             if (showDayDivider) _buildDayDivider(currentDate),
             GestureDetector(
               key: ValueKey('msg-${message.id}'),
-              onLongPress: isMe ? () {
-                setState(() {
-                  _isSelectionMode = true;
-                  _selectedMessages.add(message.id);
-                });
-              } : null,
+              onLongPress: isMe
+                  ? () {
+                      setState(() {
+                        _isSelectionMode = true;
+                        _selectedMessages.add(message.id);
+                      });
+                    }
+                  : null,
               onTap: _isSelectionMode && isMe
                   ? () {
                       setState(() {
@@ -423,12 +427,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     // Debounce to avoid excessive writes - use 5 seconds to prevent feedback loop
     final now = DateTime.now();
-    if (now.difference(_lastMarkedReadAt) < const Duration(seconds: 5))
-      return;
+    if (now.difference(_lastMarkedReadAt) < const Duration(seconds: 5)) return;
 
     print('🔔 Scheduling auto-mark-as-read in 2 seconds');
     _lastMarkedReadAt = now;
-    
+
     // Delay mark-as-read by 2 seconds to allow user to see the unread divider
     Future.delayed(const Duration(seconds: 2), () {
       // Check if widget is still mounted and still at bottom
@@ -436,7 +439,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final stillNearBottom =
           !_scrollController.hasClients || _scrollController.offset < 120;
       if (!stillNearBottom) return;
-      
+
       print('✅ Executing delayed mark-as-read');
       _markChatAsReadForUser().catchError((e) {
         print('⚠️ Auto mark-as-read failed: $e');
@@ -1413,7 +1416,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         // Only consider it valid data if we actually received a non-null timestamp
                         final hasValidData = readSnapshot.data != null;
                         final lastReadMs =
-                            readSnapshot.data?.toDate().millisecondsSinceEpoch ??
+                            readSnapshot.data
+                                ?.toDate()
+                                .millisecondsSinceEpoch ??
                             DateTime.now()
                                 .subtract(const Duration(days: 30))
                                 .millisecondsSinceEpoch;
@@ -1421,12 +1426,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           '🔍 StreamBuilder lastReadAt: ${readSnapshot.data?.toDate() ?? "null"}, lastReadMs=$lastReadMs, hasValidData=$hasValidData',
                         );
                         // Schedule mark-as-read after build completes to avoid setState during build
-                        Future.microtask(() => _maybeMarkAsRead(lastReadMs, messages));
+                        Future.microtask(
+                          () => _maybeMarkAsRead(lastReadMs, messages),
+                        );
                         return _buildMessageList(
                           messages,
                           lastReadMs,
                           currentUserId,
-                          showDivider: hasValidData, // Only show divider with valid Firestore data
+                          showDivider:
+                              hasValidData, // Only show divider with valid Firestore data
                         );
                       },
                     );
@@ -1690,10 +1698,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     if (messagesToDelete.isEmpty) return;
 
     try {
-      final authProvider = Provider.of<AuthProvider>(
-        context,
-        listen: false,
-      );
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
       if (currentUserId == null) {
         throw Exception('User not found');

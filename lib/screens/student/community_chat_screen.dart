@@ -111,7 +111,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       final unread = Provider.of<UnreadCountProvider>(context, listen: false);
       unread.markChatAsRead(widget.community.id);
     } catch (_) {}
-    
+
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
@@ -324,8 +324,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         fileSize: await File(image.path).length(),
         // We compress to JPEG in the worker upload flow
         mimeType: 'image/jpeg',
-        originalFileName:
-            image.name.isNotEmpty ? image.name : image.path.split('/').last,
+        originalFileName: image.name.isNotEmpty
+            ? image.name
+            : image.path.split('/').last,
       );
 
       final pendingMessage = CommunityMessageModel(
@@ -385,7 +386,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       if (result.success && result.metadata != null) {
         // Keep sender-local path to avoid re-download
         _localSenderMediaPaths[result.metadata!.messageId] = image.path;
-        debugPrint('📌 Cached sender local path: ${image.path} for messageId: ${result.metadata!.messageId}');
+        debugPrint(
+          '📌 Cached sender local path: ${image.path} for messageId: ${result.metadata!.messageId}',
+        );
 
         await _communityService.sendMessage(
           communityId: widget.community.id,
@@ -416,31 +419,38 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           );
         }
       } else {
-        debugPrint('❌ UploadResult failure: error=${result.error} message=${result.errorMessage}');
-        throw Exception(result.errorMessage ?? result.error?.message ?? 'Upload failed');
+        debugPrint(
+          '❌ UploadResult failure: error=${result.error} message=${result.errorMessage}',
+        );
+        throw Exception(
+          result.errorMessage ?? result.error?.message ?? 'Upload failed',
+        );
       }
     } catch (e, st) {
       if (mounted) {
         setState(() {
           _isUploading = false;
-          _pendingMessages.removeWhere((m) => m.messageId.startsWith('pending:'));
+          _pendingMessages.removeWhere(
+            (m) => m.messageId.startsWith('pending:'),
+          );
           _pendingUploadProgress.clear();
         });
       }
       debugPrint('❌ CommunityChat image send failed: $e');
       debugPrint('📄 Stacktrace: $st');
-      
+
       // User-friendly error message
       String userMessage = 'Failed to send image';
       final errorStr = e.toString().toLowerCase();
       if (errorStr.contains('network') || errorStr.contains('connection')) {
-        userMessage = 'Network error. Please check your connection and try again.';
+        userMessage =
+            'Network error. Please check your connection and try again.';
       } else if (errorStr.contains('timeout')) {
         userMessage = 'Upload timeout. Please check your connection.';
       } else if (errorStr.contains('invalid')) {
         userMessage = 'Invalid image file. Please try another image.';
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -867,8 +877,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       serverStatus: ServerStatus.available,
       expiresAt: DateTime.now().add(const Duration(days: 365)),
       uploadedAt: DateTime.now(),
-      fileSize:
-          _recordingPath != null ? await File(_recordingPath!).length() : null,
+      fileSize: _recordingPath != null
+          ? await File(_recordingPath!).length()
+          : null,
       mimeType: 'audio/aac',
       originalFileName: _recordingPath != null
           ? Uri.file(_recordingPath!).pathSegments.last
@@ -1015,7 +1026,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         setState(() {
           _isUploading = false;
           _isRecording = false;
-          _pendingMessages.removeWhere((m) => m.messageId.startsWith('pending:'));
+          _pendingMessages.removeWhere(
+            (m) => m.messageId.startsWith('pending:'),
+          );
           _pendingUploadProgress.clear();
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1333,172 +1346,174 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                   isSelected
                       ? Icons.check_circle
                       : Icons.radio_button_unchecked,
-                  color: isSelected
-                      ? const Color(0xFFFFA929)
-                      : Colors.grey,
+                  color: isSelected ? const Color(0xFFFFA929) : Colors.grey,
                   size: 24,
                 ),
               ),
-          if (!isCurrentUser) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFA726).withOpacity(0.15),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFFFFA726).withOpacity(0.3),
-                  width: 1.5,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  message.senderName[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Color(0xFFFFA726),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+            if (!isCurrentUser) ...[
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFA726).withOpacity(0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFFFA726).withOpacity(0.3),
+                    width: 1.5,
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-          ],
-          Flexible(
-            child: Column(
-              crossAxisAlignment: isCurrentUser
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                if (!isCurrentUser)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 5, left: 4),
-                    child: Text(
-                      message.senderName,
-                      style: const TextStyle(
-                        color: Color(0xFF6B7075),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
+                child: Center(
+                  child: Text(
+                    message.senderName[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Color(0xFFFFA726),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
                     ),
                   ),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 11,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isCurrentUser
-                            ? const Color(0xFFFFE8D1)
-                            : const Color(0xFF1A1D21),
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(16),
-                          topRight: const Radius.circular(16),
-                          bottomLeft: Radius.circular(isCurrentUser ? 16 : 4),
-                          bottomRight: Radius.circular(isCurrentUser ? 4 : 16),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Flexible(
+              child: Column(
+                crossAxisAlignment: isCurrentUser
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [
+                  if (!isCurrentUser)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 5, left: 4),
+                      child: Text(
+                        message.senderName,
+                        style: const TextStyle(
+                          color: Color(0xFF6B7075),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Media with metadata (images, PDFs, audio)
-                          if (message.mediaMetadata != null) ...[
-                            MediaPreviewCard(
-                              r2Key: message.mediaMetadata!.r2Key,
-                              fileName: _getFileNameFromMetadata(
-                                message.mediaMetadata!,
-                              ),
-                              mimeType:
-                                  message.mediaMetadata!.mimeType ??
-                                  'application/octet-stream',
-                              fileSize: message.mediaMetadata!.fileSize ?? 0,
-                              thumbnailBase64: message.mediaMetadata!.thumbnail,
-                              localPath: message.mediaMetadata!.localPath ??
-                                  localSenderMediaPaths[
-                                    message.mediaMetadata!.messageId
-                                  ],
-                              isMe: isCurrentUser,
-                              uploading: isUploading,
-                              uploadProgress: uploadProgress,
-                            ),
-                            if (message.content.isNotEmpty)
-                              const SizedBox(height: 8),
-                          ],
-                          // Text content
-                          if (message.content.isNotEmpty)
-                            Text(
-                              message.content,
-                              style: TextStyle(
-                                color: isCurrentUser
-                                    ? const Color(0xFF1A1D21)
-                                    : const Color(0xFFE8E8E8),
-                                fontSize: 15,
-                                height: 1.45,
-                                letterSpacing: 0.15,
-                              ),
-                            ),
-                        ],
-                      ),
                     ),
-                    if (!isCurrentUser && message.senderRole == 'Teacher')
-                      Positioned(
-                        left: -4,
-                        top: -6,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF64B5F6).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: const Color(0xFF64B5F6).withOpacity(0.4),
-                              width: 1,
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 11,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isCurrentUser
+                              ? const Color(0xFFFFE8D1)
+                              : const Color(0xFF1A1D21),
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(16),
+                            topRight: const Radius.circular(16),
+                            bottomLeft: Radius.circular(isCurrentUser ? 16 : 4),
+                            bottomRight: Radius.circular(
+                              isCurrentUser ? 4 : 16,
                             ),
                           ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.school_outlined,
-                                size: 10,
-                                color: Color(0xFF64B5F6),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Media with metadata (images, PDFs, audio)
+                            if (message.mediaMetadata != null) ...[
+                              MediaPreviewCard(
+                                r2Key: message.mediaMetadata!.r2Key,
+                                fileName: _getFileNameFromMetadata(
+                                  message.mediaMetadata!,
+                                ),
+                                mimeType:
+                                    message.mediaMetadata!.mimeType ??
+                                    'application/octet-stream',
+                                fileSize: message.mediaMetadata!.fileSize ?? 0,
+                                thumbnailBase64:
+                                    message.mediaMetadata!.thumbnail,
+                                localPath:
+                                    message.mediaMetadata!.localPath ??
+                                    localSenderMediaPaths[message
+                                        .mediaMetadata!
+                                        .messageId],
+                                isMe: isCurrentUser,
+                                uploading: isUploading,
+                                uploadProgress: uploadProgress,
                               ),
-                              SizedBox(width: 3),
+                              if (message.content.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ],
+                            // Text content
+                            if (message.content.isNotEmpty)
                               Text(
-                                'Teacher',
+                                message.content,
                                 style: TextStyle(
-                                  color: Color(0xFF64B5F6),
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w500,
+                                  color: isCurrentUser
+                                      ? const Color(0xFF1A1D21)
+                                      : const Color(0xFFE8E8E8),
+                                  fontSize: 15,
+                                  height: 1.45,
+                                  letterSpacing: 0.15,
                                 ),
                               ),
-                            ],
-                          ),
+                          ],
                         ),
                       ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 5, left: 4, right: 4),
-                  child: Text(
-                    _formatTime(message.createdAt),
-                    style: const TextStyle(
-                      color: Color(0xFF6B7075),
-                      fontSize: 11,
+                      if (!isCurrentUser && message.senderRole == 'Teacher')
+                        Positioned(
+                          left: -4,
+                          top: -6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF64B5F6).withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFF64B5F6).withOpacity(0.4),
+                                width: 1,
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.school_outlined,
+                                  size: 10,
+                                  color: Color(0xFF64B5F6),
+                                ),
+                                SizedBox(width: 3),
+                                Text(
+                                  'Teacher',
+                                  style: TextStyle(
+                                    color: Color(0xFF64B5F6),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5, left: 4, right: 4),
+                    child: Text(
+                      _formatTime(message.createdAt),
+                      style: const TextStyle(
+                        color: Color(0xFF6B7075),
+                        fontSize: 11,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -1599,9 +1614,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Delete Messages',
           style: TextStyle(color: Colors.white),
@@ -1623,10 +1636,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.grey),
-            ),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
         ],
       ),
@@ -1781,8 +1791,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     final bgColor = _isRecording
                         ? const Color(0xFFE57373)
                         : (hasText
-                            ? const Color(0xFFFFA726)
-                            : const Color(0xFFFFA929));
+                              ? const Color(0xFFFFA726)
+                              : const Color(0xFFFFA929));
                     final icon = _isRecording
                         ? Icons.mic
                         : (hasText ? Icons.send_rounded : Icons.mic_none);
@@ -1793,11 +1803,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                         color: bgColor,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        icon,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                      child: Icon(icon, color: Colors.white, size: 20),
                     );
                   },
                 ),
@@ -1964,9 +1970,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       }
                     }
 
-                    combined.sort(
-                      (a, b) => b.createdAt.compareTo(a.createdAt),
-                    );
+                    combined.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
                     if (combined.isEmpty) {
                       return Center(
@@ -2008,21 +2012,26 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                         final message = combined[index];
                         final isCurrentUser = message.senderId == student.uid;
                         final metaId =
-                            message.mediaMetadata?.messageId ?? message.messageId;
-                        final isPending = message.messageId.startsWith('pending:') ||
-                            (message.mediaMetadata?.r2Key
-                                    .startsWith('pending/') ??
+                            message.mediaMetadata?.messageId ??
+                            message.messageId;
+                        final isPending =
+                            message.messageId.startsWith('pending:') ||
+                            (message.mediaMetadata?.r2Key.startsWith(
+                                  'pending/',
+                                ) ??
                                 false);
-                        final uploadProgress =
-                            isPending ? _pendingUploadProgress[metaId] : null;
+                        final uploadProgress = isPending
+                            ? _pendingUploadProgress[metaId]
+                            : null;
                         // Messages sorted desc; ListView reversed. The visually previous item is index+1 (older).
                         // Show divider above the oldest message of each day (day boundary with older item),
                         // and always above the global oldest.
                         final isOldest = index == combined.length - 1;
                         final older = isOldest ? null : combined[index + 1];
-                        final showDateDivider = isOldest ||
-                          _formatDate(message.createdAt) !=
-                            _formatDate(older!.createdAt);
+                        final showDateDivider =
+                            isOldest ||
+                            _formatDate(message.createdAt) !=
+                                _formatDate(older!.createdAt);
 
                         return Column(
                           mainAxisSize: MainAxisSize.min,
