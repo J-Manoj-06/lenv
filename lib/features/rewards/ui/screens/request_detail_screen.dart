@@ -149,9 +149,7 @@ class _RequestDetailContent extends StatelessWidget {
               _ProgressTimeline(request: request),
 
               const SizedBox(height: 20),
-              _RequestDetailsCard(
-                request: request,
-              ),
+              _RequestDetailsCard(request: request),
 
               const SizedBox(height: 20),
               _ActionButtons(
@@ -534,9 +532,7 @@ class _TimelineRow extends StatelessWidget {
 class _RequestDetailsCard extends StatelessWidget {
   final RewardRequestModel request;
 
-  const _RequestDetailsCard({
-    required this.request,
-  });
+  const _RequestDetailsCard({required this.request});
 
   @override
   Widget build(BuildContext context) {
@@ -647,7 +643,6 @@ class _DetailTile extends StatelessWidget {
   }
 }
 
-
 class _StatusPill extends StatelessWidget {
   final RewardRequestStatus status;
 
@@ -705,7 +700,6 @@ class _StatusPill extends StatelessWidget {
     );
   }
 }
-
 
 class _ActionButtons extends StatelessWidget {
   final RewardRequestModel request;
