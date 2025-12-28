@@ -849,10 +849,17 @@ class _TeacherStudentResultDetailScreenState
       return false;
     }
 
-    // If it's a number, support 0-based and 1-based indices
+    // If it's a number, check both against index AND against numeric value in text
     if (ans is num) {
       final i = ans.toInt();
-      return i == index || i == index + 1;
+      // Check if matches index (0-based or 1-based)
+      if (i == index || i == index + 1) return true;
+      // Also check if the text itself represents this number
+      if (text.trim() == i.toString()) return true;
+      // Try parsing text as number and compare
+      final parsedText = int.tryParse(text.trim());
+      if (parsedText != null && parsedText == i) return true;
+      return false;
     }
 
     // Booleans for True/False
