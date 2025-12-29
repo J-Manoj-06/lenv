@@ -317,30 +317,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  'Leaderboard',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).textTheme.bodyLarge?.color,
-                  ),
-                ),
+          child: Center(
+            child: Text(
+              'Leaderboard',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
-              IconButton(
-                icon: const Icon(Icons.ios_share),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Share leaderboard')),
-                  );
-                },
-                color: Theme.of(context).iconTheme.color,
-              ),
-            ],
+            ),
           ),
         ),
       ),
