@@ -202,7 +202,10 @@ class _TeacherCommunityExploreScreenState
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: theme.textTheme.bodyLarge?.color,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(

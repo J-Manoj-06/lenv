@@ -78,8 +78,30 @@ class _StudentListScreenState extends State<StudentListScreen> {
         _classNameForQuery,
       ], _sectionForQuery);
 
+      // Drop any records without a usable name/id to avoid blank tiles in the list
+      final sanitized = students.where((s) {
+        final name = _displayName(s);
+        final id = (s['id'] ?? s['uid'] ?? '').toString().trim();
+        return name.isNotEmpty && id.isNotEmpty;
+      }).toList();
+
+      // Deduplicate by stable identity (uid > id > name) to avoid duplicate tiles like repeating "Uma Nair"
+      final seen = <String>{};
+      final deduped = <Map<String, dynamic>>[];
+      for (final s in sanitized) {
+        final uidKey = (s['uid'] ?? '').toString().trim().toLowerCase();
+        final idKey = (s['id'] ?? '').toString().trim().toLowerCase();
+        final nameKey = _displayName(s).toLowerCase();
+        final key = uidKey.isNotEmpty
+            ? 'uid:$uidKey'
+            : (idKey.isNotEmpty ? 'id:$idKey' : 'name:$nameKey');
+        if (seen.contains(key)) continue;
+        seen.add(key);
+        deduped.add(s);
+      }
+
       setState(() {
-        _students = students;
+        _students = deduped;
         _isLoading = false;
       });
 
@@ -548,7 +570,7 @@ String _initials(String name) {
       .split(RegExp(r"\s+"))
       .where((p) => p.isNotEmpty)
       .toList();
-  if (parts.isEmpty) return '';
+  if (parts.isEmpty) return '?';
   if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
   return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
       .toUpperCase();
