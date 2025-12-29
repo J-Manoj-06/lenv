@@ -70,13 +70,16 @@ class _ParentSectionGroupChatScreenState
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   Timer? _recordingTimer;
   final List<CommunityMessageModel> _pendingMessages = [];
-  final Map<String, double> _pendingUploadProgress = {};
+  final Map<String, ValueNotifier<double>> _pendingUploadNotifiers = {};
   final Map<String, String> _localSenderMediaPaths = {};
   // Throttle progress updates to avoid rebuilding the entire list too frequently
   final Map<String, int> _lastUploadPercent = {};
 
   @override
   void dispose() {
+    for (final notifier in _pendingUploadNotifiers.values) {
+      notifier.dispose();
+    }
     _controller.dispose();
     _scrollController.dispose();
     _recordingTimer?.cancel();
@@ -283,9 +286,9 @@ class _ParentSectionGroupChatScreenState
                         ? Colors.white
                         : (isDark ? Colors.white : Colors.black87);
                     final isPending = msg.messageId.startsWith('pending:');
-                    final uploadProgress = isPending
-                        ? _pendingUploadProgress[msg.messageId]
-                        : null;
+                    final progressNotifier = isPending
+                      ? _pendingUploadNotifiers[msg.messageId]
+                      : null;
                     final localPath = _localSenderMediaPaths[msg.messageId];
 
                     if (msg.type == 'announcement') {
@@ -385,25 +388,54 @@ class _ParentSectionGroupChatScreenState
                                         ),
                                       ),
                                     if (msg.mediaMetadata != null) ...[
-                                      RepaintBoundary(
-                                        child: MediaPreviewCard(
-                                          r2Key: msg.mediaMetadata!.r2Key,
-                                          fileName: _getFileName(msg),
-                                          mimeType:
-                                              msg.mediaMetadata!.mimeType ??
+                                        RepaintBoundary(
+                                        child: progressNotifier != null
+                                          ? ValueListenableBuilder<double>(
+                                            valueListenable:
+                                              progressNotifier,
+                                            builder: (_, value, __) {
+                                              final progress =
+                                                ((value / 100)
+                                                    .clamp(0.0, 1.0))
+                                                  .toDouble();
+                                              return MediaPreviewCard(
+                                              r2Key: msg
+                                                .mediaMetadata!.r2Key,
+                                              fileName: _getFileName(msg),
+                                              mimeType:
+                                                msg.mediaMetadata!
+                                                    .mimeType ??
+                                                  'application/octet-stream',
+                                              fileSize: msg.mediaMetadata!
+                                                  .fileSize ??
+                                                0,
+                                              thumbnailBase64:
+                                                msg.mediaMetadata!
+                                                  .thumbnail,
+                                              localPath: localPath,
+                                              isMe: isCurrentUser,
+                                              uploading: true,
+                                              uploadProgress: progress,
+                                              );
+                                            },
+                                            )
+                                          : MediaPreviewCard(
+                                            r2Key: msg.mediaMetadata!.r2Key,
+                                            fileName: _getFileName(msg),
+                                            mimeType: msg.mediaMetadata!
+                                                .mimeType ??
                                               'application/octet-stream',
-                                          fileSize:
-                                              msg.mediaMetadata!.fileSize ?? 0,
-                                          thumbnailBase64:
+                                            fileSize: msg.mediaMetadata!
+                                                .fileSize ??
+                                              0,
+                                            thumbnailBase64:
                                               msg.mediaMetadata!.thumbnail,
-                                          localPath: localPath,
-                                          isMe: isCurrentUser,
-                                          uploading: isPending,
-                                          uploadProgress: uploadProgress != null
-                                              ? uploadProgress / 100
-                                              : null,
+                                            localPath: localPath,
+                                            isMe: isCurrentUser,
+                                            uploading: isPending,
+                                            uploadProgress: null,
+                                            ),
                                         ),
-                                      ),
                                       if (msg.content.isNotEmpty)
                                         const SizedBox(height: 8),
                                     ],
@@ -600,8 +632,9 @@ class _ParentSectionGroupChatScreenState
 
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
-        _pendingUploadProgress[pendingId] = 0;
+        _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0);
         _localSenderMediaPaths[pendingId] = file.path;
+        _lastUploadPercent[pendingId] = -1;
       });
 
       // Scroll to bottom to show new message
@@ -631,9 +664,7 @@ class _ParentSectionGroupChatScreenState
           if (!shouldUpdate) return;
 
           _lastUploadPercent[pendingId] = percent;
-          setState(() {
-            _pendingUploadProgress[pendingId] = percent.toDouble();
-          });
+          _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
         },
       );
 
@@ -664,8 +695,9 @@ class _ParentSectionGroupChatScreenState
       if (mounted) {
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
-          _pendingUploadProgress.remove(pendingId);
+          _pendingUploadNotifiers.remove(pendingId)?.dispose();
           _localSenderMediaPaths.remove(pendingId);
+          _lastUploadPercent.remove(pendingId);
         });
       }
     } catch (e) {
@@ -731,7 +763,7 @@ class _ParentSectionGroupChatScreenState
 
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
-        _pendingUploadProgress[pendingId] = 0;
+        _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0);
         _lastUploadPercent[pendingId] = -1;
       });
 
@@ -750,9 +782,7 @@ class _ParentSectionGroupChatScreenState
               last < 0 || percent == 100 || (percent - last) >= 5;
           if (!shouldUpdate) return;
           _lastUploadPercent[pendingId] = percent;
-          setState(() {
-            _pendingUploadProgress[pendingId] = percent.toDouble();
-          });
+          _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
         },
       );
 
@@ -782,7 +812,7 @@ class _ParentSectionGroupChatScreenState
       if (mounted) {
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
-          _pendingUploadProgress.remove(pendingId);
+          _pendingUploadNotifiers.remove(pendingId)?.dispose();
           _lastUploadPercent.remove(pendingId);
         });
       }
@@ -849,7 +879,7 @@ class _ParentSectionGroupChatScreenState
 
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
-        _pendingUploadProgress[pendingId] = 0;
+        _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0);
         _lastUploadPercent[pendingId] = -1;
       });
 
@@ -867,9 +897,7 @@ class _ParentSectionGroupChatScreenState
               last < 0 || percent == 100 || (percent - last) >= 5;
           if (!shouldUpdate) return;
           _lastUploadPercent[pendingId] = percent;
-          setState(() {
-            _pendingUploadProgress[pendingId] = percent.toDouble();
-          });
+          _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
         },
       );
 
@@ -899,7 +927,7 @@ class _ParentSectionGroupChatScreenState
       if (mounted) {
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
-          _pendingUploadProgress.remove(pendingId);
+          _pendingUploadNotifiers.remove(pendingId)?.dispose();
           _lastUploadPercent.remove(pendingId);
         });
       }
