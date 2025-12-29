@@ -129,19 +129,24 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
         copy['aggregatedRewardPoints'] = points;
 
-        final nameKey = (copy['studentName'] ?? copy['name'] ?? '').toString().toLowerCase();
+        final nameKey = (copy['studentName'] ?? copy['name'] ?? '')
+            .toString()
+            .toLowerCase();
         final key = uid.isNotEmpty
             ? 'uid:$uid'
             : (docId.isNotEmpty ? 'doc:$docId' : 'name:$nameKey');
 
         final existing = deduped[key];
-        if (existing == null || _getStudentPoints(copy) > _getStudentPoints(existing)) {
+        if (existing == null ||
+            _getStudentPoints(copy) > _getStudentPoints(existing)) {
           deduped[key] = copy;
         }
 
         // Debug print to verify
         // ignore: avoid_print
-        print('🏅 ${copy['studentName'] ?? copy['name']}: points=$points (docId=$docId uid=$uid)');
+        print(
+          '🏅 ${copy['studentName'] ?? copy['name']}: points=$points (docId=$docId uid=$uid)',
+        );
       }
 
       final enriched = deduped.values.toList();
