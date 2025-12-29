@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/parent_teacher_group.dart';
 import '../models/community_message_model.dart';
 import '../models/student_model.dart';
+import '../models/media_metadata.dart';
 
 class ParentTeacherGroupService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -179,13 +180,15 @@ class ParentTeacherGroupService {
         );
   }
 
-  /// Send a text message
+  /// Send a message (text or media)
   Future<void> sendMessage({
     required String groupId,
     required String senderId,
     required String senderName,
     required String senderRole, // 'parent' or 'teacher'
     required String content,
+    String mediaType = 'text', // text | image | pdf | audio
+    MediaMetadata? mediaMetadata,
   }) async {
     final messageRef = _firestore
         .collection('parent_teacher_groups')
@@ -193,17 +196,19 @@ class ParentTeacherGroupService {
         .collection('messages')
         .doc();
 
+    final hasMedia = mediaMetadata != null;
     final messageData = {
       'communityId': groupId,
       'senderId': senderId,
       'senderName': senderName,
       'senderRole': senderRole,
       'senderAvatar': '',
-      'type': 'text',
+      'type': mediaType,
       'content': content,
       'imageUrl': '',
       'fileUrl': '',
-      'fileName': '',
+      'fileName': mediaMetadata?.originalFileName ?? '',
+      'mediaMetadata': mediaMetadata?.toFirestore(),
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': null,
       'isEdited': false,
@@ -223,14 +228,34 @@ class ParentTeacherGroupService {
     final groupRef = _firestore
         .collection('parent_teacher_groups')
         .doc(groupId);
+    // Derive a friendly last message
+    final lastMessage = hasMedia
+        ? _lastMessageLabel(mediaType, mediaMetadata)
+        : content;
+
     batch.set(groupRef, {
-      'lastMessage': content.length > 100
-          ? '${content.substring(0, 100)}...'
-          : content,
+      'lastMessage': lastMessage.length > 100
+          ? '${lastMessage.substring(0, 100)}...'
+          : lastMessage,
       'lastMessageAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
     await batch.commit();
+  }
+
+  String _lastMessageLabel(String mediaType, MediaMetadata? metadata) {
+    switch (mediaType) {
+      case 'image':
+        return 'Sent a photo';
+      case 'pdf':
+        return metadata?.originalFileName?.isNotEmpty == true
+            ? 'Shared ${metadata!.originalFileName}'
+            : 'Shared a document';
+      case 'audio':
+        return 'Sent an audio';
+      default:
+        return 'Sent a file';
+    }
   }
 }

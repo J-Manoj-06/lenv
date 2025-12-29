@@ -1,9 +1,26 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:record/record.dart';
+import '../../config/cloudflare_config.dart';
 import '../../models/community_message_model.dart';
+import '../../models/media_metadata.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/cloudflare_r2_service.dart';
+import '../../services/local_cache_service.dart';
+import '../../services/media_upload_service.dart';
 import '../../services/parent_teacher_group_service.dart';
+import '../../services/whatsapp_media_upload_service.dart';
+import '../../widgets/media_preview_card.dart';
+import '../../widgets/modern_attachment_sheet.dart';
 import '../common/announcement_view_screen.dart';
 
 class ParentSectionGroupChatScreen extends StatefulWidget {
@@ -43,16 +60,73 @@ class _ParentSectionGroupChatScreenState
   final ParentTeacherGroupService _service = ParentTeacherGroupService();
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  late final MediaUploadService _mediaUploadService;
+  late final WhatsAppMediaUploadService _whatsappMediaUpload;
+  bool _isUploading = false;
+  bool _isRecording = false;
+  String? _recordingPath;
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  Timer? _recordingTimer;
+  final List<CommunityMessageModel> _pendingMessages = [];
+  final Map<String, double> _pendingUploadProgress = {};
+  final Map<String, String> _localSenderMediaPaths = {};
+  // Throttle progress updates to avoid rebuilding the entire list too frequently
+  final Map<String, int> _lastUploadPercent = {};
 
   @override
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _recordingTimer?.cancel();
+    _audioRecorder.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    final r2Service = CloudflareR2Service(
+      accountId: CloudflareConfig.accountId,
+      bucketName: CloudflareConfig.bucketName,
+      accessKeyId: CloudflareConfig.accessKeyId,
+      secretAccessKey: CloudflareConfig.secretAccessKey,
+      r2Domain: CloudflareConfig.r2Domain,
+    );
+
+    _mediaUploadService = MediaUploadService(
+      r2Service: r2Service,
+      firestore: FirebaseFirestore.instance,
+      cacheService: LocalCacheService(),
+    );
+
+    _whatsappMediaUpload = WhatsAppMediaUploadService(
+      workerBaseUrl: 'https://whatsapp-media-worker.giridharannj.workers.dev',
+    );
   }
 
   String _formatTime(DateTime dateTime) {
     return DateFormat('h:mm a').format(dateTime);
+  }
+
+  String _getFileName(CommunityMessageModel msg) {
+    final meta = msg.mediaMetadata;
+    if (meta?.originalFileName != null && meta!.originalFileName!.isNotEmpty) {
+      return meta.originalFileName!;
+    }
+    if (meta != null && meta.r2Key.isNotEmpty) {
+      final parts = meta.r2Key.split('/').where((p) => p.isNotEmpty).toList();
+      if (parts.isNotEmpty) return parts.last;
+    }
+    if (meta != null && meta.publicUrl.isNotEmpty) {
+      final uri = Uri.tryParse(meta.publicUrl);
+      if (uri != null && uri.pathSegments.isNotEmpty) {
+        return uri.pathSegments.last;
+      }
+    }
+    return 'file';
   }
 
   Future<void> _sendMessage() async {
@@ -150,8 +224,9 @@ class _ParentSectionGroupChatScreenState
                   );
                 }
 
-                final messages = snapshot.data ?? [];
-                if (messages.isEmpty) {
+                final firestoreMessages = snapshot.data ?? [];
+                final allMessages = [..._pendingMessages, ...firestoreMessages];
+                if (allMessages.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -194,16 +269,24 @@ class _ParentSectionGroupChatScreenState
                   controller: _scrollController,
                   reverse: true,
                   padding: const EdgeInsets.all(16),
-                  itemCount: messages.length,
+                  itemCount: allMessages.length,
                   itemBuilder: (context, index) {
-                    final msg = messages[index];
+                    final msg = allMessages[index];
                     final isCurrentUser = msg.senderId == currentUserId;
-                    final bubbleColor = isCurrentUser
-                        ? primaryColor
-                        : (isDark ? bubbleDark : Colors.grey[200]);
+                    final hasMedia = msg.mediaMetadata != null;
+                    final bubbleColor = hasMedia
+                        ? Colors.transparent
+                        : (isCurrentUser
+                              ? primaryColor
+                              : (isDark ? bubbleDark : Colors.grey[200]));
                     final textColor = isCurrentUser
                         ? Colors.white
                         : (isDark ? Colors.white : Colors.black87);
+                    final isPending = msg.messageId.startsWith('pending:');
+                    final uploadProgress = isPending
+                        ? _pendingUploadProgress[msg.messageId]
+                        : null;
+                    final localPath = _localSenderMediaPaths[msg.messageId];
 
                     if (msg.type == 'announcement') {
                       return Padding(
@@ -243,72 +326,118 @@ class _ParentSectionGroupChatScreenState
                     }
 
                     return Padding(
+                      key: ValueKey(msg.messageId),
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Align(
-                        alignment: isCurrentUser
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.7,
-                          ),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: bubbleColor,
-                              borderRadius: BorderRadius.circular(12).copyWith(
-                                bottomRight: isCurrentUser
-                                    ? const Radius.circular(4)
-                                    : null,
-                                bottomLeft: !isCurrentUser
-                                    ? const Radius.circular(4)
-                                    : null,
-                              ),
+                      child: Column(
+                        crossAxisAlignment: isCurrentUser
+                            ? CrossAxisAlignment.end
+                            : CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth:
+                                  MediaQuery.of(context).size.width * 0.7,
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: bubbleColor,
+                                border: hasMedia
+                                    ? Border.all(
+                                        color: primaryColor,
+                                        width: 1.5,
+                                      )
+                                    : null,
+                                borderRadius:
+                                    BorderRadius.circular(12).copyWith(
+                                  bottomRight: isCurrentUser
+                                      ? const Radius.circular(4)
+                                      : null,
+                                  bottomLeft: !isCurrentUser
+                                      ? const Radius.circular(4)
+                                      : null,
+                                ),
                               ),
-                              child: Column(
-                                crossAxisAlignment: isCurrentUser
-                                    ? CrossAxisAlignment.end
-                                    : CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (!isCurrentUser)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 3),
-                                      child: Text(
-                                        msg.senderName,
-                                        style: TextStyle(
-                                          color: isDark
-                                              ? primaryColor
-                                              : primaryColor.withOpacity(0.8),
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12,
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: hasMedia ? 4 : 12,
+                                  vertical: hasMedia ? 4 : 8,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: isCurrentUser
+                                      ? CrossAxisAlignment.end
+                                      : CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (!isCurrentUser)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 3),
+                                        child: Text(
+                                          msg.senderName,
+                                          style: TextStyle(
+                                            color: isDark
+                                                ? primaryColor
+                                                : primaryColor.withOpacity(0.8),
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  Text(
-                                    msg.content,
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _formatTime(msg.createdAt),
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.7),
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ],
+                                    if (msg.mediaMetadata != null) ...[
+                                      RepaintBoundary(
+                                        child: MediaPreviewCard(
+                                          r2Key: msg.mediaMetadata!.r2Key,
+                                          fileName: _getFileName(msg),
+                                          mimeType:
+                                              msg.mediaMetadata!.mimeType ??
+                                              'application/octet-stream',
+                                          fileSize:
+                                              msg.mediaMetadata!.fileSize ?? 0,
+                                          thumbnailBase64:
+                                              msg.mediaMetadata!.thumbnail,
+                                          localPath: localPath,
+                                          isMe: isCurrentUser,
+                                          uploading: isPending,
+                                          uploadProgress: uploadProgress != null
+                                              ? uploadProgress / 100
+                                              : null,
+                                        ),
+                                      ),
+                                      if (msg.content.isNotEmpty)
+                                        const SizedBox(height: 8),
+                                    ],
+                                    if (msg.content.isNotEmpty)
+                                      Text(
+                                        msg.content,
+                                        style: TextStyle(
+                                          color: textColor,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 2),
+                          Padding(
+                            padding: EdgeInsets.only(
+                              left: isCurrentUser ? 0 : 8,
+                              right: isCurrentUser ? 8 : 0,
+                            ),
+                            child: Text(
+                              _formatTime(msg.createdAt),
+                              style: TextStyle(
+                                color: (isDark
+                                        ? Colors.white
+                                        : Colors.black)
+                                    .withOpacity(0.5),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -326,6 +455,7 @@ class _ParentSectionGroupChatScreenState
     final primaryColor = widget.senderRole == 'teacher'
         ? teacherViolet
         : parentGreen;
+    final hasText = _controller.text.trim().isNotEmpty;
     return SafeArea(
       top: false,
       minimum: EdgeInsets.zero,
@@ -343,6 +473,10 @@ class _ParentSectionGroupChatScreenState
         ),
         child: Row(
           children: [
+            IconButton(
+              icon: const Icon(Icons.attach_file, color: Colors.grey),
+              onPressed: _isUploading ? null : _showAttachmentSheet,
+            ),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -367,17 +501,24 @@ class _ParentSectionGroupChatScreenState
                     ),
                     border: InputBorder.none,
                   ),
+                  onChanged: (_) => setState(() {}),
                 ),
               ),
             ),
             const SizedBox(width: 10),
             GestureDetector(
-              onTap: _sendMessage,
+              onTap: hasText
+                  ? _sendMessage
+                  : (_isRecording ? _stopAndSendRecording : _startRecording),
               child: Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: primaryColor,
+                  color: hasText
+                      ? primaryColor
+                      : (_isRecording
+                            ? Colors.red
+                            : primaryColor.withOpacity(0.85)),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
@@ -387,12 +528,354 @@ class _ParentSectionGroupChatScreenState
                     ),
                   ],
                 ),
-                child: const Icon(Icons.send_rounded, color: Colors.white),
+                child: Icon(
+                  hasText
+                      ? Icons.send_rounded
+                      : (_isRecording ? Icons.stop : Icons.mic),
+                  color: Colors.white,
+                ),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _showAttachmentSheet() {
+    showModernAttachmentSheet(
+      context,
+      onImageTap: _pickAndSendImage,
+      onPdfTap: _pickAndSendPDF,
+      onAudioTap: _pickAndSendAudioFile,
+    );
+  }
+
+  Future<void> _pickAndSendImage() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (picked == null) return;
+
+      final file = File(picked.path);
+      final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
+
+      // Create optimistic pending message
+      final pendingMetadata = MediaMetadata(
+        messageId: pendingId,
+        r2Key: 'pending/${file.path.split('/').last}',
+        publicUrl: '',
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType: 'image/jpeg',
+        originalFileName: file.path.split('/').last,
+      );
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: pendingId,
+        communityId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name ?? 'User',
+        senderRole: widget.senderRole,
+        senderAvatar: user.profileImage ?? '',
+        type: 'image',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: file.path.split('/').last,
+        mediaMetadata: pendingMetadata,
+        createdAt: DateTime.now(),
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[pendingId] = 0;
+        _localSenderMediaPaths[pendingId] = file.path;
+      });
+
+      // Scroll to bottom to show new message
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
+      });
+
+      // Upload in background
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: widget.groupId,
+        senderId: user.uid,
+        senderRole: widget.senderRole,
+        mediaType: 'community',
+        onProgress: (progress) {
+          if (!mounted) return;
+
+          // Convert to integer percent and throttle updates to reduce list rebuilds
+          final percent = progress.toInt().clamp(0, 100);
+          final last = _lastUploadPercent[pendingId] ?? -1;
+
+          // Always allow first update and 100%; otherwise update on >= 5% change
+          final shouldUpdate =
+              last < 0 || percent == 100 || (percent - last) >= 5;
+          if (!shouldUpdate) return;
+
+          _lastUploadPercent[pendingId] = percent;
+          setState(() {
+            _pendingUploadProgress[pendingId] = percent.toDouble();
+          });
+        },
+      );
+
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
+      );
+
+      await _service.sendMessage(
+        groupId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name ?? 'User',
+        senderRole: widget.senderRole,
+        content: '',
+        mediaType: 'image',
+        mediaMetadata: metadata,
+      );
+
+      // Remove pending message after successful upload
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.messageId == pendingId);
+          _pendingUploadProgress.remove(pendingId);
+          _localSenderMediaPaths.remove(pendingId);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickAndSendPDF() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      if (result == null || result.files.single.path == null) return;
+
+      setState(() => _isUploading = true);
+
+      final file = File(result.files.single.path!);
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: widget.groupId,
+        senderId: user.uid,
+        senderRole: widget.senderRole,
+        mediaType: 'community',
+      );
+
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
+      );
+
+      await _service.sendMessage(
+        groupId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name ?? 'User',
+        senderRole: widget.senderRole,
+        content: '',
+        mediaType: 'pdf',
+        mediaMetadata: metadata,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send PDF: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  Future<void> _pickAndSendAudioFile() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+      if (result == null || result.files.single.path == null) return;
+
+      setState(() => _isUploading = true);
+
+      final file = File(result.files.single.path!);
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: widget.groupId,
+        senderId: user.uid,
+        senderRole: widget.senderRole,
+        mediaType: 'community',
+      );
+
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
+      );
+
+      await _service.sendMessage(
+        groupId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name ?? 'User',
+        senderRole: widget.senderRole,
+        content: '',
+        mediaType: 'audio',
+        mediaMetadata: metadata,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send audio: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  Future<void> _startRecording() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    if (!await _audioRecorder.hasPermission()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Microphone permission needed')),
+      );
+      return;
+    }
+
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/ptg_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    await _audioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacHe, bitRate: 128000),
+      path: path,
+    );
+
+    setState(() {
+      _isRecording = true;
+      _recordingPath = path;
+      _recordingDuration.value = 0;
+    });
+
+    _recordingTimer?.cancel();
+    _recordingTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _recordingDuration.value++,
+    );
+  }
+
+  Future<void> _stopAndSendRecording() async {
+    if (!_isRecording) return;
+    _recordingTimer?.cancel();
+
+    final path = await _audioRecorder.stop();
+    setState(() => _isRecording = false);
+
+    if (path == null) return;
+    final file = File(path);
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    try {
+      setState(() => _isUploading = true);
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: widget.groupId,
+        senderId: user.uid,
+        senderRole: widget.senderRole,
+        mediaType: 'community',
+      );
+
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
+      );
+
+      await _service.sendMessage(
+        groupId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name ?? 'User',
+        senderRole: widget.senderRole,
+        content: '',
+        mediaType: 'audio',
+        mediaMetadata: metadata,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send recording: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+      try {
+        if (_recordingPath != null) File(_recordingPath!).deleteSync();
+      } catch (_) {}
+    }
   }
 }
