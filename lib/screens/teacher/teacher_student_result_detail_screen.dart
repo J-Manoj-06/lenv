@@ -93,13 +93,30 @@ class _TeacherStudentResultDetailScreenState
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: _result != null
-            ? Text('${_result!.studentName} Performance')
-            : const Text('Test Results'),
+            ? Text(
+                '${_result!.studentName} Performance',
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            : Text(
+                'Test Results',
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

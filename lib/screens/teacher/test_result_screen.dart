@@ -251,7 +251,8 @@ class _TestResultScreenState extends State<TestResultScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: ((widget.status).toLowerCase().contains('complete') ||
+              color:
+                  ((widget.status).toLowerCase().contains('complete') ||
                       (widget.status).toLowerCase().contains('ended') ||
                       (widget.status).toLowerCase() == 'past')
                   ? const Color(0xFF22C55E)
