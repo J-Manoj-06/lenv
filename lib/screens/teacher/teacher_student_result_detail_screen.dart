@@ -451,6 +451,7 @@ class _TeacherStudentResultDetailScreenState
     Map<String, dynamic> answer,
     Map<String, dynamic> questionData,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final questionText =
         answer['questionText'] ??
         questionData['questionText'] ??
@@ -522,15 +523,19 @@ class _TeacherStudentResultDetailScreenState
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey[850],
+                  color: isDark ? const Color(0xFF1F2937) : Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF374151) : Colors.grey.shade300,
+                  ),
                 ),
                 child: Text(
                   questionText,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                     height: 1.4,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
               ),
@@ -588,9 +593,9 @@ class _TeacherStudentResultDetailScreenState
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: bgColor ?? Colors.grey[800],
+                  color: bgColor ?? (isDark ? const Color(0xFF111827) : Colors.white),
                   border: Border.all(
-                    color: borderColor ?? Colors.grey[700]!,
+                    color: borderColor ?? (isDark ? const Color(0xFF374151) : Colors.grey.shade300),
                     width: borderColor != null ? 2 : 1,
                   ),
                   borderRadius: BorderRadius.circular(10),
@@ -601,16 +606,18 @@ class _TeacherStudentResultDetailScreenState
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: borderColor ?? Colors.grey[700],
+                        color: borderColor ?? (isDark ? const Color(0xFF4B5563) : Colors.grey.shade200),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
                         child: Text(
                           optionLabel,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: borderColor != null
+                                ? Colors.white
+                                : (isDark ? Colors.white : Colors.black87),
                           ),
                         ),
                       ),
@@ -624,7 +631,7 @@ class _TeacherStudentResultDetailScreenState
                           fontWeight: borderColor != null
                               ? FontWeight.w600
                               : FontWeight.normal,
-                          color: Colors.white,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
                     ),
@@ -645,6 +652,7 @@ class _TeacherStudentResultDetailScreenState
   }
 
   Widget _buildSimpleAnswer(String label, String answer, bool isCorrect) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -670,16 +678,16 @@ class _TeacherStudentResultDetailScreenState
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: Colors.grey[400],
+              color: isDark ? Colors.white70 : Colors.black54,
             ),
           ),
           Expanded(
             child: Text(
               answer,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
+                color: isDark ? Colors.white : Colors.black87,
               ),
             ),
           ),
