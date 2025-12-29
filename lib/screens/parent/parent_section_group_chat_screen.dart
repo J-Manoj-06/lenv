@@ -336,8 +336,7 @@ class _ParentSectionGroupChatScreenState
                         children: [
                           ConstrainedBox(
                             constraints: BoxConstraints(
-                              maxWidth:
-                                  MediaQuery.of(context).size.width * 0.7,
+                              maxWidth: MediaQuery.of(context).size.width * 0.7,
                             ),
                             child: DecoratedBox(
                               decoration: BoxDecoration(
@@ -348,15 +347,15 @@ class _ParentSectionGroupChatScreenState
                                         width: 1.5,
                                       )
                                     : null,
-                                borderRadius:
-                                    BorderRadius.circular(12).copyWith(
-                                  bottomRight: isCurrentUser
-                                      ? const Radius.circular(4)
-                                      : null,
-                                  bottomLeft: !isCurrentUser
-                                      ? const Radius.circular(4)
-                                      : null,
-                                ),
+                                borderRadius: BorderRadius.circular(12)
+                                    .copyWith(
+                                      bottomRight: isCurrentUser
+                                          ? const Radius.circular(4)
+                                          : null,
+                                      bottomLeft: !isCurrentUser
+                                          ? const Radius.circular(4)
+                                          : null,
+                                    ),
                               ),
                               child: Padding(
                                 padding: EdgeInsets.symmetric(
@@ -371,8 +370,9 @@ class _ParentSectionGroupChatScreenState
                                   children: [
                                     if (!isCurrentUser)
                                       Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 3),
+                                        padding: const EdgeInsets.only(
+                                          bottom: 3,
+                                        ),
                                         child: Text(
                                           msg.senderName,
                                           style: TextStyle(
@@ -429,9 +429,7 @@ class _ParentSectionGroupChatScreenState
                             child: Text(
                               _formatTime(msg.createdAt),
                               style: TextStyle(
-                                color: (isDark
-                                        ? Colors.white
-                                        : Colors.black)
+                                color: (isDark ? Colors.white : Colors.black)
                                     .withOpacity(0.5),
                                 fontSize: 10,
                               ),
@@ -691,15 +689,71 @@ class _ParentSectionGroupChatScreenState
       );
       if (result == null || result.files.single.path == null) return;
 
-      setState(() => _isUploading = true);
-
       final file = File(result.files.single.path!);
+      final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
+      final fileName = file.path.split('/').last;
+      final fileSize = await file.length();
+      final pendingMetadata = MediaMetadata(
+        messageId: pendingId,
+        r2Key: 'pending/$fileName',
+        publicUrl: '',
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: fileSize,
+        mimeType: 'application/pdf',
+        originalFileName: fileName,
+      );
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: pendingId,
+        communityId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name ?? 'User',
+        senderRole: widget.senderRole,
+        senderAvatar: user.profileImage ?? '',
+        type: 'pdf',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: fileName,
+        mediaMetadata: pendingMetadata,
+        createdAt: DateTime.now(),
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[pendingId] = 0;
+        _lastUploadPercent[pendingId] = -1;
+      });
+
+      // Upload in background with optimistic UI
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: file,
         conversationId: widget.groupId,
         senderId: user.uid,
         senderRole: widget.senderRole,
         mediaType: 'community',
+        onProgress: (progress) {
+          if (!mounted) return;
+          final percent = progress.toInt().clamp(0, 100);
+          final last = _lastUploadPercent[pendingId] ?? -1;
+          final shouldUpdate =
+              last < 0 || percent == 100 || (percent - last) >= 5;
+          if (!shouldUpdate) return;
+          _lastUploadPercent[pendingId] = percent;
+          setState(() {
+            _pendingUploadProgress[pendingId] = percent.toDouble();
+          });
+        },
       );
 
       final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
@@ -724,14 +778,20 @@ class _ParentSectionGroupChatScreenState
         mediaType: 'pdf',
         mediaMetadata: metadata,
       );
+
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.messageId == pendingId);
+          _pendingUploadProgress.remove(pendingId);
+          _lastUploadPercent.remove(pendingId);
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send PDF: $e')));
       }
-    } finally {
-      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -744,15 +804,73 @@ class _ParentSectionGroupChatScreenState
       final result = await FilePicker.platform.pickFiles(type: FileType.audio);
       if (result == null || result.files.single.path == null) return;
 
-      setState(() => _isUploading = true);
-
       final file = File(result.files.single.path!);
+      final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
+      final fileName = file.path.split('/').last;
+      final fileSize = await file.length();
+      final ext = result.files.single.extension?.toLowerCase();
+      final mime = _inferAudioMime(ext);
+
+      final pendingMetadata = MediaMetadata(
+        messageId: pendingId,
+        r2Key: 'pending/$fileName',
+        publicUrl: '',
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: fileSize,
+        mimeType: mime,
+        originalFileName: fileName,
+      );
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: pendingId,
+        communityId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name ?? 'User',
+        senderRole: widget.senderRole,
+        senderAvatar: user.profileImage ?? '',
+        type: 'audio',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: fileName,
+        mediaMetadata: pendingMetadata,
+        createdAt: DateTime.now(),
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[pendingId] = 0;
+        _lastUploadPercent[pendingId] = -1;
+      });
+
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: file,
         conversationId: widget.groupId,
         senderId: user.uid,
         senderRole: widget.senderRole,
         mediaType: 'community',
+        onProgress: (progress) {
+          if (!mounted) return;
+          final percent = progress.toInt().clamp(0, 100);
+          final last = _lastUploadPercent[pendingId] ?? -1;
+          final shouldUpdate =
+              last < 0 || percent == 100 || (percent - last) >= 5;
+          if (!shouldUpdate) return;
+          _lastUploadPercent[pendingId] = percent;
+          setState(() {
+            _pendingUploadProgress[pendingId] = percent.toDouble();
+          });
+        },
       );
 
       final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
@@ -777,14 +895,20 @@ class _ParentSectionGroupChatScreenState
         mediaType: 'audio',
         mediaMetadata: metadata,
       );
+
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.messageId == pendingId);
+          _pendingUploadProgress.remove(pendingId);
+          _lastUploadPercent.remove(pendingId);
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send audio: $e')));
       }
-    } finally {
-      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -876,6 +1000,27 @@ class _ParentSectionGroupChatScreenState
       try {
         if (_recordingPath != null) File(_recordingPath!).deleteSync();
       } catch (_) {}
+    }
+  }
+
+  String _inferAudioMime(String? ext) {
+    switch (ext) {
+      case 'm4a':
+      case 'mp4':
+        return 'audio/mp4';
+      case 'aac':
+        return 'audio/aac';
+      case 'wav':
+        return 'audio/wav';
+      case 'ogg':
+      case 'oga':
+        return 'audio/ogg';
+      case 'opus':
+        return 'audio/opus';
+      case 'flac':
+        return 'audio/flac';
+      default:
+        return 'audio/mpeg';
     }
   }
 }
