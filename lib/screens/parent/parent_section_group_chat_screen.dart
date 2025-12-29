@@ -114,6 +114,12 @@ class _ParentSectionGroupChatScreenState
     return DateFormat('h:mm a').format(dateTime);
   }
 
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
   String _getFileName(CommunityMessageModel msg) {
     final meta = msg.mediaMetadata;
     if (meta?.originalFileName != null && meta!.originalFileName!.isNotEmpty) {
@@ -548,40 +554,94 @@ class _ParentSectionGroupChatScreenState
                     border: InputBorder.none,
                   ),
                   onChanged: (_) => setState(() {}),
+                  readOnly: _isRecording,
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            GestureDetector(
-              onTap: hasText
-                  ? _sendMessage
-                  : (_isRecording ? _stopAndSendRecording : _startRecording),
-              child: Container(
-                width: 44,
-                height: 44,
+            if (_isRecording)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: hasText
-                      ? primaryColor
-                      : (_isRecording
-                            ? Colors.red
-                            : primaryColor.withOpacity(0.85)),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.25),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+                  color: isDark ? bubbleDark : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.2),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: _deleteRecording,
+                    ),
+                    ValueListenableBuilder<int>(
+                      valueListenable: _recordingDuration,
+                      builder: (context, duration, _) {
+                        return Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withOpacity(0.4),
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              _formatDuration(duration),
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.send_rounded, color: primaryColor),
+                      onPressed: _stopAndSendRecording,
                     ),
                   ],
                 ),
-                child: Icon(
-                  hasText
-                      ? Icons.send_rounded
-                      : (_isRecording ? Icons.stop : Icons.mic),
-                  color: Colors.white,
+              )
+            else
+              GestureDetector(
+                onTap: hasText ? _sendMessage : _startRecording,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: hasText
+                        ? primaryColor
+                        : primaryColor.withOpacity(0.85),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    hasText ? Icons.send_rounded : Icons.mic,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -1045,6 +1105,23 @@ class _ParentSectionGroupChatScreenState
         if (_recordingPath != null) File(_recordingPath!).deleteSync();
       } catch (_) {}
     }
+  }
+
+  Future<void> _deleteRecording() async {
+    _recordingTimer?.cancel();
+    if (_isRecording) {
+      try {
+        await _audioRecorder.stop();
+      } catch (_) {}
+    }
+    setState(() {
+      _isRecording = false;
+      _recordingDuration.value = 0;
+    });
+    try {
+      if (_recordingPath != null) File(_recordingPath!).deleteSync();
+    } catch (_) {}
+    _recordingPath = null;
   }
 
   String _inferAudioMime(String? ext) {
