@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../features/rewards/services/rewards_repository.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -12,6 +14,7 @@ class LeaderboardScreen extends StatefulWidget {
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
   final TeacherService _teacherService = TeacherService();
+  final RewardsRepository _rewardsRepo = RewardsRepository();
 
   String? _selectedClass;
   List<String> _classes = [];
@@ -89,8 +92,62 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         classAssignments: teacherData['classAssignments'],
       );
 
+      // Enrich points for each student from rewards repo or student_rewards
+      // and de-duplicate by uid (fallback docId/name), keeping the highest points
+      final Map<String, Map<String, dynamic>> deduped = {};
+      for (final s in allStudents) {
+        final copy = Map<String, dynamic>.from(s);
+        final docId = (copy['id'] ?? copy['docId'])?.toString() ?? '';
+        final uid = (copy['uid'] ?? copy['studentId'])?.toString() ?? '';
+
+        int points = _getStudentPoints(copy);
+
+        // Try available_points from students doc via RewardsRepository (use students docId)
+        if (points == 0 && docId.isNotEmpty) {
+          try {
+            final map = await _rewardsRepo.getStudentPoints(docId);
+            final available = map['available'] ?? 0;
+            if (available > 0) points = available;
+          } catch (_) {}
+        }
+
+        // Fallback: aggregate student_rewards pointsEarned (use UID)
+        if (points == 0 && uid.isNotEmpty) {
+          try {
+            final snap = await FirebaseFirestore.instance
+                .collection('student_rewards')
+                .where('studentId', isEqualTo: uid)
+                .get();
+            int total = 0;
+            for (final d in snap.docs) {
+              final val = d.data()['pointsEarned'];
+              if (val is num) total += val.toInt();
+            }
+            if (total > 0) points = total;
+          } catch (_) {}
+        }
+
+        copy['aggregatedRewardPoints'] = points;
+
+        final nameKey = (copy['studentName'] ?? copy['name'] ?? '').toString().toLowerCase();
+        final key = uid.isNotEmpty
+            ? 'uid:$uid'
+            : (docId.isNotEmpty ? 'doc:$docId' : 'name:$nameKey');
+
+        final existing = deduped[key];
+        if (existing == null || _getStudentPoints(copy) > _getStudentPoints(existing)) {
+          deduped[key] = copy;
+        }
+
+        // Debug print to verify
+        // ignore: avoid_print
+        print('🏅 ${copy['studentName'] ?? copy['name']}: points=$points (docId=$docId uid=$uid)');
+      }
+
+      final enriched = deduped.values.toList();
+
       // Sort students by points (descending)
-      allStudents.sort((a, b) {
+      enriched.sort((a, b) {
         final aPoints = _getStudentPoints(a);
         final bPoints = _getStudentPoints(b);
         return bPoints.compareTo(aPoints);
@@ -98,7 +155,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
       setState(() {
         _classes = classes;
-        _students = allStudents;
+        _students = enriched;
         _selectedClass = classes.isNotEmpty ? classes[0] : null;
         _isLoading = false;
       });
@@ -134,14 +191,20 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     }).toList();
   }
 
+  List<Map<String, dynamic>> get _sortedFilteredStudents {
+    final list = List<Map<String, dynamic>>.from(_filteredStudents);
+    list.sort((a, b) => _getStudentPoints(b).compareTo(_getStudentPoints(a)));
+    return list;
+  }
+
   // Helper method to get student points
   int _getStudentPoints(Map<String, dynamic> student) {
     final rewardPoints = student['rewardPoints'];
     final totalPoints = student['totalPoints'];
     final points = student['points'];
     final aggregated = student['aggregatedRewardPoints'];
+    final available = student['available_points'];
 
-    // Prefer explicit rewardPoints, then aggregatedRewardPoints (from fallback sum of student_rewards), then totalPoints, then points.
     int? parse(dynamic v) {
       if (v == null) return null;
       if (v is int) return v;
@@ -150,11 +213,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       return null;
     }
 
-    return parse(rewardPoints) ??
-        parse(aggregated) ??
-        parse(totalPoints) ??
-        parse(points) ??
-        0;
+    final candidates = <int?>[
+      parse(rewardPoints),
+      parse(aggregated),
+      parse(available),
+      parse(totalPoints),
+      parse(points),
+    ];
+
+    // Choose the maximum non-null value to avoid a zero rewardPoints overriding real aggregated points
+    final nonNull = candidates.whereType<int>().toList();
+    if (nonNull.isEmpty) return 0;
+    return nonNull.reduce((a, b) => a > b ? a : b);
   }
 
   // Helper method to format grade and section
@@ -262,7 +332,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Widget _buildTopPerformersSection() {
-    final topStudents = _filteredStudents.take(3).toList();
+    final topStudents = _sortedFilteredStudents.take(3).toList();
 
     if (topStudents.isEmpty) {
       return Padding(
@@ -530,7 +600,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Widget _buildStudentRankings() {
-    final filteredStudents = _filteredStudents;
+    final filteredStudents = _sortedFilteredStudents;
 
     if (filteredStudents.isEmpty) {
       return Padding(

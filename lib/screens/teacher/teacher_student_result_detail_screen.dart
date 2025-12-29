@@ -526,7 +526,9 @@ class _TeacherStudentResultDetailScreenState
                   color: isDark ? const Color(0xFF1F2937) : Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF374151) : Colors.grey.shade300,
+                    color: isDark
+                        ? const Color(0xFF374151)
+                        : Colors.grey.shade300,
                   ),
                 ),
                 child: Text(
@@ -593,9 +595,15 @@ class _TeacherStudentResultDetailScreenState
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: bgColor ?? (isDark ? const Color(0xFF111827) : Colors.white),
+                  color:
+                      bgColor ??
+                      (isDark ? const Color(0xFF111827) : Colors.white),
                   border: Border.all(
-                    color: borderColor ?? (isDark ? const Color(0xFF374151) : Colors.grey.shade300),
+                    color:
+                        borderColor ??
+                        (isDark
+                            ? const Color(0xFF374151)
+                            : Colors.grey.shade300),
                     width: borderColor != null ? 2 : 1,
                   ),
                   borderRadius: BorderRadius.circular(10),
@@ -606,7 +614,11 @@ class _TeacherStudentResultDetailScreenState
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: borderColor ?? (isDark ? const Color(0xFF4B5563) : Colors.grey.shade200),
+                        color:
+                            borderColor ??
+                            (isDark
+                                ? const Color(0xFF4B5563)
+                                : Colors.grey.shade200),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
