@@ -202,6 +202,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     return list;
   }
 
+  String _studentKey(Map<String, dynamic> student) {
+    final uid = (student['uid'] ?? student['studentId'])?.toString() ?? '';
+    final docId = (student['id'] ?? student['docId'])?.toString() ?? '';
+    final nameKey = (student['studentName'] ?? student['name'] ?? '')
+        .toString()
+        .toLowerCase();
+    if (uid.isNotEmpty) return 'uid:$uid';
+    if (docId.isNotEmpty) return 'doc:$docId';
+    return 'name:$nameKey';
+  }
+
   // Helper method to get student points
   int _getStudentPoints(Map<String, dynamic> student) {
     final rewardPoints = student['rewardPoints'];
@@ -605,7 +616,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Widget _buildStudentRankings() {
-    final filteredStudents = _sortedFilteredStudents;
+    final topList = _sortedFilteredStudents.take(3).toList();
+    final topKeys = topList.map(_studentKey).toSet();
+    final topCount = topList.length;
+    final filteredStudents = _sortedFilteredStudents
+        .where((s) => !topKeys.contains(_studentKey(s)))
+        .toList();
 
     if (filteredStudents.isEmpty) {
       return Padding(
@@ -631,7 +647,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         children: filteredStudents.asMap().entries.map((entry) {
           final index = entry.key;
           final student = entry.value;
-          final rank = index + 1;
+          final rank = topCount + index + 1;
           final studentName =
               student['studentName'] ??
               student['name'] ??
