@@ -80,7 +80,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
             ),
           ).then((_) => _loadMyCommunities()); // Reload after exploring
         },
-          backgroundColor: const Color(0xFF7A5CFF),
+        backgroundColor: const Color(0xFF7A5CFF),
         icon: const Icon(Icons.explore, color: Colors.white),
         label: Text(
           'Explore Communities',
@@ -141,8 +141,8 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
                 ),
               ).then((_) => _loadMyCommunities());
             },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF7A5CFF),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF7A5CFF),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(

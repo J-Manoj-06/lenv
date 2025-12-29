@@ -228,7 +228,9 @@ class _TeacherCommunityExploreScreenState
               decoration: BoxDecoration(
                 color: isDark
                     ? theme.colorScheme.surface
-                    : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                    : theme.colorScheme.surfaceContainerHighest.withOpacity(
+                        0.6,
+                      ),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: TextField(
@@ -275,9 +277,8 @@ class _TeacherCommunityExploreScreenState
                           ? const Color(0xFF7A5CFF)
                           : (isDark
                                 ? theme.colorScheme.surface
-                                : theme.colorScheme.surfaceContainerHighest.withOpacity(
-                                    0.4,
-                                  )),
+                                : theme.colorScheme.surfaceContainerHighest
+                                      .withOpacity(0.4)),
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
                         color: isSelected
