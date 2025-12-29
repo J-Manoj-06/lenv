@@ -176,11 +176,22 @@ class _TestResultScreenState extends State<TestResultScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Test Result'),
+        title: Text(
+          'Test Result',
+          style: TextStyle(
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -234,24 +245,23 @@ class _TestResultScreenState extends State<TestResultScreen> {
                     color: Theme.of(context).textTheme.bodyMedium?.color,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.status == 'Past' ? 'Ended' : widget.status,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                ),
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.grey[800],
+              color: ((widget.status).toLowerCase().contains('complete') ||
+                      (widget.status).toLowerCase().contains('ended') ||
+                      (widget.status).toLowerCase() == 'past')
+                  ? const Color(0xFF22C55E)
+                  : Colors.grey[800],
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               widget.status,
               style: const TextStyle(
-                color: Colors.white70,
+                color: Colors.white,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
