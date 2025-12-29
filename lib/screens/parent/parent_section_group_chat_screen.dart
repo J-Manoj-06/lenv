@@ -178,6 +178,12 @@ class _ParentSectionGroupChatScreenState
       appBar: AppBar(
         backgroundColor: isDark ? bubbleDark : Colors.white,
         elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          color: isDark ? Colors.white : Colors.black,
+          onPressed: () => Navigator.of(context).maybePop(),
+          tooltip: 'Back',
+        ),
         titleSpacing: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,8 +293,8 @@ class _ParentSectionGroupChatScreenState
                         : (isDark ? Colors.white : Colors.black87);
                     final isPending = msg.messageId.startsWith('pending:');
                     final progressNotifier = isPending
-                      ? _pendingUploadNotifiers[msg.messageId]
-                      : null;
+                        ? _pendingUploadNotifiers[msg.messageId]
+                        : null;
                     final localPath = _localSenderMediaPaths[msg.messageId];
 
                     if (msg.type == 'announcement') {
@@ -388,54 +394,64 @@ class _ParentSectionGroupChatScreenState
                                         ),
                                       ),
                                     if (msg.mediaMetadata != null) ...[
-                                        RepaintBoundary(
+                                      RepaintBoundary(
                                         child: progressNotifier != null
-                                          ? ValueListenableBuilder<double>(
-                                            valueListenable:
-                                              progressNotifier,
-                                            builder: (_, value, __) {
-                                              final progress =
-                                                ((value / 100)
-                                                    .clamp(0.0, 1.0))
-                                                  .toDouble();
-                                              return MediaPreviewCard(
-                                              r2Key: msg
-                                                .mediaMetadata!.r2Key,
-                                              fileName: _getFileName(msg),
-                                              mimeType:
-                                                msg.mediaMetadata!
-                                                    .mimeType ??
-                                                  'application/octet-stream',
-                                              fileSize: msg.mediaMetadata!
-                                                  .fileSize ??
-                                                0,
-                                              thumbnailBase64:
-                                                msg.mediaMetadata!
-                                                  .thumbnail,
-                                              localPath: localPath,
-                                              isMe: isCurrentUser,
-                                              uploading: true,
-                                              uploadProgress: progress,
-                                              );
-                                            },
-                                            )
-                                          : MediaPreviewCard(
-                                            r2Key: msg.mediaMetadata!.r2Key,
-                                            fileName: _getFileName(msg),
-                                            mimeType: msg.mediaMetadata!
-                                                .mimeType ??
-                                              'application/octet-stream',
-                                            fileSize: msg.mediaMetadata!
-                                                .fileSize ??
-                                              0,
-                                            thumbnailBase64:
-                                              msg.mediaMetadata!.thumbnail,
-                                            localPath: localPath,
-                                            isMe: isCurrentUser,
-                                            uploading: isPending,
-                                            uploadProgress: null,
-                                            ),
-                                        ),
+                                            ? ValueListenableBuilder<double>(
+                                                valueListenable:
+                                                    progressNotifier,
+                                                builder: (_, value, __) {
+                                                  final progress =
+                                                      ((value / 100).clamp(
+                                                        0.0,
+                                                        1.0,
+                                                      )).toDouble();
+                                                  return MediaPreviewCard(
+                                                    r2Key: msg
+                                                        .mediaMetadata!
+                                                        .r2Key,
+                                                    fileName: _getFileName(msg),
+                                                    mimeType:
+                                                        msg
+                                                            .mediaMetadata!
+                                                            .mimeType ??
+                                                        'application/octet-stream',
+                                                    fileSize:
+                                                        msg
+                                                            .mediaMetadata!
+                                                            .fileSize ??
+                                                        0,
+                                                    thumbnailBase64: msg
+                                                        .mediaMetadata!
+                                                        .thumbnail,
+                                                    localPath: localPath,
+                                                    isMe: isCurrentUser,
+                                                    uploading: true,
+                                                    uploadProgress: progress,
+                                                  );
+                                                },
+                                              )
+                                            : MediaPreviewCard(
+                                                r2Key: msg.mediaMetadata!.r2Key,
+                                                fileName: _getFileName(msg),
+                                                mimeType:
+                                                    msg
+                                                        .mediaMetadata!
+                                                        .mimeType ??
+                                                    'application/octet-stream',
+                                                fileSize:
+                                                    msg
+                                                        .mediaMetadata!
+                                                        .fileSize ??
+                                                    0,
+                                                thumbnailBase64: msg
+                                                    .mediaMetadata!
+                                                    .thumbnail,
+                                                localPath: localPath,
+                                                isMe: isCurrentUser,
+                                                uploading: isPending,
+                                                uploadProgress: null,
+                                              ),
+                                      ),
                                       if (msg.content.isNotEmpty)
                                         const SizedBox(height: 8),
                                     ],
