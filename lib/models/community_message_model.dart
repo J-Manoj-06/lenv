@@ -25,6 +25,7 @@ class CommunityMessageModel {
   final bool isReported;
   final int reportCount;
   final List<String>? deletedFor; // List of user IDs who deleted this message
+  final DocumentSnapshot? documentSnapshot; // ✅ For pagination support
 
   CommunityMessageModel({
     required this.messageId,
@@ -50,6 +51,7 @@ class CommunityMessageModel {
     required this.isReported,
     required this.reportCount,
     this.deletedFor,
+    this.documentSnapshot,
   });
 
   factory CommunityMessageModel.fromFirestore(DocumentSnapshot doc) {
@@ -94,6 +96,7 @@ class CommunityMessageModel {
       deletedFor: data['deletedFor'] != null
           ? List<String>.from(data['deletedFor'])
           : null,
+      documentSnapshot: doc, // ✅ Store for pagination
     );
   }
 

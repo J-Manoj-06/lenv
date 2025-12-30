@@ -51,11 +51,19 @@ class ParentSectionGroupChatScreen extends StatefulWidget {
 }
 
 class _ParentSectionGroupChatScreenState
-    extends State<ParentSectionGroupChatScreen> {
+    extends State<ParentSectionGroupChatScreen>
+    with AutomaticKeepAliveClientMixin {
   static const Color parentGreen = Color(0xFF14A670);
   static const Color teacherViolet = Color(0xFF6366F1);
   static const Color backgroundDark = Color(0xFF101214);
   static const Color bubbleDark = Color(0xFF1A1C20);
+
+  // ✅ OPTIMIZATION: Pagination state
+  static const int _messagesPerPage = 50;
+  bool _hasMoreMessages = true;
+  bool _isLoadingMore = false;
+  DocumentSnapshot? _lastDocument;
+  final List<CommunityMessageModel> _olderMessages = [];
 
   final ParentTeacherGroupService _service = ParentTeacherGroupService();
   final TextEditingController _controller = TextEditingController();
@@ -76,6 +84,9 @@ class _ParentSectionGroupChatScreenState
   final Map<String, int> _lastUploadPercent = {};
 
   @override
+  bool get wantKeepAlive => true; // ✅ Prevent rebuild when switching tabs
+
+  @override
   void dispose() {
     for (final notifier in _pendingUploadNotifiers.values) {
       notifier.dispose();
@@ -90,6 +101,9 @@ class _ParentSectionGroupChatScreenState
   @override
   void initState() {
     super.initState();
+
+    // ✅ OPTIMIZATION: Setup scroll listener for pagination
+    _scrollController.addListener(_onScroll);
 
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -138,6 +152,51 @@ class _ParentSectionGroupChatScreenState
     return 'file';
   }
 
+  /// ✅ OPTIMIZATION: Scroll listener for pagination
+  void _onScroll() {
+    if (!_scrollController.hasClients || _isLoadingMore || !_hasMoreMessages) {
+      return;
+    }
+
+    // Load more when user scrolls to 80% from the top (bottom in reverse list)
+    final scrollPosition = _scrollController.position;
+    if (scrollPosition.pixels >= scrollPosition.maxScrollExtent * 0.8) {
+      _loadMoreMessages();
+    }
+  }
+
+  /// ✅ OPTIMIZATION: Load older messages with pagination
+  Future<void> _loadMoreMessages() async {
+    if (_isLoadingMore || !_hasMoreMessages) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final newMessages = await _service.getMessagesPaginated(
+        groupId: widget.groupId,
+        limit: _messagesPerPage,
+        startAfter: _lastDocument,
+      );
+
+      if (newMessages.length < _messagesPerPage) {
+        _hasMoreMessages = false;
+      }
+
+      if (newMessages.isNotEmpty) {
+        setState(() {
+          _olderMessages.addAll(newMessages);
+          _lastDocument = newMessages.last.documentSnapshot;
+        });
+      } else {
+        _hasMoreMessages = false;
+      }
+    } catch (e) {
+      print('❌ Error loading more messages: $e');
+    } finally {
+      setState(() => _isLoadingMore = false);
+    }
+  }
+
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
@@ -171,6 +230,7 @@ class _ParentSectionGroupChatScreenState
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ✅ Required for AutomaticKeepAliveClientMixin
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentUserId =
         Provider.of<AuthProvider>(context, listen: false).currentUser?.uid ??
@@ -240,7 +300,18 @@ class _ParentSectionGroupChatScreenState
                 }
 
                 final firestoreMessages = snapshot.data ?? [];
-                final allMessages = [..._pendingMessages, ...firestoreMessages];
+                // ✅ OPTIMIZATION: Combine recent stream messages + older paginated messages
+                final allMessages = [
+                  ..._pendingMessages,
+                  ...firestoreMessages,
+                  ..._olderMessages,
+                ];
+
+                // Update last document from stream if available
+                if (firestoreMessages.isNotEmpty && _lastDocument == null) {
+                  _lastDocument = firestoreMessages.last.documentSnapshot;
+                }
+
                 if (allMessages.isEmpty) {
                   return Center(
                     child: Column(
@@ -284,8 +355,21 @@ class _ParentSectionGroupChatScreenState
                   controller: _scrollController,
                   reverse: true,
                   padding: const EdgeInsets.all(16),
-                  itemCount: allMessages.length,
+                  itemCount: allMessages.length + (_isLoadingMore ? 1 : 0), // ✅ Add loading indicator
                   itemBuilder: (context, index) {
+                    // ✅ OPTIMIZATION: Show loading indicator at the end (top in reverse list)
+                    if (index == allMessages.length) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(
+                            color: primaryColor,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      );
+                    }
+
                     final msg = allMessages[index];
                     final isCurrentUser = msg.senderId == currentUserId;
                     final hasMedia = msg.mediaMetadata != null;

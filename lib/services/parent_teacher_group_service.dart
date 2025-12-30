@@ -174,10 +174,47 @@ class ParentTeacherGroupService {
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-              .where((doc) => doc.data()['createdAt'] != null)
-              .map((doc) => CommunityMessageModel.fromFirestore(doc))
+              .map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                if (data['createdAt'] == null) return null;
+                return CommunityMessageModel.fromFirestore(doc);
+              })
+              .whereType<CommunityMessageModel>()
               .toList(),
         );
+  }
+
+  /// ✅ OPTIMIZED: Paginated message fetching for loading older messages
+  Future<List<CommunityMessageModel>> getMessagesPaginated({
+    required String groupId,
+    int limit = 50,
+    DocumentSnapshot? startAfter,
+  }) async {
+    try {
+      Query query = _firestore
+          .collection('parent_teacher_groups')
+          .doc(groupId)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
+
+      if (startAfter != null) {
+        query = query.startAfterDocument(startAfter);
+      }
+
+      final snapshot = await query.get();
+      return snapshot.docs
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            if (data['createdAt'] == null) return null;
+            return CommunityMessageModel.fromFirestore(doc);
+          })
+          .whereType<CommunityMessageModel>()
+          .toList();
+    } catch (e) {
+      print('❌ Error fetching paginated messages: $e');
+      return [];
+    }
   }
 
   /// Send a message (text or media)

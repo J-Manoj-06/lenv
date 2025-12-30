@@ -36,101 +36,69 @@ class ParentService {
         return [];
       }
 
-      print(
-        '📋 ParentService: Found ${linkedStudents.length} linked student(s)',
-      );
+      print('📋 ParentService: Found ${linkedStudents.length} linked student(s)');
 
-      // Fetch each student by their ID
-      final children = <StudentModel>[];
-      for (var studentInfo in linkedStudents) {
+      // ✅ OPTIMIZATION: Fetch all students in parallel instead of sequentially
+      final studentFutures = linkedStudents.map((studentInfo) async {
         var studentId = studentInfo['id'] as String?;
-        if (studentId != null) {
-          // Trim whitespace and ensure clean ID
-          studentId = studentId.trim();
-          print(
-            '  🔍 Attempting to fetch student ID: "$studentId" (length: ${studentId.length})',
-          );
+        if (studentId == null) {
+          print('  ⚠️ Student info has no id field: $studentInfo');
+          return null;
+        }
 
-          try {
-            final studentDoc = await _firestore
+        // Trim whitespace and ensure clean ID
+        studentId = studentId.trim();
+        print('  🔍 Fetching student ID: "$studentId"');
+
+        try {
+          // Try to get student document
+          final studentDoc = await _firestore
+              .collection('students')
+              .doc(studentId)
+              .get();
+
+          StudentModel? studentModel;
+
+          if (studentDoc.exists) {
+            studentModel = StudentModel.fromFirestore(studentDoc);
+          } else {
+            // Fallback: try querying by uid field
+            print('  ℹ️ Trying uid field query for: $studentId');
+            final querySnapshot = await _firestore
                 .collection('students')
-                .doc(studentId)
+                .where('uid', isEqualTo: studentId)
+                .limit(1)
                 .get();
 
-            if (studentDoc.exists) {
-              var studentModel = StudentModel.fromFirestore(studentDoc);
+            if (querySnapshot.docs.isNotEmpty) {
+              studentModel = StudentModel.fromFirestore(querySnapshot.docs.first);
+              print('  ✅ Found via uid query');
+            }
+          }
 
-              // Always try to fetch rewardPoints from student_rewards collection
+          if (studentModel != null) {
+            var hydratedStudent = studentModel;
+
+            // ✅ OPTIMIZATION: Try to use aggregate query for points (if available)
+            try {
+              final authUid = hydratedStudent.uid;
+
+              // Try aggregate query first (Firestore aggregate - more efficient)
               try {
-                final authUid = studentModel.uid;
-                final rewardsSnapshot = await _firestore
+                final aggregateResult = await _firestore
                     .collection('student_rewards')
                     .where('studentId', isEqualTo: authUid)
+                    .count()
                     .get();
 
-                int totalPoints = 0;
-                for (final doc in rewardsSnapshot.docs) {
-                  final data = doc.data();
-                  final points = data['pointsEarned'];
-                  if (points is int) {
-                    totalPoints += points;
-                  } else if (points is num) {
-                    totalPoints += points.toInt();
-                  }
-                }
-
-                studentModel = studentModel.copyWith(rewardPoints: totalPoints);
-                print(
-                  '  💰 Calculated total rewardPoints from student_rewards: $totalPoints',
-                );
-              } catch (e) {
-                print(
-                  '  ⚠️ Could not fetch rewardPoints from student_rewards: $e',
-                );
-              }
-
-              // Fallback: if Firestore doc lacks name/class/section, use linkedStudents data
-              final linkedName = (studentInfo['name'] as String?)?.trim();
-              final linkedClass = (studentInfo['class'] as String?)?.trim();
-              final linkedSection = (studentInfo['section'] as String?)?.trim();
-              if ((studentModel.name.isEmpty) &&
-                  (linkedName != null && linkedName.isNotEmpty)) {
-                studentModel = studentModel.copyWith(name: linkedName);
-              }
-              if ((studentModel.className == null ||
-                      (studentModel.className?.isEmpty ?? true)) &&
-                  (linkedClass != null && linkedClass.isNotEmpty)) {
-                studentModel = studentModel.copyWith(className: linkedClass);
-              }
-              if ((studentModel.section == null ||
-                      (studentModel.section?.isEmpty ?? true)) &&
-                  (linkedSection != null && linkedSection.isNotEmpty)) {
-                studentModel = studentModel.copyWith(section: linkedSection);
-              }
-              children.add(studentModel);
-              print('  ✅ Loaded student: ${linkedName ?? studentModel.name}');
-            } else {
-              print('  ⚠️ Student document not found: $studentId');
-              print('  ℹ️ Trying to query by uid field instead...');
-
-              // Try querying by uid field as fallback
-              final querySnapshot = await _firestore
-                  .collection('students')
-                  .where('uid', isEqualTo: studentId)
-                  .limit(1)
-                  .get();
-
-              if (querySnapshot.docs.isNotEmpty) {
-                var studentModel = StudentModel.fromFirestore(
-                  querySnapshot.docs.first,
-                );
-
-                // Fetch rewardPoints from student_rewards collection (sum of all pointsEarned)
-                try {
-                  final authUid = studentModel.uid;
+                // If we have rewards, get the sum
+                if ((aggregateResult.count ?? 0) > 0) {
+                  // Note: Firestore doesn't support sum aggregation yet in all SDKs
+                  // Fall back to manual calculation
                   final rewardsSnapshot = await _firestore
                       .collection('student_rewards')
                       .where('studentId', isEqualTo: authUid)
+                      .limit(100) // ✅ Limit to prevent excessive reads
                       .get();
 
                   int totalPoints = 0;
@@ -144,53 +112,59 @@ class ParentService {
                     }
                   }
 
-                  studentModel = studentModel.copyWith(
-                    rewardPoints: totalPoints,
-                  );
-                  print(
-                    '  💰 Calculated total rewardPoints from student_rewards: $totalPoints',
-                  );
-                } catch (e) {
-                  print(
-                    '  ⚠️ Could not fetch rewardPoints from student_rewards: $e',
-                  );
+                  hydratedStudent = hydratedStudent.copyWith(rewardPoints: totalPoints);
+                  print('  💰 Calculated rewardPoints: $totalPoints');
                 }
-
-                children.add(studentModel);
-                print(
-                  '  ✅ Found student via uid query: ${studentInfo['name']}',
-                );
-              } else {
-                print('  ❌ Student not found by document ID or uid field');
-                print(
-                  '  ℹ️ Creating placeholder student from linkedStudents data',
-                );
-
-                // Create a minimal student model from the linkedStudents data
-                final placeholderStudent = StudentModel(
-                  uid: studentId,
-                  name: (studentInfo['name'] as String?) ?? 'Unknown Student',
-                  email: '', // No email in linkedStudents
-                  schoolCode: parentData['schoolCode'] as String? ?? '',
-                  className: (studentInfo['class'] as String?) ?? '',
-                  section: (studentInfo['section'] as String?) ?? '',
-                  rewardPoints: 0,
-                  monthlyProgress: 0.0,
-                  createdAt: DateTime.now(),
-                );
-                children.add(placeholderStudent);
-                print(
-                  '  ⚠️ Using placeholder data for: ${studentInfo['name']}',
-                );
+              } catch (e) {
+                print('  ⚠️ Aggregate query failed, using fallback: $e');
               }
+            } catch (e) {
+              print('  ⚠️ Could not fetch rewardPoints: $e');
             }
-          } catch (e) {
-            print('  ❌ Error fetching student $studentId: $e');
+
+            // Apply fallback data from linkedStudents
+            final linkedName = (studentInfo['name'] as String?)?.trim();
+            final linkedClass = (studentInfo['class'] as String?)?.trim();
+            final linkedSection = (studentInfo['section'] as String?)?.trim();
+
+            if (hydratedStudent.name.isEmpty && linkedName != null && linkedName.isNotEmpty) {
+              hydratedStudent = hydratedStudent.copyWith(name: linkedName);
+            }
+            if ((hydratedStudent.className == null || hydratedStudent.className!.isEmpty) &&
+                linkedClass != null && linkedClass.isNotEmpty) {
+              hydratedStudent = hydratedStudent.copyWith(className: linkedClass);
+            }
+            if ((hydratedStudent.section == null || hydratedStudent.section!.isEmpty) &&
+                linkedSection != null && linkedSection.isNotEmpty) {
+              hydratedStudent = hydratedStudent.copyWith(section: linkedSection);
+            }
+
+            print('  ✅ Loaded student: ${hydratedStudent.name}');
+            return hydratedStudent;
+          } else {
+            // Create placeholder from linkedStudents data
+            print('  ℹ️ Creating placeholder for: ${studentInfo['name']}');
+            return StudentModel(
+              uid: studentId,
+              name: (studentInfo['name'] as String?) ?? 'Unknown Student',
+              email: '',
+              schoolCode: parentData['schoolCode'] as String? ?? '',
+              className: (studentInfo['class'] as String?) ?? '',
+              section: (studentInfo['section'] as String?) ?? '',
+              rewardPoints: 0,
+              monthlyProgress: 0.0,
+              createdAt: DateTime.now(),
+            );
           }
-        } else {
-          print('  ⚠️ Student info has no id field: $studentInfo');
+        } catch (e) {
+          print('  ❌ Error fetching student $studentId: $e');
+          return null;
         }
-      }
+      }).toList();
+
+      // ✅ OPTIMIZATION: Wait for all students in parallel
+      final studentResults = await Future.wait(studentFutures);
+      final children = studentResults.whereType<StudentModel>().toList();
 
       print('✅ ParentService: Successfully loaded ${children.length} children');
       return children;
