@@ -388,10 +388,11 @@ class _ParentSectionGroupChatScreenState
                     final progressNotifier = isPending
                         ? _pendingUploadNotifiers[msg.messageId]
                         : null;
-                    final localPath = _localSenderMediaPaths[msg.messageId] ??
-                      (msg.mediaMetadata != null
-                        ? _localSenderMediaPaths[msg.mediaMetadata!.r2Key]
-                        : null);
+                    final localPath =
+                        _localSenderMediaPaths[msg.messageId] ??
+                        (msg.mediaMetadata != null
+                            ? _localSenderMediaPaths[msg.mediaMetadata!.r2Key]
+                            : null);
 
                     if (msg.type == 'announcement') {
                       return Padding(
