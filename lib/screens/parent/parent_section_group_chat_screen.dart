@@ -83,6 +83,10 @@ class _ParentSectionGroupChatScreenState
   final Map<String, String> _localSenderMediaPaths = {};
   // Throttle progress updates to avoid rebuilding the entire list too frequently
   final Map<String, int> _lastUploadPercent = {};
+  
+  // Selection mode for multi-delete
+  bool _selectionMode = false;
+  final Set<String> _selectedMessages = {};
 
   @override
   bool get wantKeepAlive => true; // ✅ Prevent rebuild when switching tabs
@@ -246,36 +250,63 @@ class _ParentSectionGroupChatScreenState
         backgroundColor: isDark ? bubbleDark : Colors.white,
         elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(_selectionMode ? Icons.close : Icons.arrow_back_ios_new_rounded),
           color: isDark ? Colors.white : Colors.black,
-          onPressed: () => Navigator.of(context).maybePop(),
-          tooltip: 'Back',
+          onPressed: () {
+            if (_selectionMode) {
+              setState(() {
+                _selectionMode = false;
+                _selectedMessages.clear();
+              });
+            } else {
+              Navigator.of(context).maybePop();
+            }
+          },
+          tooltip: _selectionMode ? 'Cancel' : 'Back',
         ),
         titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.groupName,
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black,
-                fontWeight: FontWeight.w700,
+        title: _selectionMode
+            ? Text(
+                '${_selectedMessages.length} selected',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.w600,
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.groupName,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${widget.className ?? ''}${widget.section != null ? ' - ${widget.section}' : ''} · ${widget.childName}',
+                    style: TextStyle(
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${widget.className ?? ''}${widget.section != null ? ' - ${widget.section}' : ''} · ${widget.childName}',
-              style: TextStyle(
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
-                fontSize: 12,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+        actions: _selectionMode
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  color: Colors.redAccent,
+                  onPressed: _selectedMessages.isEmpty ? null : _deleteSelectedMessages,
+                  tooltip: 'Delete for everyone',
+                ),
+              ]
+            : null,
       ),
       body: Column(
         children: [
@@ -431,38 +462,96 @@ class _ParentSectionGroupChatScreenState
                       );
                     }
 
+                    // Skip deleted messages
+                    if (msg.isDeleted) {
+                      return const SizedBox.shrink();
+                    }
+
+                    final isSelected = _selectedMessages.contains(msg.messageId);
+                    
                     return Padding(
                       key: ValueKey(msg.messageId),
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Column(
-                        crossAxisAlignment: isCurrentUser
-                            ? CrossAxisAlignment.end
-                            : CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                      child: Row(
+                        mainAxisAlignment: isCurrentUser
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.of(context).size.width * 0.7,
-                            ),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: bubbleColor,
-                                border: hasMedia
-                                    ? Border.all(
-                                        color: primaryColor,
-                                        width: 1.5,
-                                      )
-                                    : null,
-                                borderRadius: BorderRadius.circular(12)
-                                    .copyWith(
-                                      bottomRight: isCurrentUser
-                                          ? const Radius.circular(4)
-                                          : null,
-                                      bottomLeft: !isCurrentUser
-                                          ? const Radius.circular(4)
-                                          : null,
-                                    ),
+                          if (_selectionMode)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8, top: 12),
+                              child: Checkbox(
+                                value: isSelected,
+                                onChanged: (value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      _selectedMessages.add(msg.messageId);
+                                    } else {
+                                      _selectedMessages.remove(msg.messageId);
+                                    }
+                                  });
+                                },
+                                activeColor: primaryColor,
                               ),
+                            ),
+                          Flexible(
+                            child: GestureDetector(
+                              onLongPress: isPending ? null : () {
+                                if (!_selectionMode) {
+                                  setState(() {
+                                    _selectionMode = true;
+                                    _selectedMessages.add(msg.messageId);
+                                  });
+                                }
+                              },
+                              onTap: _selectionMode && !isPending
+                                  ? () {
+                                      setState(() {
+                                        if (isSelected) {
+                                          _selectedMessages.remove(msg.messageId);
+                                        } else {
+                                          _selectedMessages.add(msg.messageId);
+                                        }
+                                      });
+                                    }
+                                  : null,
+                              child: Column(
+                                crossAxisAlignment: isCurrentUser
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: MediaQuery.of(context).size.width * 0.7,
+                                    ),
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? primaryColor.withOpacity(0.2)
+                                            : bubbleColor,
+                                        border: hasMedia
+                                            ? Border.all(
+                                                color: isSelected ? primaryColor.withOpacity(0.8) : primaryColor,
+                                                width: isSelected ? 2.5 : 1.5,
+                                              )
+                                            : (isSelected
+                                                ? Border.all(
+                                                    color: primaryColor,
+                                                    width: 2.5,
+                                                  )
+                                                : null),
+                                        borderRadius: BorderRadius.circular(12)
+                                            .copyWith(
+                                              bottomRight: isCurrentUser
+                                                  ? const Radius.circular(4)
+                                                  : null,
+                                              bottomLeft: !isCurrentUser
+                                                  ? const Radius.circular(4)
+                                                  : null,
+                                            ),
+                                      ),
                               child: Padding(
                                 padding: EdgeInsets.symmetric(
                                   horizontal: hasMedia ? 4 : 12,
@@ -524,6 +613,7 @@ class _ParentSectionGroupChatScreenState
                                                     isMe: isCurrentUser,
                                                     uploading: true,
                                                     uploadProgress: progress,
+                                                    selectionMode: _selectionMode,
                                                   );
                                                 },
                                               )
@@ -547,6 +637,7 @@ class _ParentSectionGroupChatScreenState
                                                 isMe: isCurrentUser,
                                                 uploading: isPending,
                                                 uploadProgress: null,
+                                                selectionMode: _selectionMode,
                                               ),
                                       ),
                                       if (msg.content.isNotEmpty)
@@ -563,20 +654,24 @@ class _ParentSectionGroupChatScreenState
                                   ],
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Padding(
-                            padding: EdgeInsets.only(
-                              left: isCurrentUser ? 0 : 8,
-                              right: isCurrentUser ? 8 : 0,
-                            ),
-                            child: Text(
-                              _formatTime(msg.createdAt),
-                              style: TextStyle(
-                                color: (isDark ? Colors.white : Colors.black)
-                                    .withOpacity(0.5),
-                                fontSize: 10,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      left: isCurrentUser ? 0 : 8,
+                                      right: isCurrentUser ? 8 : 0,
+                                    ),
+                                    child: Text(
+                                      _formatTime(msg.createdAt),
+                                      style: TextStyle(
+                                        color: (isDark ? Colors.white : Colors.black)
+                                            .withOpacity(0.5),
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -1252,6 +1347,76 @@ class _ParentSectionGroupChatScreenState
         return 'audio/flac';
       default:
         return 'audio/mpeg';
+    }
+  }
+
+  Future<void> _deleteSelectedMessages() async {
+    if (_selectedMessages.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF2A2A2A)
+            : Colors.white,
+        title: Text(
+          'Delete for everyone?',
+          style: TextStyle(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white
+                : Colors.black,
+          ),
+        ),
+        content: Text(
+          'Delete ${_selectedMessages.length} message(s)? This cannot be undone.',
+          style: TextStyle(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white70
+                : Colors.black87,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await _service.deleteMessagesForEveryone(
+        groupId: widget.groupId,
+        messageIds: _selectedMessages.toList(),
+      );
+
+      if (mounted) {
+        setState(() {
+          _selectionMode = false;
+          _selectedMessages.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Messages deleted for everyone'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete messages: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }

@@ -295,4 +295,32 @@ class ParentTeacherGroupService {
         return 'Sent a file';
     }
   }
+
+  /// Delete messages for everyone
+  Future<void> deleteMessagesForEveryone({
+    required String groupId,
+    required List<String> messageIds,
+  }) async {
+    if (messageIds.isEmpty) return;
+
+    final batch = _firestore.batch();
+    final messagesRef = _firestore
+        .collection('parent_teacher_groups')
+        .doc(groupId)
+        .collection('messages');
+
+    for (final messageId in messageIds) {
+      // Mark as deleted instead of actually deleting to preserve chat history structure
+      batch.update(messagesRef.doc(messageId), {
+        'isDeleted': true,
+        'deletedAt': FieldValue.serverTimestamp(),
+        'content': '',
+        'imageUrl': '',
+        'fileUrl': '',
+        'mediaMetadata': null,
+      });
+    }
+
+    await batch.commit();
+  }
 }
