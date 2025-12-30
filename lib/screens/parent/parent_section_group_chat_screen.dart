@@ -79,6 +79,7 @@ class _ParentSectionGroupChatScreenState
   Timer? _recordingTimer;
   final List<CommunityMessageModel> _pendingMessages = [];
   final Map<String, ValueNotifier<double>> _pendingUploadNotifiers = {};
+  // Tracks local file paths for sent media (by messageId or r2Key) so we can display without re-downloading.
   final Map<String, String> _localSenderMediaPaths = {};
   // Throttle progress updates to avoid rebuilding the entire list too frequently
   final Map<String, int> _lastUploadPercent = {};
@@ -387,7 +388,10 @@ class _ParentSectionGroupChatScreenState
                     final progressNotifier = isPending
                         ? _pendingUploadNotifiers[msg.messageId]
                         : null;
-                    final localPath = _localSenderMediaPaths[msg.messageId];
+                    final localPath = _localSenderMediaPaths[msg.messageId] ??
+                      (msg.mediaMetadata != null
+                        ? _localSenderMediaPaths[msg.mediaMetadata!.r2Key]
+                        : null);
 
                     if (msg.type == 'announcement') {
                       return Padding(
@@ -875,6 +879,8 @@ class _ParentSectionGroupChatScreenState
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
           _pendingUploadNotifiers.remove(pendingId)?.dispose();
+          // Keep local file mapped to the cloud key so we don't re-download our own upload
+          _localSenderMediaPaths[r2Key] = file.path;
           _localSenderMediaPaths.remove(pendingId);
           _lastUploadPercent.remove(pendingId);
         });
