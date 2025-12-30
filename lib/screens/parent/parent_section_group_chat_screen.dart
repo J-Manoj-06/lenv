@@ -627,8 +627,9 @@ class _ParentSectionGroupChatScreenState
                         key: const ValueKey('input'),
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
-                          color:
-                              isDark ? Colors.black : const Color(0xFFF4F5F7),
+                          color: isDark
+                              ? Colors.black
+                              : const Color(0xFFF4F5F7),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isDark
@@ -646,8 +647,9 @@ class _ParentSectionGroupChatScreenState
                           decoration: InputDecoration(
                             hintText: 'Type a message',
                             hintStyle: TextStyle(
-                              color:
-                                  isDark ? Colors.grey[500] : Colors.grey[600],
+                              color: isDark
+                                  ? Colors.grey[500]
+                                  : Colors.grey[600],
                             ),
                             border: InputBorder.none,
                           ),
@@ -669,8 +671,8 @@ class _ParentSectionGroupChatScreenState
                   color: _isRecording
                       ? primaryColor
                       : (hasText
-                          ? primaryColor
-                          : primaryColor.withOpacity(0.85)),
+                            ? primaryColor
+                            : primaryColor.withOpacity(0.85)),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
