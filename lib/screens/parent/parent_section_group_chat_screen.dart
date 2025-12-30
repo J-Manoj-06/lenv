@@ -355,7 +355,9 @@ class _ParentSectionGroupChatScreenState
                   controller: _scrollController,
                   reverse: true,
                   padding: const EdgeInsets.all(16),
-                  itemCount: allMessages.length + (_isLoadingMore ? 1 : 0), // ✅ Add loading indicator
+                  itemCount:
+                      allMessages.length +
+                      (_isLoadingMore ? 1 : 0), // ✅ Add loading indicator
                   itemBuilder: (context, index) {
                     // ✅ OPTIMIZATION: Show loading indicator at the end (top in reverse list)
                     if (index == allMessages.length) {
@@ -608,126 +610,141 @@ class _ParentSectionGroupChatScreenState
           ],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             IconButton(
               icon: const Icon(Icons.attach_file, color: Colors.grey),
               onPressed: _isUploading ? null : _showAttachmentSheet,
             ),
             Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.black : const Color(0xFFF4F5F7),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.grey.withOpacity(0.2),
-                  ),
-                ),
-                child: TextField(
-                  controller: _controller,
-                  minLines: 1,
-                  maxLines: 4,
-                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                  decoration: InputDecoration(
-                    hintText: 'Message the section group…',
-                    hintStyle: TextStyle(
-                      color: isDark ? Colors.grey[500] : Colors.grey[600],
-                    ),
-                    border: InputBorder.none,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                  readOnly: _isRecording,
-                ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: _isRecording
+                    ? _buildRecordingBar(isDark, primaryColor)
+                    : Container(
+                        key: const ValueKey('input'),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color:
+                              isDark ? Colors.black : const Color(0xFFF4F5F7),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.1)
+                                : Colors.grey.withOpacity(0.2),
+                          ),
+                        ),
+                        child: TextField(
+                          controller: _controller,
+                          minLines: 1,
+                          maxLines: 4,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Type a message',
+                            hintStyle: TextStyle(
+                              color:
+                                  isDark ? Colors.grey[500] : Colors.grey[600],
+                            ),
+                            border: InputBorder.none,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                          readOnly: _isRecording,
+                        ),
+                      ),
               ),
             ),
             const SizedBox(width: 10),
-            if (_isRecording)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+            GestureDetector(
+              onTap: _isRecording
+                  ? _stopAndSendRecording
+                  : (hasText ? _sendMessage : _startRecording),
+              child: Container(
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: isDark ? bubbleDark : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.grey.withOpacity(0.2),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      onPressed: _deleteRecording,
-                    ),
-                    ValueListenableBuilder<int>(
-                      valueListenable: _recordingDuration,
-                      builder: (context, duration, _) {
-                        return Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.red.withOpacity(0.4),
-                                    blurRadius: 6,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              _formatDuration(duration),
-                              style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.send_rounded, color: primaryColor),
-                      onPressed: _stopAndSendRecording,
+                  color: _isRecording
+                      ? primaryColor
+                      : (hasText
+                          ? primaryColor
+                          : primaryColor.withOpacity(0.85)),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryColor.withOpacity(0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-              )
-            else
-              GestureDetector(
-                onTap: hasText ? _sendMessage : _startRecording,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: hasText
-                        ? primaryColor
-                        : primaryColor.withOpacity(0.85),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.25),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    hasText ? Icons.send_rounded : Icons.mic,
-                    color: Colors.white,
-                  ),
+                child: Icon(
+                  _isRecording
+                      ? Icons.send_rounded
+                      : (hasText ? Icons.send_rounded : Icons.mic),
+                  color: Colors.white,
                 ),
               ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRecordingBar(bool isDark, Color primaryColor) {
+    return Container(
+      key: const ValueKey('recording'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: primaryColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: primaryColor.withOpacity(isDark ? 0.4 : 0.6),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            margin: const EdgeInsets.only(right: 10),
+            decoration: BoxDecoration(
+              color: Colors.redAccent,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.redAccent.withOpacity(0.5),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+          ValueListenableBuilder<int>(
+            valueListenable: _recordingDuration,
+            builder: (context, duration, _) {
+              return Text(
+                _formatDuration(duration),
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              );
+            },
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+            onPressed: _deleteRecording,
+            splashRadius: 22,
+          ),
+        ],
       ),
     );
   }

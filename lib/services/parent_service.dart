@@ -36,7 +36,9 @@ class ParentService {
         return [];
       }
 
-      print('📋 ParentService: Found ${linkedStudents.length} linked student(s)');
+      print(
+        '📋 ParentService: Found ${linkedStudents.length} linked student(s)',
+      );
 
       // ✅ OPTIMIZATION: Fetch all students in parallel instead of sequentially
       final studentFutures = linkedStudents.map((studentInfo) async {
@@ -71,7 +73,9 @@ class ParentService {
                 .get();
 
             if (querySnapshot.docs.isNotEmpty) {
-              studentModel = StudentModel.fromFirestore(querySnapshot.docs.first);
+              studentModel = StudentModel.fromFirestore(
+                querySnapshot.docs.first,
+              );
               print('  ✅ Found via uid query');
             }
           }
@@ -112,7 +116,9 @@ class ParentService {
                     }
                   }
 
-                  hydratedStudent = hydratedStudent.copyWith(rewardPoints: totalPoints);
+                  hydratedStudent = hydratedStudent.copyWith(
+                    rewardPoints: totalPoints,
+                  );
                   print('  💰 Calculated rewardPoints: $totalPoints');
                 }
               } catch (e) {
@@ -127,16 +133,26 @@ class ParentService {
             final linkedClass = (studentInfo['class'] as String?)?.trim();
             final linkedSection = (studentInfo['section'] as String?)?.trim();
 
-            if (hydratedStudent.name.isEmpty && linkedName != null && linkedName.isNotEmpty) {
+            if (hydratedStudent.name.isEmpty &&
+                linkedName != null &&
+                linkedName.isNotEmpty) {
               hydratedStudent = hydratedStudent.copyWith(name: linkedName);
             }
-            if ((hydratedStudent.className == null || hydratedStudent.className!.isEmpty) &&
-                linkedClass != null && linkedClass.isNotEmpty) {
-              hydratedStudent = hydratedStudent.copyWith(className: linkedClass);
+            if ((hydratedStudent.className == null ||
+                    hydratedStudent.className!.isEmpty) &&
+                linkedClass != null &&
+                linkedClass.isNotEmpty) {
+              hydratedStudent = hydratedStudent.copyWith(
+                className: linkedClass,
+              );
             }
-            if ((hydratedStudent.section == null || hydratedStudent.section!.isEmpty) &&
-                linkedSection != null && linkedSection.isNotEmpty) {
-              hydratedStudent = hydratedStudent.copyWith(section: linkedSection);
+            if ((hydratedStudent.section == null ||
+                    hydratedStudent.section!.isEmpty) &&
+                linkedSection != null &&
+                linkedSection.isNotEmpty) {
+              hydratedStudent = hydratedStudent.copyWith(
+                section: linkedSection,
+              );
             }
 
             print('  ✅ Loaded student: ${hydratedStudent.name}');
