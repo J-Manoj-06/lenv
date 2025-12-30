@@ -83,7 +83,7 @@ class _ParentSectionGroupChatScreenState
   final Map<String, String> _localSenderMediaPaths = {};
   // Throttle progress updates to avoid rebuilding the entire list too frequently
   final Map<String, int> _lastUploadPercent = {};
-  
+
   // Selection mode for multi-delete
   bool _selectionMode = false;
   final Set<String> _selectedMessages = {};
@@ -250,7 +250,9 @@ class _ParentSectionGroupChatScreenState
         backgroundColor: isDark ? bubbleDark : Colors.white,
         elevation: 0.5,
         leading: IconButton(
-          icon: Icon(_selectionMode ? Icons.close : Icons.arrow_back_ios_new_rounded),
+          icon: Icon(
+            _selectionMode ? Icons.close : Icons.arrow_back_ios_new_rounded,
+          ),
           color: isDark ? Colors.white : Colors.black,
           onPressed: () {
             if (_selectionMode) {
@@ -302,7 +304,9 @@ class _ParentSectionGroupChatScreenState
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
                   color: Colors.redAccent,
-                  onPressed: _selectedMessages.isEmpty ? null : _deleteSelectedMessages,
+                  onPressed: _selectedMessages.isEmpty
+                      ? null
+                      : _deleteSelectedMessages,
                   tooltip: 'Delete for everyone',
                 ),
               ]
@@ -467,8 +471,10 @@ class _ParentSectionGroupChatScreenState
                       return const SizedBox.shrink();
                     }
 
-                    final isSelected = _selectedMessages.contains(msg.messageId);
-                    
+                    final isSelected = _selectedMessages.contains(
+                      msg.messageId,
+                    );
+
                     return Padding(
                       key: ValueKey(msg.messageId),
                       padding: const EdgeInsets.only(bottom: 8),
@@ -497,19 +503,23 @@ class _ParentSectionGroupChatScreenState
                             ),
                           Flexible(
                             child: GestureDetector(
-                              onLongPress: isPending ? null : () {
-                                if (!_selectionMode) {
-                                  setState(() {
-                                    _selectionMode = true;
-                                    _selectedMessages.add(msg.messageId);
-                                  });
-                                }
-                              },
+                              onLongPress: isPending
+                                  ? null
+                                  : () {
+                                      if (!_selectionMode) {
+                                        setState(() {
+                                          _selectionMode = true;
+                                          _selectedMessages.add(msg.messageId);
+                                        });
+                                      }
+                                    },
                               onTap: _selectionMode && !isPending
                                   ? () {
                                       setState(() {
                                         if (isSelected) {
-                                          _selectedMessages.remove(msg.messageId);
+                                          _selectedMessages.remove(
+                                            msg.messageId,
+                                          );
                                         } else {
                                           _selectedMessages.add(msg.messageId);
                                         }
@@ -524,7 +534,9 @@ class _ParentSectionGroupChatScreenState
                                 children: [
                                   ConstrainedBox(
                                     constraints: BoxConstraints(
-                                      maxWidth: MediaQuery.of(context).size.width * 0.7,
+                                      maxWidth:
+                                          MediaQuery.of(context).size.width *
+                                          0.7,
                                     ),
                                     child: DecoratedBox(
                                       decoration: BoxDecoration(
@@ -533,15 +545,19 @@ class _ParentSectionGroupChatScreenState
                                             : bubbleColor,
                                         border: hasMedia
                                             ? Border.all(
-                                                color: isSelected ? primaryColor.withOpacity(0.8) : primaryColor,
+                                                color: isSelected
+                                                    ? primaryColor.withOpacity(
+                                                        0.8,
+                                                      )
+                                                    : primaryColor,
                                                 width: isSelected ? 2.5 : 1.5,
                                               )
                                             : (isSelected
-                                                ? Border.all(
-                                                    color: primaryColor,
-                                                    width: 2.5,
-                                                  )
-                                                : null),
+                                                  ? Border.all(
+                                                      color: primaryColor,
+                                                      width: 2.5,
+                                                    )
+                                                  : null),
                                         borderRadius: BorderRadius.circular(12)
                                             .copyWith(
                                               bottomRight: isCurrentUser
@@ -552,108 +568,124 @@ class _ParentSectionGroupChatScreenState
                                                   : null,
                                             ),
                                       ),
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: hasMedia ? 4 : 12,
-                                  vertical: hasMedia ? 4 : 8,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: isCurrentUser
-                                      ? CrossAxisAlignment.end
-                                      : CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (!isCurrentUser)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 3,
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: hasMedia ? 4 : 12,
+                                          vertical: hasMedia ? 4 : 8,
                                         ),
-                                        child: Text(
-                                          msg.senderName,
-                                          style: TextStyle(
-                                            color: isDark
-                                                ? primaryColor
-                                                : primaryColor.withOpacity(0.8),
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    if (msg.mediaMetadata != null) ...[
-                                      RepaintBoundary(
-                                        child: progressNotifier != null
-                                            ? ValueListenableBuilder<double>(
-                                                valueListenable:
-                                                    progressNotifier,
-                                                builder: (_, value, __) {
-                                                  final progress =
-                                                      ((value / 100).clamp(
-                                                        0.0,
-                                                        1.0,
-                                                      )).toDouble();
-                                                  return MediaPreviewCard(
-                                                    r2Key: msg
-                                                        .mediaMetadata!
-                                                        .r2Key,
-                                                    fileName: _getFileName(msg),
-                                                    mimeType:
-                                                        msg
-                                                            .mediaMetadata!
-                                                            .mimeType ??
-                                                        'application/octet-stream',
-                                                    fileSize:
-                                                        msg
-                                                            .mediaMetadata!
-                                                            .fileSize ??
-                                                        0,
-                                                    thumbnailBase64: msg
-                                                        .mediaMetadata!
-                                                        .thumbnail,
-                                                    localPath: localPath,
-                                                    isMe: isCurrentUser,
-                                                    uploading: true,
-                                                    uploadProgress: progress,
-                                                    selectionMode: _selectionMode,
-                                                  );
-                                                },
-                                              )
-                                            : MediaPreviewCard(
-                                                r2Key: msg.mediaMetadata!.r2Key,
-                                                fileName: _getFileName(msg),
-                                                mimeType:
-                                                    msg
-                                                        .mediaMetadata!
-                                                        .mimeType ??
-                                                    'application/octet-stream',
-                                                fileSize:
-                                                    msg
-                                                        .mediaMetadata!
-                                                        .fileSize ??
-                                                    0,
-                                                thumbnailBase64: msg
-                                                    .mediaMetadata!
-                                                    .thumbnail,
-                                                localPath: localPath,
-                                                isMe: isCurrentUser,
-                                                uploading: isPending,
-                                                uploadProgress: null,
-                                                selectionMode: _selectionMode,
+                                        child: Column(
+                                          crossAxisAlignment: isCurrentUser
+                                              ? CrossAxisAlignment.end
+                                              : CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (!isCurrentUser)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  bottom: 3,
+                                                ),
+                                                child: Text(
+                                                  msg.senderName,
+                                                  style: TextStyle(
+                                                    color: isDark
+                                                        ? primaryColor
+                                                        : primaryColor
+                                                              .withOpacity(0.8),
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
                                               ),
-                                      ),
-                                      if (msg.content.isNotEmpty)
-                                        const SizedBox(height: 8),
-                                    ],
-                                    if (msg.content.isNotEmpty)
-                                      Text(
-                                        msg.content,
-                                        style: TextStyle(
-                                          color: textColor,
-                                          fontSize: 15,
+                                            if (msg.mediaMetadata != null) ...[
+                                              RepaintBoundary(
+                                                child: progressNotifier != null
+                                                    ? ValueListenableBuilder<
+                                                        double
+                                                      >(
+                                                        valueListenable:
+                                                            progressNotifier,
+                                                        builder: (_, value, __) {
+                                                          final progress =
+                                                              ((value / 100)
+                                                                      .clamp(
+                                                                        0.0,
+                                                                        1.0,
+                                                                      ))
+                                                                  .toDouble();
+                                                          return MediaPreviewCard(
+                                                            r2Key: msg
+                                                                .mediaMetadata!
+                                                                .r2Key,
+                                                            fileName:
+                                                                _getFileName(
+                                                                  msg,
+                                                                ),
+                                                            mimeType:
+                                                                msg
+                                                                    .mediaMetadata!
+                                                                    .mimeType ??
+                                                                'application/octet-stream',
+                                                            fileSize:
+                                                                msg
+                                                                    .mediaMetadata!
+                                                                    .fileSize ??
+                                                                0,
+                                                            thumbnailBase64: msg
+                                                                .mediaMetadata!
+                                                                .thumbnail,
+                                                            localPath:
+                                                                localPath,
+                                                            isMe: isCurrentUser,
+                                                            uploading: true,
+                                                            uploadProgress:
+                                                                progress,
+                                                            selectionMode:
+                                                                _selectionMode,
+                                                          );
+                                                        },
+                                                      )
+                                                    : MediaPreviewCard(
+                                                        r2Key: msg
+                                                            .mediaMetadata!
+                                                            .r2Key,
+                                                        fileName: _getFileName(
+                                                          msg,
+                                                        ),
+                                                        mimeType:
+                                                            msg
+                                                                .mediaMetadata!
+                                                                .mimeType ??
+                                                            'application/octet-stream',
+                                                        fileSize:
+                                                            msg
+                                                                .mediaMetadata!
+                                                                .fileSize ??
+                                                            0,
+                                                        thumbnailBase64: msg
+                                                            .mediaMetadata!
+                                                            .thumbnail,
+                                                        localPath: localPath,
+                                                        isMe: isCurrentUser,
+                                                        uploading: isPending,
+                                                        uploadProgress: null,
+                                                        selectionMode:
+                                                            _selectionMode,
+                                                      ),
+                                              ),
+                                              if (msg.content.isNotEmpty)
+                                                const SizedBox(height: 8),
+                                            ],
+                                            if (msg.content.isNotEmpty)
+                                              Text(
+                                                msg.content,
+                                                style: TextStyle(
+                                                  color: textColor,
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+                                          ],
                                         ),
                                       ),
-                                  ],
-                                ),
-                              ),
                                     ),
                                   ),
                                   const SizedBox(height: 2),
@@ -665,8 +697,11 @@ class _ParentSectionGroupChatScreenState
                                     child: Text(
                                       _formatTime(msg.createdAt),
                                       style: TextStyle(
-                                        color: (isDark ? Colors.white : Colors.black)
-                                            .withOpacity(0.5),
+                                        color:
+                                            (isDark
+                                                    ? Colors.white
+                                                    : Colors.black)
+                                                .withOpacity(0.5),
                                         fontSize: 10,
                                       ),
                                     ),
