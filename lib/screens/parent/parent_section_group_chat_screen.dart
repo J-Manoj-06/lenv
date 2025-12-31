@@ -304,10 +304,12 @@ class _ParentSectionGroupChatScreenState
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
                   color: Colors.redAccent,
-                  onPressed: _selectedMessages.isEmpty
+                  onPressed: _selectedMessages.length < 2
                       ? null
                       : _deleteSelectedMessages,
-                  tooltip: 'Delete for everyone',
+                  tooltip: _selectedMessages.length < 2
+                      ? 'Select at least 2 messages'
+                      : 'Delete for everyone',
                 ),
               ]
             : null,
@@ -493,7 +495,8 @@ class _ParentSectionGroupChatScreenState
                                   setState(() {
                                     if (value == true) {
                                       _selectedMessages.add(msg.messageId);
-                                    } else {
+                                    } else if (_selectedMessages.length > 2) {
+                                      // Allow deselection only if more than 2 items selected
                                       _selectedMessages.remove(msg.messageId);
                                     }
                                   });
@@ -503,27 +506,29 @@ class _ParentSectionGroupChatScreenState
                             ),
                           Flexible(
                             child: GestureDetector(
-                              onLongPress: isPending
-                                  ? null
-                                  : () {
-                                      if (!_selectionMode) {
+                              onLongPress: () {
+                                if (!_selectionMode && !isPending) {
+                                  setState(() {
+                                    _selectionMode = true;
+                                    _selectedMessages.add(msg.messageId);
+                                  });
+                                }
+                              },
+                              onTap: _selectionMode
+                                  ? () {
+                                      if (!isPending) {
                                         setState(() {
-                                          _selectionMode = true;
-                                          _selectedMessages.add(msg.messageId);
+                                          if (isSelected) {
+                                            if (_selectedMessages.length > 2) {
+                                              _selectedMessages.remove(
+                                                msg.messageId,
+                                              );
+                                            }
+                                          } else {
+                                            _selectedMessages.add(msg.messageId);
+                                          }
                                         });
                                       }
-                                    },
-                              onTap: _selectionMode && !isPending
-                                  ? () {
-                                      setState(() {
-                                        if (isSelected) {
-                                          _selectedMessages.remove(
-                                            msg.messageId,
-                                          );
-                                        } else {
-                                          _selectedMessages.add(msg.messageId);
-                                        }
-                                      });
                                     }
                                   : null,
                               child: Column(

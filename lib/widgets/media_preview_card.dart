@@ -275,9 +275,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     final isDark = theme.brightness == Brightness.dark;
     final card = InkWell(
       onTap: widget.selectionMode ? null : (_isDownloaded ? _open : null),
-      onLongPress: widget.selectionMode
-          ? null
-          : (_isDownloaded ? _delete : null),
+      onLongPress: null, // Let parent GestureDetector handle selection
       child: Container(
         width: 260,
         constraints: const BoxConstraints(minWidth: 220, minHeight: 140),
@@ -460,9 +458,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 _download();
               }
             },
-      onLongPress: widget.selectionMode
-          ? null
-          : (_isDownloaded ? _delete : null),
+      onLongPress: null, // Let parent GestureDetector handle selection
       child: Container(
         width: 260,
         decoration: BoxDecoration(
