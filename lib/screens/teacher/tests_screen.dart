@@ -168,12 +168,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
     final filtered = _applyFilters(tests);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final bgColor = theme.scaffoldBackgroundColor;
-    final cardColor = theme.cardColor;
-    final primaryColor = theme.primaryColor;
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.white;
-    final secondaryTextColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
 
     return Scaffold(
       backgroundColor: bgColor,

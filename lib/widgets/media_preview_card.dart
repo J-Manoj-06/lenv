@@ -195,6 +195,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     }
   }
 
+  /// Note: This method is kept for future implementation but currently unused
+  /// To use: uncomment and call from UI delete button handler
+  /*
   Future<void> _delete() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -234,6 +237,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       }
     }
   }
+  */
 
   bool get _isPdf => widget.mimeType == 'application/pdf';
   bool get _isAudio => widget.mimeType.startsWith('audio/');
@@ -698,6 +702,9 @@ class _FullImageViewer extends StatelessWidget {
   }
 }
 
+/// Note: This class is kept for future implementation but currently unused
+/// To use: uncomment and integrate into file preview flow
+/*
 /// Thumbnail viewer with download option
 class _ThumbnailViewer extends StatelessWidget {
   final String thumbnailBase64;
@@ -773,6 +780,7 @@ class _ThumbnailViewer extends StatelessWidget {
     );
   }
 }
+*/
 
 /// Cache entry for download status to prevent redundant file checks
 class _CachedStatus {
@@ -782,12 +790,11 @@ class _CachedStatus {
   final double? imgH;
   final DateTime timestamp;
 
-  _CachedStatus({
-    required this.isDownloaded,
-    this.localPath,
-    this.imgW,
-    this.imgH,
-  }) : timestamp = DateTime.now();
+  _CachedStatus({required this.isDownloaded})
+    : localPath = null,
+      imgW = null,
+      imgH = null,
+      timestamp = DateTime.now();
 
   bool get isStale {
     // Cache is valid for 30 seconds

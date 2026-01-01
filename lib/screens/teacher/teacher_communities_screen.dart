@@ -49,7 +49,6 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
   Widget build(BuildContext context) {
     super.build(context); // ✅ Required for AutomaticKeepAliveClientMixin
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: _isLoading

@@ -175,7 +175,7 @@ class ParentTeacherGroupService {
         .map(
           (snapshot) => snapshot.docs
               .map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
+                final data = doc.data();
                 if (data['createdAt'] == null) return null;
                 return CommunityMessageModel.fromFirestore(doc);
               })

@@ -16,9 +16,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Theme colors matching the HTML design
-  static const Color _primaryColor = Color(0xFF8B5CF6);
-
   bool _isLoading = true;
   String? _error;
 
@@ -165,7 +162,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildHeader() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: ClipRect(
@@ -701,7 +697,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildAppPreferences() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

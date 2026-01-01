@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
-import 'package:mime/mime.dart';
 import '../models/media_metadata.dart';
 import 'image_compression_service.dart';
 import 'local_media_storage_service.dart';
@@ -78,22 +77,23 @@ class WhatsAppMediaUploadService {
       if (!uploadResponse.success) {
         return uploadResponse;
       }
-      
+
       final uploadDuration = DateTime.now().difference(uploadStartTime);
-      final speedKBps = (compressedBytes.length / 1024) / uploadDuration.inSeconds;
+      final speedKBps =
+          (compressedBytes.length / 1024) / uploadDuration.inSeconds;
       debugPrint('⚡ Upload speed: ${speedKBps.toStringAsFixed(1)} KB/s');
 
       onProgress?.call(0.9);
 
       // Step 5: Create metadata with sender's local path
       debugPrint('✅ Upload complete!');
-      
+
       // Save to local storage for consistency across app restarts
       final localPath = await _storageService.saveImage(
         messageId: messageId,
         imageBytes: compressedBytes,
       );
-      
+
       final metadata = MediaMetadata(
         messageId: messageId,
         r2Key: uploadResponse.r2Key!,
@@ -109,7 +109,6 @@ class WhatsAppMediaUploadService {
       );
 
       onProgress?.call(1.0);
-
 
       return UploadResult(success: true, metadata: metadata);
     } catch (e) {
@@ -137,7 +136,7 @@ class WhatsAppMediaUploadService {
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       debugPrint('🔄 Upload attempt $attempt/$maxRetries');
-      
+
       final result = await _uploadToWorker(
         imageBytes: imageBytes,
         messageId: messageId,
@@ -152,7 +151,8 @@ class WhatsAppMediaUploadService {
       }
 
       // Retry on network errors or server errors
-      final shouldRetry = result.error == UploadError.networkError ||
+      final shouldRetry =
+          result.error == UploadError.networkError ||
           result.error == UploadError.timeout ||
           result.error == UploadError.serverError ||
           result.error == UploadError.unknown;
@@ -163,7 +163,9 @@ class WhatsAppMediaUploadService {
 
       // Exponential backoff
       final delay = initialDelay * attempt;
-      debugPrint('⏳ Retrying in ${delay.inSeconds}s due to: ${result.errorMessage}');
+      debugPrint(
+        '⏳ Retrying in ${delay.inSeconds}s due to: ${result.errorMessage}',
+      );
       await Future.delayed(delay);
     }
 
@@ -204,7 +206,9 @@ class WhatsAppMediaUploadService {
         ),
       );
 
-      debugPrint('📨 Worker request: fields=${request.fields} fileExt=$fileExt contentType=$mimeType bytes=${imageBytes.length}');
+      debugPrint(
+        '📨 Worker request: fields=${request.fields} fileExt=$fileExt contentType=$mimeType bytes=${imageBytes.length}',
+      );
       final streamedResponse = await request.send().timeout(
         const Duration(seconds: 60),
         onTimeout: () => throw TimeoutException('Upload timeout after 60s'),
@@ -281,6 +285,9 @@ class WhatsAppMediaUploadService {
     }
   }
 
+  /// Note: This method is kept for future implementation but currently unused
+  /// To use: uncomment and call from mime type handling code
+  /*
   String _extFromMime(String mimeType) {
     switch (mimeType) {
       case 'image/jpeg':
@@ -295,6 +302,7 @@ class WhatsAppMediaUploadService {
         return 'jpg';
     }
   }
+  */
 }
 
 /// Upload result wrapper

@@ -20,14 +20,18 @@ class GroupsListPage extends StatefulWidget {
 }
 
 class _GroupsListPageState extends State<GroupsListPage>
-  with AutomaticKeepAliveClientMixin, WidgetsBindingObserver, UnreadCountMixin<GroupsListPage> {
+    with
+        AutomaticKeepAliveClientMixin,
+        WidgetsBindingObserver,
+        UnreadCountMixin<GroupsListPage> {
   final GroupMessagingService _messagingService = GroupMessagingService();
   List<GroupSubject> _subjects = [];
   bool _isLoading = true;
   String? _classId;
   bool _hasAttemptedLoad = false;
   final Map<String, int> _lastMessageTs = {}; // chatId -> latest timestamp
-  final Map<String, dynamic> _messageListeners = {}; // Store listeners for cleanup
+  final Map<String, dynamic> _messageListeners =
+      {}; // Store listeners for cleanup
 
   @override
   bool get wantKeepAlive => true;
@@ -80,26 +84,29 @@ class _GroupsListPageState extends State<GroupsListPage>
         .doc(subject.id)
         .collection('messages')
         .orderBy('timestamp', descending: true);
-    
-    // Store the listener so we can cancel it on dispose
-    _messageListeners[chatId] = query.snapshots().listen(
-      (snapshot) {
-        if (snapshot.docs.isNotEmpty && mounted) {
-          final newTs = (snapshot.docs.first.data()['timestamp'] as int?) ?? 0;
-          
-          // Update timestamp and resort immediately
-          _lastMessageTs[chatId] = newTs;
-          _resortGroups();
 
-          // Refresh unread count for this chat
-          try {
-            final unread = Provider.of<UnreadCountProvider>(context, listen: false);
-            unread.loadUnreadCount(chatId: chatId, chatType: ChatTypeConfig.groupChat);
-          } catch (_) {}
-        }
-      },
-      onError: (e) => print('Error listening to messages for $chatId: $e'),
-    );
+    // Store the listener so we can cancel it on dispose
+    _messageListeners[chatId] = query.snapshots().listen((snapshot) {
+      if (snapshot.docs.isNotEmpty && mounted) {
+        final newTs = (snapshot.docs.first.data()['timestamp'] as int?) ?? 0;
+
+        // Update timestamp and resort immediately
+        _lastMessageTs[chatId] = newTs;
+        _resortGroups();
+
+        // Refresh unread count for this chat
+        try {
+          final unread = Provider.of<UnreadCountProvider>(
+            context,
+            listen: false,
+          );
+          unread.loadUnreadCount(
+            chatId: chatId,
+            chatType: ChatTypeConfig.groupChat,
+          );
+        } catch (_) {}
+      }
+    }, onError: (e) => print('Error listening to messages for $chatId: $e'));
   }
 
   void _resortGroups() {
@@ -183,7 +190,8 @@ class _GroupsListPageState extends State<GroupsListPage>
       // Load unread counts for these subjects
       final chatIds = subjects.map((s) => '${_classId}|${s.id}').toList();
       final chatTypes = {
-        for (final s in subjects) '${_classId}|${s.id}': ChatTypeConfig.groupChat,
+        for (final s in subjects)
+          '${_classId}|${s.id}': ChatTypeConfig.groupChat,
       };
       await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
 
@@ -242,7 +250,6 @@ class _GroupsListPageState extends State<GroupsListPage>
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     const orange = Color(0xFFF97316);
 
     if (_isLoading) {
@@ -354,9 +361,15 @@ class _GroupsListPageState extends State<GroupsListPage>
               ),
             ).then((_) {
               // Refresh this chat's count on return
-              final unreadProvider = Provider.of<UnreadCountProvider>(context, listen: false);
+              final unreadProvider = Provider.of<UnreadCountProvider>(
+                context,
+                listen: false,
+              );
               unreadProvider.refreshChat(chatId);
-              unreadProvider.loadUnreadCount(chatId: chatId, chatType: ChatTypeConfig.groupChat);
+              unreadProvider.loadUnreadCount(
+                chatId: chatId,
+                chatType: ChatTypeConfig.groupChat,
+              );
             });
           },
         );
@@ -370,7 +383,11 @@ class _SubjectGroupCard extends StatelessWidget {
   final String chatId;
   final VoidCallback onTap;
 
-  const _SubjectGroupCard({required this.subject, required this.chatId, required this.onTap});
+  const _SubjectGroupCard({
+    required this.subject,
+    required this.chatId,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -411,7 +428,9 @@ class _SubjectGroupCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                color: theme.colorScheme.surfaceContainerHighest.withOpacity(
+                  0.6,
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
@@ -471,7 +490,9 @@ class _SubjectGroupCard extends StatelessWidget {
                 child: Consumer<UnreadCountProvider>(
                   builder: (_, provider, __) {
                     final count = provider.getUnreadCount(chatId);
-                    debugPrint('[GroupsList] badge chatId=$chatId count=$count');
+                    debugPrint(
+                      '[GroupsList] badge chatId=$chatId count=$count',
+                    );
                     return UnreadBadge(count: count);
                   },
                 ),

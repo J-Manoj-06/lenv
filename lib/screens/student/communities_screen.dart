@@ -18,12 +18,14 @@ class CommunitiesScreen extends StatefulWidget {
   State<CommunitiesScreen> createState() => _CommunitiesScreenState();
 }
 
-class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountMixin<CommunitiesScreen> {
+class _CommunitiesScreenState extends State<CommunitiesScreen>
+    with UnreadCountMixin<CommunitiesScreen> {
   final CommunityService _communityService = CommunityService();
   bool _isLoading = true;
   List<CommunityModel> _myCommunities = [];
   final Map<String, int> _lastMessageTs = {}; // communityId -> latest timestamp
-  final Map<String, dynamic> _messageListeners = {}; // Store listeners for cleanup
+  final Map<String, dynamic> _messageListeners =
+      {}; // Store listeners for cleanup
 
   @override
   void initState() {
@@ -48,25 +50,35 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
         .doc(communityId)
         .collection('messages')
         .orderBy('createdAt', descending: true);
-    
+
     // Store the listener so we can cancel it on dispose
     _messageListeners[communityId] = query.snapshots().listen(
       (snapshot) {
         if (snapshot.docs.isNotEmpty && mounted) {
-          final newTs = (snapshot.docs.first.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-          
+          final newTs =
+              (snapshot.docs.first.data()['createdAt'] as Timestamp?)
+                  ?.millisecondsSinceEpoch ??
+              0;
+
           // Update timestamp and resort immediately
           _lastMessageTs[communityId] = newTs;
           _resortCommunities();
 
           // Refresh unread count for this community
           try {
-            final unread = Provider.of<UnreadCountProvider>(context, listen: false);
-            unread.loadUnreadCount(chatId: communityId, chatType: ChatTypeConfig.communityChat);
+            final unread = Provider.of<UnreadCountProvider>(
+              context,
+              listen: false,
+            );
+            unread.loadUnreadCount(
+              chatId: communityId,
+              chatType: ChatTypeConfig.communityChat,
+            );
           } catch (_) {}
         }
       },
-      onError: (e) => print('Error listening to messages for community $communityId: $e'),
+      onError: (e) =>
+          print('Error listening to messages for community $communityId: $e'),
     );
   }
 
@@ -106,7 +118,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
     final communities = await _communityService.getMyComm(student.uid);
 
     debugPrint('📋 Loaded ${communities.length} communities');
-    
+
     // Fetch latest message timestamp for each community
     for (final c in communities) {
       try {
@@ -118,7 +130,10 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
             .limit(1)
             .get();
         if (snap.docs.isNotEmpty) {
-          final ts = (snap.docs.first.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+          final ts =
+              (snap.docs.first.data()['createdAt'] as Timestamp?)
+                  ?.millisecondsSinceEpoch ??
+              0;
           _lastMessageTs[c.id] = ts;
         } else {
           _lastMessageTs[c.id] = 0;
@@ -161,7 +176,6 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: _isLoading
@@ -212,7 +226,6 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
 
   Widget _buildEmptyState() {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -292,9 +305,15 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with UnreadCountM
           ),
         ).then((_) {
           // Refresh count on return
-          final unreadProvider = Provider.of<UnreadCountProvider>(context, listen: false);
+          final unreadProvider = Provider.of<UnreadCountProvider>(
+            context,
+            listen: false,
+          );
           unreadProvider.refreshChat(community.id);
-          unreadProvider.loadUnreadCount(chatId: community.id, chatType: ChatTypeConfig.communityChat);
+          unreadProvider.loadUnreadCount(
+            chatId: community.id,
+            chatType: ChatTypeConfig.communityChat,
+          );
         });
       },
       child: Container(

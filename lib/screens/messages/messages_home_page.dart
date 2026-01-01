@@ -37,7 +37,6 @@ class _MessagesHomePageState extends State<MessagesHomePage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    const orange = Color(0xFFF97316);
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(

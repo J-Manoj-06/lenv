@@ -6,12 +6,11 @@ class _CachedStatus {
   final double? imgH;
   final DateTime timestamp;
 
-  _CachedStatus({
-    required this.isDownloaded,
-    this.localPath,
-    this.imgW,
-    this.imgH,
-  }) : timestamp = DateTime.now();
+  _CachedStatus({required this.isDownloaded})
+    : localPath = null,
+      imgW = null,
+      imgH = null,
+      timestamp = DateTime.now();
 
   bool get isStale {
     // Cache is valid for 30 seconds

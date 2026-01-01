@@ -1363,7 +1363,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   void _openStatusViewer(List<StatusModel> statuses, int initialIndex) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUserId = authProvider.currentUser?.uid;
 
     // Convert statuses to announcement format for PageView
     final announcements = statuses
@@ -1398,6 +1397,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
+  /// Note: This method is kept for future implementation but currently unused
+  /// To use: uncomment and call from announcement handling code
+  /*
   void _showPrincipalAnnouncement(InstituteAnnouncementModel announcement) {
     // Use unified role-themed viewer instead of custom dialog
     openAnnouncementView(
@@ -1413,13 +1415,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       expiresAt: announcement.expiresAt,
     );
   }
+  */
 
   /// Open combined viewer with ALL announcements (teacher + principal)
   void _openCombinedAnnouncementViewer(
     List<_AnnouncementItem> allAnnouncements,
   ) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUserId = authProvider.currentUser?.uid;
 
     // Convert all announcements to PageView format
     final announcements = allAnnouncements.map((item) {
@@ -1529,6 +1531,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     }
   }
 
+  /// Note: This method is kept for future implementation but currently unused
+  /// To use: uncomment and call from announcement formatting code
+  /*
   String _formatAnnouncementTime(DateTime time) {
     final now = DateTime.now();
     final difference = now.difference(time);
@@ -1541,6 +1546,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       return '${difference.inDays}d ago';
     }
   }
+  */
 
   Future<void> _showCreateHighlightSheet() async {
     final textController = TextEditingController();

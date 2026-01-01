@@ -816,37 +816,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final title = announcement['title'] as String? ?? 'Announcement';
     final description = announcement['description'] as String? ?? '';
 
-    // Format date
-    String formattedDate = 'Recent';
-    try {
-      final createdAt = announcement['createdAt'];
-      if (createdAt != null) {
-        DateTime dateTime;
-        if (createdAt is Timestamp) {
-          dateTime = createdAt.toDate();
-        } else if (createdAt is String) {
-          dateTime = DateTime.parse(createdAt);
-        } else {
-          dateTime = DateTime.now();
-        }
-
-        final now = DateTime.now();
-        final difference = now.difference(dateTime);
-
-        if (difference.inDays == 0) {
-          formattedDate = 'Today';
-        } else if (difference.inDays == 1) {
-          formattedDate = 'Yesterday';
-        } else if (difference.inDays < 7) {
-          formattedDate = '${difference.inDays}d ago';
-        } else {
-          formattedDate = DateFormat('MMM d').format(dateTime);
-        }
-      }
-    } catch (e) {
-      print('Error formatting date: $e');
-    }
-
     return GestureDetector(
       onTap: () {
         // Role mapping: prefer explicit role, fallback to 'teacher'
@@ -953,87 +922,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  /// Show announcement details in a dialog or bottom sheet
-  void _showAnnouncementDetails(Map<String, dynamic> announcement) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return AlertDialog(
-          backgroundColor: _cardColor(context),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: parentGreen.withOpacity(0.1),
-                child: Text(
-                  announcement['teacherInitial'],
-                  style: const TextStyle(
-                    color: parentGreen,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      announcement['teacherName'],
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : _onBackground(context),
-                      ),
-                    ),
-                    Text(
-                      announcement['date'],
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark ? Colors.grey[400] : Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                announcement['title'],
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : _onBackground(context),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                announcement['description'],
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.grey[300] : Colors.grey[700],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close', style: TextStyle(color: parentGreen)),
-            ),
-          ],
-        );
-      },
     );
   }
 

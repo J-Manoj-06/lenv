@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/unread_count_provider.dart';
-import '../utils/chat_type_config.dart';
 
 /// Mixin for chat list screens to integrate unread counts
 /// ✅ Non-invasive: doesn't modify existing logic
@@ -11,8 +10,10 @@ mixin UnreadCountMixin<T extends StatefulWidget> on State<T> {
   UnreadCountProvider? _unreadProvider;
 
   void _ensureProvider() {
-    _unreadProvider ??=
-        Provider.of<UnreadCountProvider>(context, listen: false);
+    _unreadProvider ??= Provider.of<UnreadCountProvider>(
+      context,
+      listen: false,
+    );
   }
 
   @override
@@ -20,10 +21,10 @@ mixin UnreadCountMixin<T extends StatefulWidget> on State<T> {
     super.didChangeDependencies();
     _ensureProvider();
   }
-  
+
   /// Load unread counts for multiple chats
   /// Call this when loading chat list
-  /// 
+  ///
   /// Example:
   /// ```dart
   /// loadUnreadCountsForChats(
@@ -43,16 +44,16 @@ mixin UnreadCountMixin<T extends StatefulWidget> on State<T> {
       chatTypes: chatTypes,
     );
   }
-  
+
   /// Get unread count for a specific chat
   int getUnreadCount(String chatId) {
     _ensureProvider();
     return _unreadProvider?.getUnreadCount(chatId) ?? 0;
   }
-  
+
   /// Mark chat as read when user opens it
   /// Call this in onTap handler of chat card
-  /// 
+  ///
   /// Example:
   /// ```dart
   /// ListTile(
@@ -67,7 +68,7 @@ mixin UnreadCountMixin<T extends StatefulWidget> on State<T> {
     if (_unreadProvider == null) return;
     await _unreadProvider!.markChatAsRead(chatId);
   }
-  
+
   /// Refresh unread counts when screen resumes
   /// Call this in didChangeAppLifecycleState or on screen focus
   void refreshUnreadCounts() {
@@ -83,8 +84,10 @@ mixin ChatReadMixin<T extends StatefulWidget> on State<T> {
   late String _chatId;
 
   void _ensureProviderCR() {
-    _unreadProvider ??=
-        Provider.of<UnreadCountProvider>(context, listen: false);
+    _unreadProvider ??= Provider.of<UnreadCountProvider>(
+      context,
+      listen: false,
+    );
   }
 
   @override
@@ -95,12 +98,12 @@ mixin ChatReadMixin<T extends StatefulWidget> on State<T> {
       _unreadProvider!.markChatAsRead(_chatId);
     }
   }
-  
+
   /// Initialize with chat ID (call in initState)
   void initializeChatRead(String chatId) {
     _chatId = chatId;
   }
-  
+
   /// Refresh read status when returning from nested navigation
   void refreshReadStatus() {
     _ensureProviderCR();

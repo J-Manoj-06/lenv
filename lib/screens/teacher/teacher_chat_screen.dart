@@ -52,10 +52,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
-  final bool _isRecording = false;
-  String? _recordingPath;
-  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
-  late Timer _recordingTimer;
 
   Future<void> _batchUpdateIncoming(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
@@ -131,9 +127,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   void dispose() {
     _controller.dispose();
     _audioRecorder.dispose();
-    if (_isRecording) {
-      _recordingTimer.cancel();
-    }
     super.dispose();
   }
 

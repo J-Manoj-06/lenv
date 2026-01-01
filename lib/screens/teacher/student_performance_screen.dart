@@ -34,9 +34,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   // Brand + dark style (from provided HTML UI)
   static const Color brandPrimary = Color(0xFF7A63FF);
   static const Color brandPrimaryLight = Color(0xFFA08CFF);
-  static const Color bgDark = Color(0xFF0D0F18);
-  static const Color cardDark = Color(0xFF1A1B24); // approx zinc-900/50 on dark
-  static const Color borderDark = Color(0xFF2A2D3A); // subtle border dark
 
   final _firestoreService = FirestoreService();
   late AnimationController _animationController;
@@ -284,11 +281,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final bgColor = theme.scaffoldBackgroundColor;
-    final cardColor = theme.cardColor;
-    final primaryColor = theme.primaryColor;
-    final borderColor = isDark ? const Color(0xFF2A2D3A) : theme.dividerColor;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -643,7 +636,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     final isDark = theme.brightness == Brightness.dark;
     final cardColor = theme.cardColor;
     final borderColor = isDark ? const Color(0xFF2A2D3A) : theme.dividerColor;
-    final primaryColor = theme.primaryColor;
 
     return Container(
       decoration: BoxDecoration(
@@ -675,9 +667,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             ],
           ),
           const SizedBox(height: 20),
-          ...recent
-              .map((submission) => _buildTestHistoryItem(theme, submission))
-              ,
+          ...recent.map(
+            (submission) => _buildTestHistoryItem(theme, submission),
+          ),
         ],
       ),
     );
@@ -834,7 +826,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     final isDark = theme.brightness == Brightness.dark;
     final cardColor = theme.cardColor;
     final borderColor = isDark ? const Color(0xFF2A2D3A) : theme.dividerColor;
-    final primaryColor = theme.primaryColor;
 
     return Container(
       decoration: BoxDecoration(

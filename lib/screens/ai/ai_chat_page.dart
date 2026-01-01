@@ -44,7 +44,7 @@ class _AiChatPageState extends State<AiChatPage> {
   String? _todayInsightsText;
   Map<String, double>? _todayInsightsAverages;
   String? _todayStudyPlanText;
-  
+
   // Daily content loading states
   bool _isQuoteLoading = true;
   bool _isFactLoading = true;
@@ -292,13 +292,13 @@ class _AiChatPageState extends State<AiChatPage> {
   Future<void> _handleMotivationQuotes() async {
     try {
       setState(() => _isQuoteLoading = true);
-      
+
       // Fetch from Firestore (pre-fetched by Cloudflare Worker)
       final dailyQuote = await _dailyContentService.getTodayQuote();
-      
+
       String quote;
       String author;
-      
+
       if (dailyQuote != null) {
         quote = dailyQuote.text;
         author = dailyQuote.author;
@@ -350,16 +350,15 @@ class _AiChatPageState extends State<AiChatPage> {
     );
   }
 
-
   Future<void> _handleDailyFact() async {
     try {
       setState(() => _isFactLoading = true);
-      
+
       // Fetch from Firestore (pre-fetched by Cloudflare Worker)
       final dailyFact = await _dailyContentService.getTodayFact();
-      
+
       String factText;
-      
+
       if (dailyFact != null) {
         factText = dailyFact.text;
       } else {
@@ -408,12 +407,12 @@ class _AiChatPageState extends State<AiChatPage> {
   Future<void> _handleTodayInHistory() async {
     try {
       setState(() => _isHistoryLoading = true);
-      
+
       // Fetch from Firestore (pre-fetched by Cloudflare Worker)
       final dailyHistory = await _dailyContentService.getTodayHistory();
-      
+
       List<Map<String, String>> items = [];
-      
+
       if (dailyHistory != null && dailyHistory.events.isNotEmpty) {
         items = dailyHistory.events.map((e) => e.toMap()).toList();
       } else {
@@ -869,11 +868,13 @@ class _AiChatPageState extends State<AiChatPage> {
   @override
   Widget build(BuildContext context) {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF1A1A1A)
+        : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
-    
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -1282,23 +1283,24 @@ class _DailyContentSkeletonState extends State<_DailyContentSkeleton>
   @override
   void initState() {
     super.initState();
-    
+
     _controller = AnimationController(
       duration: const Duration(seconds: 1),
       vsync: this,
     );
 
-    _opacityAnimation = Tween<double>(begin: 0.4, end: 0.8).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _opacityAnimation = Tween<double>(
+      begin: 0.4,
+      end: 0.8,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
-  
+
   void _startAnimation() {
     // Respect reduced-motion preference - check in build
     final mediaQuery = MediaQuery.of(context);
     final respectReducedMotion =
         mediaQuery.disableAnimations || mediaQuery.boldText;
-    
+
     if (!respectReducedMotion && !_controller.isAnimating) {
       _controller.repeat(reverse: true);
     }
@@ -1319,8 +1321,9 @@ class _DailyContentSkeletonState extends State<_DailyContentSkeleton>
 
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
-    final skeletonColor =
-        isDarkTheme ? Colors.grey[800] ?? Colors.grey : Colors.grey[300] ?? Colors.grey;
+    final skeletonColor = isDarkTheme
+        ? Colors.grey[800] ?? Colors.grey
+        : Colors.grey[300] ?? Colors.grey;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
 
     return Container(
@@ -1400,7 +1403,6 @@ class _DailyContentLoadingCard extends StatelessWidget {
   final Color color;
   final VoidCallback? onTap;
   final bool isLoading;
-  final bool disabled;
 
   const _DailyContentLoadingCard({
     required this.title,
@@ -1408,29 +1410,18 @@ class _DailyContentLoadingCard extends StatelessWidget {
     required this.color,
     this.onTap,
     this.isLoading = false,
-    this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return GestureDetector(
-        onTap: disabled ? null : onTap,
-        child: _DailyContentSkeleton(
-          title: title,
-          icon: icon,
-          color: color,
-        ),
+        onTap: onTap,
+        child: _DailyContentSkeleton(title: title, icon: icon, color: color),
       );
     }
 
-    return _ActionCard(
-      title: title,
-      icon: icon,
-      color: color,
-      onTap: onTap,
-      disabled: disabled,
-    );
+    return _ActionCard(title: title, icon: icon, color: color, onTap: onTap);
   }
 }
 
@@ -1458,7 +1449,7 @@ class _ActionCard extends StatelessWidget {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
-    
+
     return InkWell(
       onTap: disabled ? null : onTap,
       borderRadius: BorderRadius.circular(16),
