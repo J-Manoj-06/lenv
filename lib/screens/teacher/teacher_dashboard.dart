@@ -1087,6 +1087,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       theme,
                       latestAnnouncement,
                       announcements,
+                      currentUserId ?? '',
                     );
                   }
                 },
@@ -1252,18 +1253,65 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     ThemeData theme,
     _AnnouncementItem latestAnnouncement,
     List<_AnnouncementItem> allAnnouncements,
+    String currentUserId,
   ) {
-    final bool hasUnviewed = allAnnouncements.any((a) => !a.isViewed);
+    final teacherUnread = allAnnouncements.any(
+      (a) => a.type == 'teacher' && !a.isViewed,
+    );
+    final principalAnnouncements = allAnnouncements
+        .where((a) => a.type == 'principal')
+        .toList();
+
+    if (principalAnnouncements.isEmpty) {
+      final bool hasUnviewed =
+          teacherUnread ||
+          allAnnouncements.any((a) => a.type == 'principal' && !a.isViewed);
+
+      return _buildOtherAnnouncementAvatarBody(
+        theme: theme,
+        latestAnnouncement: latestAnnouncement,
+        allAnnouncements: allAnnouncements,
+        hasUnviewed: hasUnviewed,
+      );
+    }
+
+    return StreamBuilder<List<bool>>(
+      stream: _streamPrincipalAnnouncementsViewStatus(
+        principalAnnouncements,
+        currentUserId,
+      ),
+      builder: (context, snapshot) {
+        final statuses = snapshot.data ?? const <bool>[];
+        final principalUnread = statuses.isEmpty || statuses.any((v) => !v);
+        final bool hasUnviewed = teacherUnread || principalUnread;
+
+        return _buildOtherAnnouncementAvatarBody(
+          theme: theme,
+          latestAnnouncement: latestAnnouncement,
+          allAnnouncements: allAnnouncements,
+          hasUnviewed: hasUnviewed,
+        );
+      },
+    );
+  }
+
+  Widget _buildOtherAnnouncementAvatarBody({
+    required ThemeData theme,
+    required _AnnouncementItem latestAnnouncement,
+    required List<_AnnouncementItem> allAnnouncements,
+    required bool hasUnviewed,
+  }) {
+    final containsPrincipal = allAnnouncements.any(
+      (a) => a.type == 'principal',
+    );
 
     return GestureDetector(
       onTap: () {
-        // Combine ALL announcements (teacher + principal) in chronological order
         _openCombinedAnnouncementViewer(allAnnouncements);
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Avatar with gradient border
           Container(
             width: 68,
             height: 68,
@@ -1277,8 +1325,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     )
                   : LinearGradient(
                       colors: [
-                        Colors.grey.withOpacity(0.4),
-                        Colors.grey.withOpacity(0.3),
+                        Colors.grey.withOpacity(containsPrincipal ? 0.25 : 0.4),
+                        Colors.grey.withOpacity(containsPrincipal ? 0.2 : 0.3),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -1326,7 +1374,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          // Name label
           SizedBox(
             width: 70,
             child: Text(
@@ -1359,6 +1406,39 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         ),
       ),
     );
+  }
+
+  /// Stream principal announcement view status for the current user
+  Stream<List<bool>> _streamPrincipalAnnouncementsViewStatus(
+    List<_AnnouncementItem> announcements,
+    String userId,
+  ) {
+    if (userId.isEmpty || announcements.isEmpty) {
+      return Stream.value(const <bool>[]);
+    }
+
+    return Stream.periodic(const Duration(seconds: 4))
+        .asyncMap((_) async {
+          final results = <bool>[];
+          for (final item in announcements) {
+            final announcement = item.data as InstituteAnnouncementModel;
+            final doc = await FirebaseFirestore.instance
+                .collection('institute_announcements')
+                .doc(announcement.id)
+                .collection('views')
+                .doc(userId)
+                .get();
+            results.add(doc.exists);
+          }
+          return results;
+        })
+        .distinct((prev, next) {
+          if (prev.length != next.length) return false;
+          for (var i = 0; i < prev.length; i++) {
+            if (prev[i] != next[i]) return false;
+          }
+          return true;
+        });
   }
 
   void _openStatusViewer(List<StatusModel> statuses, int initialIndex) {
@@ -3125,16 +3205,20 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Stream<List<Map<String, dynamic>>> _combineAnnouncementStreams(
     String instituteId,
   ) async* {
+    final now = Timestamp.now();
+
     await for (final teacherSnapshot
         in FirebaseFirestore.instance
             .collection('class_highlights')
             .where('instituteId', isEqualTo: instituteId)
+            .where('expiresAt', isGreaterThan: now)
             .snapshots()) {
-      // Get principal announcements as a one-time fetch
+      // Get principal announcements as a one-time fetch (respect expiry)
       final principalSnapshot = await FirebaseFirestore.instance
           .collection('institute_announcements')
           .where('instituteId', isEqualTo: instituteId)
           .where('audienceType', isEqualTo: 'school')
+          .where('expiresAt', isGreaterThan: now)
           .get();
 
       final combined = <Map<String, dynamic>>[];

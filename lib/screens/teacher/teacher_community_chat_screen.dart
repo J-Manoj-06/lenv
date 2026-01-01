@@ -716,44 +716,31 @@ class _TeacherCommunityChatScreenState
         mainAxisAlignment: isCurrentUser
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isCurrentUser) ...[
-            CircleAvatar(
-              radius: 16,
-              child: Text(
-                message.senderName.isNotEmpty
-                    ? message.senderName[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
           Flexible(
             child: Column(
               crossAxisAlignment: isCurrentUser
                   ? CrossAxisAlignment.end
                   : CrossAxisAlignment.start,
               children: [
-                if (!isCurrentUser)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4, left: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          message.senderName,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: isCurrentUser
+                        ? MainAxisAlignment.end
+                        : MainAxisAlignment.start,
+                    children: [
+                      Text(
+                        isCurrentUser ? currentUserName : message.senderName,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.75),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
+                      ),
+                      if (!isCurrentUser) ...[
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -776,8 +763,9 @@ class _TeacherCommunityChatScreenState
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
+                ),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -831,39 +819,23 @@ class _TeacherCommunityChatScreenState
                             height: 1.5,
                           ),
                         ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatTime(message.createdAt),
-                        style: TextStyle(
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(
-                            0.7,
-                          ),
-                          fontSize: 11,
-                        ),
-                      ),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    _formatTime(message.createdAt),
+                    style: TextStyle(
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          if (isCurrentUser) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: const Color(0xFF6A4FF7),
-              child: Text(
-                currentUserName.isNotEmpty
-                    ? currentUserName[0].toUpperCase()
-                    : 'T',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
