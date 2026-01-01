@@ -106,20 +106,40 @@ class _TeacherCommunityChatScreenState
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
 
-    if (currentUser != null) {
-      // Get teacher data from Firestore
-      final teacherDoc = await FirebaseFirestore.instance
-          .collection('teachers')
-          .where('email', isEqualTo: currentUser.email)
-          .limit(1)
-          .get();
+    if (currentUser == null) return;
 
-      if (teacherDoc.docs.isNotEmpty) {
-        setState(() {
-          _teacherId = currentUser.uid;
-          _teacherName = teacherDoc.docs.first.data()['name'] ?? 'Teacher';
-        });
-      }
+    final String fallbackEmailName =
+        (currentUser.email ?? '').split('@').first.trim();
+
+    // Get teacher data from Firestore
+    final teacherDoc = await FirebaseFirestore.instance
+        .collection('teachers')
+        .where('email', isEqualTo: currentUser.email)
+        .limit(1)
+        .get();
+
+    String? resolvedName;
+    if (teacherDoc.docs.isNotEmpty) {
+      final data = teacherDoc.docs.first.data();
+      resolvedName = (data['name'] ??
+              data['teacherName'] ??
+              data['fullName'] ??
+              data['displayName'])
+          ?.toString()
+          .trim();
+    }
+
+    resolvedName = (resolvedName != null && resolvedName.isNotEmpty)
+        ? resolvedName
+        : (currentUser.name?.trim().isNotEmpty == true
+            ? currentUser.name!.trim()
+            : (fallbackEmailName.isNotEmpty ? fallbackEmailName : 'Teacher'));
+
+    if (mounted) {
+      setState(() {
+        _teacherId = currentUser.uid;
+        _teacherName = resolvedName;
+      });
     }
   }
 
@@ -520,6 +540,12 @@ class _TeacherCommunityChatScreenState
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
+
+                    // Skip deleted messages
+                    if (message.isDeleted) {
+                      return const SizedBox.shrink();
+                    }
+
                     final isCurrentUser = message.senderId == _teacherId;
                     final showDateDivider =
                         index == messages.length - 1 ||
@@ -710,133 +736,141 @@ class _TeacherCommunityChatScreenState
   ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment: isCurrentUser
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Flexible(
-            child: Column(
-              crossAxisAlignment: isCurrentUser
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: isCurrentUser
-                        ? MainAxisAlignment.end
-                        : MainAxisAlignment.start,
-                    children: [
-                      Text(
-                        isCurrentUser ? currentUserName : message.senderName,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.75),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+
+    return GestureDetector(
+      onLongPress: isCurrentUser
+          ? () {
+              _showMessageOptions(message);
+            }
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Row(
+          mainAxisAlignment: isCurrentUser
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(
+              child: Column(
+                crossAxisAlignment: isCurrentUser
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: isCurrentUser
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
+                      children: [
+                        Text(
+                          isCurrentUser ? currentUserName : message.senderName,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      if (!isCurrentUser) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF6A4FF7,
-                            ).withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            message.senderRole,
-                            style: const TextStyle(
-                              color: Color(0xFF6A4FF7),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
+                        if (!isCurrentUser) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF6A4FF7,
+                              ).withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              message.senderRole,
+                              style: const TextStyle(
+                                color: Color(0xFF6A4FF7),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isCurrentUser
-                        ? (isDark
-                              ? const Color(0xFF1A1C20)
-                              : theme.colorScheme.surfaceContainerHighest
-                                    .withOpacity(0.6))
-                        : (isDark ? const Color(0xFF14171B) : theme.cardColor),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(12),
-                      topRight: const Radius.circular(12),
-                      bottomLeft: Radius.circular(isCurrentUser ? 12 : 6),
-                      bottomRight: Radius.circular(isCurrentUser ? 6 : 12),
-                    ),
-                    border: Border.all(
-                      color: theme.dividerColor.withOpacity(0.4),
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Media with metadata (images, PDFs, audio)
-                      if (message.mediaMetadata != null) ...[
-                        MediaPreviewCard(
-                          r2Key: message.mediaMetadata!.r2Key,
-                          fileName: _getFileNameFromMetadata(
-                            message.mediaMetadata!,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isCurrentUser
+                          ? (isDark
+                                ? const Color(0xFF1A1C20)
+                                : theme.colorScheme.surfaceContainerHighest
+                                      .withOpacity(0.6))
+                          : (isDark ? const Color(0xFF14171B) : theme.cardColor),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(12),
+                        topRight: const Radius.circular(12),
+                        bottomLeft: Radius.circular(isCurrentUser ? 12 : 6),
+                        bottomRight: Radius.circular(isCurrentUser ? 6 : 12),
+                      ),
+                      border: Border.all(
+                        color: theme.dividerColor.withOpacity(0.4),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Media with metadata (images, PDFs, audio)
+                        if (message.mediaMetadata != null) ...[
+                          MediaPreviewCard(
+                            r2Key: message.mediaMetadata!.r2Key,
+                            fileName: _getFileNameFromMetadata(
+                              message.mediaMetadata!,
+                            ),
+                            mimeType:
+                                message.mediaMetadata!.mimeType ??
+                                'application/octet-stream',
+                            fileSize: message.mediaMetadata!.fileSize ?? 0,
+                            thumbnailBase64: message.mediaMetadata!.thumbnail,
+                            localPath: message.mediaMetadata!.localPath,
+                            isMe: isCurrentUser,
                           ),
-                          mimeType:
-                              message.mediaMetadata!.mimeType ??
-                              'application/octet-stream',
-                          fileSize: message.mediaMetadata!.fileSize ?? 0,
-                          thumbnailBase64: message.mediaMetadata!.thumbnail,
-                          localPath: message.mediaMetadata!.localPath,
-                          isMe: isCurrentUser,
-                        ),
+                          if (message.content.isNotEmpty)
+                            const SizedBox(height: 8),
+                        ],
+                        // Text content
                         if (message.content.isNotEmpty)
-                          const SizedBox(height: 8),
-                      ],
-                      // Text content
-                      if (message.content.isNotEmpty)
-                        Text(
-                          message.content,
-                          style: TextStyle(
-                            color: theme.textTheme.bodyLarge?.color,
-                            fontSize: 14,
-                            height: 1.5,
+                          Text(
+                            message.content,
+                            style: TextStyle(
+                              color: theme.textTheme.bodyLarge?.color,
+                              fontSize: 14,
+                              height: 1.5,
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    _formatTime(message.createdAt),
-                    style: TextStyle(
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                      fontSize: 11,
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      _formatTime(message.createdAt),
+                      style: TextStyle(
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1089,5 +1123,106 @@ class _TeacherCommunityChatScreenState
         ),
       ),
     );
+  }
+
+  void _showMessageOptions(CommunityMessageModel message) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B141A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text(
+                  'Delete for Everyone',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _deleteMessageForEveryone(message);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteMessageForEveryone(CommunityMessageModel message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Text(
+            'Delete Message?',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'This message will be deleted for everyone in this community.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('communities')
+          .doc(widget.community.id)
+          .collection('messages')
+          .doc(message.messageId)
+          .update({
+            'isDeleted': true,
+            'content': '',
+          });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message deleted for everyone'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete message: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
