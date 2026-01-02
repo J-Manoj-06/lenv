@@ -6,6 +6,18 @@ import '../models/community_message_model.dart';
 import '../models/student_model.dart';
 import '../models/media_metadata.dart';
 
+class MessageSearchPage {
+  final List<CommunityMessageModel> messages;
+  final DocumentSnapshot? lastDoc;
+  final bool hasMore;
+
+  const MessageSearchPage({
+    required this.messages,
+    required this.lastDoc,
+    required this.hasMore,
+  });
+}
+
 class CommunityService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -804,6 +816,70 @@ class CommunityService {
     } catch (e) {
       debugPrint('❌ Error getting messages: $e');
       return [];
+    }
+  }
+
+  /// Search messages with lightweight client-side filtering over paginated fetches
+  Future<MessageSearchPage> searchMessages({
+    required String communityId,
+    required String query,
+    int limit = 25,
+    DocumentSnapshot? lastDoc,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      return MessageSearchPage(messages: const [], lastDoc: lastDoc, hasMore: false);
+    }
+
+    try {
+      var ref = _firestore
+          .collection('communities')
+          .doc(communityId)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
+
+      if (lastDoc != null) {
+        ref = ref.startAfterDocument(lastDoc);
+      }
+
+      final snap = await ref.get();
+      final lowerQuery = trimmed.toLowerCase();
+
+      bool matches(CommunityMessageModel m) {
+        final content = m.content.toLowerCase();
+        final sender = m.senderName.toLowerCase();
+        final type = m.type.toLowerCase();
+        final fileName = m.fileName.toLowerCase();
+        final metaName = m.mediaMetadata?.originalFileName?.toLowerCase() ?? '';
+        final mime = m.mediaMetadata?.mimeType?.toLowerCase() ?? '';
+        final mediaPath = m.mediaMetadata?.r2Key.toLowerCase() ?? '';
+
+        return content.contains(lowerQuery) ||
+            sender.contains(lowerQuery) ||
+            type.contains(lowerQuery) ||
+            fileName.contains(lowerQuery) ||
+            metaName.contains(lowerQuery) ||
+            mime.contains(lowerQuery) ||
+            mediaPath.contains(lowerQuery);
+      }
+
+      final messages = snap.docs
+          .map((doc) => CommunityMessageModel.fromFirestore(doc))
+          .where(matches)
+          .toList();
+
+      final hasMore = snap.docs.length == limit;
+      final nextCursor = snap.docs.isNotEmpty ? snap.docs.last : lastDoc;
+
+      return MessageSearchPage(
+        messages: messages,
+        lastDoc: nextCursor,
+        hasMore: hasMore,
+      );
+    } catch (e) {
+      debugPrint('❌ Error searching messages: $e');
+      return MessageSearchPage(messages: const [], lastDoc: lastDoc, hasMore: false);
     }
   }
 

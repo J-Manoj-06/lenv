@@ -513,8 +513,7 @@ class _TeacherCommunityChatScreenState
                 // Ensure messages are ordered newest -> oldest so reverse: true renders correctly
                 final messages = List<CommunityMessageModel>.from(
                   snapshot.data ?? <CommunityMessageModel>[],
-                )
-                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                )..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
                 if (messages.isEmpty) {
                   return Center(
@@ -707,11 +706,16 @@ class _TeacherCommunityChatScreenState
               );
             },
           )
-        else
+        else ...[
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: _openSearch,
+          ),
           IconButton(
             icon: const Icon(Icons.info_outline, color: Colors.white),
             onPressed: () => _showCommunityInfo(),
           ),
+        ],
       ],
     );
   }
@@ -1077,8 +1081,7 @@ class _TeacherCommunityChatScreenState
                               fontSize: 15,
                             ),
                             maxLines: null,
-                            textCapitalization:
-                                TextCapitalization.sentences,
+                            textCapitalization: TextCapitalization.sentences,
                             decoration: InputDecoration(
                               hintText: 'Message',
                               hintStyle: TextStyle(
@@ -1099,8 +1102,11 @@ class _TeacherCommunityChatScreenState
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon:
-                      const Icon(Icons.attach_file, color: Colors.grey, size: 22),
+                  icon: const Icon(
+                    Icons.attach_file,
+                    color: Colors.grey,
+                    size: 22,
+                  ),
                   padding: const EdgeInsets.all(6),
                   onPressed: _isUploading ? null : _showMediaOptions,
                 ),
@@ -1117,8 +1123,9 @@ class _TeacherCommunityChatScreenState
                                     .withOpacity(0.6)),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color:
-                          theme.dividerColor.withOpacity(hasText ? 0.0 : 0.5),
+                      color: theme.dividerColor.withOpacity(
+                        hasText ? 0.0 : 0.5,
+                      ),
                     ),
                   ),
                   child: IconButton(
@@ -1136,6 +1143,19 @@ class _TeacherCommunityChatScreenState
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+
+  void _openSearch() {
+    if (_teacherId == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MessageSearchScreen(
+          communityId: widget.community.id,
+          communityService: _communityService,
+          currentUserId: _teacherId!,
         ),
       ),
     );
@@ -1442,3 +1462,452 @@ class _TeacherCommunityChatScreenState
     }
   }
 }
+
+class MessageSearchScreen extends StatefulWidget {
+  final String communityId;
+  final CommunityService communityService;
+  final String currentUserId;
+
+  const MessageSearchScreen({
+    super.key,
+    required this.communityId,
+    required this.communityService,
+    required this.currentUserId,
+  });
+
+  @override
+  State<MessageSearchScreen> createState() => _MessageSearchScreenState();
+}
+
+class _MessageSearchScreenState extends State<MessageSearchScreen> {
+  final TextEditingController _queryController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
+  List<CommunityMessageModel> _results = [];
+  DocumentSnapshot? _cursor;
+  bool _loading = false;
+  bool _hasMore = true;
+  String _lastQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_loading &&
+        _hasMore) {
+      _runSearch();
+    }
+  }
+
+  Future<void> _runSearch({bool reset = false}) async {
+    final q = _queryController.text.trim();
+
+    if (q.length < 2) {
+      setState(() {
+        _results = [];
+        _cursor = null;
+        _hasMore = true;
+        _lastQuery = q;
+      });
+      return;
+    }
+
+    if (reset || q != _lastQuery) {
+      setState(() {
+        _loading = true;
+        _hasMore = true;
+        _cursor = null;
+        _results = [];
+        _lastQuery = q;
+      });
+    } else if (!_hasMore || _loading) {
+      return;
+    } else {
+      setState(() => _loading = true);
+    }
+
+    final page = await widget.communityService.searchMessages(
+      communityId: widget.communityId,
+      query: q,
+      lastDoc: reset ? null : _cursor,
+      limit: 25,
+    );
+
+    setState(() {
+      _results.addAll(page.messages);
+      _cursor = page.lastDoc;
+      _hasMore = page.hasMore;
+      _loading = false;
+    });
+  }
+
+  String _formatTimestamp(DateTime dt) {
+    return DateFormat('MMM d, h:mm a').format(dt);
+  }
+
+  IconData _iconFor(CommunityMessageModel m) {
+    final mime = m.mediaMetadata?.mimeType ?? '';
+    if (mime.startsWith('image/')) return Icons.image_outlined;
+    if (mime == 'application/pdf') return Icons.picture_as_pdf_outlined;
+    if (mime.startsWith('audio/')) return Icons.audiotrack;
+    if (mime.isNotEmpty) return Icons.insert_drive_file_outlined;
+    if (m.type == 'audio') return Icons.audiotrack;
+    if (m.type == 'image') return Icons.image_outlined;
+    if (m.type == 'pdf' || m.type == 'file') return Icons.insert_drive_file_outlined;
+    return Icons.chat_bubble_outline;
+  }
+
+  String _primaryText(CommunityMessageModel m) {
+    if (m.content.isNotEmpty) return m.content;
+    if (m.mediaMetadata?.originalFileName?.isNotEmpty == true) {
+      return m.mediaMetadata!.originalFileName!;
+    }
+    if (m.fileName.isNotEmpty) return m.fileName;
+    return 'Media message';
+  }
+
+  String _secondaryText(CommunityMessageModel m) {
+    final sender = m.senderName.isNotEmpty ? m.senderName : 'Unknown';
+    return '${_formatTimestamp(m.createdAt)} • $sender';
+  }
+
+  void _openMedia(CommunityMessageModel message) {
+    if (message.mediaMetadata == null) {
+      if (message.content.isNotEmpty) {
+        // Just text - show in snackbar or toast
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message.content)),
+        );
+      }
+      return;
+    }
+
+    final meta = message.mediaMetadata!;
+    final mime = meta.mimeType ?? '';
+    final publicUrl = meta.publicUrl;
+
+    // Image preview - show in dialog
+    if (mime.startsWith('image/')) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: InteractiveViewer(
+                  child: Image.network(
+                    publicUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Center(
+                      child: Text('Failed to load image', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
+    // PDF viewer - show in dialog
+    if (mime == 'application/pdf') {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text('PDF Preview', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.picture_as_pdf, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                meta.originalFileName ?? 'Document.pdf',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text('PDF URL: $publicUrl'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: const Text('Open PDF'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Audio player - show in bottom sheet
+    if (mime.startsWith('audio/')) {
+      showModalBottomSheet(
+        context: context,
+        builder: (ctx) => AudioPlayerModal(
+          audioUrl: publicUrl,
+          fileName: meta.originalFileName ?? 'Audio',
+        ),
+      );
+      return;
+    }
+
+    // Generic file
+    _handleFileDownload(publicUrl, meta.originalFileName ?? 'File');
+  }
+
+  void _handleFileDownload(String url, String fileName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Opening $fileName...'),
+        action: SnackBarAction(
+          label: 'Copy URL',
+          onPressed: () {
+            // Copy URL to clipboard for manual download
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('URL copied to clipboard')),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF1A1C20)
+                : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.dividerColor.withOpacity(0.4)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.search, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _queryController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Search messages, files, audio...',
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _runSearch(reset: true),
+                  onChanged: (_) => _runSearch(reset: true),
+                ),
+              ),
+              if (_queryController.text.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    _queryController.clear();
+                    _runSearch(reset: true);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+      body: Column(
+        children: [
+          if (_queryController.text.trim().length < 2)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Type at least 2 characters to search messages, PDFs, images, and audio.',
+                style: TextStyle(
+                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: _results.length + (_loading ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= _results.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  final message = _results[index];
+                  final isMe = message.senderId == widget.currentUserId;
+
+                  return ListTile(
+                    leading: Icon(_iconFor(message), color: theme.iconTheme.color),
+                    title: Text(
+                      _primaryText(message),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      _secondaryText(message),
+                      style: TextStyle(
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                      ),
+                    ),
+                    trailing: isMe
+                        ? const Icon(Icons.person, size: 16)
+                        : null,
+                    onTap: () => _openMedia(message),
+                  );
+                },
+              ),
+            ),
+          if (_results.isEmpty && !_loading && _queryController.text.trim().length >= 2)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'No matches found.',
+                style: TextStyle(
+                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// Audio Player Modal (Bottom Sheet)
+class AudioPlayerModal extends StatefulWidget {
+  final String audioUrl;
+  final String fileName;
+
+  const AudioPlayerModal({
+    super.key,
+    required this.audioUrl,
+    required this.fileName,
+  });
+
+  @override
+  State<AudioPlayerModal> createState() => _AudioPlayerModalState();
+}
+
+class _AudioPlayerModalState extends State<AudioPlayerModal> {
+  bool _isPlaying = false;
+  Duration _duration = Duration.zero;
+  Duration _position = Duration.zero;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.grey[900],
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.audiotrack, size: 80, color: Colors.blue),
+          const SizedBox(height: 24),
+          Text(
+            widget.fileName,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 32),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                iconSize: 48,
+                icon: Icon(
+                  _isPlaying ? Icons.pause_circle : Icons.play_circle,
+                  color: Colors.blue,
+                ),
+                onPressed: () {
+                  setState(() => _isPlaying = !_isPlaying);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          Slider(
+            value: _position.inSeconds.toDouble(),
+            max: _duration.inSeconds.toDouble() + 1,
+            onChanged: (value) {
+              setState(() => _position = Duration(seconds: value.toInt()));
+            },
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatDuration(_position),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              Text(
+                _formatDuration(_duration),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes;
+    final seconds = d.inSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+}
+
+
