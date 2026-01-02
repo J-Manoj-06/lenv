@@ -1660,7 +1660,10 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   }
 
   void _openSearch() {
-    final studentProvider = Provider.of<StudentProvider>(context, listen: false);
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
     final student = studentProvider.currentStudent;
     if (student == null) return;
 
@@ -2247,9 +2250,9 @@ class _StudentCommunityMessageSearchScreenState
   void _openMedia(CommunityMessageModel message) {
     if (message.mediaMetadata == null) {
       if (message.content.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message.content)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message.content)));
       }
       return;
     }
