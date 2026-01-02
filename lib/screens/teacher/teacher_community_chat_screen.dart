@@ -42,6 +42,7 @@ class _TeacherCommunityChatScreenState
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
   late final WhatsAppMediaUploadService _whatsappMediaUpload;
+  final ValueNotifier<String> _messageText = ValueNotifier<String>('');
   String? _teacherName;
   String? _teacherId;
   bool _showEmojiPicker = false;
@@ -55,7 +56,6 @@ class _TeacherCommunityChatScreenState
   @override
   void initState() {
     super.initState();
-    _messageController.addListener(() => setState(() {}));
     _focusNode.addListener(() {
       if (_focusNode.hasFocus && _showEmojiPicker) {
         setState(() => _showEmojiPicker = false);
@@ -93,6 +93,7 @@ class _TeacherCommunityChatScreenState
     _scrollController.dispose();
     _focusNode.dispose();
     _audioRecorder.dispose();
+    _messageText.dispose();
     _selectedMessages.dispose();
     super.dispose();
   }
@@ -509,7 +510,11 @@ class _TeacherCommunityChatScreenState
                   );
                 }
 
-                final messages = snapshot.data ?? [];
+                // Ensure messages are ordered newest -> oldest so reverse: true renders correctly
+                final messages = List<CommunityMessageModel>.from(
+                  snapshot.data ?? <CommunityMessageModel>[],
+                )
+                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
                 if (messages.isEmpty) {
                   return Center(
@@ -914,7 +919,8 @@ class _TeacherCommunityChatScreenState
                                     mimeType:
                                         message.mediaMetadata!.mimeType ??
                                         'application/octet-stream',
-                                    fileSize: message.mediaMetadata!.fileSize ?? 0,
+                                    fileSize:
+                                        message.mediaMetadata!.fileSize ?? 0,
                                     thumbnailBase64:
                                         message.mediaMetadata!.thumbnail,
                                     localPath: message.mediaMetadata!.localPath,
@@ -1005,9 +1011,9 @@ class _TeacherCommunityChatScreenState
   }
 
   Widget _buildMessageInput() {
-    final hasText = _messageController.text.trim().isNotEmpty;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
       decoration: BoxDecoration(
@@ -1019,108 +1025,117 @@ class _TeacherCommunityChatScreenState
       child: SafeArea(
         top: false,
         minimum: EdgeInsets.zero,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF1A1C20)
-                      : theme.colorScheme.surfaceContainerHighest.withOpacity(
-                          0.5,
-                        ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: theme.dividerColor.withOpacity(0.5),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        _showEmojiPicker
-                            ? Icons.keyboard
-                            : Icons.sentiment_satisfied_outlined,
-                        color: theme.textTheme.bodySmall?.color,
-                        size: 22,
-                      ),
-                      padding: const EdgeInsets.all(6),
-                      onPressed: () {
-                        setState(() {
-                          _showEmojiPicker = !_showEmojiPicker;
-                        });
-                        if (!_showEmojiPicker) {
-                          _focusNode.requestFocus();
-                        } else {
-                          _focusNode.unfocus();
-                        }
-                      },
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        focusNode: _focusNode,
-                        style: TextStyle(
-                          color: theme.textTheme.bodyLarge?.color,
-                          fontSize: 15,
-                        ),
-                        maxLines: null,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: InputDecoration(
-                          hintText: 'Message',
-                          hintStyle: TextStyle(
-                            color: theme.textTheme.bodySmall?.color,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 8,
-                          ),
-                        ),
-                        onSubmitted: (_) => _sendMessage(),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.attach_file, color: Colors.grey, size: 22),
-              padding: const EdgeInsets.all(6),
-              onPressed: _isUploading ? null : _showMediaOptions,
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: hasText
-                    ? theme.primaryColor
-                    : (isDark
+        child: ValueListenableBuilder<String>(
+          valueListenable: _messageText,
+          builder: (context, text, _) {
+            final hasText = text.trim().isNotEmpty;
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      color: isDark
                           ? const Color(0xFF1A1C20)
                           : theme.colorScheme.surfaceContainerHighest
-                                .withOpacity(0.6)),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: theme.dividerColor.withOpacity(hasText ? 0.0 : 0.5),
+                                .withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: theme.dividerColor.withOpacity(0.5),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            _showEmojiPicker
+                                ? Icons.keyboard
+                                : Icons.sentiment_satisfied_outlined,
+                            color: theme.textTheme.bodySmall?.color,
+                            size: 22,
+                          ),
+                          padding: const EdgeInsets.all(6),
+                          onPressed: () {
+                            setState(() {
+                              _showEmojiPicker = !_showEmojiPicker;
+                            });
+                            if (!_showEmojiPicker) {
+                              _focusNode.requestFocus();
+                            } else {
+                              _focusNode.unfocus();
+                            }
+                          },
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            focusNode: _focusNode,
+                            style: TextStyle(
+                              color: theme.textTheme.bodyLarge?.color,
+                              fontSize: 15,
+                            ),
+                            maxLines: null,
+                            textCapitalization:
+                                TextCapitalization.sentences,
+                            decoration: InputDecoration(
+                              hintText: 'Message',
+                              hintStyle: TextStyle(
+                                color: theme.textTheme.bodySmall?.color,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                              ),
+                            ),
+                            onSubmitted: (_) => _sendMessage(),
+                            onChanged: (value) => _messageText.value = value,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              child: IconButton(
-                icon: Icon(
-                  hasText ? Icons.send_rounded : Icons.mic,
-                  color: hasText
-                      ? theme.colorScheme.onPrimary
-                      : theme.iconTheme.color,
-                  size: 20,
+                const SizedBox(width: 8),
+                IconButton(
+                  icon:
+                      const Icon(Icons.attach_file, color: Colors.grey, size: 22),
+                  padding: const EdgeInsets.all(6),
+                  onPressed: _isUploading ? null : _showMediaOptions,
                 ),
-                padding: EdgeInsets.zero,
-                onPressed: hasText ? _sendMessage : () {},
-              ),
-            ),
-          ],
+                const SizedBox(width: 8),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: hasText
+                        ? theme.primaryColor
+                        : (isDark
+                              ? const Color(0xFF1A1C20)
+                              : theme.colorScheme.surfaceContainerHighest
+                                    .withOpacity(0.6)),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color:
+                          theme.dividerColor.withOpacity(hasText ? 0.0 : 0.5),
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      hasText ? Icons.send_rounded : Icons.mic,
+                      color: hasText
+                          ? theme.colorScheme.onPrimary
+                          : theme.iconTheme.color,
+                      size: 20,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: hasText ? _sendMessage : () {},
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
