@@ -800,99 +800,168 @@ class _ParentSectionGroupChatScreenState
         ? teacherViolet
         : parentGreen;
     final hasText = _controller.text.trim().isNotEmpty;
+
+    // Premium dark theme palette - integrated with chat screen
+    final backgroundColor = isDark
+        ? const Color(0xFF0D0E10)  // Near-black, blends with chat
+        : const Color(0xFFF5F5F5);
+    final inputFieldColor = isDark
+        ? const Color(0xFF1E2024)  // Slightly lighter for depth
+        : Colors.white;
+    final textColor = isDark
+        ? const Color(0xFFE8E8E8)  // Bright, readable
+        : const Color(0xFF000000);
+    final hintColor = isDark
+        ? const Color(0xFF6B6B6B)  // Subdued gray
+        : const Color(0xFF999999);
+    final iconColor = isDark
+        ? const Color(0xFF9A95CC)  // Soft muted violet
+        : const Color(0xFF6C63FF);
+    final iconDisabledColor = isDark
+        ? const Color(0xFF3A3A3C)
+        : const Color(0xFFBBBBBB);
+
     return SafeArea(
       top: false,
-      minimum: EdgeInsets.zero,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-          color: isDark ? bubbleDark : Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, -2),
-            ),
-          ],
+          color: backgroundColor,
+          border: isDark
+              ? Border(
+                  top: BorderSide(
+                    color: Colors.white.withOpacity(0.05),
+                    width: 0.5,
+                  ),
+                )
+              : null,
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            IconButton(
-              icon: const Icon(Icons.attach_file, color: Colors.grey),
-              onPressed: _isUploading ? null : _showAttachmentSheet,
-            ),
+            // Input container - pill-shaped with subtle depth
             Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                child: _isRecording
-                    ? _buildRecordingBar(isDark, primaryColor)
-                    : Container(
-                        key: const ValueKey('input'),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.black
-                              : const Color(0xFFF4F5F7),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isDark
-                                ? Colors.white.withOpacity(0.1)
-                                : Colors.grey.withOpacity(0.2),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 44),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: inputFieldColor,
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: isDark
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
                           ),
-                        ),
-                        child: TextField(
-                          controller: _controller,
-                          minLines: 1,
-                          maxLines: 4,
-                          style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black,
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
-                          decoration: InputDecoration(
-                            hintText: 'Type a message',
-                            hintStyle: TextStyle(
-                              color: isDark
-                                  ? Colors.grey[500]
-                                  : Colors.grey[600],
-                            ),
-                            border: InputBorder.none,
-                          ),
-                          onChanged: (_) => setState(() {}),
-                          readOnly: _isRecording,
+                        ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Attachment - inside input, left side
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: GestureDetector(
+                        onTap: _isUploading ? null : _showAttachmentSheet,
+                        child: Icon(
+                          Icons.attach_file_rounded,
+                          color: _isUploading ? iconDisabledColor : iconColor,
+                          size: 23,
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Text input - primary focus
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        child: _isRecording
+                            ? _buildRecordingBar(isDark, primaryColor)
+                            : TextField(
+                                key: const ValueKey('input'),
+                                controller: _controller,
+                                minLines: 1,
+                                maxLines: 4,
+                                cursorColor: primaryColor,
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 15,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Message',
+                                  hintStyle: TextStyle(
+                                    color: hintColor,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  disabledBorder: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                ),
+                                keyboardType: TextInputType.multiline,
+                                textCapitalization: TextCapitalization.sentences,
+                                onChanged: (_) => setState(() {}),
+                                readOnly: _isRecording,
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
+            // Mic/Send button - balanced size, outside input
             GestureDetector(
               onTap: _isRecording
                   ? _stopAndSendRecording
                   : (hasText ? _sendMessage : _startRecording),
               child: Container(
-                width: 48,
-                height: 48,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: _isRecording
                       ? primaryColor
-                      : (hasText
-                            ? primaryColor
-                            : primaryColor.withOpacity(0.85)),
+                      : (hasText ? primaryColor : primaryColor.withOpacity(0.85)),
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.25),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  boxShadow: isDark
+                      ? [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.25),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                 ),
                 child: Icon(
                   _isRecording
                       ? Icons.send_rounded
                       : (hasText ? Icons.send_rounded : Icons.mic),
                   color: Colors.white,
+                  size: 20,
                 ),
               ),
             ),

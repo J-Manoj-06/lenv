@@ -1505,24 +1505,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     // Premium dark theme palette - integrated with chat screen
     final backgroundColor = isDark
-        ? const Color(0xFF0D0E10)  // Near-black, blends with chat
+        ? const Color(0xFF0D0E10) // Near-black, blends with chat
         : const Color(0xFFF5F5F5);
     final inputFieldColor = isDark
-        ? const Color(0xFF1E2024)  // Slightly lighter for depth
+        ? const Color(0xFF1E2024) // Slightly lighter for depth
         : Colors.white;
     final textColor = isDark
-        ? const Color(0xFFE8E8E8)  // Bright, readable
+        ? const Color(0xFFE8E8E8) // Bright, readable
         : const Color(0xFF000000);
     final hintColor = isDark
-        ? const Color(0xFF6B6B6B)  // Subdued gray
+        ? const Color(0xFF6B6B6B) // Subdued gray
         : const Color(0xFF999999);
     final iconColor = isDark
-        ? const Color(0xFF9A95CC)  // Soft muted violet
+        ? const Color(0xFF9A95CC) // Soft muted violet
         : const Color(0xFF6C63FF);
     final iconDisabledColor = isDark
         ? const Color(0xFF3A3A3C)
         : const Color(0xFFBBBBBB);
-    final accentColor = const Color(0xFF7C3AED); // Cool violet - matches existing buttons
+    final accentColor = const Color(
+      0xFF7C3AED,
+    ); // Cool violet - matches existing buttons
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -1720,7 +1722,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: _isRecording ? theme.colorScheme.error : accentColor,
+                      color: _isRecording
+                          ? theme.colorScheme.error
+                          : accentColor,
                       shape: BoxShape.circle,
                       boxShadow: isDark
                           ? [
