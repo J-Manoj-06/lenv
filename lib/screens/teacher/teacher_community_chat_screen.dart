@@ -1020,12 +1020,9 @@ class _TeacherCommunityChatScreenState
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
-        border: Border(
-          top: BorderSide(color: theme.dividerColor.withOpacity(0.4)),
-        ),
       ),
       child: SafeArea(
         top: false,
@@ -1040,38 +1037,44 @@ class _TeacherCommunityChatScreenState
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF1A1C20)
+                          ? const Color(0xFF262C33)
                           : theme.colorScheme.surfaceContainerHighest
-                                .withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: theme.dividerColor.withOpacity(0.5),
-                      ),
+                                .withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.primaryColor.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Row(
                       children: [
-                        IconButton(
-                          icon: Icon(
-                            _showEmojiPicker
-                                ? Icons.keyboard
-                                : Icons.sentiment_satisfied_outlined,
-                            color: theme.textTheme.bodySmall?.color,
-                            size: 22,
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: IconButton(
+                            icon: Icon(
+                              _showEmojiPicker
+                                  ? Icons.keyboard
+                                  : Icons.sentiment_satisfied_outlined,
+                              color: theme.textTheme.bodySmall?.color,
+                              size: 24,
+                            ),
+                            padding: const EdgeInsets.all(8),
+                            onPressed: () {
+                              setState(() {
+                                _showEmojiPicker = !_showEmojiPicker;
+                              });
+                              if (!_showEmojiPicker) {
+                                _focusNode.requestFocus();
+                              } else {
+                                _focusNode.unfocus();
+                              }
+                            },
                           ),
-                          padding: const EdgeInsets.all(6),
-                          onPressed: () {
-                            setState(() {
-                              _showEmojiPicker = !_showEmojiPicker;
-                            });
-                            if (!_showEmojiPicker) {
-                              _focusNode.requestFocus();
-                            } else {
-                              _focusNode.unfocus();
-                            }
-                          },
                         ),
                         Expanded(
                           child: TextField(
@@ -1080,62 +1083,65 @@ class _TeacherCommunityChatScreenState
                             style: TextStyle(
                               color: theme.textTheme.bodyLarge?.color,
                               fontSize: 15,
+                              fontWeight: FontWeight.w500,
                             ),
                             maxLines: null,
                             textCapitalization: TextCapitalization.sentences,
                             decoration: InputDecoration(
                               hintText: 'Message',
                               hintStyle: TextStyle(
-                                color: theme.textTheme.bodySmall?.color,
+                                color: theme.textTheme.bodySmall?.color
+                                    ?.withOpacity(0.5),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w400,
                               ),
                               border: InputBorder.none,
                               contentPadding: const EdgeInsets.symmetric(
-                                vertical: 8,
+                                vertical: 12,
+                                horizontal: 4,
                               ),
                             ),
                             onSubmitted: (_) => _sendMessage(),
                             onChanged: (value) => _messageText.value = value,
                           ),
                         ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.attach_file,
+                              color: theme.textTheme.bodySmall?.color
+                                  ?.withOpacity(0.6),
+                              size: 24,
+                            ),
+                            padding: const EdgeInsets.all(8),
+                            onPressed: _isUploading ? null : _showMediaOptions,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(
-                    Icons.attach_file,
-                    color: Colors.grey,
-                    size: 22,
-                  ),
-                  padding: const EdgeInsets.all(6),
-                  onPressed: _isUploading ? null : _showMediaOptions,
-                ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: hasText
-                        ? theme.primaryColor
-                        : (isDark
-                              ? const Color(0xFF1A1C20)
-                              : theme.colorScheme.surfaceContainerHighest
-                                    .withOpacity(0.6)),
+                    color: const Color(0xFF7C3AED),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: theme.dividerColor.withOpacity(
-                        hasText ? 0.0 : 0.5,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF7C3AED).withOpacity(0.35),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
                       ),
-                    ),
+                    ],
                   ),
                   child: IconButton(
                     icon: Icon(
                       hasText ? Icons.send_rounded : Icons.mic,
-                      color: hasText
-                          ? theme.colorScheme.onPrimary
-                          : theme.iconTheme.color,
-                      size: 20,
+                      color: Colors.white,
+                      size: 22,
                     ),
                     padding: EdgeInsets.zero,
                     onPressed: hasText ? _sendMessage : () {},
