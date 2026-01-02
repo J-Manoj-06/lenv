@@ -9,11 +9,15 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:dio/dio.dart';
+import 'package:open_filex/open_filex.dart';
 import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
 import '../common/announcement_pageview_screen.dart';
+import '../pdf_viewer_screen.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
@@ -1602,86 +1606,19 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
 
     // Image preview - show in dialog
     if (mime.startsWith('image/')) {
-      showDialog(
-        context: context,
-        builder: (ctx) => Dialog(
-          backgroundColor: Colors.transparent,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Expanded(
-                child: InteractiveViewer(
-                  child: Image.network(
-                    publicUrl,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Center(
-                      child: Text(
-                        'Failed to load image',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close'),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      );
+      _showImagePreview(publicUrl, meta);
       return;
     }
 
-    // PDF viewer - show in dialog
+    // PDF - open with external apps immediately
     if (mime == 'application/pdf') {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: Colors.grey[900],
-          title: const Text(
-            'PDF Preview',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.picture_as_pdf, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              Text(
-                meta.originalFileName ?? 'Document.pdf',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
-            ),
-            ElevatedButton(
-              onPressed: () => _launchPDF(publicUrl),
-              child: const Text('Open PDF'),
-            ),
-          ],
-        ),
-      );
+      _openPDFWithExternalApp(publicUrl, meta.originalFileName ?? 'Document.pdf');
       return;
     }
 
     // Audio player - show in bottom sheet
     if (mime.startsWith('audio/')) {
-      showModalBottomSheet(
-        context: context,
-        builder: (ctx) => AudioPlayerModal(
-          audioUrl: publicUrl,
-          fileName: meta.originalFileName ?? 'Audio',
-        ),
-      );
+      _showAudioPlayer(publicUrl, meta);
       return;
     }
 
@@ -1706,27 +1643,331 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
     );
   }
 
-  Future<void> _launchPDF(String url) async {
+  Future<void> _showImagePreview(String publicUrl, dynamic meta) async {
     try {
-      final Uri uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Cannot open PDF: $url'),
-              backgroundColor: Colors.red,
-            ),
-          );
+      // Check if file exists in local cache
+      String? localPath;
+      try {
+        final mediaId = meta.mediaId ?? '';
+        if (mediaId.isNotEmpty) {
+          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(mediaId);
+          if (cachedMedia != null && cachedMedia['localPath'] != null) {
+            final localFile = File(cachedMedia['localPath']);
+            if (await localFile.exists()) {
+              localPath = cachedMedia['localPath'];
+            }
+          }
         }
+      } catch (e) {
+        print('Cache check failed: $e');
+      }
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: InteractiveViewer(
+                  child: localPath != null
+                      ? Image.file(
+                          File(localPath),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => Image.network(
+                            publicUrl,
+                            fit: BoxFit.contain,
+                          ),
+                        )
+                      : Image.network(
+                          publicUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Center(
+                            child: Text(
+                              'Failed to load image',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error showing image: $e');
+      // Fallback to network image
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: InteractiveViewer(
+                    child: Image.network(publicUrl, fit: BoxFit.contain),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Close'),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showAudioPlayer(String publicUrl, dynamic meta) async {
+    try {
+      // Check if file exists in local cache
+      String audioUrl = publicUrl;
+      try {
+        final mediaId = meta.mediaId ?? '';
+        if (mediaId.isNotEmpty) {
+          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(mediaId);
+          if (cachedMedia != null && cachedMedia['localPath'] != null) {
+            final localFile = File(cachedMedia['localPath']);
+            if (await localFile.exists()) {
+              audioUrl = cachedMedia['localPath'];
+            }
+          }
+        }
+      } catch (e) {
+        print('Cache check failed: $e');
+      }
+
+      if (!mounted) return;
+
+      showModalBottomSheet(
+        context: context,
+        builder: (ctx) => AudioPlayerModal(
+          audioUrl: audioUrl,
+          fileName: meta.originalFileName ?? 'Audio',
+        ),
+      );
+    } catch (e) {
+      print('Error showing audio player: $e');
+      // Fallback to network audio
+      if (mounted) {
+        showModalBottomSheet(
+          context: context,
+          builder: (ctx) => AudioPlayerModal(
+            audioUrl: publicUrl,
+            fileName: meta.originalFileName ?? 'Audio',
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openPDFWithExternalApp(String url, String fileName) async {
+    try {
+      // Show loading message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+                SizedBox(width: 12),
+                Text('Preparing PDF...'),
+              ],
+            ),
+            duration: Duration(seconds: 30),
+          ),
+        );
+      }
+
+      // Download to temporary directory
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final cleanFileName = fileName.replaceAll(RegExp(r'[^\w\s\-\.]'), '_');
+      
+      // Ensure .pdf extension
+      final finalFileName = cleanFileName.endsWith('.pdf') 
+          ? cleanFileName 
+          : '$cleanFileName.pdf';
+      
+      final filePath = '${tempDir.path}/$timestamp\_$finalFileName';
+
+      // Download using Dio
+      final dio = Dio();
+      await dio.download(url, filePath);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+
+      // Open with OpenFilex - this triggers Android app chooser
+      final result = await OpenFilex.open(
+        filePath,
+        type: 'application/pdf',
+      );
+
+      // Check result
+      if (result.type != ResultType.done && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Status: ${result.message}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error opening PDF: $e'),
+            content: Text('Error: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showPDFOptions(String url, String fileName) async {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Open PDF',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.picture_as_pdf, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              fileName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _downloadPDFToDevice(url, fileName);
+            },
+            child: const Text('Save to Device'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PDFViewerScreen(
+                    path: url,
+                    title: fileName,
+                  ),
+                ),
+              );
+            },
+            child: const Text('View'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadPDFToDevice(String url, String fileName) async {
+    try {
+      // Show loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+                SizedBox(width: 12),
+                Text('Downloading PDF...'),
+              ],
+            ),
+            duration: Duration(seconds: 30),
+          ),
+        );
+      }
+
+      // Get downloads directory
+      final Directory? externalDir = await getExternalStorageDirectory();
+      if (externalDir == null) {
+        throw Exception('Cannot access storage');
+      }
+
+      // Save to Downloads folder
+      final downloadsPath = externalDir.path.split('/Android').first + '/Download';
+      final downloadsDir = Directory(downloadsPath);
+      
+      if (!await downloadsDir.exists()) {
+        await downloadsDir.create(recursive: true);
+      }
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final cleanFileName = fileName.replaceAll(RegExp(r'[^\w\s\-\.]'), '');
+      final filePath = '${downloadsDir.path}/LENV_$timestamp\_$cleanFileName';
+
+      // Download using Dio
+      final dio = Dio();
+      await dio.download(url, filePath);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF saved to Downloads folder'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error downloading PDF: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
