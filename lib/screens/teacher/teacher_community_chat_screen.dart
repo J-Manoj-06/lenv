@@ -1612,7 +1612,10 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
 
     // PDF - open with external apps immediately
     if (mime == 'application/pdf') {
-      _openPDFWithExternalApp(publicUrl, meta.originalFileName ?? 'Document.pdf');
+      _openPDFWithExternalApp(
+        publicUrl,
+        meta.originalFileName ?? 'Document.pdf',
+      );
       return;
     }
 
@@ -1650,7 +1653,9 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       try {
         final mediaId = meta.mediaId ?? '';
         if (mediaId.isNotEmpty) {
-          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(mediaId);
+          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(
+            mediaId,
+          );
           if (cachedMedia != null && cachedMedia['localPath'] != null) {
             final localFile = File(cachedMedia['localPath']);
             if (await localFile.exists()) {
@@ -1677,10 +1682,8 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                       ? Image.file(
                           File(localPath),
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Image.network(
-                            publicUrl,
-                            fit: BoxFit.contain,
-                          ),
+                          errorBuilder: (_, __, ___) =>
+                              Image.network(publicUrl, fit: BoxFit.contain),
                         )
                       : Image.network(
                           publicUrl,
@@ -1741,7 +1744,9 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       try {
         final mediaId = meta.mediaId ?? '';
         if (mediaId.isNotEmpty) {
-          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(mediaId);
+          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(
+            mediaId,
+          );
           if (cachedMedia != null && cachedMedia['localPath'] != null) {
             final localFile = File(cachedMedia['localPath']);
             if (await localFile.exists()) {
@@ -1788,7 +1793,10 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                 SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 ),
                 SizedBox(width: 12),
                 Text('Preparing PDF...'),
@@ -1803,12 +1811,12 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final cleanFileName = fileName.replaceAll(RegExp(r'[^\w\s\-\.]'), '_');
-      
+
       // Ensure .pdf extension
-      final finalFileName = cleanFileName.endsWith('.pdf') 
-          ? cleanFileName 
+      final finalFileName = cleanFileName.endsWith('.pdf')
+          ? cleanFileName
           : '$cleanFileName.pdf';
-      
+
       final filePath = '${tempDir.path}/$timestamp\_$finalFileName';
 
       // Download using Dio
@@ -1820,10 +1828,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       }
 
       // Open with OpenFilex - this triggers Android app chooser
-      final result = await OpenFilex.open(
-        filePath,
-        type: 'application/pdf',
-      );
+      final result = await OpenFilex.open(filePath, type: 'application/pdf');
 
       // Check result
       if (result.type != ResultType.done && mounted) {
@@ -1853,10 +1858,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text(
-          'Open PDF',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Open PDF', style: TextStyle(color: Colors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1887,10 +1889,8 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PDFViewerScreen(
-                    path: url,
-                    title: fileName,
-                  ),
+                  builder: (context) =>
+                      PDFViewerScreen(path: url, title: fileName),
                 ),
               );
             },
@@ -1912,7 +1912,10 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                 SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 ),
                 SizedBox(width: 12),
                 Text('Downloading PDF...'),
@@ -1930,9 +1933,10 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       }
 
       // Save to Downloads folder
-      final downloadsPath = externalDir.path.split('/Android').first + '/Download';
+      final downloadsPath =
+          externalDir.path.split('/Android').first + '/Download';
       final downloadsDir = Directory(downloadsPath);
-      
+
       if (!await downloadsDir.exists()) {
         await downloadsDir.create(recursive: true);
       }
@@ -1989,26 +1993,54 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          height: 44,
           decoration: BoxDecoration(
             color: isDark
-                ? const Color(0xFF1A1C20)
-                : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.dividerColor.withOpacity(0.4)),
+                ? const Color(0xFF0F1419)
+                : theme.colorScheme.surfaceContainerHighest.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: theme.primaryColor.withOpacity(0.15),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: theme.primaryColor.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Row(
             children: [
-              const Icon(Icons.search, size: 18),
-              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Icon(
+                  Icons.search,
+                  size: 20,
+                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.5),
+                ),
+              ),
               Expanded(
                 child: TextField(
                   controller: _queryController,
                   autofocus: true,
-                  decoration: const InputDecoration(
+                  style: TextStyle(
+                    color: theme.textTheme.bodyLarge?.color,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: InputDecoration(
                     hintText: 'Search messages, files, audio...',
+                    hintStyle: TextStyle(
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.4),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                    ),
                     border: InputBorder.none,
                     isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
                   textInputAction: TextInputAction.search,
                   onSubmitted: (_) => _runSearch(reset: true),
@@ -2016,13 +2048,20 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                 ),
               ),
               if (_queryController.text.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  padding: EdgeInsets.zero,
-                  onPressed: () {
-                    _queryController.clear();
-                    _runSearch(reset: true);
-                  },
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 20,
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    onPressed: () {
+                      _queryController.clear();
+                      _runSearch(reset: true);
+                    },
+                  ),
                 ),
             ],
           ),
@@ -2031,13 +2070,73 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       body: Column(
         children: [
           if (_queryController.text.trim().length < 2)
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Type at least 2 characters to search messages, PDFs, images, and audio.',
-                style: TextStyle(
-                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-                  fontSize: 14,
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.primaryColor.withOpacity(0.1),
+                      ),
+                      child: Icon(
+                        Icons.search_rounded,
+                        size: 50,
+                        color: theme.primaryColor.withOpacity(0.3),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Search Messages',
+                      style: TextStyle(
+                        color: theme.textTheme.bodyLarge?.color,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        'Find messages, PDFs, images, or audio files',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color:
+                              theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.primaryColor.withOpacity(0.1),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        'Type at least 2 characters',
+                        style: TextStyle(
+                          color: theme.primaryColor.withOpacity(0.7),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
@@ -2057,26 +2156,96 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                   final message = _results[index];
                   final isMe = message.senderId == widget.currentUserId;
 
-                  return ListTile(
-                    leading: Icon(
-                      _iconFor(message),
-                      color: theme.iconTheme.color,
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                    title: Text(
-                      _primaryText(message),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      _secondaryText(message),
-                      style: TextStyle(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(
-                          0.7,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _openMedia(message),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.05)
+                                  : theme.dividerColor.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: theme.primaryColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  _iconFor(message),
+                                  color: theme.primaryColor,
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _primaryText(message),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color:
+                                            theme.textTheme.bodyLarge?.color,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _secondaryText(message),
+                                      style: TextStyle(
+                                        color: theme.textTheme.bodySmall?.color
+                                            ?.withOpacity(0.6),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (isMe)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme.primaryColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Icon(
+                                    Icons.person,
+                                    size: 14,
+                                    color: theme.primaryColor.withOpacity(0.7),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                    trailing: isMe ? const Icon(Icons.person, size: 16) : null,
-                    onTap: () => _openMedia(message),
                   );
                 },
               ),
@@ -2084,12 +2253,43 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
           if (_results.isEmpty &&
               !_loading &&
               _queryController.text.trim().length >= 2)
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'No matches found.',
-                style: TextStyle(
-                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.red.withOpacity(0.1),
+                      ),
+                      child: Icon(
+                        Icons.search_off_rounded,
+                        size: 40,
+                        color: Colors.red.withOpacity(0.3),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No matches found',
+                      style: TextStyle(
+                        color: theme.textTheme.bodyLarge?.color,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Try searching with different keywords',
+                      style: TextStyle(
+                        color: theme.textTheme.bodyMedium?.color
+                            ?.withOpacity(0.6),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
