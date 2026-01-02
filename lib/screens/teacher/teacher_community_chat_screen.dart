@@ -716,10 +716,6 @@ class _TeacherCommunityChatScreenState
             icon: const Icon(Icons.search, color: Colors.white),
             onPressed: _openSearch,
           ),
-          IconButton(
-            icon: const Icon(Icons.info_outline, color: Colors.white),
-            onPressed: () => _showCommunityInfo(),
-          ),
         ],
       ],
     );
@@ -2014,7 +2010,9 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
               decoration: BoxDecoration(
                 color: isDark
                     ? const Color(0xFF0F1419)
-                    : theme.colorScheme.surfaceContainerHighest.withOpacity(0.8),
+                    : theme.colorScheme.surfaceContainerHighest.withOpacity(
+                        0.8,
+                      ),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: theme.primaryColor.withOpacity(0.15),
@@ -2042,7 +2040,9 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                       decoration: InputDecoration(
                         hintText: 'Messages, files, audio...',
                         hintStyle: TextStyle(
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.4),
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.4,
+                          ),
                           fontSize: 15,
                           fontWeight: FontWeight.w400,
                         ),
@@ -2065,7 +2065,9 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                         icon: Icon(
                           Icons.close_rounded,
                           size: 20,
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.6,
+                          ),
                         ),
                         padding: const EdgeInsets.all(4),
                         onPressed: () {
