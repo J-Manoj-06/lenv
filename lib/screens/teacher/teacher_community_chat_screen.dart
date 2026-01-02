@@ -1019,12 +1019,42 @@ class _TeacherCommunityChatScreenState
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // Premium dark theme palette - integrated with chat screen
+    final backgroundColor = isDark
+        ? const Color(0xFF0D0E10)  // Near-black, blends with chat
+        : const Color(0xFFF5F5F5);
+    final inputFieldColor = isDark
+        ? const Color(0xFF1E2024)  // Slightly lighter for depth
+        : Colors.white;
+    final textColor = isDark
+        ? const Color(0xFFE8E8E8)  // Bright, readable
+        : const Color(0xFF000000);
+    final hintColor = isDark
+        ? const Color(0xFF6B6B6B)  // Subdued gray
+        : const Color(0xFF999999);
+    final iconColor = isDark
+        ? const Color(0xFF9A95CC)  // Soft muted violet
+        : const Color(0xFF6C63FF);
+    final iconDisabledColor = isDark
+        ? const Color(0xFF3A3A3C)
+        : const Color(0xFFBBBBBB);
+    final accentColor = const Color(0xFF7C3AED); // Cool violet - matches existing buttons
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        border: isDark
+            ? Border(
+                top: BorderSide(
+                  color: Colors.white.withOpacity(0.05),
+                  width: 0.5,
+                ),
+              )
+            : null,
+      ),
       child: SafeArea(
         top: false,
-        minimum: EdgeInsets.zero,
         child: ValueListenableBuilder<String>(
           valueListenable: _messageText,
           builder: (context, text, _) {
@@ -1033,36 +1063,38 @@ class _TeacherCommunityChatScreenState
             return Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                // Input container - pill-shaped with subtle depth
                 Expanded(
                   child: Container(
+                    constraints: const BoxConstraints(minHeight: 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF262C33)
-                          : theme.colorScheme.surfaceContainerHighest
-                                .withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.primaryColor.withOpacity(0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      color: inputFieldColor,
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: isDark
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        // Emoji toggle - inside input, left side
                         Padding(
                           padding: const EdgeInsets.only(left: 8),
-                          child: IconButton(
-                            icon: Icon(
-                              _showEmojiPicker
-                                  ? Icons.keyboard
-                                  : Icons.sentiment_satisfied_outlined,
-                              color: theme.textTheme.bodySmall?.color,
-                              size: 24,
-                            ),
-                            padding: const EdgeInsets.all(8),
-                            onPressed: () {
+                          child: GestureDetector(
+                            onTap: () {
                               setState(() {
                                 _showEmojiPicker = !_showEmojiPicker;
                               });
@@ -1072,74 +1104,97 @@ class _TeacherCommunityChatScreenState
                                 _focusNode.unfocus();
                               }
                             },
+                            child: Icon(
+                              _showEmojiPicker
+                                  ? Icons.keyboard_outlined
+                                  : Icons.emoji_emotions_outlined,
+                              color: iconColor,
+                              size: 23,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 10),
+                        // Text input - primary focus
                         Expanded(
                           child: TextField(
                             controller: _messageController,
                             focusNode: _focusNode,
+                            cursorColor: accentColor,
                             style: TextStyle(
-                              color: theme.textTheme.bodyLarge?.color,
+                              color: textColor,
                               fontSize: 15,
-                              fontWeight: FontWeight.w500,
+                              height: 1.4,
+                              fontWeight: FontWeight.w400,
                             ),
-                            maxLines: null,
-                            textCapitalization: TextCapitalization.sentences,
                             decoration: InputDecoration(
                               hintText: 'Message',
                               hintStyle: TextStyle(
-                                color: theme.textTheme.bodySmall?.color
-                                    ?.withOpacity(0.5),
+                                color: hintColor,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w400,
                               ),
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                                horizontal: 4,
+                                vertical: 10,
                               ),
                             ),
+                            maxLines: null,
+                            keyboardType: TextInputType.multiline,
+                            textCapitalization: TextCapitalization.sentences,
                             onSubmitted: (_) => _sendMessage(),
                             onChanged: (value) => _messageText.value = value,
                           ),
                         ),
+                        const SizedBox(width: 10),
+                        // Attachment - inside input, right side
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
-                          child: IconButton(
-                            icon: Icon(
-                              Icons.attach_file,
-                              color: theme.textTheme.bodySmall?.color
-                                  ?.withOpacity(0.6),
-                              size: 24,
+                          child: GestureDetector(
+                            onTap: _isUploading ? null : _showMediaOptions,
+                            child: Icon(
+                              Icons.attach_file_rounded,
+                              color: _isUploading ? iconDisabledColor : iconColor,
+                              size: 22,
                             ),
-                            padding: const EdgeInsets.all(8),
-                            onPressed: _isUploading ? null : _showMediaOptions,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
+                // Mic/Send button - balanced size, outside input
                 Container(
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF7C3AED),
+                    color: accentColor,
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF7C3AED).withOpacity(0.35),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                    boxShadow: isDark
+                        ? [
+                            BoxShadow(
+                              color: accentColor.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : [
+                            BoxShadow(
+                              color: accentColor.withOpacity(0.25),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                   ),
                   child: IconButton(
                     icon: Icon(
                       hasText ? Icons.send_rounded : Icons.mic,
                       color: Colors.white,
-                      size: 22,
+                      size: 20,
                     ),
                     padding: EdgeInsets.zero,
                     onPressed: hasText ? _sendMessage : () {},
