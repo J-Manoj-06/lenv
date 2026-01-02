@@ -1504,18 +1504,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
     final isDark = theme.brightness == Brightness.dark;
 
     // WhatsApp-like color palette
-    final backgroundColor = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF5F5F5);
+    final backgroundColor = isDark
+        ? const Color(0xFF1C1C1E)
+        : const Color(0xFFF5F5F5);
     final inputFieldColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
-    final textColor = isDark ? const Color(0xFFE5E5EA) : const Color(0xFF000000);
-    final hintColor = isDark ? const Color(0xFF8E8E93) : const Color(0xFF999999);
-    final iconColor = isDark ? const Color(0xFFFF9F0A) : const Color(0xFFFF8F00);
-    final iconDisabledColor = isDark ? const Color(0xFF48484A) : const Color(0xFFBBBBBB);
+    final textColor = isDark
+        ? const Color(0xFFE5E5EA)
+        : const Color(0xFF000000);
+    final hintColor = isDark
+        ? const Color(0xFF8E8E93)
+        : const Color(0xFF999999);
+    final iconColor = isDark
+        ? const Color(0xFFFF9F0A)
+        : const Color(0xFFFF8F00);
+    final iconDisabledColor = isDark
+        ? const Color(0xFF48484A)
+        : const Color(0xFFBBBBBB);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-      ),
+      decoration: BoxDecoration(color: backgroundColor),
       child: SafeArea(
         top: false,
         child: Row(
@@ -1529,7 +1537,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 decoration: BoxDecoration(
                   color: inputFieldColor,
                   borderRadius: BorderRadius.circular(21),
-                  border: isDark 
+                  border: isDark
                       ? Border.all(color: const Color(0xFF3A3A3C), width: 0.5)
                       : null,
                 ),
@@ -1573,10 +1581,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         ),
                         decoration: InputDecoration(
                           hintText: 'Message',
-                          hintStyle: TextStyle(
-                            color: hintColor,
-                            fontSize: 16,
-                          ),
+                          hintStyle: TextStyle(color: hintColor, fontSize: 16),
                           border: InputBorder.none,
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
@@ -1682,9 +1687,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: _isRecording
-                          ? theme.colorScheme.error
-                          : iconColor,
+                      color: _isRecording ? theme.colorScheme.error : iconColor,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
