@@ -47,6 +47,11 @@ class _TeacherCommunityChatScreenState
   bool _showEmojiPicker = false;
   bool _isUploading = false;
 
+  // Multi-select functionality
+  bool _selectionMode = false;
+  final ValueNotifier<Set<String>> _selectedMessages =
+      ValueNotifier<Set<String>>({});
+
   @override
   void initState() {
     super.initState();
@@ -88,6 +93,7 @@ class _TeacherCommunityChatScreenState
     _scrollController.dispose();
     _focusNode.dispose();
     _audioRecorder.dispose();
+    _selectedMessages.dispose();
     super.dispose();
   }
 
@@ -108,8 +114,10 @@ class _TeacherCommunityChatScreenState
 
     if (currentUser == null) return;
 
-    final String fallbackEmailName =
-        (currentUser.email ?? '').split('@').first.trim();
+    final String fallbackEmailName = (currentUser.email ?? '')
+        .split('@')
+        .first
+        .trim();
 
     // Get teacher data from Firestore
     final teacherDoc = await FirebaseFirestore.instance
@@ -121,19 +129,20 @@ class _TeacherCommunityChatScreenState
     String? resolvedName;
     if (teacherDoc.docs.isNotEmpty) {
       final data = teacherDoc.docs.first.data();
-      resolvedName = (data['name'] ??
-              data['teacherName'] ??
-              data['fullName'] ??
-              data['displayName'])
-          ?.toString()
-          .trim();
+      resolvedName =
+          (data['name'] ??
+                  data['teacherName'] ??
+                  data['fullName'] ??
+                  data['displayName'])
+              ?.toString()
+              .trim();
     }
 
     resolvedName = (resolvedName != null && resolvedName.isNotEmpty)
         ? resolvedName
         : (currentUser.name?.trim().isNotEmpty == true
-            ? currentUser.name!.trim()
-            : (fallbackEmailName.isNotEmpty ? fallbackEmailName : 'Teacher'));
+              ? currentUser.name!.trim()
+              : (fallbackEmailName.isNotEmpty ? fallbackEmailName : 'Teacher'));
 
     if (mounted) {
       setState(() {
@@ -601,68 +610,103 @@ class _TeacherCommunityChatScreenState
 
   PreferredSizeWidget _buildAppBar() {
     final theme = Theme.of(context);
+
     return AppBar(
       backgroundColor: theme.scaffoldBackgroundColor,
       elevation: 0,
       leading: IconButton(
         icon: Icon(
-          Icons.arrow_back_ios_new,
+          _selectionMode ? Icons.close : Icons.arrow_back_ios_new,
           color: theme.iconTheme.color,
           size: 20,
         ),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () {
+          if (_selectionMode) {
+            setState(() => _selectionMode = false);
+            _selectedMessages.value = {};
+          } else {
+            Navigator.pop(context);
+          }
+        },
       ),
-      title: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: theme.primaryColor.withOpacity(0.15),
-              border: Border.all(
-                color: theme.primaryColor.withOpacity(0.2),
-                width: 1,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                widget.community.getCategoryIcon(),
-                style: const TextStyle(fontSize: 20),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.community.name,
+      title: _selectionMode
+          ? ValueListenableBuilder<Set<String>>(
+              valueListenable: _selectedMessages,
+              builder: (context, selectedSet, _) {
+                return Text(
+                  '${selectedSet.length} selected',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
-                  overflow: TextOverflow.ellipsis,
+                );
+              },
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: theme.primaryColor.withOpacity(0.15),
+                    border: Border.all(
+                      color: theme.primaryColor.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.community.getCategoryIcon(),
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  ),
                 ),
-                Text(
-                  '${widget.community.memberCount} members',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.6),
-                    fontSize: 12,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.community.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '${widget.community.memberCount} members',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.info_outline, color: Colors.white),
-          onPressed: () => _showCommunityInfo(),
-        ),
+        if (_selectionMode)
+          ValueListenableBuilder<Set<String>>(
+            valueListenable: _selectedMessages,
+            builder: (context, selectedSet, _) {
+              return IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: selectedSet.isEmpty
+                    ? null
+                    : () => _deleteSelectedMessages(),
+              );
+            },
+          )
+        else
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: Colors.white),
+            onPressed: () => _showCommunityInfo(),
+          ),
       ],
     );
   }
@@ -737,141 +781,220 @@ class _TeacherCommunityChatScreenState
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return GestureDetector(
-      onLongPress: isCurrentUser
-          ? () {
-              _showMessageOptions(message);
-            }
-          : null,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Row(
-          mainAxisAlignment: isCurrentUser
-              ? MainAxisAlignment.end
-              : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Flexible(
-              child: Column(
-                crossAxisAlignment: isCurrentUser
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: isCurrentUser
-                          ? MainAxisAlignment.end
-                          : MainAxisAlignment.start,
-                      children: [
-                        Text(
-                          isCurrentUser ? currentUserName : message.senderName,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.75),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: _selectedMessages,
+      builder: (context, selectedSet, _) {
+        final isSelected = selectedSet.contains(message.messageId);
+
+        return GestureDetector(
+          onLongPress: isCurrentUser
+              ? () {
+                  if (!_selectionMode) {
+                    setState(() => _selectionMode = true);
+                    _selectedMessages.value = {message.messageId};
+                  }
+                }
+              : null,
+          onTap: _selectionMode && isCurrentUser
+              ? () {
+                  if (isSelected) {
+                    final updated = {...selectedSet};
+                    updated.remove(message.messageId);
+                    _selectedMessages.value = updated;
+                  } else {
+                    _selectedMessages.value = {
+                      ...selectedSet,
+                      message.messageId,
+                    };
+                  }
+                }
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              mainAxisAlignment: isCurrentUser
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: isCurrentUser
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: 4,
+                          left: 4,
+                          right: 4,
                         ),
-                        if (!isCurrentUser) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF6A4FF7,
-                              ).withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              message.senderRole,
-                              style: const TextStyle(
-                                color: Color(0xFF6A4FF7),
-                                fontSize: 10,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: isCurrentUser
+                              ? MainAxisAlignment.end
+                              : MainAxisAlignment.start,
+                          children: [
+                            Text(
+                              isCurrentUser
+                                  ? currentUserName
+                                  : message.senderName,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.75),
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isCurrentUser
-                          ? (isDark
-                                ? const Color(0xFF1A1C20)
-                                : theme.colorScheme.surfaceContainerHighest
-                                      .withOpacity(0.6))
-                          : (isDark ? const Color(0xFF14171B) : theme.cardColor),
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(12),
-                        topRight: const Radius.circular(12),
-                        bottomLeft: Radius.circular(isCurrentUser ? 12 : 6),
-                        bottomRight: Radius.circular(isCurrentUser ? 6 : 12),
+                            if (!isCurrentUser) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF6A4FF7,
+                                  ).withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  message.senderRole,
+                                  style: const TextStyle(
+                                    color: Color(0xFF6A4FF7),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      border: Border.all(
-                        color: theme.dividerColor.withOpacity(0.4),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Media with metadata (images, PDFs, audio)
-                        if (message.mediaMetadata != null) ...[
-                          MediaPreviewCard(
-                            r2Key: message.mediaMetadata!.r2Key,
-                            fileName: _getFileNameFromMetadata(
-                              message.mediaMetadata!,
-                            ),
-                            mimeType:
-                                message.mediaMetadata!.mimeType ??
-                                'application/octet-stream',
-                            fileSize: message.mediaMetadata!.fileSize ?? 0,
-                            thumbnailBase64: message.mediaMetadata!.thumbnail,
-                            localPath: message.mediaMetadata!.localPath,
-                            isMe: isCurrentUser,
-                          ),
-                          if (message.content.isNotEmpty)
-                            const SizedBox(height: 8),
-                        ],
-                        // Text content
-                        if (message.content.isNotEmpty)
-                          Text(
-                            message.content,
-                            style: TextStyle(
-                              color: theme.textTheme.bodyLarge?.color,
-                              fontSize: 14,
-                              height: 1.5,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isCurrentUser
+                              ? (isDark
+                                    ? const Color(0xFF1A1C20)
+                                    : theme.colorScheme.surfaceContainerHighest
+                                          .withOpacity(0.6))
+                              : (isDark
+                                    ? const Color(0xFF14171B)
+                                    : theme.cardColor),
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(12),
+                            topRight: const Radius.circular(12),
+                            bottomLeft: Radius.circular(isCurrentUser ? 12 : 6),
+                            bottomRight: Radius.circular(
+                              isCurrentUser ? 6 : 12,
                             ),
                           ),
-                      ],
-                    ),
+                          border: Border.all(
+                            color: theme.dividerColor.withOpacity(0.4),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Media with metadata (images, PDFs, audio)
+                            if (message.mediaMetadata != null) ...[
+                              MediaPreviewCard(
+                                r2Key: message.mediaMetadata!.r2Key,
+                                fileName: _getFileNameFromMetadata(
+                                  message.mediaMetadata!,
+                                ),
+                                mimeType:
+                                    message.mediaMetadata!.mimeType ??
+                                    'application/octet-stream',
+                                fileSize: message.mediaMetadata!.fileSize ?? 0,
+                                thumbnailBase64:
+                                    message.mediaMetadata!.thumbnail,
+                                localPath: message.mediaMetadata!.localPath,
+                                isMe: isCurrentUser,
+                              ),
+                              if (message.content.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ],
+                            // Text content
+                            if (message.content.isNotEmpty)
+                              Text(
+                                message.content,
+                                style: TextStyle(
+                                  color: theme.textTheme.bodyLarge?.color,
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          _formatTime(message.createdAt),
+                          style: TextStyle(
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.7),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
+                ),
+                if (_selectionMode && isCurrentUser)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(
-                      _formatTime(message.createdAt),
-                      style: TextStyle(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                        fontSize: 11,
+                    padding: const EdgeInsets.only(left: 8, top: 12),
+                    child: GestureDetector(
+                      onTap: () {
+                        if (isSelected) {
+                          final updated = {...selectedSet};
+                          updated.remove(message.messageId);
+                          _selectedMessages.value = updated;
+                        } else {
+                          _selectedMessages.value = {
+                            ...selectedSet,
+                            message.messageId,
+                          };
+                        }
+                      },
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF6A4FF7)
+                                : Colors.grey[400]!,
+                            width: isSelected ? 2 : 1.5,
+                          ),
+                          color: isSelected
+                              ? const Color(0xFF6A4FF7)
+                              : Colors.transparent,
+                        ),
+                        child: isSelected
+                            ? const Center(
+                                child: Icon(
+                                  Icons.check,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : null,
                       ),
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1201,10 +1324,7 @@ class _TeacherCommunityChatScreenState
           .doc(widget.community.id)
           .collection('messages')
           .doc(message.messageId)
-          .update({
-            'isDeleted': true,
-            'content': '',
-          });
+          .update({'isDeleted': true, 'content': ''});
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1219,6 +1339,81 @@ class _TeacherCommunityChatScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete message: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteSelectedMessages() async {
+    final selectedSet = _selectedMessages.value;
+    if (selectedSet.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Text(
+            'Delete Messages?',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            'Delete ${selectedSet.length} selected message${selectedSet.length != 1 ? 's' : ''} for everyone in this community?',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final communityRef = FirebaseFirestore.instance
+          .collection('communities')
+          .doc(widget.community.id);
+
+      for (final messageId in selectedSet) {
+        batch.update(communityRef.collection('messages').doc(messageId), {
+          'isDeleted': true,
+          'content': '',
+        });
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        setState(() {
+          _selectionMode = false;
+          _selectedMessages.value = {};
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${selectedSet.length} message${selectedSet.length != 1 ? 's' : ''} deleted for everyone',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete messages: $e'),
             backgroundColor: Colors.red,
           ),
         );
