@@ -902,19 +902,25 @@ class _TeacherCommunityChatScreenState
                           children: [
                             // Media with metadata (images, PDFs, audio)
                             if (message.mediaMetadata != null) ...[
-                              MediaPreviewCard(
-                                r2Key: message.mediaMetadata!.r2Key,
-                                fileName: _getFileNameFromMetadata(
-                                  message.mediaMetadata!,
+                              IgnorePointer(
+                                ignoring: _selectionMode,
+                                child: Opacity(
+                                  opacity: _selectionMode ? 0.6 : 1.0,
+                                  child: MediaPreviewCard(
+                                    r2Key: message.mediaMetadata!.r2Key,
+                                    fileName: _getFileNameFromMetadata(
+                                      message.mediaMetadata!,
+                                    ),
+                                    mimeType:
+                                        message.mediaMetadata!.mimeType ??
+                                        'application/octet-stream',
+                                    fileSize: message.mediaMetadata!.fileSize ?? 0,
+                                    thumbnailBase64:
+                                        message.mediaMetadata!.thumbnail,
+                                    localPath: message.mediaMetadata!.localPath,
+                                    isMe: isCurrentUser,
+                                  ),
                                 ),
-                                mimeType:
-                                    message.mediaMetadata!.mimeType ??
-                                    'application/octet-stream',
-                                fileSize: message.mediaMetadata!.fileSize ?? 0,
-                                thumbnailBase64:
-                                    message.mediaMetadata!.thumbnail,
-                                localPath: message.mediaMetadata!.localPath,
-                                isMe: isCurrentUser,
                               ),
                               if (message.content.isNotEmpty)
                                 const SizedBox(height: 8),
