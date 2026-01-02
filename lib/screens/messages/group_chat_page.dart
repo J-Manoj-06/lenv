@@ -1583,6 +1583,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           hintText: 'Message',
                           hintStyle: TextStyle(color: hintColor, fontSize: 16),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 4,
