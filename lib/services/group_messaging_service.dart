@@ -594,8 +594,10 @@ class GroupMessagingService {
 
       for (final doc in messagesSnapshot.docs) {
         try {
-          final message =
-              GroupChatMessage.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
+          final message = GroupChatMessage.fromFirestore(
+            doc.data() as Map<String, dynamic>,
+            doc.id,
+          );
 
           // Search in message text
           if (message.message.toLowerCase().contains(lowerQuery)) {

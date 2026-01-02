@@ -2202,9 +2202,9 @@ class _GroupMessageSearchScreenState extends State<GroupMessageSearchScreen> {
   void _openMedia(GroupChatMessage message) {
     if (message.mediaMetadata == null) {
       if (message.message.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message.message)));
       }
       return;
     }

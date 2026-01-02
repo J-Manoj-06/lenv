@@ -323,4 +323,58 @@ class ParentTeacherGroupService {
 
     await batch.commit();
   }
+
+  // Search parent-teacher group messages by content or file names
+  Future<List<CommunityMessageModel>> searchParentGroupMessages({
+    required String groupId,
+    required String query,
+    int limit = 25,
+  }) async {
+    try {
+      final lowerQuery = query.toLowerCase();
+
+      // Get all messages for this group
+      final messagesSnapshot = await _firestore
+          .collection('parent_teacher_groups')
+          .doc(groupId)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(500) // Search in recent messages
+          .get();
+
+      // Filter messages that match the query
+      final results = <CommunityMessageModel>[];
+
+      for (final doc in messagesSnapshot.docs) {
+        try {
+          final message = CommunityMessageModel.fromFirestore(doc);
+
+          // Search in message text
+          if (message.content.toLowerCase().contains(lowerQuery)) {
+            results.add(message);
+            if (results.length >= limit) break;
+            continue;
+          }
+
+          // Search in file names
+          if (message.mediaMetadata != null) {
+            final fileName =
+                message.mediaMetadata?.originalFileName?.toLowerCase() ?? '';
+            if (fileName.contains(lowerQuery)) {
+              results.add(message);
+              if (results.length >= limit) break;
+            }
+          }
+        } catch (e) {
+          print('Error parsing message: $e');
+          continue;
+        }
+      }
+
+      return results;
+    } catch (e) {
+      print('Error searching messages: $e');
+      return [];
+    }
+  }
 }
