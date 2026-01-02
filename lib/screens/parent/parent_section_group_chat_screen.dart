@@ -1671,9 +1671,9 @@ class _ParentGroupMessageSearchScreenState
   void _openMedia(CommunityMessageModel message) {
     if (message.mediaMetadata == null) {
       if (message.content.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message.content)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message.content)));
       }
       return;
     }
