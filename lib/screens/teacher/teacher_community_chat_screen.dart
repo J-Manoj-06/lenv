@@ -1021,9 +1021,7 @@ class _TeacherCommunityChatScreenState
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-      ),
+      decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
       child: SafeArea(
         top: false,
         minimum: EdgeInsets.zero,
