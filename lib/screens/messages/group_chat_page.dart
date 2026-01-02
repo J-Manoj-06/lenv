@@ -1502,208 +1502,203 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Widget _buildInputBar() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final inputBg = isDark ? theme.colorScheme.surface : Colors.white;
-    final borderColor = theme.colorScheme.outline.withOpacity(0.35);
+
+    // WhatsApp-like color palette
+    final backgroundColor = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF5F5F5);
+    final inputFieldColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? const Color(0xFFE5E5EA) : const Color(0xFF000000);
+    final hintColor = isDark ? const Color(0xFF8E8E93) : const Color(0xFF999999);
+    final iconColor = isDark ? const Color(0xFFFF9F0A) : const Color(0xFFFF8F00);
+    final iconDisabledColor = isDark ? const Color(0xFF48484A) : const Color(0xFFBBBBBB);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        border: Border(
-          top: BorderSide(color: theme.dividerColor.withOpacity(0.1), width: 1),
-        ),
+        color: backgroundColor,
       ),
       child: SafeArea(
         top: false,
-        minimum: EdgeInsets.zero,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          decoration: BoxDecoration(
-            color: inputBg,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderColor, width: 1),
-            boxShadow: isDark
-                ? []
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // Input container with emoji, text field, and attachment
+            Expanded(
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 42),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: inputFieldColor,
+                  borderRadius: BorderRadius.circular(21),
+                  border: isDark 
+                      ? Border.all(color: const Color(0xFF3A3A3C), width: 0.5)
+                      : null,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Emoji toggle - inside input field
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6, bottom: 8),
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _showEmojiPicker = !_showEmojiPicker;
+                          });
+                          if (!_showEmojiPicker) {
+                            _messageFocusNode.requestFocus();
+                          } else {
+                            _messageFocusNode.unfocus();
+                          }
+                        },
+                        child: Icon(
+                          _showEmojiPicker
+                              ? Icons.keyboard_outlined
+                              : Icons.emoji_emotions_outlined,
+                          color: iconColor,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Text input - visual focus
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        focusNode: _messageFocusNode,
+                        cursorColor: iconColor,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 16,
+                          height: 1.4,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Message',
+                          hintStyle: TextStyle(
+                            color: hintColor,
+                            fontSize: 16,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 10,
+                          ),
+                        ),
+                        maxLines: null,
+                        keyboardType: TextInputType.multiline,
+                        textCapitalization: TextCapitalization.sentences,
+                        textInputAction: TextInputAction.newline,
+                        enabled: !_isRecording && !_isUploading,
+                        onSubmitted: (_) {
+                          _sendMessage();
+                          Future.delayed(const Duration(milliseconds: 50), () {
+                            _messageFocusNode.requestFocus();
+                          });
+                        },
+                      ),
+                    ),
+                    // Attachment - inside input field
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6, bottom: 8),
+                      child: GestureDetector(
+                        onTap: _isUploading ? null : _showMediaOptions,
+                        child: Icon(
+                          Icons.attach_file_rounded,
+                          color: _isUploading ? iconDisabledColor : iconColor,
+                          size: 24,
+                        ),
+                      ),
                     ),
                   ],
-          ),
-          child: Row(
-            children: [
-              // Emoji toggle
-              IconButton(
-                icon: Icon(
-                  _showEmojiPicker
-                      ? Icons.keyboard
-                      : Icons.sentiment_satisfied_outlined,
-                  color: theme.iconTheme.color?.withOpacity(0.6),
-                  size: 20,
                 ),
-                padding: const EdgeInsets.all(6),
-                onPressed: () {
-                  setState(() {
-                    _showEmojiPicker = !_showEmojiPicker;
-                  });
-                  if (!_showEmojiPicker) {
-                    _messageFocusNode.requestFocus();
-                  } else {
-                    _messageFocusNode.unfocus();
-                  }
-                },
               ),
-              // Text input (embedded)
-              Expanded(
-                child: Theme(
-                  data: theme.copyWith(
-                    textSelectionTheme: TextSelectionThemeData(
-                      cursorColor: theme.colorScheme.onSurface,
-                      selectionColor: theme.colorScheme.onSurface.withOpacity(
-                        0.2,
-                      ),
-                      selectionHandleColor: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _messageController,
-                    focusNode: _messageFocusNode,
-                    cursorColor: theme.colorScheme.onSurface,
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface,
-                      fontSize: 16,
-                      height: 1.4,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Message',
-                      hintStyle: TextStyle(
-                        color: (theme.textTheme.bodySmall?.color ?? Colors.grey)
-                            .withOpacity(0.8),
-                      ),
-                      border: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    maxLines: null,
-                    textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.send,
-                    enabled: !_isRecording && !_isUploading,
-                    onSubmitted: (_) {
+            ),
+            const SizedBox(width: 6),
+            // Mic/Send button - outside, visually lighter
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _messageController,
+              builder: (context, value, child) {
+                final hasText = value.text.trim().isNotEmpty;
+                return GestureDetector(
+                  onTap: () async {
+                    if (hasText && !_isUploading) {
                       _sendMessage();
-                      Future.delayed(const Duration(milliseconds: 50), () {
-                        _messageFocusNode.requestFocus();
-                      });
-                    },
-                  ),
-                ),
-              ),
-              // Attachment
-              IconButton(
-                icon: Icon(
-                  Icons.attach_file,
-                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                  size: 22,
-                ),
-                padding: const EdgeInsets.all(6),
-                onPressed: _isUploading ? null : _showMediaOptions,
-              ),
-              const SizedBox(width: 4),
-              // Mic/Send Button - Use ValueListenableBuilder to avoid rebuilding entire screen
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _messageController,
-                builder: (context, value, child) {
-                  final hasText = value.text.trim().isNotEmpty;
-                  return GestureDetector(
-                    onTap: () async {
-                      if (hasText && !_isUploading) {
-                        _sendMessage();
-                      } else if (!_isRecording && !hasText && !_isUploading) {
-                        // Single tap to start recording
-                        final hasPermission = await _audioRecorder
-                            .hasPermission();
-                        if (!hasPermission) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Microphone permission denied. Please enable it in Settings.',
-                                ),
+                    } else if (!_isRecording && !hasText && !_isUploading) {
+                      // Single tap to start recording
+                      final hasPermission = await _audioRecorder
+                          .hasPermission();
+                      if (!hasPermission) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Microphone permission denied. Please enable it in Settings.',
                               ),
-                            );
-                          }
-                          return;
+                            ),
+                          );
                         }
-                        final tempDir = await getTemporaryDirectory();
-                        final path =
-                            '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-                        await _audioRecorder.start(
-                          const RecordConfig(encoder: AudioEncoder.aacLc),
-                          path: path,
-                        );
-                        setState(() {
-                          _isRecording = true;
-                          _recordingPath = path;
-                          _recordingDuration.value = 0;
-                          _slideOffsetX = 0;
-                          _isCancelled = false;
-                        });
-                        _recordingTimer = Timer.periodic(
-                          const Duration(seconds: 1),
-                          (_) {
-                            _recordingDuration.value++;
-                          },
-                        );
+                        return;
                       }
-                    },
-                    onHorizontalDragUpdate: (details) {
-                      if (!_isRecording) return;
+                      final tempDir = await getTemporaryDirectory();
+                      final path =
+                          '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                      await _audioRecorder.start(
+                        const RecordConfig(encoder: AudioEncoder.aacLc),
+                        path: path,
+                      );
                       setState(() {
-                        _slideOffsetX += details.delta.dx;
-                        _isCancelled = _slideOffsetX < -80;
-                      });
-                    },
-                    onHorizontalDragEnd: (details) {
-                      if (!_isRecording) return;
-                      if (_isCancelled) {
-                        _deleteRecording();
-                      }
-                      setState(() {
+                        _isRecording = true;
+                        _recordingPath = path;
+                        _recordingDuration.value = 0;
                         _slideOffsetX = 0;
                         _isCancelled = false;
                       });
-                    },
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: _isRecording
-                            ? theme.colorScheme.error
-                            : const Color(0xFFF2800D),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFF2800D).withOpacity(0.18),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        _isRecording
-                            ? Icons.mic
-                            : (hasText ? Icons.send_rounded : Icons.mic),
-                        color: Colors.white,
-                        size: 22,
-                      ),
+                      _recordingTimer = Timer.periodic(
+                        const Duration(seconds: 1),
+                        (_) {
+                          _recordingDuration.value++;
+                        },
+                      );
+                    }
+                  },
+                  onHorizontalDragUpdate: (details) {
+                    if (!_isRecording) return;
+                    setState(() {
+                      _slideOffsetX += details.delta.dx;
+                      _isCancelled = _slideOffsetX < -80;
+                    });
+                  },
+                  onHorizontalDragEnd: (details) {
+                    if (!_isRecording) return;
+                    if (_isCancelled) {
+                      _deleteRecording();
+                    }
+                    setState(() {
+                      _slideOffsetX = 0;
+                      _isCancelled = false;
+                    });
+                  },
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: _isRecording
+                          ? theme.colorScheme.error
+                          : iconColor,
+                      shape: BoxShape.circle,
                     ),
-                  );
-                },
-              ),
-            ],
-          ),
+                    child: Icon(
+                      _isRecording
+                          ? Icons.mic
+                          : (hasText ? Icons.send_rounded : Icons.mic),
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
