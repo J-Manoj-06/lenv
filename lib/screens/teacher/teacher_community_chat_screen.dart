@@ -2056,30 +2056,31 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                           horizontal: 12,
                           vertical: 12,
                         ),
+                        suffixIcon: _queryController.text.isNotEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: IconButton(
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    size: 18,
+                                    color: theme.textTheme.bodySmall?.color
+                                        ?.withOpacity(0.6),
+                                  ),
+                                  padding: const EdgeInsets.all(4),
+                                  splashRadius: 16,
+                                  onPressed: () {
+                                    _queryController.clear();
+                                    _runSearch(reset: true);
+                                  },
+                                ),
+                              )
+                            : null,
                       ),
                       textInputAction: TextInputAction.search,
                       onSubmitted: (_) => _runSearch(reset: true),
                       onChanged: (_) => _runSearch(reset: true),
                     ),
                   ),
-                  if (_queryController.text.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.close_rounded,
-                          size: 20,
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(
-                            0.6,
-                          ),
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        onPressed: () {
-                          _queryController.clear();
-                          _runSearch(reset: true);
-                        },
-                      ),
-                    ),
                 ],
               ),
             ),
