@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
@@ -1656,14 +1657,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
               child: const Text('Close'),
             ),
             ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(
-                    content: Text('PDF URL: $publicUrl'),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
+              onPressed: () => _launchPDF(publicUrl),
               child: const Text('Open PDF'),
             ),
           ],
@@ -1703,6 +1697,33 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _launchPDF(String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Cannot open PDF: $url'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

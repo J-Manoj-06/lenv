@@ -828,7 +828,11 @@ class CommunityService {
   }) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
-      return MessageSearchPage(messages: const [], lastDoc: lastDoc, hasMore: false);
+      return MessageSearchPage(
+        messages: const [],
+        lastDoc: lastDoc,
+        hasMore: false,
+      );
     }
 
     try {
@@ -879,7 +883,11 @@ class CommunityService {
       );
     } catch (e) {
       debugPrint('❌ Error searching messages: $e');
-      return MessageSearchPage(messages: const [], lastDoc: lastDoc, hasMore: false);
+      return MessageSearchPage(
+        messages: const [],
+        lastDoc: lastDoc,
+        hasMore: false,
+      );
     }
   }
 
