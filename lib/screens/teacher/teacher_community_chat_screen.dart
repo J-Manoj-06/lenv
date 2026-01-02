@@ -1566,7 +1566,8 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
     if (mime.isNotEmpty) return Icons.insert_drive_file_outlined;
     if (m.type == 'audio') return Icons.audiotrack;
     if (m.type == 'image') return Icons.image_outlined;
-    if (m.type == 'pdf' || m.type == 'file') return Icons.insert_drive_file_outlined;
+    if (m.type == 'pdf' || m.type == 'file')
+      return Icons.insert_drive_file_outlined;
     return Icons.chat_bubble_outline;
   }
 
@@ -1588,9 +1589,9 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
     if (message.mediaMetadata == null) {
       if (message.content.isNotEmpty) {
         // Just text - show in snackbar or toast
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message.content)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message.content)));
       }
       return;
     }
@@ -1614,7 +1615,10 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                     publicUrl,
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => const Center(
-                      child: Text('Failed to load image', style: TextStyle(color: Colors.white)),
+                      child: Text(
+                        'Failed to load image',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ),
                 ),
@@ -1638,7 +1642,10 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: Colors.grey[900],
-          title: const Text('PDF Preview', style: TextStyle(color: Colors.white)),
+          title: const Text(
+            'PDF Preview',
+            style: TextStyle(color: Colors.white),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1810,7 +1817,10 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                   final isMe = message.senderId == widget.currentUserId;
 
                   return ListTile(
-                    leading: Icon(_iconFor(message), color: theme.iconTheme.color),
+                    leading: Icon(
+                      _iconFor(message),
+                      color: theme.iconTheme.color,
+                    ),
                     title: Text(
                       _primaryText(message),
                       maxLines: 2,
@@ -1819,18 +1829,20 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                     subtitle: Text(
                       _secondaryText(message),
                       style: TextStyle(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(
+                          0.7,
+                        ),
                       ),
                     ),
-                    trailing: isMe
-                        ? const Icon(Icons.person, size: 16)
-                        : null,
+                    trailing: isMe ? const Icon(Icons.person, size: 16) : null,
                     onTap: () => _openMedia(message),
                   );
                 },
               ),
             ),
-          if (_results.isEmpty && !_loading && _queryController.text.trim().length >= 2)
+          if (_results.isEmpty &&
+              !_loading &&
+              _queryController.text.trim().length >= 2)
             Padding(
               padding: const EdgeInsets.all(24),
               child: Text(
@@ -1879,7 +1891,11 @@ class _AudioPlayerModalState extends State<AudioPlayerModal> {
           Text(
             widget.fileName,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 32),
           Row(
@@ -1930,5 +1946,3 @@ class _AudioPlayerModalState extends State<AudioPlayerModal> {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }
-
-
