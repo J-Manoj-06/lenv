@@ -1992,78 +1992,91 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Container(
-          height: 44,
-          decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF0F1419)
-                : theme.colorScheme.surfaceContainerHighest.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: theme.primaryColor.withOpacity(0.15),
-              width: 1.5,
+        titleSpacing: 0,
+        title: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'Search',
+            style: TextStyle(
+              color: theme.textTheme.bodyLarge?.color,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.5,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: theme.primaryColor.withOpacity(0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: Icon(
-                  Icons.search,
-                  size: 20,
-                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.5),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(72),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF0F1419)
+                    : theme.colorScheme.surfaceContainerHighest.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: theme.primaryColor.withOpacity(0.15),
+                  width: 1.5,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.primaryColor.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              Expanded(
-                child: TextField(
-                  controller: _queryController,
-                  autofocus: true,
-                  style: TextStyle(
-                    color: theme.textTheme.bodyLarge?.color,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search messages, files, audio...',
-                    hintStyle: TextStyle(
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.4),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w400,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _queryController,
+                      autofocus: true,
+                      style: TextStyle(
+                        color: theme.textTheme.bodyLarge?.color,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Messages, files, audio...',
+                        hintStyle: TextStyle(
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.4),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => _runSearch(reset: true),
+                      onChanged: (_) => _runSearch(reset: true),
                     ),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _runSearch(reset: true),
-                  onChanged: (_) => _runSearch(reset: true),
-                ),
+                  if (_queryController.text.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        onPressed: () {
+                          _queryController.clear();
+                          _runSearch(reset: true);
+                        },
+                      ),
+                    ),
+                ],
               ),
-              if (_queryController.text.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.close_rounded,
-                      size: 20,
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    onPressed: () {
-                      _queryController.clear();
-                      _runSearch(reset: true);
-                    },
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
       ),
@@ -2105,8 +2118,9 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                         'Find messages, PDFs, images, or audio files',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color:
-                              theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                          color: theme.textTheme.bodyMedium?.color?.withOpacity(
+                            0.6,
+                          ),
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
                           height: 1.4,
@@ -2205,8 +2219,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        color:
-                                            theme.textTheme.bodyLarge?.color,
+                                        color: theme.textTheme.bodyLarge?.color,
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -2284,8 +2297,9 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                     Text(
                       'Try searching with different keywords',
                       style: TextStyle(
-                        color: theme.textTheme.bodyMedium?.color
-                            ?.withOpacity(0.6),
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(
+                          0.6,
+                        ),
                         fontSize: 13,
                       ),
                     ),
