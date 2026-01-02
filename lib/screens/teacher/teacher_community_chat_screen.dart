@@ -1021,24 +1021,26 @@ class _TeacherCommunityChatScreenState
 
     // Premium dark theme palette - integrated with chat screen
     final backgroundColor = isDark
-        ? const Color(0xFF0D0E10)  // Near-black, blends with chat
+        ? const Color(0xFF0D0E10) // Near-black, blends with chat
         : const Color(0xFFF5F5F5);
     final inputFieldColor = isDark
-        ? const Color(0xFF1E2024)  // Slightly lighter for depth
+        ? const Color(0xFF1E2024) // Slightly lighter for depth
         : Colors.white;
     final textColor = isDark
-        ? const Color(0xFFE8E8E8)  // Bright, readable
+        ? const Color(0xFFE8E8E8) // Bright, readable
         : const Color(0xFF000000);
     final hintColor = isDark
-        ? const Color(0xFF6B6B6B)  // Subdued gray
+        ? const Color(0xFF6B6B6B) // Subdued gray
         : const Color(0xFF999999);
     final iconColor = isDark
-        ? const Color(0xFF9A95CC)  // Soft muted violet
+        ? const Color(0xFF9A95CC) // Soft muted violet
         : const Color(0xFF6C63FF);
     final iconDisabledColor = isDark
         ? const Color(0xFF3A3A3C)
         : const Color(0xFFBBBBBB);
-    final accentColor = const Color(0xFF7C3AED); // Cool violet - matches existing buttons
+    final accentColor = const Color(
+      0xFF7C3AED,
+    ); // Cool violet - matches existing buttons
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -1067,7 +1069,10 @@ class _TeacherCommunityChatScreenState
                 Expanded(
                   child: Container(
                     constraints: const BoxConstraints(minHeight: 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: inputFieldColor,
                       borderRadius: BorderRadius.circular(22),
@@ -1157,7 +1162,9 @@ class _TeacherCommunityChatScreenState
                             onTap: _isUploading ? null : _showMediaOptions,
                             child: Icon(
                               Icons.attach_file_rounded,
-                              color: _isUploading ? iconDisabledColor : iconColor,
+                              color: _isUploading
+                                  ? iconDisabledColor
+                                  : iconColor,
                               size: 22,
                             ),
                           ),
