@@ -270,28 +270,59 @@ class CloudflareR2Service {
     return Hmac(sha256, key).convert(utf8.encode(message)).bytes;
   }
 
-  /// Delete file from R2
-  /// This is a backend operation - requires server-side authentication
+  /// Delete file from R2 using AWS Signature V4
   Future<void> deleteFile({required String key}) async {
     try {
-      final url = '$_endpoint/$bucketName/$key';
-      final response = await http.delete(
-        Uri.parse(url),
-        headers: {'Authorization': 'Bearer $_generateAuthToken()'},
+      if (key.isEmpty) {
+        throw Exception('Cannot delete: Empty file key provided');
+      }
+
+      print('🗑️ Deleting R2 file with key: $key');
+
+      // Ensure key is properly encoded
+      final keyParts = key.split('/');
+      final encodedKey = keyParts.map(Uri.encodeComponent).join('/');
+      
+      final uploadHostname = '$accountId.r2.cloudflarestorage.com';
+
+      final credential = await _getSignatureHeaders(
+        method: 'DELETE',
+        bucketName: bucketName,
+        key: key,
+        contentType: '',
+        expiresAt: '86400', // 24 hours
+        uploadHostname: uploadHostname,
       );
 
-      if (response.statusCode != 204) {
-        throw Exception('Delete failed: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Failed to delete file: $e');
-    }
-  }
+      // Build delete URL without adding extra https://
+      final deleteUrl =
+          'https://$uploadHostname/$bucketName/$encodedKey'
+          '?X-Amz-Algorithm=${credential['algorithm']}'
+          '&X-Amz-Credential=${credential['credential']}'
+          '&X-Amz-Date=${credential['date']}'
+          '&X-Amz-Expires=${credential['expires']}'
+          '&X-Amz-SignedHeaders=${credential['signedHeaders']}'
+          '&X-Amz-Signature=${credential['signature']}';
 
-  /// Generate authentication token (placeholder - implement with your auth system)
-  String _generateAuthToken() {
-    // This should be obtained from your backend
-    // For now, returning empty - implement based on your auth system
-    return '';
+      print('📍 Delete URL built successfully');
+      print('🌐 Sending DELETE request...');
+
+      final response = await http.delete(
+        Uri.parse(deleteUrl),
+      );
+
+      print('📊 Delete response status: ${response.statusCode}');
+
+      if (response.statusCode != 204 && response.statusCode != 200) {
+        throw Exception(
+          'Delete failed: ${response.statusCode} - ${response.body}',
+        );
+      }
+
+      print('✅ File successfully deleted from R2: $key');
+    } catch (e) {
+      print('❌ Failed to delete file from R2: $e');
+      throw Exception('Failed to delete file from R2: $e');
+    }
   }
 }

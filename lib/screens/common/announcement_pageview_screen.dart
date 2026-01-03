@@ -5,19 +5,24 @@ import 'package:intl/intl.dart';
 /// Supports navigating through multiple announcements left/right
 class AnnouncementPageViewScreen extends StatefulWidget {
   final List<Map<String, dynamic>>
-  announcements; // List of {role, title, subtitle, postedByLabel, avatarUrl, postedAt, expiresAt}
+  announcements; // List of {role, title, subtitle, postedByLabel, avatarUrl, postedAt, expiresAt, creatorId}
   final int initialIndex;
+  final String? currentUserId; // Current user ID for permission checks
   final Function(int)?
   onIndexChanged; // Callback when user swipes to new announcement
   final Function(int)?
   onAnnouncementViewed; // Callback when announcement is viewed
+  final Function(int)?
+  onDelete; // Callback to delete announcement by index
 
   const AnnouncementPageViewScreen({
     super.key,
     required this.announcements,
     this.initialIndex = 0,
+    this.currentUserId,
     this.onIndexChanged,
     this.onAnnouncementViewed,
+    this.onDelete,
   });
 
   @override
@@ -354,50 +359,74 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                       else
                                         Container(
                                           color: Colors.black,
-                                          child: Center(
-                                            child: Icon(
-                                              Icons.school,
-                                              size: 64,
-                                              color: theme.primary,
-                                            ),
-                                          ),
                                         ),
 
-                                      // Text overlay at bottom
-                                      Positioned(
-                                        bottom: 0,
-                                        left: 0,
-                                        right: 0,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [
-                                                Colors.transparent,
-                                                Colors.black.withOpacity(0.3),
-                                                Colors.black.withOpacity(0.7),
-                                              ],
+                                      // Text overlay (centered if no image, at bottom if image)
+                                      if ((announcement['title'] as String?)
+                                              ?.isNotEmpty ??
+                                          false)
+                                        if (announcement['avatarUrl'] != null &&
+                                            (announcement['avatarUrl']
+                                                    as String)
+                                                .isNotEmpty)
+                                          // Text at bottom if image exists
+                                          Positioned(
+                                            bottom: 0,
+                                            left: 0,
+                                            right: 0,
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topCenter,
+                                                  end: Alignment.bottomCenter,
+                                                  colors: [
+                                                    Colors.transparent,
+                                                    Colors
+                                                        .black
+                                                        .withOpacity(0.3),
+                                                    Colors
+                                                        .black
+                                                        .withOpacity(0.7),
+                                                  ],
+                                                ),
+                                              ),
+                                              padding: const EdgeInsets
+                                                  .fromLTRB(
+                                                24,
+                                                80,
+                                                24,
+                                                24,
+                                              ),
+                                              child: Text(
+                                                announcement['title'] ?? '',
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 28,
+                                                  fontWeight: FontWeight.w800,
+                                                  height: 1.3,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        else
+                                          // Text centered if no image
+                                          Center(
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(32),
+                                              child: Text(
+                                                announcement['title'] ?? '',
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 32,
+                                                  fontWeight: FontWeight.w800,
+                                                  height: 1.4,
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                          padding: const EdgeInsets.fromLTRB(
-                                            24,
-                                            80,
-                                            24,
-                                            24,
-                                          ),
-                                          child: Text(
-                                            announcement['title'] ?? '',
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 28,
-                                              fontWeight: FontWeight.w800,
-                                              height: 1.3,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -467,96 +496,13 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                         ),
                       ),
 
-                      // Tap zone hints (fade out after 3 seconds)
-                      if (_showTapHints)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: AnimatedOpacity(
-                              opacity: _showTapHints ? 1.0 : 0.0,
-                              duration: const Duration(milliseconds: 500),
-                              child: Row(
-                                children: [
-                                  // Left tap zone
-                                  Expanded(
-                                    child: Container(
-                                      alignment: Alignment.centerLeft,
-                                      padding: const EdgeInsets.only(left: 24),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.5),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: const Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.chevron_left,
-                                              color: Colors.white70,
-                                              size: 20,
-                                            ),
-                                            SizedBox(width: 4),
-                                            Text(
-                                              'Previous',
-                                              style: TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  // Right tap zone
-                                  Expanded(
-                                    child: Container(
-                                      alignment: Alignment.centerRight,
-                                      padding: const EdgeInsets.only(right: 24),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.5),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: const Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              'Next',
-                                              style: TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            SizedBox(width: 4),
-                                            Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.white70,
-                                              size: 20,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                      // Tap zone (invisible, for navigation only)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          ignoring: true,
+                          child: Container(),
                         ),
+                      ),
 
                       // Swipe down hint at top
                       if (_showTapHints)
@@ -596,6 +542,41 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                         ),
                                       ),
                                     ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      // Delete button at top right (only for creator)
+                      if (widget.currentUserId != null &&
+                          widget.currentUserId!.isNotEmpty &&
+                          announcement['creatorId'] != null &&
+                          (announcement['creatorId'] as String).isNotEmpty &&
+                          announcement['creatorId'] == widget.currentUserId)
+                        Positioned(
+                          top: 16,
+                          right: 16,
+                          child: SafeArea(
+                            child: Material(
+                              color: Colors.transparent,
+                              child: GestureDetector(
+                                onTap: () {
+                                  if (widget.onDelete != null) {
+                                    widget.onDelete!(_currentIndex);
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(0.8),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.white,
+                                    size: 20,
                                   ),
                                 ),
                               ),
@@ -669,16 +650,20 @@ Future<void> openAnnouncementPageView(
   BuildContext context, {
   required List<Map<String, dynamic>> announcements,
   int initialIndex = 0,
+  String? currentUserId,
   Function(int)? onIndexChanged,
   Function(int)? onAnnouncementViewed,
+  Function(int)? onDelete,
 }) async {
   await Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => AnnouncementPageViewScreen(
         announcements: announcements,
         initialIndex: initialIndex,
+        currentUserId: currentUserId,
         onIndexChanged: onIndexChanged,
         onAnnouncementViewed: onAnnouncementViewed,
+        onDelete: onDelete,
       ),
     ),
   );
