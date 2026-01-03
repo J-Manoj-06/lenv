@@ -234,8 +234,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       final Set<String> badgeSet = {};
 
       try {
-        final List<Badge> earnedBadges =
-          await _badgeService.fetchEarnedBadges(authUid);
+        final List<Badge> earnedBadges = await _badgeService.fetchEarnedBadges(
+          authUid,
+        );
         for (final badge in earnedBadges) {
           // Keep emoji + title for parity with student dashboard tiles
           final label = '${badge.emoji} ${badge.title}'.trim();
@@ -1137,7 +1138,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 // Use two columns on wider screens for tidy alignment
                 final bool twoColumns = constraints.maxWidth > 420;
                 final double chipWidth = twoColumns
-                    ? (constraints.maxWidth - 10) / 2 // account for spacing
+                    ? (constraints.maxWidth - 10) /
+                          2 // account for spacing
                     : constraints.maxWidth;
 
                 return Wrap(
