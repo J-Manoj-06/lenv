@@ -1502,6 +1502,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Widget _buildInputBar() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    
+    // Get current user role to determine color scheme
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    final isTeacher = currentUser?.role.toString() == 'UserRole.teacher';
 
     // Premium dark theme palette - integrated with chat screen
     final backgroundColor = isDark
@@ -1516,15 +1521,23 @@ class _GroupChatPageState extends State<GroupChatPage> {
     final hintColor = isDark
         ? const Color(0xFF6B6B6B) // Subdued gray
         : const Color(0xFF999999);
+    
+    // Dynamic colors based on user role
     final iconColor = isDark
-        ? const Color(0xFF9A95CC) // Soft muted violet
-        : const Color(0xFF6C63FF);
+        ? (isTeacher 
+            ? const Color(0xFF9A95CC)  // Soft muted violet for teachers
+            : const Color(0xFFFFB380))  // Soft muted orange for students
+        : (isTeacher 
+            ? const Color(0xFF6C63FF)  // Violet for teachers
+            : const Color(0xFFFF8F00)); // Orange for students
+    
     final iconDisabledColor = isDark
         ? const Color(0xFF3A3A3C)
         : const Color(0xFFBBBBBB);
-    final accentColor = const Color(
-      0xFF7C3AED,
-    ); // Cool violet - matches existing buttons
+    
+    final accentColor = isTeacher
+        ? const Color(0xFF7C3AED)  // Cool violet for teachers
+        : const Color(0xFFFF9800);  // Orange for students
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
