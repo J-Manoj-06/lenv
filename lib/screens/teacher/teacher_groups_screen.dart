@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/unread_count_provider.dart';
+import '../../utils/chat_type_config.dart';
+import '../../widgets/unread_badge_widget.dart';
 import '../messages/group_chat_page.dart';
 
 class TeacherGroupsScreen extends StatefulWidget {
@@ -220,77 +223,13 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
 
     return RefreshIndicator(
       onRefresh: _loadTeacherGroups,
-      child: Column(
-        children: [
-          // Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-              border: Border(
-                bottom: BorderSide(
-                  color: isDark ? Colors.white12 : Colors.grey[200]!,
-                ),
-              ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.groups,
-                        color: isDark ? Colors.white70 : Colors.grey[700],
-                        size: 28,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Subject Groups',
-                              style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black87,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${_teacherGroups.length} Group${_teacherGroups.length != 1 ? 's' : ''}',
-                              style: TextStyle(
-                                color: isDark
-                                    ? Colors.white60
-                                    : Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Groups List
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _teacherGroups.length,
-              itemBuilder: (context, index) {
-                final group = _teacherGroups[index];
-                return _buildGroupCard(context, group, isDark);
-              },
-            ),
-          ),
-        ],
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _teacherGroups.length,
+        itemBuilder: (context, index) {
+          final group = _teacherGroups[index];
+          return _buildGroupCard(context, group, isDark);
+        },
       ),
     );
   }
@@ -304,6 +243,7 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
     final section = group['section'] as String;
     final subject = group['subject'] as String;
     final classId = group['classId'] as String;
+    final teacherName = group['teacherName'] as String? ?? 'Teacher';
 
     final icon = _getSubjectIcon(subject);
 
@@ -311,12 +251,19 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
     final gradeMatch = RegExp(r'\d+').firstMatch(className);
     final grade = gradeMatch?.group(0) ?? className;
 
+    // Get unread count
+    final chatId = '$classId|${subject.toLowerCase().replaceAll(' ', '_')}';
+    final unreadCountProvider = Provider.of<UnreadCountProvider>(context);
+    final unreadCount = unreadCountProvider.getUnreadCount(chatId);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF222222) : Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? Colors.white12 : Colors.grey[200]!),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[200]!,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -330,7 +277,7 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
                   classId: classId,
                   subjectId: subject.toLowerCase().replaceAll(' ', '_'),
                   subjectName: subject,
-                  teacherName: 'You (Teacher)',
+                  teacherName: teacherName,
                   icon: icon,
                   className: className,
                   section: section,
@@ -338,79 +285,87 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
               ),
             );
           },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Subject Icon
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6A4FF7).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Center(
-                    child: Text(
-                      icon,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        color: Color(0xFF6A4FF7),
-                      ),
-                    ),
+          child: Row(
+            children: [
+              // Violet left accent bar
+              Container(
+                width: 4,
+                height: 100,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF7C3AED),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
                   ),
                 ),
-                const SizedBox(width: 16),
+              ),
+              const SizedBox(width: 12),
 
-                // Group Info
-                Expanded(
+              // Subject Icon
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A2A2A),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(icon, style: const TextStyle(fontSize: 32)),
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Group Info
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              subject,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                          ),
+                          if (unreadCount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 16),
+                              child: InlineUnreadBadge(count: unreadCount),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
                       Text(
-                        subject.toUpperCase(),
+                        'Class Group',
                         style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
+                          fontSize: 14,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.6)
+                              : Colors.grey[600],
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.class_,
-                            size: 14,
-                            color: isDark ? Colors.white54 : Colors.grey[600],
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              'Grade $grade • Section $section',
-                              style: TextStyle(
-                                color: isDark
-                                    ? Colors.white60
-                                    : Colors.grey[700],
-                                fontSize: 13,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'Teacher: $teacherName',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.5)
+                              : Colors.grey[500],
+                        ),
                       ),
                     ],
                   ),
                 ),
-
-                // Arrow Icon
-                Icon(
-                  Icons.chevron_right,
-                  size: 20,
-                  color: isDark ? Colors.white30 : Colors.grey[400],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -419,17 +374,58 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
 
   String _getSubjectIcon(String subject) {
     final s = subject.toLowerCase();
-    if (s.contains('math')) return '🔢';
+    if (s.contains('math')) return '📐';
     if (s.contains('science')) return '🔬';
     if (s.contains('social')) return '🌍';
-    if (s.contains('english')) return '📖';
-    if (s.contains('hindi')) return '📚';
+    if (s.contains('english')) return '📚';
+    if (s.contains('hindi')) return '📖';
     if (s.contains('chem')) return '🧪';
-    if (s.contains('phy')) return '⚡';
+    if (s.contains('phy')) return '⚛️';
     if (s.contains('bio')) return '🧬';
     if (s.contains('computer')) return '💻';
     if (s.contains('history')) return '📜';
     if (s.contains('physical') || s.contains('education')) return '⚽';
+    if (s.contains('art')) return '🎨';
+    if (s.contains('music')) return '🎵';
     return '📕';
+  }
+
+  // Get subject gradient colors (violet theme)
+  List<Color> _getSubjectGradient(String subjectName) {
+    final subject = subjectName.toLowerCase();
+    if (subject.contains('math')) {
+      return [const Color(0xFF7C3AED), const Color(0xFF9B59B6)];
+    }
+    if (subject.contains('science')) {
+      return [const Color(0xFF8B5CF6), const Color(0xFFA855F7)];
+    }
+    if (subject.contains('english') || subject.contains('hindi')) {
+      return [const Color(0xFF6D28D9), const Color(0xFF7C3AED)];
+    }
+    if (subject.contains('history') || subject.contains('social')) {
+      return [const Color(0xFF9333EA), const Color(0xFFA855F7)];
+    }
+    if (subject.contains('phy')) {
+      return [const Color(0xFF6D28D9), const Color(0xFF8B5CF6)];
+    }
+    if (subject.contains('chem')) {
+      return [const Color(0xFF9333EA), const Color(0xFFA855F7)];
+    }
+    if (subject.contains('bio')) {
+      return [const Color(0xFF7C3AED), const Color(0xFF9B59B6)];
+    }
+    if (subject.contains('computer')) {
+      return [const Color(0xFF8B5CF6), const Color(0xFF9333EA)];
+    }
+    if (subject.contains('art')) {
+      return [const Color(0xFF9B59B6), const Color(0xFFA855F7)];
+    }
+    if (subject.contains('music')) {
+      return [const Color(0xFF7C3AED), const Color(0xFF9333EA)];
+    }
+    if (subject.contains('physical') || subject.contains('education')) {
+      return [const Color(0xFF8B5CF6), const Color(0xFF7C3AED)];
+    }
+    return [const Color(0xFF7C3AED), const Color(0xFF9B59B6)];
   }
 }

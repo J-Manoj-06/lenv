@@ -820,178 +820,116 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                     ? Colors.white.withOpacity(0.03)
                     : Colors.grey.withOpacity(0.03),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 16,
+                  ),
+                  child: Row(
                     children: [
-                      // Header: Subject + Icon + Badge Row
-                      Row(
-                        children: [
-                          // Subject Icon
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF6A4FF7).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Center(
-                              child: Text(
-                                widget.group.subjectName
-                                    .substring(0, 1)
-                                    .toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF6A4FF7),
-                                ),
-                              ),
+                      // Violet left accent bar
+                      Container(
+                        width: 4,
+                        height: 70,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF7C3AED),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(16),
+                            bottomLeft: Radius.circular(16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Subject Icon with letter
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6A4FF7).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Text(
+                            widget.group.subjectName
+                                .substring(0, 1)
+                                .toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF6A4FF7),
                             ),
                           ),
-                          const SizedBox(width: 14),
-                          // Subject Title + Unread Badge
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+
+                      // Group Info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
                               children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        widget.group.subjectName,
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700,
-                                          color: widget.isDark
-                                              ? Colors.white
-                                              : Colors.black87,
-                                          letterSpacing: -0.3,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
+                                Expanded(
+                                  child: Text(
+                                    widget.group.subjectName,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: widget.isDark
+                                          ? Colors.white
+                                          : Colors.black87,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (widget.group.unreadCount > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red[600],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${widget.group.unreadCount}',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
                                       ),
                                     ),
-                                    if (widget.group.unreadCount > 0) ...[
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red[600],
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          '${widget.group.unreadCount}',
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                // Class/Section Badge (Inline)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: widget.isDark
-                                        ? Colors.white.withOpacity(0.08)
-                                        : Colors.grey.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Builder(
-                                    builder: (context) {
-                                      // Extract grade number from className (e.g., "Grade 10" -> "10")
-                                      final gradeMatch = RegExp(
-                                        r'\d+',
-                                      ).firstMatch(widget.group.className);
-                                      final grade =
-                                          gradeMatch?.group(0) ??
-                                          widget.group.className;
-                                      return Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.class_rounded,
-                                            size: 13,
-                                            color: widget.isDark
-                                                ? Colors.white60
-                                                : Colors.grey[600],
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'Grade $grade • Section ${widget.group.sectionName}',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: widget.isDark
-                                                  ? Colors.white70
-                                                  : Colors.grey[700],
-                                              letterSpacing: 0.3,
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
-                      // Last Message Preview
-                      if (widget.group.lastMessage != null) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: widget.isDark
-                                ? Colors.white.withOpacity(0.05)
-                                : Colors.black.withOpacity(0.03),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline_rounded,
-                                size: 13,
-                                color: widget.isDark
-                                    ? Colors.white38
-                                    : Colors.black38,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  widget.group.lastMessage!,
+                            const SizedBox(height: 4),
+                            Builder(
+                              builder: (context) {
+                                // Extract grade number from className
+                                final gradeMatch = RegExp(
+                                  r'\d+',
+                                ).firstMatch(widget.group.className);
+                                final grade =
+                                    gradeMatch?.group(0) ??
+                                    widget.group.className;
+                                return Text(
+                                  'Grade $grade • Section ${widget.group.sectionName}',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                     color: widget.isDark
-                                        ? Colors.white38
-                                        : Colors.black38,
-                                    fontStyle: FontStyle.italic,
+                                        ? Colors.white60
+                                        : Colors.grey[600],
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
