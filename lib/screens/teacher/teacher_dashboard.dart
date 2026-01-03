@@ -52,7 +52,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       final uid = auth.currentUser?.uid;
       if (uid == null) return;
       final now = DateTime.now();
-      
+
       // Check class_highlights
       final highlightsQs = await FirebaseFirestore.instance
           .collection('class_highlights')
@@ -62,13 +62,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         final ts = (d.data()['expiresAt'] as Timestamp?)?.toDate();
         return ts != null && !ts.isAfter(now);
       }).toList();
-      
+
       if (expiredHighlights.isNotEmpty) {
         final batch = FirebaseFirestore.instance.batch();
         for (final doc in expiredHighlights) {
           final data = doc.data();
           final imageUrl = data['imageUrl'] as String?;
-          
+
           // Delete image from Cloudflare R2
           if (imageUrl != null && imageUrl.isNotEmpty) {
             try {
@@ -87,7 +87,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               print('⚠️ Failed to delete expired image from R2: $e');
             }
           }
-          
+
           batch.delete(doc.reference);
         }
         await batch.commit();
@@ -103,7 +103,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Future<void> _cleanupExpiredPrincipalAnnouncements() async {
     try {
       final now = DateTime.now();
-      
+
       // Query all expired announcements
       final announcementsQs = await FirebaseFirestore.instance
           .collection('institute_announcements')
@@ -116,7 +116,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         for (final doc in announcementsQs.docs) {
           final data = doc.data();
           final imageUrl = data['imageUrl'] as String?;
-          
+
           // Delete image from Cloudflare R2
           if (imageUrl != null && imageUrl.isNotEmpty) {
             try {
@@ -135,11 +135,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               print('⚠️ Failed to delete expired principal image from R2: $e');
             }
           }
-          
+
           batch.delete(doc.reference);
         }
         await batch.commit();
-        print('🗑️ Deleted ${announcementsQs.docs.length} expired principal announcements');
+        print(
+          '🗑️ Deleted ${announcementsQs.docs.length} expired principal announcements',
+        );
       }
     } catch (e) {
       print('Error in _cleanupExpiredPrincipalAnnouncements: $e');
@@ -1718,13 +1720,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       print('Error in _markPrincipalAnnouncementAsViewed: $e');
     }
   }
+
   /// Delete an announcement (including image from Cloudflare R2)
   Future<void> _deleteAnnouncement(_AnnouncementItem item) async {
     try {
       print('🗑️ ========== DELETE PROCESS STARTED ==========');
       print('🗑️ Announcement ID: ${item.id}');
       print('🗑️ Announcement Type: ${item.type}');
-      
+
       // Check if user is the creator
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
@@ -1780,9 +1783,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 print('✅ Delete confirmed by user');
                 Navigator.pop(ctx, true);
               },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.red,
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Delete'),
             ),
           ],
@@ -1811,7 +1812,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           print('📌 Deleting Teacher Announcement');
           print('   DocID: $docId');
           print('   ImageURL: ${imageUrl ?? "(no image)"}');
-          
+
           // Delete from Firestore
           await FirebaseFirestore.instance
               .collection('class_highlights')
@@ -1827,7 +1828,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           print('📌 Deleting Principal Announcement');
           print('   DocID: $docId');
           print('   ImageURL: ${imageUrl ?? "(no image)"}');
-          
+
           // Delete from Firestore
           await FirebaseFirestore.instance
               .collection('institute_announcements')
@@ -1842,14 +1843,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         if (imageUrl != null && imageUrl.isNotEmpty) {
           print('🖼️ Processing image deletion from R2');
           print('   Original URL: $imageUrl');
-          
+
           try {
             final r2Key = _extractR2KeyFromUrl(imageUrl);
             print('📝 Extracted R2 key: "$r2Key"');
-            
+
             if (r2Key.isNotEmpty) {
               print('🗑️ Attempting R2 deletion with key: $r2Key');
-              
+
               final r2Service = CloudflareR2Service(
                 accountId: CloudflareConfig.accountId,
                 bucketName: CloudflareConfig.bucketName,
@@ -1857,11 +1858,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 secretAccessKey: CloudflareConfig.secretAccessKey,
                 r2Domain: CloudflareConfig.r2Domain,
               );
-              
+
               await r2Service.deleteFile(key: r2Key);
               print('✅ Image deleted from R2 successfully');
             } else {
-              print('⚠️ R2 key extraction resulted in empty string, skipping R2 delete');
+              print(
+                '⚠️ R2 key extraction resulted in empty string, skipping R2 delete',
+              );
             }
           } catch (r2Error) {
             print('❌ R2 Deletion Error: $r2Error');
@@ -1873,7 +1876,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         }
 
         print('✅ ========== DELETE COMPLETED SUCCESSFULLY ==========');
-        
+
         if (mounted) {
           showSuccessSnackbar(
             context,
@@ -1881,7 +1884,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             role: role,
           );
           print('📢 Success message shown to user');
-          
+
           // Close the viewer
           if (Navigator.of(context).canPop()) {
             print('🔙 Closing announcement viewer');
@@ -1892,7 +1895,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         print('❌ ========== ERROR DURING DELETION ==========');
         print('Error: $e');
         print('Stack trace: ${e.toString()}');
-        
+
         if (mounted) {
           showErrorSnackbar(
             context,
@@ -1935,19 +1938,21 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         try {
           final uri = Uri.parse(url);
           var path = uri.path;
-          
+
           // Remove leading slash if present
           if (path.startsWith('/')) {
             path = path.substring(1);
           }
-          
+
           if (path.isNotEmpty) {
             print('✅ Extracted key from full URL: $path');
             return path;
           }
         } catch (parseError) {
-          print('⚠️ URI parsing failed, using string manipulation: $parseError');
-          
+          print(
+            '⚠️ URI parsing failed, using string manipulation: $parseError',
+          );
+
           // Fallback: extract using string split
           final parts = url.split('files.lenv1.tech/');
           if (parts.length > 1) {
@@ -1963,11 +1968,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         try {
           final uri = Uri.parse(url);
           var path = uri.path;
-          
+
           if (path.startsWith('/')) {
             path = path.substring(1);
           }
-          
+
           if (path.isNotEmpty) {
             print('✅ Extracted path from URL: $path');
             return path;

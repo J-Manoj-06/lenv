@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Badge;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/badge_service.dart';
+import '../../badges/badge_model.dart';
 import 'package:provider/provider.dart';
 import '../../models/performance_model.dart';
 import '../../services/firestore_service.dart';
@@ -36,6 +38,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   static const Color brandPrimaryLight = Color(0xFFA08CFF);
 
   final _firestoreService = FirestoreService();
+  final BadgeService _badgeService = BadgeService();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -227,41 +230,59 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         }
       }
 
-      // Fetch badges from testResults
-      final q = await FirebaseFirestore.instance
-          .collection('testResults')
-          .where('studentId', isEqualTo: authUid)
-          .where('status', isEqualTo: 'completed')
-          .limit(100)
-          .get();
-
+      // Fetch badges using the same source as student dashboard
       final Set<String> badgeSet = {};
 
-      for (final doc in q.docs) {
-        final data = doc.data();
+      try {
+        final List<Badge> earnedBadges =
+          await _badgeService.fetchEarnedBadges(authUid);
+        for (final badge in earnedBadges) {
+          // Keep emoji + title for parity with student dashboard tiles
+          final label = '${badge.emoji} ${badge.title}'.trim();
+          badgeSet.add(label);
+        }
+        debugPrint('🏅 BadgeService returned ${badgeSet.length} badges');
+      } catch (e) {
+        debugPrint('⚠️ BadgeService fetch error: $e');
+      }
 
-        // Get badges
-        final badges = data['badges'];
-        if (badges is List) {
-          for (final b in badges) {
-            if (b != null) badgeSet.add(b.toString());
+      // Fallback: derive from testResults (legacy behavior) to avoid missing badges
+      try {
+        final q = await FirebaseFirestore.instance
+            .collection('testResults')
+            .where('studentId', isEqualTo: authUid)
+            .where('status', isEqualTo: 'completed')
+            .limit(100)
+            .get();
+
+        for (final doc in q.docs) {
+          final data = doc.data();
+
+          // Get badges
+          final badges = data['badges'];
+          if (badges is List) {
+            for (final b in badges) {
+              if (b != null) badgeSet.add(b.toString());
+            }
+          }
+
+          // Award badges based on performance if not already set
+          final correctAnswers = (data['correctAnswers'] ?? 0) as int;
+          final totalQuestions = (data['totalQuestions'] ?? 1) as int;
+          final percentage = totalQuestions > 0
+              ? (correctAnswers / totalQuestions) * 100
+              : 0.0;
+
+          if (percentage == 100) {
+            badgeSet.add('Perfect Score');
+          } else if (percentage >= 90) {
+            badgeSet.add('Excellence');
+          } else if (percentage >= 75) {
+            badgeSet.add('Top Performer');
           }
         }
-
-        // Award badges based on performance if not already set
-        final correctAnswers = (data['correctAnswers'] ?? 0) as int;
-        final totalQuestions = (data['totalQuestions'] ?? 1) as int;
-        final percentage = totalQuestions > 0
-            ? (correctAnswers / totalQuestions) * 100
-            : 0.0;
-
-        if (percentage == 100) {
-          badgeSet.add('Perfect Score');
-        } else if (percentage >= 90) {
-          badgeSet.add('Excellence');
-        } else if (percentage >= 75) {
-          badgeSet.add('Top Performer');
-        }
+      } catch (e) {
+        debugPrint('⚠️ testResults badge fallback error: $e');
       }
 
       _badges = badgeSet.toList()..sort();
@@ -1111,10 +1132,29 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               ),
             )
           else
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _badges.map((b) => _badgeChip(theme, b)).toList(),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // Use two columns on wider screens for tidy alignment
+                final bool twoColumns = constraints.maxWidth > 420;
+                final double chipWidth = twoColumns
+                    ? (constraints.maxWidth - 10) / 2 // account for spacing
+                    : constraints.maxWidth;
+
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.start,
+                  runAlignment: WrapAlignment.start,
+                  children: _badges
+                      .map(
+                        (b) => SizedBox(
+                          width: chipWidth,
+                          child: _badgeChip(theme, b),
+                        ),
+                      )
+                      .toList(),
+                );
+              },
             ),
         ],
       ),

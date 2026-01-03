@@ -282,7 +282,7 @@ class CloudflareR2Service {
       // Ensure key is properly encoded
       final keyParts = key.split('/');
       final encodedKey = keyParts.map(Uri.encodeComponent).join('/');
-      
+
       final uploadHostname = '$accountId.r2.cloudflarestorage.com';
 
       final credential = await _getSignatureHeaders(
@@ -307,9 +307,7 @@ class CloudflareR2Service {
       print('📍 Delete URL built successfully');
       print('🌐 Sending DELETE request...');
 
-      final response = await http.delete(
-        Uri.parse(deleteUrl),
-      );
+      final response = await http.delete(Uri.parse(deleteUrl));
 
       print('📊 Delete response status: ${response.statusCode}');
 

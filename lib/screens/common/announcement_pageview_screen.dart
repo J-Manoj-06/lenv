@@ -12,8 +12,7 @@ class AnnouncementPageViewScreen extends StatefulWidget {
   onIndexChanged; // Callback when user swipes to new announcement
   final Function(int)?
   onAnnouncementViewed; // Callback when announcement is viewed
-  final Function(int)?
-  onDelete; // Callback to delete announcement by index
+  final Function(int)? onDelete; // Callback to delete announcement by index
 
   const AnnouncementPageViewScreen({
     super.key,
@@ -357,9 +356,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                               },
                                         )
                                       else
-                                        Container(
-                                          color: Colors.black,
-                                        ),
+                                        Container(color: Colors.black),
 
                                       // Text overlay (centered if no image, at bottom if image)
                                       if ((announcement['title'] as String?)
@@ -381,22 +378,22 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                                   end: Alignment.bottomCenter,
                                                   colors: [
                                                     Colors.transparent,
-                                                    Colors
-                                                        .black
-                                                        .withOpacity(0.3),
-                                                    Colors
-                                                        .black
-                                                        .withOpacity(0.7),
+                                                    Colors.black.withOpacity(
+                                                      0.3,
+                                                    ),
+                                                    Colors.black.withOpacity(
+                                                      0.7,
+                                                    ),
                                                   ],
                                                 ),
                                               ),
-                                              padding: const EdgeInsets
-                                                  .fromLTRB(
-                                                24,
-                                                80,
-                                                24,
-                                                24,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                    24,
+                                                    80,
+                                                    24,
+                                                    24,
+                                                  ),
                                               child: Text(
                                                 announcement['title'] ?? '',
                                                 textAlign: TextAlign.center,
@@ -413,8 +410,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                           // Text centered if no image
                                           Center(
                                             child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(32),
+                                              padding: const EdgeInsets.all(32),
                                               child: Text(
                                                 announcement['title'] ?? '',
                                                 textAlign: TextAlign.center,
