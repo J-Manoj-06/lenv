@@ -187,47 +187,10 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                   },
                   child: Stack(
                     children: [
-                      // Background glow and vignette
+                      // Black background
                       Positioned.fill(
-                        child: IgnorePointer(
-                          child: Stack(
-                            children: [
-                              // Primary glow ellipse
-                              Align(
-                                alignment: const Alignment(0, 0),
-                                child: Container(
-                                  width:
-                                      MediaQuery.of(context).size.width * 1.6,
-                                  height:
-                                      MediaQuery.of(context).size.height * 0.8,
-                                  decoration: BoxDecoration(
-                                    color: theme.primary.withOpacity(0.25),
-                                    borderRadius: BorderRadius.circular(9999),
-                                  ),
-                                ),
-                              ),
-                              // Vignette overlay
-                              Positioned.fill(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.black.withOpacity(
-                                          isLight ? 0.2 : 0.5,
-                                        ),
-                                        Colors.transparent,
-                                        Colors.black.withOpacity(
-                                          isLight ? 0.4 : 0.8,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        child: Container(
+                          color: Colors.black,
                         ),
                       ),
 
@@ -367,31 +330,74 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
 
                             // Center content
                             Expanded(
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    24,
-                                    16,
-                                    24,
-                                    16,
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
+                              child: Container(
+                                color: Colors.black,
+                                child: Center(
+                                  child: Stack(
+                                    fit: StackFit.expand,
                                     children: [
-                                      Icon(
-                                        Icons.school,
-                                        size: 64,
-                                        color: theme.primary,
-                                      ),
-                                      const SizedBox(height: 20),
-                                      Text(
-                                        announcement['title'] ?? '',
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w800,
-                                          height: 1.3,
+                                      // Background image (if available)
+                                      if (announcement['avatarUrl'] != null &&
+                                          (announcement['avatarUrl'] as String).isNotEmpty)
+                                        Image.network(
+                                          announcement['avatarUrl']!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              color: Colors.grey.shade900,
+                                              child: const Icon(
+                                                Icons.image_not_supported,
+                                                size: 64,
+                                                color: Colors.white54,
+                                              ),
+                                            );
+                                          },
+                                        )
+                                      else
+                                        Container(
+                                          color: Colors.black,
+                                          child: Center(
+                                            child: Icon(
+                                              Icons.school,
+                                              size: 64,
+                                              color: theme.primary,
+                                            ),
+                                          ),
+                                        ),
+                                      
+                                      // Text overlay at bottom
+                                      Positioned(
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                Colors.transparent,
+                                                Colors.black.withOpacity(0.3),
+                                                Colors.black.withOpacity(0.7),
+                                              ],
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.fromLTRB(
+                                            24,
+                                            80,
+                                            24,
+                                            24,
+                                          ),
+                                          child: Text(
+                                            announcement['title'] ?? '',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 28,
+                                              fontWeight: FontWeight.w800,
+                                              height: 1.3,
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ],

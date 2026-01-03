@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
+import '../../services/cloudflare_r2_service.dart';
+import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../widgets/media_preview_card.dart';
@@ -239,15 +240,30 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
       if (image == null) return;
 
-      // Upload to Firebase Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('community_messages')
-          .child(widget.communityId)
-          .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+      // Upload to Cloudflare R2
+      final imageBytes = await File(image.path).readAsBytes();
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      final r2Service = CloudflareR2Service(
+        accountId: CloudflareConfig.accountId,
+        bucketName: CloudflareConfig.bucketName,
+        accessKeyId: CloudflareConfig.accessKeyId,
+        secretAccessKey: CloudflareConfig.secretAccessKey,
+        r2Domain: CloudflareConfig.r2Domain,
+      );
+      
+      // Generate signed URL
+      final signedData = await r2Service.generateSignedUploadUrl(
+        fileName: 'community_messages/${widget.communityId}/$fileName',
+        fileType: 'image/jpeg',
+      );
 
-      await storageRef.putFile(File(image.path));
-      final imageUrl = await storageRef.getDownloadURL();
+      // Upload file
+      final imageUrl = await r2Service.uploadFileWithSignedUrl(
+        fileBytes: imageBytes,
+        signedUrl: signedData['url'],
+        contentType: 'image/jpeg',
+      );
 
       await _sendMessage(imageUrl: imageUrl);
     } catch (e) {

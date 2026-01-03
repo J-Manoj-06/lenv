@@ -8,7 +8,7 @@ No object exists at the desired reference.
 ```
 
 ## Root Cause
-The `group_chat_page.dart` was still using **Firebase Storage** instead of the new **Cloudflare R2** system via `MediaUploadService`.
+The `group_chat_page.dart` was using **Firebase Storage** which wasn't properly initialized. Solution: Switch to **Cloudflare R2** for all media storage.
 
 ## Solution Applied
 
@@ -29,40 +29,43 @@ final imageUrl = await storageRef.getDownloadURL();
 
 #### After (Cloudflare R2):
 ```dart
-// Upload to Cloudflare R2 using MediaUploadService
-final conversationId = '${widget.classId}_${widget.subjectId}';
+// Upload to Cloudflare R2
+final imageBytes = await File(image.path).readAsBytes();
+final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-final mediaMessage = await _mediaUploadService.uploadMedia(
-  file: File(image.path),
-  conversationId: conversationId,
-  senderId: currentUserId,
-  senderRole: 'student',
-  mediaType: 'message', // Permanent storage for group messages
-  onProgress: (progress) {
-    print('Upload progress: $progress%');
-  },
+final r2Service = CloudflareR2Service(
+  accountId: '8e3e4c3c27f74e76e85a75e51e8ac0c5',
+  bucketName: 'lenv-media',
+  accessKeyId: 'ae58fa3c9d19493c8e3dd83bbdd7a32b',
+  secretAccessKey: 'f4f39d5aef9b3e80b5db6e3fd1e6b5e3c8d5f7a2b4c6e8f0a1b3c5d7e9f0a1b3',
+  r2Domain: 'https://files.lenv1.tech',
+);
+
+final imageUrl = await r2Service.uploadMedia(
+  fileBytes: imageBytes,
+  fileName: fileName,
+  folderPath: 'group_messages/${widget.classId}_${widget.subjectId}',
+  contentType: 'image/jpeg',
 );
 
 // Send message with R2 URL
-await _sendMessage(imageUrl: mediaMessage.r2Url);
+await _sendMessage(imageUrl: imageUrl);
 ```
 
 ## Changes Made
 
 1. **Removed**: `import 'package:firebase_storage/firebase_storage.dart';`
-2. **Added**: 
-   - `MediaUploadService` initialization with `CloudflareConfig`
-   - Upload progress tracking
-   - Loading indicator on image button during upload
-3. **Updated**: Image upload method to use R2 instead of Firebase Storage
+2. **Added**: `import '../../services/cloudflare_r2_service.dart';`
+3. **Updated**: Image upload to use CloudflareR2Service
+4. **Metadata**: File paths organized by conversation (classId_subjectId)
 
 ## Benefits
 
 ✅ **Working**: Students can now upload images in group messages  
-✅ **Permanent**: Group message images are permanent (`mediaType: 'message'`)  
+✅ **Reliable**: Uses Cloudflare R2 (proven S3-compatible service)  
 ✅ **Cost-effective**: Uses Cloudflare R2 (cheaper than Firebase Storage)  
-✅ **Consistent**: Uses same upload system as all other features  
-✅ **Better UX**: Shows loading indicator during upload  
+✅ **CDN-accelerated**: Files served through Cloudflare's global network  
+✅ **No initialization needed**: R2 service works without Firebase Storage setup  
 
 ## Testing
 
@@ -70,16 +73,21 @@ await _sendMessage(imageUrl: mediaMessage.r2Url);
 2. Click the image icon
 3. Select an image from gallery
 4. ✅ Image should upload successfully and appear in chat
+5. Verify URL starts with `https://files.lenv1.tech/`
 
-## Media Type Configuration
+## Cloudflare R2 Configuration
 
-| Feature | mediaType | Storage Duration |
-|---------|-----------|------------------|
-| Group Messages | `'message'` | ♾️ Permanent |
-| Community Posts | `'community'` | ♾️ Permanent |
-| Announcements | `'announcement'` | 24 hours |
+**Bucket**: `lenv-media`  
+**Region**: Auto  
+**Domain**: `https://files.lenv1.tech`  
+**Upload Paths**:
+- Group messages: `group_messages/{classId}_{subjectId}/`
+- Community posts: `community_messages/{communityId}/`
+- Announcements: `announcements/`
+- Class highlights: `class_highlights/`
 
 ---
 
 **Status**: ✅ Fixed and deployed  
-**Date**: 2024-12-11
+**Date**: 2025-01-15  
+**Storage**: Cloudflare R2 (replaces Firebase Storage)

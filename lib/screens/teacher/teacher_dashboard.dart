@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../utils/feedback_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../services/cloudflare_r2_service.dart';
+import '../../config/cloudflare_config.dart';
 import 'dart:typed_data';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -2759,21 +2760,28 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       try {
         final fileName =
             'highlight_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        // Simplified path to avoid nested folder issues
-        final ref = FirebaseStorage.instance.ref().child(
-          'class_highlights/$fileName',
+        
+        // Upload to Cloudflare R2 with working credentials
+        final r2Service = CloudflareR2Service(
+          accountId: CloudflareConfig.accountId,
+          bucketName: CloudflareConfig.bucketName,
+          accessKeyId: CloudflareConfig.accessKeyId,
+          secretAccessKey: CloudflareConfig.secretAccessKey,
+          r2Domain: CloudflareConfig.r2Domain,
         );
-        final metadata = SettableMetadata(
+        
+        // Generate signed URL
+        final signedData = await r2Service.generateSignedUploadUrl(
+          fileName: 'class_highlights/$fileName',
+          fileType: imageMime ?? 'image/jpeg',
+        );
+
+        // Upload file
+        imageUrl = await r2Service.uploadFileWithSignedUrl(
+          fileBytes: imageBytes,
+          signedUrl: signedData['url'],
           contentType: imageMime ?? 'image/jpeg',
-          customMetadata: {
-            'teacherId': currentUser.uid,
-            'className': selectedClass ?? 'School-wide',
-            'instituteId':
-                currentUser.instituteId ?? _teacherData?['schoolCode'] ?? '',
-          },
         );
-        final task = await ref.putData(imageBytes, metadata);
-        imageUrl = await task.ref.getDownloadURL();
       } catch (e) {
         // ignore: avoid_print
         print('❌ Storage upload error: $e');

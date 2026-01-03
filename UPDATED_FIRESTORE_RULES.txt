@@ -1,0 +1,263 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+    function hasRole(role) {
+      return isSignedIn() && request.auth.token.role == role;
+    }
+    function isStudent() {
+      return hasRole('student');
+    }
+    function isParent() {
+      return hasRole('parent');
+    }
+    function isTeacher() {
+      return hasRole('teacher');
+    }
+    function isPrincipal() {
+      return hasRole('principal');
+    }
+    function uidIs(id) {
+      return isSignedIn() && request.auth.uid == id;
+    }
+
+    // ---------- Schools ----------
+    match /schools/{schoolId} {
+      allow read: if true; // pre-auth discovery
+      allow write: if isSignedIn();
+      match /{document=**} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+
+    // ---------- People (flat lookups used in login) ----------
+    match /students/{studentId} {
+      allow read: if true; // pre-auth login lookup
+      allow write: if isSignedIn() && (uidIs(studentId) || isAdmin());
+    }
+    match /teachers/{teacherId} {
+      allow read: if true; // pre-auth login lookup
+      allow write: if isSignedIn() && (uidIs(teacherId) || isAdmin());
+    }
+    match /parents/{parentId} {
+      allow read: if true; // pre-auth login lookup
+      allow write: if isSignedIn() && (uidIs(parentId) || isAdmin());
+    }
+
+    // ---------- Users ----------
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (uidIs(userId) || isAdmin());
+    }
+
+    // ---------- Classes & Subjects ----------
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
+      
+      match /subjects/{subjectId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
+      }
+    }
+
+    // ---------- Teacher Groups Index ----------
+    match /teacher_groups/{teacherId} {
+      allow read, write: if isSignedIn() && (uidIs(teacherId) || isAdmin());
+    }
+
+    // ---------- User Communities Index ----------
+    match /user_communities/{userId} {
+      allow read, write: if isSignedIn() && (uidIs(userId) || isAdmin());
+    }
+
+    // ---------- Institute Announcements ----------
+    match /institute_announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isPrincipal();
+      allow update, delete: if isSignedIn() && (
+        resource.data.principalId == request.auth.uid || isAdmin()
+      );
+      
+      // Views subcollection for tracking who viewed announcements
+      match /views/{viewId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() && uidIs(viewId);
+      }
+    }
+
+    // ---------- Community Messages ----------
+    match /teacher_community/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isTeacher();
+      allow update, delete: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /student_community/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isStudent();
+      allow update, delete: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // ---------- Group Messaging ----------
+    match /group_messages/{classId} {
+      allow read: if isSignedIn();
+      
+      match /subjects/{subjectId} {
+        allow read: if isSignedIn();
+        
+        match /messages/{messageId} {
+          allow read: if isSignedIn();
+          allow create: if isSignedIn();
+          allow update, delete: if isSignedIn() && (
+            resource.data.senderId == request.auth.uid || isAdmin()
+          );
+        }
+      }
+    }
+
+    // ---------- Parent-Teacher Groups ----------
+    match /parent_teacher_groups/{groupId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isParent() || isTeacher() || isAdmin());
+      
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && (isParent() || isTeacher());
+        allow update, delete: if isSignedIn() && (
+          resource.data.senderId == request.auth.uid || isAdmin()
+        );
+      }
+    }
+
+    // ---------- Unread Counts ----------
+    match /unread_counts/{userId} {
+      allow read: if isSignedIn() && uidIs(userId);
+      allow write: if isSignedIn() && uidIs(userId);
+    }
+
+    // ---------- Tests ----------
+    match /scheduledTests/{testId} {
+      allow read, write: if isSignedIn();
+    }
+    match /testResults/{resultId} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.teacherId == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if isSignedIn();
+    }
+    match /tests/{testId} {
+      allow read, write: if isSignedIn();
+    }
+    match /test_assignments/{assignmentId} {
+      allow read, write: if isSignedIn();
+    }
+    match /test_submissions/{submissionId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // ---------- Rewards Catalog (read-only) ----------
+    match /rewards_catalog/{productId} {
+      allow read: if isSignedIn();
+      allow write: if false; // only server/admin via Admin SDK
+    }
+
+    // ---------- Reward Requests ----------
+    match /reward_requests/{requestId} {
+      // Create: student creates their own pending request with locked points and valid expiry
+      allow create: if isStudent()
+        && request.resource.data.student_id == request.auth.uid
+        && request.resource.data.status == 'pending_parent_approval'
+        && request.resource.data.points.locked > 0
+        && request.resource.data.timestamps.lock_expires_at > now;
+
+      // Update: parent of student or admin
+      allow update: if isSignedIn() && (
+        (isParent() && resource.data.parent_id == request.auth.uid) ||
+        isAdmin()
+      );
+
+      // Read: student, parent, or admin involved
+      allow read: if isSignedIn() && (
+        resource.data.student_id == request.auth.uid ||
+        resource.data.parent_id == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // ---------- Student Points ----------
+    match /students_points/{studentId} {
+      allow read: if isSignedIn() && uidIs(studentId);
+      allow write: if false; // only via server/Admin SDK/transactions
+    }
+
+    // ---------- Notifications ----------
+    match /notifications/{notificationId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.receiver == request.auth.uid || isAdmin()
+      );
+      allow update, delete: if false; // only server/Admin SDK
+    }
+
+    // ---------- Leaderboards ----------
+    match /leaderboards/{leaderboardId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- Performances ----------
+    match /performances/{performanceId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // ---------- Conversations & Messages ----------
+    match /conversations/{conversationId} {
+      allow read, write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if isSignedIn()
+          && resource.data.senderId == request.auth.uid;
+      }
+
+      match /media/{mediaId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if isSignedIn()
+          && resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    // ---------- Daily Content (Cloudflare Worker prefetch) ----------
+    match /daily_content/{date} {
+      allow read: if isSignedIn();
+      allow write: if false; // only Cloudflare Worker via service account
+    }
+
+    // ---------- Fallback ----------
+    match /{document=**} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}

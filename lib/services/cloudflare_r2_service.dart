@@ -155,7 +155,8 @@ class CloudflareR2Service {
           '/',
         );
 
-        final publicUrl = 'https://$r2Domain$pathWithoutBucket';
+        // r2Domain already includes https://, so just concatenate
+        final publicUrl = '$r2Domain$pathWithoutBucket';
         print('✅ R2 Upload: Success! URL: $publicUrl');
         return publicUrl;
       } else {

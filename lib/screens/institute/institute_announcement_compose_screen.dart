@@ -1,11 +1,12 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart' as prov;
 import '../../providers/auth_provider.dart' as auth;
 import '../../models/institute_announcement_model.dart';
+import '../../services/cloudflare_r2_service.dart';
+import '../../config/cloudflare_config.dart';
 
 const _bg = Color(0xFF0F1416);
 const _surface = Color(0xFF1D1F24);
@@ -82,20 +83,36 @@ class _InstituteAnnouncementComposeScreenState
 
       String? imageUrl;
       if (_imageBytes != null) {
+        print('📤 Starting Cloudflare R2 upload...');
+        
+        // Initialize Cloudflare R2 Service with working credentials
+        final r2Service = CloudflareR2Service(
+          accountId: CloudflareConfig.accountId,
+          bucketName: CloudflareConfig.bucketName,
+          accessKeyId: CloudflareConfig.accessKeyId,
+          secretAccessKey: CloudflareConfig.secretAccessKey,
+          r2Domain: CloudflareConfig.r2Domain,
+        );
+
         final fileName =
             'announcement_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final ref = FirebaseStorage.instance.ref().child(
-          'institute_announcements/$fileName',
+        
+        print('📂 Uploading to: announcements/$fileName');
+        
+        // Generate signed URL
+        final signedData = await r2Service.generateSignedUploadUrl(
+          fileName: 'announcements/$fileName',
+          fileType: 'image/jpeg',
         );
-        final metadata = SettableMetadata(
+
+        // Upload file
+        imageUrl = await r2Service.uploadFileWithSignedUrl(
+          fileBytes: _imageBytes!,
+          signedUrl: signedData['url'],
           contentType: 'image/jpeg',
-          customMetadata: {
-            'principalId': currentUser.uid,
-            'instituteId': currentUser.instituteId ?? '',
-          },
         );
-        final task = await ref.putData(_imageBytes!, metadata);
-        imageUrl = await task.ref.getDownloadURL();
+        
+        print('✅ Upload successful! URL: $imageUrl');
       }
 
       final now = DateTime.now();
@@ -134,10 +151,33 @@ class _InstituteAnnouncementComposeScreenState
           const SnackBar(content: Text('Announcement posted successfully')),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ Storage upload error: $e');
+      print('Stack trace: $stackTrace');
+      
       if (mounted) {
+        String errorMsg = 'Error posting announcement';
+        if (e.toString().contains('object-not-found') || 
+            e.toString().contains('404')) {
+          errorMsg = 'Storage bucket not initialized. Please enable Firebase Storage in console.';
+        } else if (e.toString().contains('permission-denied') ||
+                   e.toString().contains('403')) {
+          errorMsg = 'Permission denied. Check Storage rules in Firebase Console.';
+        } else if (e.toString().contains('unauthorized')) {
+          errorMsg = 'User not authorized. Please check your account permissions.';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error posting announcement: $e')),
+          SnackBar(
+            content: Text('$errorMsg\n\nDetails: $e'),
+            duration: const Duration(seconds: 8),
+            action: SnackBarAction(
+              label: 'Copy Error',
+              onPressed: () {
+                // Copy error to clipboard for debugging
+              },
+            ),
+          ),
         );
       }
     } finally {

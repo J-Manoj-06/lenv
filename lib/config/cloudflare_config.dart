@@ -33,7 +33,7 @@ class CloudflareConfig {
   /// 1. Default R2 URL: {bucketName}.{accountId}.r2.cloudflarestorage.com
   /// 2. Custom domain: cdn.yourdomain.com (requires DNS setup)
   /// 3. Cloudflare Pages: yourdomain.pages.dev
-  static const String r2Domain = 'files.lenv1.tech';
+  static const String r2Domain = 'https://files.lenv1.tech';
 
   /// API Token Permissions Required:
   /// - s3:PutObject (upload files)
