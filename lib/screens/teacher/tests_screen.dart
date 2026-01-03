@@ -90,43 +90,48 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 120,
-              height: 120,
+              width: 100,
+              height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isDark
-                    ? const Color(0xFF1A1C20)
-                    : theme.colorScheme.surface,
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF7A5CFF).withOpacity(0.15),
+                    const Color(0xFF9D7FFF).withOpacity(0.08),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
               child: Icon(
-                Icons.school_outlined,
-                size: 60,
-                color: isDark
-                    ? const Color(0xFF2A2D30)
-                    : theme.primaryColor.withOpacity(0.4),
+                Icons.assignment_outlined,
+                size: 48,
+                color: const Color(0xFF7A5CFF).withOpacity(0.7),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             Text(
-              'Start assessing your class with ease.',
+              'No Tests Yet',
               style: TextStyle(
                 color: theme.textTheme.bodyLarge?.color,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
-              'Create your first test now to get started.',
+              'Create your first test to start\nassessing student performance',
               style: TextStyle(
-                color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                fontSize: 16,
+                color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                fontSize: 15,
+                height: 1.5,
               ),
               textAlign: TextAlign.center,
             ),
@@ -212,10 +217,10 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                           );
                         },
                         child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
                           itemCount: filtered.length,
                           itemBuilder: (_, i) => Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.only(bottom: 14),
                             child: _buildTestCardFromModel(filtered[i]),
                           ),
                         ),
@@ -236,14 +241,14 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Text(
             'Tests',
             style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
               color: theme.textTheme.bodyLarge?.color,
-              letterSpacing: -0.5,
+              letterSpacing: -1,
             ),
           ),
         ),
@@ -256,35 +261,46 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     final isDark = theme.brightness == Brightness.dark;
     return Container(
       color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: TextField(
         controller: _searchController,
-        style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+        style: TextStyle(
+          color: theme.textTheme.bodyLarge?.color,
+          fontSize: 15,
+        ),
         decoration: InputDecoration(
-          hintText: 'Search for a test...',
+          hintText: 'Search tests...',
           hintStyle: TextStyle(
-            color: theme.textTheme.bodySmall?.color?.withOpacity(0.9),
+            color: theme.textTheme.bodySmall?.color?.withOpacity(0.5),
+            fontSize: 15,
           ),
           prefixIcon: Icon(
-            Icons.search,
-            color: theme.textTheme.bodySmall?.color,
+            Icons.search_rounded,
+            color: theme.textTheme.bodySmall?.color?.withOpacity(0.4),
+            size: 22,
           ),
           filled: true,
           fillColor: isDark
-              ? const Color(0xFF1A1C20)
-              : theme.colorScheme.surfaceContainerHighest.withOpacity(0.35),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
+              ? const Color(0xFF1C1E22)
+              : const Color(0xFFF5F5F7),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide(
-              color: theme.primaryColor.withOpacity(0.3),
-              width: 1,
+              color: const Color(0xFF7A5CFF).withOpacity(0.4),
+              width: 1.5,
             ),
           ),
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
+            horizontal: 16,
+            vertical: 14,
           ),
         ),
         onChanged: (value) {
@@ -300,53 +316,69 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     final tabLabels = ['All Tests', 'Live', 'Scheduled', 'Completed'];
     return Container(
       color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: List.generate(tabLabels.length, (index) {
             final isSelected = _selectedTabIndex == index;
             return Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: InkWell(
-                onTap: () {
-                  setState(() {
-                    _selectedTabIndex = index;
-                  });
-                  _armTicker();
-                },
-                child: Container(
-                  height: 34,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF7A5CFF)
-                        : (isDark
-                              ? const Color(0xFF1A1C20)
-                              : theme.colorScheme.surfaceContainerHighest
-                                    .withOpacity(0.25)),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFF7A5CFF).withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Center(
-                    child: Text(
-                      tabLabels[index],
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isSelected
-                            ? Colors.white
-                            : theme.textTheme.bodySmall?.color?.withOpacity(
-                                0.8,
+              padding: const EdgeInsets.only(right: 10),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedTabIndex = index;
+                    });
+                    _armTicker();
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    decoration: BoxDecoration(
+                      gradient: isSelected
+                          ? const LinearGradient(
+                              colors: [
+                                Color(0xFF7A5CFF),
+                                Color(0xFF9D7FFF),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: isSelected
+                          ? null
+                          : (isDark
+                                ? const Color(0xFF1C1E22)
+                                : const Color(0xFFF5F5F7)),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF7A5CFF).withOpacity(0.35),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
                               ),
+                            ]
+                          : null,
+                    ),
+                    child: Center(
+                      child: Text(
+                        tabLabels[index],
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? Colors.white
+                              : theme.textTheme.bodySmall?.color?.withOpacity(
+                                  0.65,
+                                ),
+                          letterSpacing: 0.2,
+                        ),
                       ),
                     ),
                   ),
@@ -557,28 +589,49 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     String? schoolCode,
     Future<void> Function()? onDelete,
   }) {
-    return InkWell(
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          '/test-result',
-          arguments: {
-            'testId': testId ?? '',
-            'name': title,
-            'class': subtitle,
-            'status': status,
-            'endTime': '',
-          },
-        );
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Material(
-        color: Theme.of(context).cardColor,
-        elevation: Theme.of(context).brightness == Brightness.dark ? 0 : 1,
-        shadowColor: Theme.of(context).primaryColor.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            '/test-result',
+            arguments: {
+              'testId': testId ?? '',
+              'name': title,
+              'class': subtitle,
+              'status': status,
+              'endTime': '',
+            },
+          );
+        },
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF1C1E22)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF2A2D35).withOpacity(0.5)
+                  : const Color(0xFFE5E5E7),
+              width: 1,
+            ),
+            boxShadow: isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+          ),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -592,60 +645,62 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                            horizontal: 8,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
                             color: statusBgColor,
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             status,
                             style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
                               color: statusColor,
-                              letterSpacing: 0.3,
+                              letterSpacing: 0.5,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 10),
                         Text(
                           title,
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 17,
                             fontWeight: FontWeight.w700,
-                            color: Theme.of(context).textTheme.bodyLarge?.color,
-                            letterSpacing: -0.3,
+                            color: theme.textTheme.bodyLarge?.color,
+                            letterSpacing: -0.4,
+                            height: 1.3,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(
                           subtitle,
                           style: TextStyle(
                             fontSize: 13,
-                            color: Theme.of(
-                              context,
-                            ).textTheme.bodySmall?.color?.withOpacity(0.9),
+                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                            height: 1.4,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 46,
+                    height: 46,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? const Color(0xFF111315)
-                          : Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withOpacity(0.6),
+                      gradient: LinearGradient(
+                        colors: [
+                          iconColor.withOpacity(0.15),
+                          iconColor.withOpacity(0.08),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(subjectIcon, color: iconColor, size: 22),
+                    child: Icon(subjectIcon, color: iconColor, size: 24),
                   ),
                 ],
               ),
@@ -681,11 +736,9 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                             children: [
                               Container(
                                 width: double.infinity,
-                                height: 6,
+                                height: 4,
                                 decoration: BoxDecoration(
-                                  color: Theme.of(
-                                    context,
-                                  ).dividerColor.withOpacity(0.2),
+                                  color: theme.dividerColor.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: progress > 0
@@ -694,7 +747,12 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                                         widthFactor: progress,
                                         child: Container(
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFFFFA726),
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFFFFA726),
+                                                Color(0xFFFFB74D),
+                                              ],
+                                            ),
                                             borderRadius: BorderRadius.circular(
                                               999,
                                             ),
@@ -708,11 +766,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                                 '$completedCount / $totalCount students completed',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color
-                                      ?.withOpacity(0.7),
+                                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.55),
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -740,21 +795,16 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                                 'Completed: ${_formatDateTime(endDate)}',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color
-                                      ?.withOpacity(0.7),
+                                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Container(
                                 width: double.infinity,
-                                height: 6,
+                                height: 4,
                                 decoration: BoxDecoration(
-                                  color: Theme.of(
-                                    context,
-                                  ).dividerColor.withOpacity(0.2),
+                                  color: theme.dividerColor.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: totalCount > 0 && completedCount > 0
@@ -764,7 +814,12 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                                             completedCount / totalCount,
                                         child: Container(
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF7961FF),
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFF7A5CFF),
+                                                Color(0xFF9D7FFF),
+                                              ],
+                                            ),
                                             borderRadius: BorderRadius.circular(
                                               999,
                                             ),
@@ -778,11 +833,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                                 '$completedCount / $totalCount students completed',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color
-                                      ?.withOpacity(0.7),
+                                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.55),
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -794,9 +846,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                         'Scheduled: ${_formatDateTime(startDate)}',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Theme.of(
-                            context,
-                          ).textTheme.bodySmall?.color?.withOpacity(0.7),
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                   ],
@@ -812,12 +863,17 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                   if (isLive)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+                        horizontal: 12,
+                        vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF7A5CFF).withOpacity(0.15),
+                            const Color(0xFF9D7FFF).withOpacity(0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -844,17 +900,18 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                               return Row(
                                 children: [
                                   Icon(
-                                    Icons.timer,
-                                    color: Theme.of(context).primaryColor,
-                                    size: 16,
+                                    Icons.timer_outlined,
+                                    color: const Color(0xFF7A5CFF),
+                                    size: 18,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     '$hh:$mm:$ss',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Theme.of(context).primaryColor,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF7A5CFF),
+                                      letterSpacing: 0.3,
                                     ),
                                   ),
                                 ],
@@ -865,41 +922,57 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                       ),
                     )
                   else if (isPast)
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushNamed(
-                          context,
-                          '/test-result',
-                          arguments: {
-                            'testId': testId ?? '',
-                            'name': title,
-                            'class': subtitle,
-                            'status': status,
-                            'endTime': '',
-                          },
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF7A5CFF),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF7A5CFF),
+                            Color(0xFF9D7FFF),
+                          ],
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        elevation: 0,
-                        textStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF7A5CFF).withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
-                      child: const Text(
-                        'View Results',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(
+                            context,
+                            '/test-result',
+                            arguments: {
+                              'testId': testId ?? '',
+                              'name': title,
+                              'class': subtitle,
+                              'status': status,
+                              'endTime': '',
+                            },
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 11,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'View Results',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
                         ),
                       ),
                     )
@@ -907,15 +980,24 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                     const SizedBox(),
 
                   // Delete button
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    iconSize: 20,
-                    color: Theme.of(context).colorScheme.error,
-                    onPressed: () {
-                      if (onDelete != null) {
-                        _showDeleteDialogConfirm(title, onDelete);
-                      }
-                    },
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        if (onDelete != null) {
+                          _showDeleteDialogConfirm(title, onDelete);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        child: Icon(
+                          Icons.delete_outline_rounded,
+                          size: 20,
+                          color: theme.colorScheme.error.withOpacity(0.7),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -928,14 +1010,34 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
   Widget _buildFAB() {
     return Positioned(
-      bottom: 20,
-      right: 20,
-      child: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/create-test-entry'),
-        backgroundColor: const Color(0xFF8B5CF6),
-        foregroundColor: Colors.white,
-        elevation: 1,
-        child: const Icon(Icons.add),
+      bottom: 24,
+      right: 24,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF7A5CFF),
+              Color(0xFF9D7FFF),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF7A5CFF).withOpacity(0.4),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: () => Navigator.pushNamed(context, '/create-test-entry'),
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          child: const Icon(Icons.add, size: 28),
+        ),
       ),
     );
   }
