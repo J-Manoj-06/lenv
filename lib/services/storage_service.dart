@@ -16,12 +16,12 @@ class StorageService {
     try {
       final fileBytes = await file.readAsBytes();
       final fileName = 'profiles/$userId.jpg';
-      
+
       final signedData = await _r2Service.generateSignedUploadUrl(
         fileName: fileName,
         fileType: 'image/jpeg',
       );
-      
+
       return await _r2Service.uploadFileWithSignedUrl(
         fileBytes: fileBytes,
         signedUrl: signedData['url'],
@@ -37,12 +37,12 @@ class StorageService {
     try {
       final fileBytes = await file.readAsBytes();
       final fileName = 'rewards/$rewardId.jpg';
-      
+
       final signedData = await _r2Service.generateSignedUploadUrl(
         fileName: fileName,
         fileType: 'image/jpeg',
       );
-      
+
       return await _r2Service.uploadFileWithSignedUrl(
         fileBytes: fileBytes,
         signedUrl: signedData['url'],
@@ -62,12 +62,12 @@ class StorageService {
     try {
       final fileBytes = await file.readAsBytes();
       final fullPath = 'tests/$testId/$fileName';
-      
+
       final signedData = await _r2Service.generateSignedUploadUrl(
         fileName: fullPath,
         fileType: 'application/octet-stream',
       );
-      
+
       return await _r2Service.uploadFileWithSignedUrl(
         fileBytes: fileBytes,
         signedUrl: signedData['url'],

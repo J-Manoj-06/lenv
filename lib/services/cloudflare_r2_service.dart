@@ -75,7 +75,7 @@ class CloudflareR2Service {
 
       // URL format: https://{accountId}.r2.cloudflarestorage.com/{bucketName}/{key}?params
       // IMPORTANT: Query parameters in the URL must match the canonical request exactly
-        final uploadUrl =
+      final uploadUrl =
           '$_endpoint/$bucketName/$encodedKey'
           '?X-Amz-Algorithm=${credential['algorithm']}'
           '&X-Amz-Credential=${credential['credential']}'

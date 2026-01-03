@@ -47,16 +47,17 @@ class _StorageDebugScreenState extends State<StorageDebugScreen> {
       _addLog('\n2️⃣ Creating test file...');
       final testData = Uint8List.fromList('Hello from LENV R2!'.codeUnits);
       _addLog('📤 Uploading ${testData.length} bytes...');
-      
+
       // Test 3: Generate signed URL
       _addLog('\n3️⃣ Generating signed upload URL...');
-      final fileName = 'tests/diagnostic_${DateTime.now().millisecondsSinceEpoch}.txt';
+      final fileName =
+          'tests/diagnostic_${DateTime.now().millisecondsSinceEpoch}.txt';
       final signedData = await r2Service.generateSignedUploadUrl(
         fileName: fileName,
         fileType: 'text/plain',
       );
       _addLog('✅ Signed URL generated');
-      
+
       // Test 4: Upload test file
       _addLog('\n4️⃣ Attempting test upload...');
       final uploadedUrl = await r2Service.uploadFileWithSignedUrl(
@@ -64,10 +65,10 @@ class _StorageDebugScreenState extends State<StorageDebugScreen> {
         signedUrl: signedData['url'],
         contentType: 'text/plain',
       );
-      
+
       _addLog('✅ Upload successful!');
       _addLog('   URL: $uploadedUrl');
-      
+
       // Test 5: Verify URL accessibility
       _addLog('\n5️⃣ Verifying URL...');
       if (uploadedUrl.contains('files.lenv1.tech')) {
@@ -76,13 +77,12 @@ class _StorageDebugScreenState extends State<StorageDebugScreen> {
 
       _addLog('\n🎉 ALL TESTS PASSED!');
       _addLog('Cloudflare R2 Storage is working correctly.');
-
     } catch (e, stackTrace) {
       _addLog('\n❌ ERROR: $e');
       _addLog('\nStack trace:');
       _addLog(stackTrace.toString().split('\n').take(10).join('\n'));
-      
-      if (e.toString().contains('Unauthorized') || 
+
+      if (e.toString().contains('Unauthorized') ||
           e.toString().contains('403')) {
         _addLog('\n💡 SOLUTION:');
         _addLog('Check R2 API credentials:');
@@ -91,7 +91,7 @@ class _StorageDebugScreenState extends State<StorageDebugScreen> {
         _addLog('3. Create or verify API token');
         _addLog('4. Ensure token has "All permissions"');
       } else if (e.toString().contains('not found') ||
-                 e.toString().contains('404')) {
+          e.toString().contains('404')) {
         _addLog('\n💡 SOLUTION:');
         _addLog('Bucket or file not found.');
         _addLog('1. Verify bucket exists in Cloudflare R2');

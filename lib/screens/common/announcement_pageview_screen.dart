@@ -188,11 +188,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                   child: Stack(
                     children: [
                       // Black background
-                      Positioned.fill(
-                        child: Container(
-                          color: Colors.black,
-                        ),
-                      ),
+                      Positioned.fill(child: Container(color: Colors.black)),
 
                       // Content
                       SafeArea(
@@ -338,20 +334,22 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                     children: [
                                       // Background image (if available)
                                       if (announcement['avatarUrl'] != null &&
-                                          (announcement['avatarUrl'] as String).isNotEmpty)
+                                          (announcement['avatarUrl'] as String)
+                                              .isNotEmpty)
                                         Image.network(
                                           announcement['avatarUrl']!,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              color: Colors.grey.shade900,
-                                              child: const Icon(
-                                                Icons.image_not_supported,
-                                                size: 64,
-                                                color: Colors.white54,
-                                              ),
-                                            );
-                                          },
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                                return Container(
+                                                  color: Colors.grey.shade900,
+                                                  child: const Icon(
+                                                    Icons.image_not_supported,
+                                                    size: 64,
+                                                    color: Colors.white54,
+                                                  ),
+                                                );
+                                              },
                                         )
                                       else
                                         Container(
@@ -364,7 +362,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                             ),
                                           ),
                                         ),
-                                      
+
                                       // Text overlay at bottom
                                       Positioned(
                                         bottom: 0,

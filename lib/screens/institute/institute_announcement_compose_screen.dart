@@ -84,7 +84,7 @@ class _InstituteAnnouncementComposeScreenState
       String? imageUrl;
       if (_imageBytes != null) {
         print('📤 Starting Cloudflare R2 upload...');
-        
+
         // Initialize Cloudflare R2 Service with working credentials
         final r2Service = CloudflareR2Service(
           accountId: CloudflareConfig.accountId,
@@ -96,9 +96,9 @@ class _InstituteAnnouncementComposeScreenState
 
         final fileName =
             'announcement_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        
+
         print('📂 Uploading to: announcements/$fileName');
-        
+
         // Generate signed URL
         final signedData = await r2Service.generateSignedUploadUrl(
           fileName: 'announcements/$fileName',
@@ -111,7 +111,7 @@ class _InstituteAnnouncementComposeScreenState
           signedUrl: signedData['url'],
           contentType: 'image/jpeg',
         );
-        
+
         print('✅ Upload successful! URL: $imageUrl');
       }
 
@@ -154,19 +154,22 @@ class _InstituteAnnouncementComposeScreenState
     } catch (e, stackTrace) {
       print('❌ Storage upload error: $e');
       print('Stack trace: $stackTrace');
-      
+
       if (mounted) {
         String errorMsg = 'Error posting announcement';
-        if (e.toString().contains('object-not-found') || 
+        if (e.toString().contains('object-not-found') ||
             e.toString().contains('404')) {
-          errorMsg = 'Storage bucket not initialized. Please enable Firebase Storage in console.';
+          errorMsg =
+              'Storage bucket not initialized. Please enable Firebase Storage in console.';
         } else if (e.toString().contains('permission-denied') ||
-                   e.toString().contains('403')) {
-          errorMsg = 'Permission denied. Check Storage rules in Firebase Console.';
+            e.toString().contains('403')) {
+          errorMsg =
+              'Permission denied. Check Storage rules in Firebase Console.';
         } else if (e.toString().contains('unauthorized')) {
-          errorMsg = 'User not authorized. Please check your account permissions.';
+          errorMsg =
+              'User not authorized. Please check your account permissions.';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$errorMsg\n\nDetails: $e'),

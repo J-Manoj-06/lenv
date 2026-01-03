@@ -1450,7 +1450,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         .map(
           (status) => {
             'role': 'teacher',
-            'title': status.text.isNotEmpty ? status.text : 'Status',
+            'title': status.text,
             'subtitle': '',
             'postedByLabel': 'Posted by ${status.teacherName}',
             'avatarUrl': status.imageUrl,
@@ -1517,7 +1517,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         final status = item.data as StatusModel;
         role = 'teacher';
         postedByLabel = 'Posted by ${status.teacherName}';
-        title = status.text.isNotEmpty ? status.text : 'Status';
+        title = status.text;
         imageUrl = status.imageUrl;
         createdAt = status.createdAt;
         expiresAt = status.createdAt.add(const Duration(hours: 24));
@@ -1525,7 +1525,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         final principal = item.data as InstituteAnnouncementModel;
         role = 'principal';
         postedByLabel = 'Posted by ${principal.principalName}';
-        title = principal.text.isNotEmpty ? principal.text : 'Announcement';
+        title = principal.text;
         imageUrl = principal.imageUrl;
         createdAt = principal.createdAt;
         expiresAt = principal.expiresAt;
@@ -2760,7 +2760,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       try {
         final fileName =
             'highlight_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        
+
         // Upload to Cloudflare R2 with working credentials
         final r2Service = CloudflareR2Service(
           accountId: CloudflareConfig.accountId,
@@ -2769,7 +2769,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           secretAccessKey: CloudflareConfig.secretAccessKey,
           r2Domain: CloudflareConfig.r2Domain,
         );
-        
+
         // Generate signed URL
         final signedData = await r2Service.generateSignedUploadUrl(
           fileName: 'class_highlights/$fileName',

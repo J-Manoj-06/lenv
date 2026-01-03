@@ -38,14 +38,14 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
   // ===== Date helpers for day separators =====
   String _formatDayLabel(DateTime dt) {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final yesterday = today.subtract(const Duration(days: 1));
-      final d = DateTime(dt.year, dt.month, dt.day);
-      if (d == today) return 'Today';
-      if (d == yesterday) return 'Yesterday';
-      return DateFormat('MMM dd, yyyy').format(dt);
-    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final d = DateTime(dt.year, dt.month, dt.day);
+    if (d == today) return 'Today';
+    if (d == yesterday) return 'Yesterday';
+    return DateFormat('MMM dd, yyyy').format(dt);
+  }
 
   Widget _buildDayDivider(DateTime dt) {
     return Padding(
@@ -91,6 +91,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       ),
     );
   }
+
   final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
   bool _showEmojiPicker = false;
@@ -119,7 +120,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       if (currentUser == null) return;
-      
+
       _lastReadAtStream = FirebaseFirestore.instance
           .collection('users')
           .doc(currentUser.uid)
@@ -136,9 +137,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
           });
     } catch (e) {
       _lastReadAtStream = Stream.value(
-        Timestamp.fromDate(
-          DateTime.now().subtract(const Duration(days: 30)),
-        ),
+        Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 30))),
       );
     }
   }
@@ -163,7 +162,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       final unread = Provider.of<UnreadCountProvider>(context, listen: false);
       unread.markChatAsRead(widget.communityId);
     } catch (_) {}
-    
+
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
@@ -243,7 +242,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       // Upload to Cloudflare R2
       final imageBytes = await File(image.path).readAsBytes();
       final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      
+
       final r2Service = CloudflareR2Service(
         accountId: CloudflareConfig.accountId,
         bucketName: CloudflareConfig.bucketName,
@@ -251,7 +250,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         secretAccessKey: CloudflareConfig.secretAccessKey,
         r2Domain: CloudflareConfig.r2Domain,
       );
-      
+
       // Generate signed URL
       final signedData = await r2Service.generateSignedUploadUrl(
         fileName: 'community_messages/${widget.communityId}/$fileName',
@@ -353,8 +352,9 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                 return StreamBuilder<Timestamp?>(
                   stream: _lastReadAtStream,
                   builder: (context, readSnapshot) {
-                    final lastReadMs = readSnapshot.data?.toDate().millisecondsSinceEpoch ?? 0;
-                    
+                    final lastReadMs =
+                        readSnapshot.data?.toDate().millisecondsSinceEpoch ?? 0;
+
                     // Pre-compute a single divider position: the first read message after unread ones
                     int? unreadDividerIndex;
                     bool hasUnread = false;
@@ -364,9 +364,12 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                       hasUnread = hasUnread || isUnread;
                       hasRead = hasRead || !isUnread;
                       if (i > 0) {
-                        final prevUnread = messages[i - 1].timestamp > lastReadMs;
+                        final prevUnread =
+                            messages[i - 1].timestamp > lastReadMs;
                         final currUnread = isUnread;
-                        if (prevUnread && !currUnread && unreadDividerIndex == null) {
+                        if (prevUnread &&
+                            !currUnread &&
+                            unreadDividerIndex == null) {
                           unreadDividerIndex = i;
                         }
                       }
@@ -375,7 +378,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                     if (unreadDividerIndex == null && hasUnread && hasRead) {
                       unreadDividerIndex = messages.length - 1;
                     }
-                    
+
                     return ListView.builder(
                       controller: _scrollController,
                       reverse: true,
@@ -384,24 +387,27 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                       itemBuilder: (context, index) {
                         final message = messages[index];
                         final isMe = message.senderId == currentUserId;
-                        final currentDate =
-                            DateTime.fromMillisecondsSinceEpoch(message.timestamp);
+                        final currentDate = DateTime.fromMillisecondsSinceEpoch(
+                          message.timestamp,
+                        );
                         // Reverse ListView with messages sorted desc: compare with next item (index+1)
                         // because that is visually above. Oldest message must always show divider.
                         final isOldest = index == messages.length - 1;
                         final nextDate = isOldest
-                          ? null
-                          : DateTime.fromMillisecondsSinceEpoch(
-                            messages[index + 1].timestamp,
-                            );
-                        final showDayDivider = isOldest ||
-                          _formatDayLabel(currentDate) !=
-                            _formatDayLabel(nextDate!);
+                            ? null
+                            : DateTime.fromMillisecondsSinceEpoch(
+                                messages[index + 1].timestamp,
+                              );
+                        final showDayDivider =
+                            isOldest ||
+                            _formatDayLabel(currentDate) !=
+                                _formatDayLabel(nextDate!);
 
                         return Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_showUnreadDivider && unreadDividerIndex == index)
+                            if (_showUnreadDivider &&
+                                unreadDividerIndex == index)
                               _buildUnreadDivider(),
                             if (showDayDivider) _buildDayDivider(currentDate),
                             _MessageBubble(message: message, isMe: isMe),

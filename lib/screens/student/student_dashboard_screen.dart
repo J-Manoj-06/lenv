@@ -698,7 +698,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         final status = data as StatusModel;
         return {
           'role': 'teacher',
-          'title': status.text.isNotEmpty ? status.text : 'Status',
+          'title': status.text,
           'subtitle': '',
           'postedByLabel': 'Posted by ${status.teacherName}',
           'avatarUrl': status.imageUrl,
@@ -710,7 +710,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         final principal = data as InstituteAnnouncementModel;
         return {
           'role': 'principal',
-          'title': principal.hasText ? principal.text : 'Announcement',
+          'title': principal.text,
           'subtitle': '',
           'postedByLabel': 'Posted by ${principal.principalName}',
           'avatarUrl': null,
