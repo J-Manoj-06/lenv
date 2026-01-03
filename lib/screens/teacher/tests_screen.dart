@@ -264,10 +264,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: TextField(
         controller: _searchController,
-        style: TextStyle(
-          color: theme.textTheme.bodyLarge?.color,
-          fontSize: 15,
-        ),
+        style: TextStyle(color: theme.textTheme.bodyLarge?.color, fontSize: 15),
         decoration: InputDecoration(
           hintText: 'Search tests...',
           hintStyle: TextStyle(
@@ -280,9 +277,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
             size: 22,
           ),
           filled: true,
-          fillColor: isDark
-              ? const Color(0xFF1C1E22)
-              : const Color(0xFFF5F5F7),
+          fillColor: isDark ? const Color(0xFF1C1E22) : const Color(0xFFF5F5F7),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
@@ -342,10 +337,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                     decoration: BoxDecoration(
                       gradient: isSelected
                           ? const LinearGradient(
-                              colors: [
-                                Color(0xFF7A5CFF),
-                                Color(0xFF9D7FFF),
-                              ],
+                              colors: [Color(0xFF7A5CFF), Color(0xFF9D7FFF)],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             )
@@ -359,7 +351,9 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF7A5CFF).withOpacity(0.35),
+                                color: const Color(
+                                  0xFF7A5CFF,
+                                ).withOpacity(0.35),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -591,7 +585,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -611,9 +605,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(18),
         child: Container(
           decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF1C1E22)
-                : Colors.white,
+            color: isDark ? const Color(0xFF1C1E22) : Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isDark
@@ -678,7 +670,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                           subtitle,
                           style: TextStyle(
                             fontSize: 13,
-                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.6),
                             height: 1.4,
                           ),
                         ),
@@ -766,7 +759,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                                 '$completedCount / $totalCount students completed',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.55),
+                                  color: theme.textTheme.bodySmall?.color
+                                      ?.withOpacity(0.55),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -795,7 +789,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                                 'Completed: ${_formatDateTime(endDate)}',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                                  color: theme.textTheme.bodySmall?.color
+                                      ?.withOpacity(0.6),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -833,7 +828,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                                 '$completedCount / $totalCount students completed',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.55),
+                                  color: theme.textTheme.bodySmall?.color
+                                      ?.withOpacity(0.55),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -846,7 +842,9 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                         'Scheduled: ${_formatDateTime(startDate)}',
                         style: TextStyle(
                           fontSize: 13,
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.6,
+                          ),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -925,10 +923,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                     Container(
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF7A5CFF),
-                            Color(0xFF9D7FFF),
-                          ],
+                          colors: [Color(0xFF7A5CFF), Color(0xFF9D7FFF)],
                         ),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
@@ -1015,10 +1010,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
       child: Container(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [
-              Color(0xFF7A5CFF),
-              Color(0xFF9D7FFF),
-            ],
+            colors: [Color(0xFF7A5CFF), Color(0xFF9D7FFF)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
