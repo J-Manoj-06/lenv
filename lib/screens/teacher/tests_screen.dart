@@ -280,17 +280,27 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
           fillColor: isDark ? const Color(0xFF1C1E22) : const Color(0xFFF5F5F7),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+            borderSide: BorderSide(
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.black.withOpacity(0.08),
+              width: 1,
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+            borderSide: BorderSide(
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.black.withOpacity(0.08),
+              width: 1,
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide(
-              color: const Color(0xFF7A5CFF).withOpacity(0.4),
-              width: 1.5,
+              color: const Color(0xFF7A5CFF).withOpacity(0.6),
+              width: 2,
             ),
           ),
           contentPadding: const EdgeInsets.symmetric(
