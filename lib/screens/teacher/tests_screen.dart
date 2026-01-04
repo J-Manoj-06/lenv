@@ -245,8 +245,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
           child: Text(
             'Tests',
             style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
               color: theme.textTheme.bodyLarge?.color,
               letterSpacing: -1,
             ),
