@@ -211,43 +211,42 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                               ),
                               child: Column(
                                 children: [
-                                  // Progress bars for multi-announcement
-                                  if (widget.announcements.length > 1)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 12,
-                                      ),
-                                      child: Row(
-                                        children: List.generate(
-                                          widget.announcements.length,
-                                          (i) => Expanded(
-                                            child: Container(
-                                              height: 3,
-                                              margin:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 3,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(
-                                                  i == _currentIndex
-                                                      ? 0.8
-                                                      : 0.2,
+                                  // Progress bars for announcements
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: 12,
+                                    ),
+                                    child: Row(
+                                      children: List.generate(
+                                        widget.announcements.length,
+                                        (i) => Expanded(
+                                          child: Container(
+                                            height: 3,
+                                            margin:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 3,
                                                 ),
-                                                borderRadius:
-                                                    BorderRadius.circular(9999),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withOpacity(
+                                                i == _currentIndex
+                                                    ? 0.8
+                                                    : 0.2,
                                               ),
-                                              clipBehavior: Clip.antiAlias,
-                                              child: i == _currentIndex
-                                                  ? AnimatedBuilder(
-                                                      animation: _progress,
-                                                      builder: (context, _) {
-                                                        return Align(
-                                                          alignment: Alignment
-                                                              .centerLeft,
-                                                          child:
-                                                              FractionallySizedBox(
-                                                                widthFactor:
-                                                                    _progress
+                                              borderRadius:
+                                                  BorderRadius.circular(9999),
+                                            ),
+                                            clipBehavior: Clip.antiAlias,
+                                            child: i == _currentIndex
+                                                ? AnimatedBuilder(
+                                                    animation: _progress,
+                                                    builder: (context, _) {
+                                                      return Align(
+                                                        alignment: Alignment
+                                                            .centerLeft,
+                                                        child:
+                                                            FractionallySizedBox(
+                                                              widthFactor:
+                                                                  _progress
                                                                         .value,
                                                                 child: Container(
                                                                   color: theme
