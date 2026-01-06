@@ -1227,10 +1227,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
             ]
           : [
               IconButton(
-                icon: Icon(
-                  Icons.search,
-                  color: theme.iconTheme.color,
-                ),
+                icon: Icon(Icons.search, color: theme.iconTheme.color),
                 onPressed: _openSearch,
               ),
             ],

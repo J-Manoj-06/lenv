@@ -689,7 +689,9 @@ class _TeacherCommunityChatScreenState
                       Text(
                         '${widget.community.memberCount} members',
                         style: TextStyle(
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.6,
+                          ),
                           fontSize: 12,
                         ),
                       ),

@@ -547,15 +547,30 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             isExpanded: true,
             dropdownColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
             icon: const Icon(Icons.expand_more, color: Colors.white),
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
-            hint: const Text(
+            hint: Text(
               'Select Class',
               style: TextStyle(color: Colors.white70),
             ),
+            selectedItemBuilder: (BuildContext context) {
+              return _classes.map((className) {
+                return Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    className,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              }).toList();
+            },
             items: _classes.map((className) {
               return DropdownMenuItem<String>(
                 value: className,
