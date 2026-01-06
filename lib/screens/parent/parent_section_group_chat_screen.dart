@@ -158,7 +158,10 @@ class _ParentSectionGroupChatScreenState
 
   /// ✅ OPTIMIZATION: Scroll listener for pagination
   void _onScroll() {
-    if (!_scrollController.hasClients || _isLoadingMore || !_hasMoreMessages || _isRestoringScroll) {
+    if (!_scrollController.hasClients ||
+        _isLoadingMore ||
+        !_hasMoreMessages ||
+        _isRestoringScroll) {
       return;
     }
 
@@ -177,8 +180,8 @@ class _ParentSectionGroupChatScreenState
     _isLoadingMore = true;
 
     // Save current scroll position before loading
-    final savedPosition = _scrollController.hasClients 
-        ? _scrollController.position.pixels 
+    final savedPosition = _scrollController.hasClients
+        ? _scrollController.position.pixels
         : 0.0;
 
     try {
@@ -195,10 +198,10 @@ class _ParentSectionGroupChatScreenState
       if (newMessages.isNotEmpty && mounted) {
         _olderMessages.addAll(newMessages);
         _lastDocument = newMessages.last.documentSnapshot;
-        
+
         // Single setState after all data is ready
         setState(() {});
-        
+
         // Restore scroll position after rebuild, prevent scroll listener from interfering
         _isRestoringScroll = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
