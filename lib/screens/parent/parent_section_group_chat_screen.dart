@@ -929,21 +929,27 @@ class _ParentSectionGroupChatScreenState
                 config: Config(
                   height: 250,
                   checkPlatformCompatibility: false,
-                emojiViewConfig: EmojiViewConfig(
-                  backgroundColor: isDark ? const Color(0xFF0B141A) : Colors.white,
-                  columns: 7,
-                  emojiSizeMax: 28,
-                ),
-                categoryViewConfig: CategoryViewConfig(
-                  backgroundColor: isDark ? const Color(0xFF0B141A) : Colors.white,
-                  iconColorSelected: primaryColor,
-                  indicatorColor: primaryColor,
-                ),
-                bottomActionBarConfig: BottomActionBarConfig(
-                  backgroundColor: isDark ? const Color(0xFF0B141A) : Colors.white,
+                  emojiViewConfig: EmojiViewConfig(
+                    backgroundColor: isDark
+                        ? const Color(0xFF0B141A)
+                        : Colors.white,
+                    columns: 7,
+                    emojiSizeMax: 28,
+                  ),
+                  categoryViewConfig: CategoryViewConfig(
+                    backgroundColor: isDark
+                        ? const Color(0xFF0B141A)
+                        : Colors.white,
+                    iconColorSelected: primaryColor,
+                    indicatorColor: primaryColor,
+                  ),
+                  bottomActionBarConfig: BottomActionBarConfig(
+                    backgroundColor: isDark
+                        ? const Color(0xFF0B141A)
+                        : Colors.white,
+                  ),
                 ),
               ),
-            ),
             ),
         ],
       ),
@@ -1035,13 +1041,16 @@ class _ParentSectionGroupChatScreenState
                             // Hide keyboard and show emoji picker
                             _focusNode.unfocus();
                             FocusScope.of(context).unfocus();
-                            Future.delayed(const Duration(milliseconds: 100), () {
-                              if (mounted) {
-                                setState(() {
-                                  _showEmojiPicker = true;
-                                });
-                              }
-                            });
+                            Future.delayed(
+                              const Duration(milliseconds: 100),
+                              () {
+                                if (mounted) {
+                                  setState(() {
+                                    _showEmojiPicker = true;
+                                  });
+                                }
+                              },
+                            );
                           }
                         },
                         child: Icon(

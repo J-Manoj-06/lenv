@@ -118,7 +118,8 @@ class MediaRepository {
                 streamedResponse.statusCode == 403 ||
                 streamedResponse.statusCode >= 500)) {
           debugPrint(
-              '❌ HTTP ${streamedResponse.statusCode}; retrying after short delay');
+            '❌ HTTP ${streamedResponse.statusCode}; retrying after short delay',
+          );
           await Future.delayed(const Duration(milliseconds: 800));
           continue;
         }
