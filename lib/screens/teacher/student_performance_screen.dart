@@ -63,8 +63,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     _fadeAnimation = Tween<double>(begin: 1.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.linear),
     );
-    _slideAnimation =
-        Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(
+    _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero)
+        .animate(
           CurvedAnimation(parent: _animationController, curve: Curves.linear),
         );
     _animationController.forward();
