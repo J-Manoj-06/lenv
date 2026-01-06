@@ -556,7 +556,13 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
             // Schedule Test Section
             Row(
               children: [
-                Icon(Icons.schedule, color: Colors.white, size: 24),
+                Icon(
+                  Icons.schedule,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : const Color(0xFF6A4FF7),
+                  size: 24,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Schedule Test',
@@ -596,9 +602,15 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                   vertical: 16,
                 ),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade700),
+                  border: Border.all(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey.shade700
+                        : Colors.grey.shade300,
+                  ),
                   borderRadius: BorderRadius.circular(12),
-                  color: const Color(0xFF1E1E2E),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF1E1E2E)
+                      : Colors.grey.shade50,
                 ),
                 child: Row(
                   children: [
@@ -620,8 +632,8 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                               color: _scheduledDate == null
-                                  ? Colors.white.withOpacity(0.4)
-                                  : Colors.white,
+                                  ? Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.4)
+                                  : Theme.of(context).textTheme.bodyLarge?.color,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -632,8 +644,8 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               color: _scheduledTime == null
-                                  ? Colors.white.withOpacity(0.3)
-                                  : Colors.white.withOpacity(0.6),
+                                  ? Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.4)
+                                  : Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
                             ),
                           ),
                         ],
@@ -643,7 +655,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                     Icon(
                       Icons.arrow_forward_ios_rounded,
                       size: 16,
-                      color: Colors.white.withOpacity(0.4),
+                      color: Theme.of(context).iconTheme.color?.withOpacity(0.4),
                     ),
                   ],
                 ),
