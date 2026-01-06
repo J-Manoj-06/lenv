@@ -646,6 +646,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
   }
 
   Widget _buildQuestionItem(int questionNumber, Map<String, dynamic> question) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final questionText = question['questionText'] ?? question['question'] ?? '';
     final questionType = question['type'] ?? 'mcq';
     List<dynamic> options = question['options'] as List? ?? [];
@@ -703,11 +704,11 @@ class _TestResultScreenState extends State<TestResultScreen> {
         if (questionText.isNotEmpty)
           Text(
             questionText,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
               height: 1.4,
-              color: Colors.white,
+              color: isDark ? Colors.white : Colors.black87,
             ),
           ),
         if (questionText.isNotEmpty) const SizedBox(height: 16),
@@ -740,10 +741,10 @@ class _TestResultScreenState extends State<TestResultScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isCorrect
-                    ? Colors.green.withOpacity(0.25)
-                    : Colors.grey[800],
+                    ? (isDark ? Colors.green.withOpacity(0.25) : Colors.green.withOpacity(0.15))
+                    : (isDark ? Colors.grey[800] : Colors.grey[200]),
                 border: Border.all(
-                  color: isCorrect ? Colors.green : Colors.grey[700]!,
+                  color: isCorrect ? Colors.green : (isDark ? Colors.grey[700]! : Colors.grey[400]!),
                   width: isCorrect ? 3 : 1,
                 ),
                 borderRadius: BorderRadius.circular(8),
@@ -754,7 +755,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: isCorrect ? Colors.green : Colors.grey[700],
+                      color: isCorrect ? Colors.green : (isDark ? Colors.grey[700] : Colors.grey[400]),
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -777,7 +778,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
                         fontWeight: isCorrect
                             ? FontWeight.w600
                             : FontWeight.normal,
-                        color: Colors.white,
+                        color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
                   ),
