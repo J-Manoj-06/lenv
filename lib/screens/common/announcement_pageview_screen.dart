@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../services/media_repository.dart';
 
 /// Multi-announcement viewer with swipe navigation
 /// Supports navigating through multiple announcements left/right
@@ -37,6 +39,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
   late Animation<double> _progress;
   bool _showTapHints = true;
   double _verticalDragOffset = 0.0;
+  final MediaRepository _mediaRepository = MediaRepository();
 
   @override
   void initState() {
@@ -340,20 +343,9 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                       if (announcement['avatarUrl'] != null &&
                                           (announcement['avatarUrl'] as String)
                                               .isNotEmpty)
-                                        Image.network(
+                                        _buildCachedImage(
                                           announcement['avatarUrl']!,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
-                                                return Container(
-                                                  color: Colors.grey.shade900,
-                                                  child: const Icon(
-                                                    Icons.image_not_supported,
-                                                    size: 64,
-                                                    color: Colors.white54,
-                                                  ),
-                                                );
-                                              },
+                                          'announcement_${announcement['id'] ?? _currentIndex}.jpg',
                                         )
                                       else
                                         Container(color: Colors.black),
@@ -588,6 +580,95 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
         ),
       ),
     );
+  }
+
+  /// Build cached image widget - downloads and caches on first view
+  Widget _buildCachedImage(String imageUrl, String fileName) {
+    return FutureBuilder<String?>(
+      future: _getImagePath(imageUrl, fileName),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // Show loading while checking cache/downloading
+          return Container(
+            color: Colors.grey.shade900,
+            child: const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError || snapshot.data == null) {
+          // Show error if download failed
+          return Container(
+            color: Colors.grey.shade900,
+            child: const Icon(
+              Icons.image_not_supported,
+              size: 64,
+              color: Colors.white54,
+            ),
+          );
+        }
+
+        // Show cached image
+        return Image.file(
+          File(snapshot.data!),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              color: Colors.grey.shade900,
+              child: const Icon(
+                Icons.image_not_supported,
+                size: 64,
+                color: Colors.white54,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Get image path - from cache or download if needed
+  Future<String?> _getImagePath(String imageUrl, String fileName) async {
+    try {
+      // Extract R2 key from URL (if it's a Cloudflare R2 URL)
+      String r2Key;
+      if (imageUrl.contains('files.lenv1.tech')) {
+        final uri = Uri.parse(imageUrl);
+        r2Key = uri.path.substring(1); // Remove leading /
+      } else {
+        // For other URLs, use a hash or simple key
+        r2Key = 'announcements/${imageUrl.hashCode}_$fileName';
+      }
+
+      // Check if already cached
+      final localPath = await _mediaRepository.getLocalFilePath(r2Key);
+      if (localPath != null) {
+        debugPrint('✅ Announcement image cached: $fileName');
+        return localPath;
+      }
+
+      // Download and cache
+      debugPrint('📥 Downloading announcement image: $fileName');
+      final result = await _mediaRepository.downloadMedia(
+        r2Key: r2Key,
+        fileName: fileName,
+        mimeType: 'image/jpeg',
+      );
+
+      if (result.success && result.localPath != null) {
+        debugPrint('✅ Announcement image downloaded and cached: $fileName');
+        return result.localPath;
+      }
+
+      debugPrint('❌ Failed to download announcement image: ${result.message}');
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error loading announcement image: $e');
+      return null;
+    }
   }
 }
 

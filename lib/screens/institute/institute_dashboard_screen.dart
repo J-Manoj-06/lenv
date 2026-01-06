@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +6,7 @@ import './institute_announcement_target_screen.dart';
 import './principal_announcement_viewer.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/institute_announcement_model.dart';
+import '../../services/media_repository.dart';
 
 const Color _backgroundDark = Color(0xFF0F172A); // slate-900
 const Color _cardColor = Color(0xFF1E293B); // slate-800
@@ -20,6 +22,8 @@ class InstituteDashboardScreen extends StatefulWidget {
 }
 
 class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
+  final MediaRepository _mediaRepository = MediaRepository();
+
   @override
   void initState() {
     super.initState();
@@ -285,12 +289,10 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                   ),
                   child: ClipOval(
                     child: hasAnnouncement && latestAnnouncement!.hasImage
-                        ? Image.network(
+                        ? _buildCachedAvatarImage(
                             latestAnnouncement.imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _buildDefaultAvatar(
-                              currentUser?.name ?? 'Principal',
-                            ),
+                            'announcement_${latestAnnouncement.id}.jpg',
+                            currentUser?.name ?? 'Principal',
                           )
                         : _buildDefaultAvatar(currentUser?.name ?? 'Principal'),
                   ),
@@ -489,6 +491,84 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         builder: (_) => const InstituteAnnouncementTargetScreen(),
       ),
     );
+  }
+
+  /// Build cached avatar image - downloads and caches announcement images
+  Widget _buildCachedAvatarImage(
+    String imageUrl,
+    String fileName,
+    String fallbackName,
+  ) {
+    return FutureBuilder<String?>(
+      future: _getAnnouncementImagePath(imageUrl, fileName),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // Show loading shimmer while checking cache/downloading
+          return Container(
+            color: _teal.withOpacity(0.3),
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(_teal),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError || snapshot.data == null) {
+          // Show fallback avatar if download failed
+          return _buildDefaultAvatar(fallbackName);
+        }
+
+        // Show cached image
+        return Image.file(
+          File(snapshot.data!),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildDefaultAvatar(fallbackName);
+          },
+        );
+      },
+    );
+  }
+
+  /// Get announcement image path - from cache or download if needed
+  Future<String?> _getAnnouncementImagePath(
+    String imageUrl,
+    String fileName,
+  ) async {
+    try {
+      // Extract R2 key from URL
+      String r2Key;
+      if (imageUrl.contains('files.lenv1.tech')) {
+        final uri = Uri.parse(imageUrl);
+        r2Key = uri.path.substring(1); // Remove leading /
+      } else {
+        r2Key = 'announcements/${imageUrl.hashCode}_$fileName';
+      }
+
+      // Check if already cached
+      final localPath = await _mediaRepository.getLocalFilePath(r2Key);
+      if (localPath != null) {
+        return localPath;
+      }
+
+      // Download and cache
+      final result = await _mediaRepository.downloadMedia(
+        r2Key: r2Key,
+        fileName: fileName,
+        mimeType: 'image/jpeg',
+      );
+
+      if (result.success && result.localPath != null) {
+        return result.localPath;
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error loading announcement avatar: $e');
+      return null;
+    }
   }
 }
 

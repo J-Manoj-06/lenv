@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../utils/feedback_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,6 +18,7 @@ import '../../models/parent_teacher_group.dart';
 import 'attendance_screen.dart';
 import '../common/announcement_view_screen.dart';
 import '../common/announcement_pageview_screen.dart';
+import '../../services/media_repository.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -44,6 +46,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   String? _error;
   // Cache viewed principal announcement ids to avoid re-marking and stale badges
   final Set<String> _viewedPrincipalAnnouncements = <String>{};
+  final MediaRepository _mediaRepository = MediaRepository();
 
   // Highlights: best-effort cleanup on load
   Future<void> _cleanupExpiredHighlights() async {
@@ -1241,13 +1244,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   ),
                   child: ClipOval(
                     child: hasAnnouncement && latestAnnouncement!.hasImage
-                        ? Image.network(
+                        ? _buildCachedAnnouncementAvatar(
                             latestAnnouncement.imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _buildDefaultAvatar(
-                              currentUser?.name ?? 'Teacher',
-                              theme,
-                            ),
+                            'announcement_${latestAnnouncement.id}.jpg',
+                            currentUser?.name ?? 'Teacher',
+                            theme,
+                            null, // no color filter
                           )
                         : _buildDefaultAvatar(
                             currentUser?.name ?? 'Teacher',
@@ -1325,6 +1327,104 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         ),
       ),
     );
+  }
+
+  /// Build cached announcement avatar - downloads and caches images
+  Widget _buildCachedAnnouncementAvatar(
+    String imageUrl,
+    String fileName,
+    String fallbackName,
+    ThemeData? theme,
+    ColorFilter? colorFilter,
+  ) {
+    return FutureBuilder<String?>(
+      future: _getAnnouncementImagePath(imageUrl, fileName),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // Show loading while checking cache/downloading
+          return Container(
+            color: const Color(0xFF7E57C2).withOpacity(0.3),
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7E57C2)),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError || snapshot.data == null) {
+          // Show fallback avatar if download failed
+          if (theme != null) {
+            return _buildDefaultAvatar(fallbackName, theme);
+          } else {
+            return _buildTeacherInitial(fallbackName);
+          }
+        }
+
+        // Show cached image
+        final imageWidget = Image.file(
+          File(snapshot.data!),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            if (theme != null) {
+              return _buildDefaultAvatar(fallbackName, theme);
+            } else {
+              return _buildTeacherInitial(fallbackName);
+            }
+          },
+        );
+
+        // Apply color filter if provided
+        if (colorFilter != null) {
+          return ColorFiltered(
+            colorFilter: colorFilter,
+            child: imageWidget,
+          );
+        }
+
+        return imageWidget;
+      },
+    );
+  }
+
+  /// Get announcement image path - from cache or download if needed
+  Future<String?> _getAnnouncementImagePath(
+    String imageUrl,
+    String fileName,
+  ) async {
+    try {
+      // Extract R2 key from URL
+      String r2Key;
+      if (imageUrl.contains('files.lenv1.tech')) {
+        final uri = Uri.parse(imageUrl);
+        r2Key = uri.path.substring(1); // Remove leading /
+      } else {
+        r2Key = 'announcements/${imageUrl.hashCode}_$fileName';
+      }
+
+      // Check if already cached
+      final localPath = await _mediaRepository.getLocalFilePath(r2Key);
+      if (localPath != null) {
+        return localPath;
+      }
+
+      // Download and cache
+      final result = await _mediaRepository.downloadMedia(
+        r2Key: r2Key,
+        fileName: fileName,
+        mimeType: 'image/jpeg',
+      );
+
+      if (result.success && result.localPath != null) {
+        return result.localPath;
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error loading announcement image: $e');
+      return null;
+    }
   }
 
   // Other Announcement Avatar (Teachers + Principals)
@@ -1430,8 +1530,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               ),
               child: ClipOval(
                 child: latestAnnouncement.hasImage
-                    ? ColorFiltered(
-                        colorFilter: hasUnviewed
+                    ? _buildCachedAnnouncementAvatar(
+                        latestAnnouncement.imageUrl!,
+                        'announcement_${latestAnnouncement.id}.jpg',
+                        latestAnnouncement.creatorName,
+                        null,
+                        hasUnviewed
                             ? const ColorFilter.mode(
                                 Colors.transparent,
                                 BlendMode.multiply,
@@ -1440,13 +1544,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                 Colors.grey.withOpacity(0.5),
                                 BlendMode.saturation,
                               ),
-                        child: Image.network(
-                          latestAnnouncement.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _buildTeacherInitial(
-                            latestAnnouncement.creatorName,
-                          ),
-                        ),
                       )
                     : _buildTeacherInitial(latestAnnouncement.creatorName),
               ),
