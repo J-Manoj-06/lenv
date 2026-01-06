@@ -89,6 +89,7 @@ class _ParentSectionGroupChatScreenState
   bool _selectionMode = false;
   final ValueNotifier<Set<String>> _selectedMessages =
       ValueNotifier<Set<String>>({});
+  final ValueNotifier<bool> _hasText = ValueNotifier<bool>(false);
 
   @override
   bool get wantKeepAlive => true; // ✅ Prevent rebuild when switching tabs
@@ -99,6 +100,7 @@ class _ParentSectionGroupChatScreenState
       notifier.dispose();
     }
     _selectedMessages.dispose();
+    _hasText.dispose();
     _controller.dispose();
     _scrollController.dispose();
     _recordingTimer?.cancel();
@@ -112,6 +114,11 @@ class _ParentSectionGroupChatScreenState
 
     // ✅ OPTIMIZATION: Setup scroll listener for pagination
     _scrollController.addListener(_onScroll);
+
+    // ✅ OPTIMIZATION: Listen to text changes without rebuilding
+    _controller.addListener(() {
+      _hasText.value = _controller.text.trim().isNotEmpty;
+    });
 
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -473,7 +480,7 @@ class _ParentSectionGroupChatScreenState
                   itemBuilder: (context, index) {
                     final msg = allMessages[index];
                     final isCurrentUser = msg.senderId == currentUserId;
-                    
+
                     // Day separator logic
                     final isOldest = index == allMessages.length - 1;
                     final currentDate = msg.createdAt;
@@ -482,8 +489,9 @@ class _ParentSectionGroupChatScreenState
                         : allMessages[index + 1].createdAt;
                     final showDayDivider =
                         isOldest ||
-                        _formatDayLabel(currentDate) != _formatDayLabel(nextDate!);
-                    
+                        _formatDayLabel(currentDate) !=
+                            _formatDayLabel(nextDate!);
+
                     final hasMedia = msg.mediaMetadata != null;
                     final bubbleColor = hasMedia
                         ? Colors.transparent
@@ -535,7 +543,9 @@ class _ParentSectionGroupChatScreenState
                                   msg.content,
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: isDark ? Colors.white70 : Colors.black54,
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.black54,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -558,148 +568,199 @@ class _ParentSectionGroupChatScreenState
                         ValueListenableBuilder<Set<String>>(
                           valueListenable: _selectedMessages,
                           builder: (context, selectedSet, _) {
-                            final isSelected = selectedSet.contains(msg.messageId);
+                            final isSelected = selectedSet.contains(
+                              msg.messageId,
+                            );
 
                             return Padding(
-                          key: ValueKey(msg.messageId),
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            mainAxisAlignment: isCurrentUser
-                                ? MainAxisAlignment.end
-                                : MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Flexible(
-                                child: GestureDetector(
-                                  onLongPress: () {
-                                    if (!_selectionMode &&
-                                        !isPending &&
-                                        isCurrentUser) {
-                                      _selectionMode = true;
-                                      _selectedMessages.value = {msg.messageId};
-                                    }
-                                  },
-                                  onTap: _selectionMode && isCurrentUser
-                                      ? () {
-                                          if (!isPending) {
-                                            final selectedSet =
-                                                _selectedMessages.value;
-                                            if (isSelected) {
-                                              if (selectedSet.length > 2) {
-                                                final updated = {
-                                                  ...selectedSet,
-                                                };
-                                                updated.remove(msg.messageId);
-                                                _selectedMessages.value =
-                                                    updated;
-                                              }
-                                            } else {
-                                              _selectedMessages.value = {
-                                                ...selectedSet,
-                                                msg.messageId,
-                                              };
-                                            }
-                                          }
+                              key: ValueKey(msg.messageId),
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                mainAxisAlignment: isCurrentUser
+                                    ? MainAxisAlignment.end
+                                    : MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Flexible(
+                                    child: GestureDetector(
+                                      onLongPress: () {
+                                        if (!_selectionMode &&
+                                            !isPending &&
+                                            isCurrentUser) {
+                                          _selectionMode = true;
+                                          _selectedMessages.value = {
+                                            msg.messageId,
+                                          };
                                         }
-                                      : null,
-                                  child: Column(
-                                    crossAxisAlignment: isCurrentUser
-                                        ? CrossAxisAlignment.end
-                                        : CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      ConstrainedBox(
-                                        constraints: BoxConstraints(
-                                          maxWidth:
-                                              MediaQuery.of(
-                                                context,
-                                              ).size.width *
-                                              0.7,
-                                        ),
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            color: isSelected
-                                                ? primaryColor.withOpacity(0.2)
-                                                : bubbleColor,
-                                            border: hasMedia
-                                                ? Border.all(
-                                                    color: isSelected
-                                                        ? primaryColor
-                                                              .withOpacity(0.8)
-                                                        : primaryColor,
-                                                    width: isSelected
-                                                        ? 2.5
-                                                        : 1.5,
-                                                  )
-                                                : (isSelected
-                                                      ? Border.all(
-                                                          color: primaryColor,
-                                                          width: 2.5,
-                                                        )
-                                                      : null),
-                                            borderRadius:
-                                                BorderRadius.circular(
-                                                  12,
-                                                ).copyWith(
-                                                  bottomRight: isCurrentUser
-                                                      ? const Radius.circular(4)
-                                                      : null,
-                                                  bottomLeft: !isCurrentUser
-                                                      ? const Radius.circular(4)
-                                                      : null,
-                                                ),
-                                          ),
-                                          child: Padding(
-                                            padding: EdgeInsets.symmetric(
-                                              horizontal: hasMedia ? 4 : 12,
-                                              vertical: hasMedia ? 4 : 8,
+                                      },
+                                      onTap: _selectionMode && isCurrentUser
+                                          ? () {
+                                              if (!isPending) {
+                                                final selectedSet =
+                                                    _selectedMessages.value;
+                                                if (isSelected) {
+                                                  if (selectedSet.length > 2) {
+                                                    final updated = {
+                                                      ...selectedSet,
+                                                    };
+                                                    updated.remove(
+                                                      msg.messageId,
+                                                    );
+                                                    _selectedMessages.value =
+                                                        updated;
+                                                  }
+                                                } else {
+                                                  _selectedMessages.value = {
+                                                    ...selectedSet,
+                                                    msg.messageId,
+                                                  };
+                                                }
+                                              }
+                                            }
+                                          : null,
+                                      child: Column(
+                                        crossAxisAlignment: isCurrentUser
+                                            ? CrossAxisAlignment.end
+                                            : CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          ConstrainedBox(
+                                            constraints: BoxConstraints(
+                                              maxWidth:
+                                                  MediaQuery.of(
+                                                    context,
+                                                  ).size.width *
+                                                  0.7,
                                             ),
-                                            child: Column(
-                                              crossAxisAlignment: isCurrentUser
-                                                  ? CrossAxisAlignment.end
-                                                  : CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                if (!isCurrentUser)
-                                                  Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                          bottom: 3,
-                                                        ),
-                                                    child: Text(
-                                                      msg.senderName,
-                                                      style: TextStyle(
-                                                        color: isDark
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: isSelected
+                                                    ? primaryColor.withOpacity(
+                                                        0.2,
+                                                      )
+                                                    : bubbleColor,
+                                                border: hasMedia
+                                                    ? Border.all(
+                                                        color: isSelected
                                                             ? primaryColor
-                                                            : primaryColor
                                                                   .withOpacity(
                                                                     0.8,
-                                                                  ),
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        fontSize: 12,
-                                                      ),
+                                                                  )
+                                                            : primaryColor,
+                                                        width: isSelected
+                                                            ? 2.5
+                                                            : 1.5,
+                                                      )
+                                                    : (isSelected
+                                                          ? Border.all(
+                                                              color:
+                                                                  primaryColor,
+                                                              width: 2.5,
+                                                            )
+                                                          : null),
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                      12,
+                                                    ).copyWith(
+                                                      bottomRight: isCurrentUser
+                                                          ? const Radius.circular(
+                                                              4,
+                                                            )
+                                                          : null,
+                                                      bottomLeft: !isCurrentUser
+                                                          ? const Radius.circular(
+                                                              4,
+                                                            )
+                                                          : null,
                                                     ),
-                                                  ),
-                                                if (msg.mediaMetadata !=
-                                                    null) ...[
-                                                  RepaintBoundary(
-                                                    child:
-                                                        progressNotifier != null
-                                                        ? ValueListenableBuilder<
-                                                            double
-                                                          >(
-                                                            valueListenable:
-                                                                progressNotifier,
-                                                            builder: (_, value, __) {
-                                                              final progress =
-                                                                  ((value / 100)
-                                                                          .clamp(
-                                                                            0.0,
-                                                                            1.0,
-                                                                          ))
-                                                                      .toDouble();
-                                                              return MediaPreviewCard(
+                                              ),
+                                              child: Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: hasMedia ? 4 : 12,
+                                                  vertical: hasMedia ? 4 : 8,
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      isCurrentUser
+                                                      ? CrossAxisAlignment.end
+                                                      : CrossAxisAlignment
+                                                            .start,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    if (!isCurrentUser)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              bottom: 3,
+                                                            ),
+                                                        child: Text(
+                                                          msg.senderName,
+                                                          style: TextStyle(
+                                                            color: isDark
+                                                                ? primaryColor
+                                                                : primaryColor
+                                                                      .withOpacity(
+                                                                        0.8,
+                                                                      ),
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            fontSize: 12,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    if (msg.mediaMetadata !=
+                                                        null) ...[
+                                                      RepaintBoundary(
+                                                        child:
+                                                            progressNotifier !=
+                                                                null
+                                                            ? ValueListenableBuilder<
+                                                                double
+                                                              >(
+                                                                valueListenable:
+                                                                    progressNotifier,
+                                                                builder: (_, value, __) {
+                                                                  final progress =
+                                                                      ((value / 100).clamp(
+                                                                        0.0,
+                                                                        1.0,
+                                                                      )).toDouble();
+                                                                  return MediaPreviewCard(
+                                                                    r2Key: msg
+                                                                        .mediaMetadata!
+                                                                        .r2Key,
+                                                                    fileName:
+                                                                        _getFileName(
+                                                                          msg,
+                                                                        ),
+                                                                    mimeType:
+                                                                        msg
+                                                                            .mediaMetadata!
+                                                                            .mimeType ??
+                                                                        'application/octet-stream',
+                                                                    fileSize:
+                                                                        msg
+                                                                            .mediaMetadata!
+                                                                            .fileSize ??
+                                                                        0,
+                                                                    thumbnailBase64: msg
+                                                                        .mediaMetadata!
+                                                                        .thumbnail,
+                                                                    localPath:
+                                                                        localPath,
+                                                                    isMe:
+                                                                        isCurrentUser,
+                                                                    uploading:
+                                                                        true,
+                                                                    uploadProgress:
+                                                                        progress,
+                                                                    selectionMode:
+                                                                        _selectionMode,
+                                                                  );
+                                                                },
+                                                              )
+                                                            : MediaPreviewCard(
                                                                 r2Key: msg
                                                                     .mediaMetadata!
                                                                     .r2Key,
@@ -724,137 +785,109 @@ class _ParentSectionGroupChatScreenState
                                                                     localPath,
                                                                 isMe:
                                                                     isCurrentUser,
-                                                                uploading: true,
+                                                                uploading:
+                                                                    isPending,
                                                                 uploadProgress:
-                                                                    progress,
+                                                                    null,
                                                                 selectionMode:
                                                                     _selectionMode,
-                                                              );
-                                                            },
-                                                          )
-                                                        : MediaPreviewCard(
-                                                            r2Key: msg
-                                                                .mediaMetadata!
-                                                                .r2Key,
-                                                            fileName:
-                                                                _getFileName(
-                                                                  msg,
-                                                                ),
-                                                            mimeType:
-                                                                msg
-                                                                    .mediaMetadata!
-                                                                    .mimeType ??
-                                                                'application/octet-stream',
-                                                            fileSize:
-                                                                msg
-                                                                    .mediaMetadata!
-                                                                    .fileSize ??
-                                                                0,
-                                                            thumbnailBase64: msg
-                                                                .mediaMetadata!
-                                                                .thumbnail,
-                                                            localPath:
-                                                                localPath,
-                                                            isMe: isCurrentUser,
-                                                            uploading:
-                                                                isPending,
-                                                            uploadProgress:
-                                                                null,
-                                                            selectionMode:
-                                                                _selectionMode,
-                                                          ),
-                                                  ),
-                                                  if (msg.content.isNotEmpty)
-                                                    const SizedBox(height: 8),
-                                                ],
-                                                if (msg.content.isNotEmpty)
-                                                  Text(
-                                                    msg.content,
-                                                    style: TextStyle(
-                                                      color: textColor,
-                                                      fontSize: 15,
-                                                    ),
-                                                  ),
-                                              ],
+                                                              ),
+                                                      ),
+                                                      if (msg
+                                                          .content
+                                                          .isNotEmpty)
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                    ],
+                                                    if (msg.content.isNotEmpty)
+                                                      Text(
+                                                        msg.content,
+                                                        style: TextStyle(
+                                                          color: textColor,
+                                                          fontSize: 15,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Padding(
-                                        padding: EdgeInsets.only(
-                                          left: isCurrentUser ? 0 : 8,
-                                          right: isCurrentUser ? 8 : 0,
-                                        ),
-                                        child: Text(
-                                          _formatTime(msg.createdAt),
-                                          style: TextStyle(
-                                            color:
-                                                (isDark
-                                                        ? Colors.white
-                                                        : Colors.black)
-                                                    .withOpacity(0.5),
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              if (_selectionMode && isCurrentUser)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 8,
-                                    top: 8,
-                                  ),
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      if (isSelected) {
-                                        if (selectedSet.length > 2) {
-                                          final updated = {...selectedSet};
-                                          updated.remove(msg.messageId);
-                                          _selectedMessages.value = updated;
-                                        }
-                                      } else {
-                                        _selectedMessages.value = {
-                                          ...selectedSet,
-                                          msg.messageId,
-                                        };
-                                      }
-                                    },
-                                    child: Container(
-                                      width: 24,
-                                      height: 24,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? primaryColor
-                                              : Colors.grey[400]!,
-                                          width: isSelected ? 2 : 1.5,
-                                        ),
-                                        color: isSelected
-                                            ? primaryColor
-                                            : Colors.transparent,
-                                      ),
-                                      child: isSelected
-                                          ? Center(
-                                              child: Icon(
-                                                Icons.check,
-                                                size: 16,
-                                                color: Colors.white,
+                                          const SizedBox(height: 2),
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                              left: isCurrentUser ? 0 : 8,
+                                              right: isCurrentUser ? 8 : 0,
+                                            ),
+                                            child: Text(
+                                              _formatTime(msg.createdAt),
+                                              style: TextStyle(
+                                                color:
+                                                    (isDark
+                                                            ? Colors.white
+                                                            : Colors.black)
+                                                        .withOpacity(0.5),
+                                                fontSize: 10,
                                               ),
-                                            )
-                                          : null,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                                  if (_selectionMode && isCurrentUser)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 8,
+                                        top: 8,
+                                      ),
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          if (isSelected) {
+                                            if (selectedSet.length > 2) {
+                                              final updated = {...selectedSet};
+                                              updated.remove(msg.messageId);
+                                              _selectedMessages.value = updated;
+                                            }
+                                          } else {
+                                            _selectedMessages.value = {
+                                              ...selectedSet,
+                                              msg.messageId,
+                                            };
+                                          }
+                                        },
+                                        child: Container(
+                                          width: 24,
+                                          height: 24,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: isSelected
+                                                  ? primaryColor
+                                                  : Colors.grey[400]!,
+                                              width: isSelected ? 2 : 1.5,
+                                            ),
+                                            color: isSelected
+                                                ? primaryColor
+                                                : Colors.transparent,
+                                          ),
+                                          child: isSelected
+                                              ? Center(
+                                                  child: Icon(
+                                                    Icons.check,
+                                                    size: 16,
+                                                    color: Colors.white,
+                                                  ),
+                                                )
+                                              : null,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     );
                   },
@@ -872,7 +905,6 @@ class _ParentSectionGroupChatScreenState
     final primaryColor = widget.senderRole == 'teacher'
         ? teacherViolet
         : parentGreen;
-    final hasText = _controller.text.trim().isNotEmpty;
 
     // Premium dark theme palette - integrated with chat screen
     final backgroundColor = isDark
@@ -991,7 +1023,6 @@ class _ParentSectionGroupChatScreenState
                                 keyboardType: TextInputType.multiline,
                                 textCapitalization:
                                     TextCapitalization.sentences,
-                                onChanged: (_) => setState(() {}),
                                 readOnly: _isRecording,
                               ),
                       ),
@@ -1002,44 +1033,49 @@ class _ParentSectionGroupChatScreenState
             ),
             const SizedBox(width: 8),
             // Mic/Send button - balanced size, outside input
-            GestureDetector(
-              onTap: _isRecording
-                  ? _stopAndSendRecording
-                  : (hasText ? _sendMessage : _startRecording),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: _isRecording
-                      ? primaryColor
-                      : (hasText
-                            ? primaryColor
-                            : primaryColor.withOpacity(0.85)),
-                  shape: BoxShape.circle,
-                  boxShadow: isDark
-                      ? [
-                          BoxShadow(
-                            color: primaryColor.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: primaryColor.withOpacity(0.25),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                ),
-                child: Icon(
-                  _isRecording
-                      ? Icons.send_rounded
-                      : (hasText ? Icons.send_rounded : Icons.mic),
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
+            ValueListenableBuilder<bool>(
+              valueListenable: _hasText,
+              builder: (context, hasText, _) {
+                return GestureDetector(
+                  onTap: _isRecording
+                      ? _stopAndSendRecording
+                      : (hasText ? _sendMessage : _startRecording),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _isRecording
+                          ? primaryColor
+                          : (hasText
+                                ? primaryColor
+                                : primaryColor.withOpacity(0.85)),
+                      shape: BoxShape.circle,
+                      boxShadow: isDark
+                          ? [
+                              BoxShadow(
+                                color: primaryColor.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: primaryColor.withOpacity(0.25),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                    ),
+                    child: Icon(
+                      _isRecording
+                          ? Icons.send_rounded
+                          : (hasText ? Icons.send_rounded : Icons.mic),
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),
