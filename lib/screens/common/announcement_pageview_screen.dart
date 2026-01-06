@@ -168,6 +168,14 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                 backgroundColor: bgColor,
                 body: GestureDetector(
                   behavior: HitTestBehavior.opaque,
+                  onLongPressStart: (_) {
+                    // Pause progress when holding
+                    _progressController.stop();
+                  },
+                  onLongPressEnd: (_) {
+                    // Resume progress when released
+                    _progressController.forward();
+                  },
                   onTapDown: (details) {
                     final width = MediaQuery.of(context).size.width;
                     final dx = details.globalPosition.dx;
