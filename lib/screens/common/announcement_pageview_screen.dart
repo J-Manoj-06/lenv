@@ -39,7 +39,9 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
   late Animation<double> _progress;
   bool _showTapHints = true;
   double _verticalDragOffset = 0.0;
+  bool _isLongPressing = false;
   final MediaRepository _mediaRepository = MediaRepository();
+  final Map<String, String?> _cachedImagePaths = {};
 
   @override
   void initState() {
@@ -132,12 +134,14 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       backgroundColor: Colors.black,
       body: GestureDetector(
         onVerticalDragUpdate: (details) {
-          setState(() {
-            _verticalDragOffset += details.delta.dy;
-          });
+          if (!_isLongPressing) {
+            setState(() {
+              _verticalDragOffset += details.delta.dy;
+            });
+          }
         },
         onVerticalDragEnd: (details) {
-          if (_verticalDragOffset > 100) {
+          if (!_isLongPressing && _verticalDragOffset > 100) {
             // Swipe down to dismiss
             Navigator.of(context).maybePop();
           } else {
@@ -170,10 +174,16 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                   behavior: HitTestBehavior.opaque,
                   onLongPressStart: (_) {
                     // Pause progress when holding
+                    setState(() {
+                      _isLongPressing = true;
+                    });
                     _progressController.stop();
                   },
                   onLongPressEnd: (_) {
                     // Resume progress when released
+                    setState(() {
+                      _isLongPressing = false;
+                    });
                     _progressController.forward();
                   },
                   onTapUp: (details) {
@@ -586,6 +596,39 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
 
   /// Build cached image widget - downloads and caches on first view
   Widget _buildCachedImage(String imageUrl, String fileName) {
+    // Check if we already have the path cached
+    if (_cachedImagePaths.containsKey(imageUrl)) {
+      final cachedPath = _cachedImagePaths[imageUrl];
+      if (cachedPath != null) {
+        // Show cached image directly without FutureBuilder
+        return Image.file(
+          File(cachedPath),
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              color: Colors.grey.shade900,
+              child: const Icon(
+                Icons.image_not_supported,
+                size: 64,
+                color: Colors.white54,
+              ),
+            );
+          },
+        );
+      } else {
+        // Failed to load before, show error
+        return Container(
+          color: Colors.grey.shade900,
+          child: const Icon(
+            Icons.image_not_supported,
+            size: 64,
+            color: Colors.white54,
+          ),
+        );
+      }
+    }
+
+    // First time loading - use FutureBuilder
     return FutureBuilder<String?>(
       future: _getImagePath(imageUrl, fileName),
       builder: (context, snapshot) {
@@ -599,6 +642,11 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
               ),
             ),
           );
+        }
+
+        // Cache the result (success or failure)
+        if (!_cachedImagePaths.containsKey(imageUrl)) {
+          _cachedImagePaths[imageUrl] = snapshot.data;
         }
 
         if (snapshot.hasError || snapshot.data == null) {
