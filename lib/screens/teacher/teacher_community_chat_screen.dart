@@ -713,7 +713,10 @@ class _TeacherCommunityChatScreenState
           )
         else ...[
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
+            icon: Icon(
+              Icons.search,
+              color: theme.iconTheme.color,
+            ),
             onPressed: _openSearch,
           ),
         ],
@@ -2051,7 +2054,11 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: theme.iconTheme.color,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         titleSpacing: 0,

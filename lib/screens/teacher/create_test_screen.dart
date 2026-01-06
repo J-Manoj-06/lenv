@@ -406,7 +406,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                           children: [
                             Icon(
                               Icons.schedule,
-                              color: Theme.of(context).brightness == Brightness.dark
+                              color:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
                                   ? Colors.white
                                   : const Color(0xFF6A4FF7),
                               size: 24,
@@ -450,12 +452,16 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                             ),
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: Theme.of(context).brightness == Brightness.dark
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
                                     ? Colors.grey.shade700
                                     : Colors.grey.shade300,
                               ),
                               borderRadius: BorderRadius.circular(12),
-                              color: Theme.of(context).brightness == Brightness.dark
+                              color:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
                                   ? const Color(0xFF1E1E2E)
                                   : Colors.grey.shade50,
                             ),
@@ -480,8 +486,14 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                           fontSize: 16,
                                           fontWeight: FontWeight.w600,
                                           color: scheduledDate == null
-                                              ? Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.4)
-                                              : Theme.of(context).textTheme.bodyLarge?.color,
+                                              ? Theme.of(context)
+                                                    .textTheme
+                                                    .bodyLarge
+                                                    ?.color
+                                                    ?.withOpacity(0.4)
+                                              : Theme.of(
+                                                  context,
+                                                ).textTheme.bodyLarge?.color,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
@@ -492,8 +504,16 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                         style: TextStyle(
                                           fontSize: 14,
                                           color: scheduledTime == null
-                                              ? Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.4)
-                                              : Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                                              ? Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.color
+                                                    ?.withOpacity(0.4)
+                                              : Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.color
+                                                    ?.withOpacity(0.7),
                                         ),
                                       ),
                                     ],
@@ -503,7 +523,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                 Icon(
                                   Icons.arrow_forward_ios_rounded,
                                   size: 16,
-                                  color: Theme.of(context).iconTheme.color?.withOpacity(0.4),
+                                  color: Theme.of(
+                                    context,
+                                  ).iconTheme.color?.withOpacity(0.4),
                                 ),
                               ],
                             ),

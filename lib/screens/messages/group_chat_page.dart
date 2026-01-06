@@ -1325,7 +1325,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   ]
                 : [
                     IconButton(
-                      icon: const Icon(Icons.search, color: Colors.white),
+                      icon: Icon(
+                        Icons.search,
+                        color: Theme.of(context).iconTheme.color,
+                      ),
                       onPressed: _openSearch,
                     ),
                   ],
@@ -2519,7 +2522,11 @@ class _GroupMessageSearchScreenState extends State<GroupMessageSearchScreen> {
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: theme.iconTheme.color,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         titleSpacing: 0,

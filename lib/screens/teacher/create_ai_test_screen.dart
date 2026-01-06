@@ -632,8 +632,11 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                               color: _scheduledDate == null
-                                  ? Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.4)
-                                  : Theme.of(context).textTheme.bodyLarge?.color,
+                                  ? Theme.of(context).textTheme.bodyLarge?.color
+                                        ?.withOpacity(0.4)
+                                  : Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge?.color,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -644,8 +647,16 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               color: _scheduledTime == null
-                                  ? Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.4)
-                                  : Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                                  ? Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.color
+                                        ?.withOpacity(0.4)
+                                  : Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.color
+                                        ?.withOpacity(0.7),
                             ),
                           ),
                         ],
@@ -655,7 +666,9 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                     Icon(
                       Icons.arrow_forward_ios_rounded,
                       size: 16,
-                      color: Theme.of(context).iconTheme.color?.withOpacity(0.4),
+                      color: Theme.of(
+                        context,
+                      ).iconTheme.color?.withOpacity(0.4),
                     ),
                   ],
                 ),
