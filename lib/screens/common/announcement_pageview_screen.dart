@@ -614,7 +614,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
         // Show cached image
         return Image.file(
           File(snapshot.data!),
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
             return Container(
               color: Colors.grey.shade900,
