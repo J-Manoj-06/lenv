@@ -17,16 +17,46 @@ class MyHighlightsScreen extends StatelessWidget {
 
     if (teacherId == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('My Highlights')),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'My Highlights',
+            style: TextStyle(
+              color: Theme.of(context).textTheme.bodyLarge?.color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
         body: const Center(child: Text('Not logged in')),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Highlights'),
-        backgroundColor: const Color(0xFF7E57C2),
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'My Highlights',
+          style: TextStyle(
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
@@ -72,7 +102,7 @@ class MyHighlightsScreen extends StatelessWidget {
                     'No highlights yet',
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w800,
                       color: theme.textTheme.bodyLarge?.color,
                     ),
                   ),
@@ -227,7 +257,7 @@ class _HighlightCard extends StatelessWidget {
                         Text(
                           status.className,
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
                             fontSize: 16,
                           ),
                         ),
