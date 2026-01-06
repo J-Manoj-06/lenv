@@ -58,14 +58,14 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1),
     );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    _fadeAnimation = Tween<double>(begin: 1.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.linear),
     );
     _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+        Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(
+          CurvedAnimation(parent: _animationController, curve: Curves.linear),
         );
     _animationController.forward();
     _loadExtras();
@@ -319,16 +319,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     _resolvedAuthUid ?? widget.studentId,
                   ),
                   builder: (context, snapshot) {
-                    // Show loading indicator while fetching data
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(48.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      );
-                    }
-
                     final perf = snapshot.data;
 
                     // Debug logging
