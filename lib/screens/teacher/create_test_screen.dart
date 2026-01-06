@@ -206,411 +206,304 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
       body: Column(
         children: [
-          _buildHeader(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 100),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 800),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionHeader('METADATA'),
-                        const SizedBox(height: 16),
-                        _loadingMeta
-                            ? const Center(child: CircularProgressIndicator())
-                            : _buildMetadataCard(theme),
-                        const SizedBox(height: 32),
-                        _buildSectionHeader('QUESTIONS'),
-                        const SizedBox(height: 16),
-                        _buildQuestions(theme),
-                        const SizedBox(height: 16),
-                        _buildAddQuestionButton(theme),
-                      ],
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new),
+                      onPressed: () => Navigator.pop(context),
+                      color: Theme.of(context).iconTheme.color,
                     ),
-                  ),
+                    Text(
+                      'Create Test',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
                 ),
               ),
             ),
+          ),
+          Expanded(
+            child: _loadingMeta
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Loading teacher data...'),
+                      ],
+                    ),
+                  )
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Class dropdown
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedClass,
+                          decoration: const InputDecoration(
+                            labelText: 'Class',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.school),
+                          ),
+                          items: classes.map((cls) {
+                            return DropdownMenuItem(
+                              value: cls,
+                              child: Text('Grade $cls'),
+                            );
+                          }).toList(),
+                          onChanged: classes.isEmpty
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    selectedClass = value;
+                                    final grade = (selectedClass ?? '').trim();
+                                    final secList = _gradeSections[grade] ?? <String>[];
+                                    sections = secList.map((s) => 'Section $s').toList()..sort();
+                                    if (!sections.contains(selectedSection)) {
+                                      selectedSection = sections.isNotEmpty ? sections.first : null;
+                                    }
+                                    subjects = _filteredSubjectsForSelection();
+                                    if (!subjects.contains(selectedSubject)) {
+                                      selectedSubject = subjects.isNotEmpty ? subjects.first : null;
+                                    }
+                                  });
+                                },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Section dropdown
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedSection,
+                          decoration: const InputDecoration(
+                            labelText: 'Section',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.group),
+                          ),
+                          items: sections.map((section) {
+                            return DropdownMenuItem(
+                              value: section,
+                              child: Text(section),
+                            );
+                          }).toList(),
+                          onChanged: sections.isEmpty
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    selectedSection = value;
+                                    if (selectedClass != null && value != null) {
+                                      subjects = _filteredSubjectsForSelection();
+                                      if (!subjects.contains(selectedSubject)) {
+                                        selectedSubject = subjects.isNotEmpty ? subjects.first : null;
+                                      }
+                                    }
+                                  });
+                                },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Title field
+                        TextFormField(
+                          controller: _titleController,
+                          decoration: const InputDecoration(
+                            labelText: 'Test Title',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.title),
+                            hintText: 'e.g., Mathematics Mid-Term Test',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Subject dropdown
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedSubject,
+                          decoration: const InputDecoration(
+                            labelText: 'Subject',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.book),
+                          ),
+                          items: subjects.map((subject) {
+                            return DropdownMenuItem(
+                              value: subject,
+                              child: Text(subject),
+                            );
+                          }).toList(),
+                          onChanged: subjects.isEmpty
+                              ? null
+                              : (value) => setState(() => selectedSubject = value),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Total marks and time limit
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _totalMarksController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Total Marks',
+                                  hintText: 'e.g. 100',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.format_list_numbered),
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _timeLimitController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Time Limit',
+                                  hintText: 'e.g. 90 mins',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.timer),
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Schedule Test Section
+                        Row(
+                          children: [
+                            Icon(Icons.schedule, color: Colors.blue.shade700, size: 24),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Schedule Test',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Date and Time Picker
+                        InkWell(
+                          onTap: () async {
+                            await TestSchedulePicker.show(
+                              context: context,
+                              initialDate: scheduledDate ?? DateTime.now(),
+                              initialTime: scheduledTime ?? TimeOfDay.now(),
+                              onComplete: (dateTime) {
+                                setState(() {
+                                  scheduledDate = DateTime(
+                                    dateTime.year,
+                                    dateTime.month,
+                                    dateTime.day,
+                                  );
+                                  scheduledTime = TimeOfDay(
+                                    hour: dateTime.hour,
+                                    minute: dateTime.minute,
+                                  );
+                                });
+                              },
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade700),
+                              borderRadius: BorderRadius.circular(12),
+                              color: const Color(0xFF1E1E2E),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 24,
+                                  color: Colors.blue.shade400,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        scheduledDate == null
+                                            ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
+                                            : '${scheduledDate!.day}/${scheduledDate!.month}/${scheduledDate!.year}',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: scheduledDate == null
+                                              ? Colors.white.withOpacity(0.4)
+                                              : Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        scheduledTime == null
+                                            ? TimeOfDay.now().format(context)
+                                            : scheduledTime!.format(context),
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: scheduledTime == null
+                                              ? Colors.white.withOpacity(0.3)
+                                              : Colors.white.withOpacity(0.6),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  size: 16,
+                                  color: Colors.white.withOpacity(0.4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        
+                        // Questions header
+                        Row(
+                          children: [
+                            Icon(Icons.help_outline, color: Colors.orange.shade700, size: 24),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Questions',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildQuestions(Theme.of(context)),
+                        const SizedBox(height: 16),
+                        _buildAddQuestionButton(Theme.of(context)),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),
       bottomNavigationBar: _buildBottomSection(),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new),
-                onPressed: () => Navigator.pop(context),
-                color: Theme.of(context).iconTheme.color,
-              ),
-              Text(
-                'Create Test',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).textTheme.bodyLarge?.color,
-                ),
-              ),
-              const SizedBox(width: 48),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    final theme = Theme.of(context);
-    return Text(
-      title,
-      style: theme.textTheme.labelSmall?.copyWith(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 1.2,
-        color: theme.colorScheme.onSurface.withOpacity(0.6),
-      ),
-    );
-  }
-
-  Widget _buildMetadataCard(ThemeData theme) {
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title
-          _buildTextField(
-            label: 'Title',
-            controller: _titleController,
-            placeholder: 'e.g. Mid-term Algebra Exam',
-          ),
-          const SizedBox(height: 16),
-          // Class
-          _buildDropdown(
-            label: 'Class',
-            value: selectedClass,
-            items: classes,
-            onChanged: classes.isEmpty
-                ? null
-                : (value) {
-                    setState(() {
-                      selectedClass = value;
-                      // Update sections based on selected class
-                      final grade = (selectedClass ?? '').trim();
-                      final secList = _gradeSections[grade] ?? <String>[];
-                      sections = secList.map((s) => 'Section $s').toList()
-                        ..sort();
-                      // Reset selectedSection if not in new list
-                      if (!sections.contains(selectedSection)) {
-                        selectedSection = sections.isNotEmpty
-                            ? sections.first
-                            : null;
-                      }
-                      // Update subjects filtered by new class/section
-                      subjects = _filteredSubjectsForSelection();
-                      if (!subjects.contains(selectedSubject)) {
-                        selectedSubject = subjects.isNotEmpty
-                            ? subjects.first
-                            : null;
-                      }
-                    });
-                  },
-          ),
-          const SizedBox(height: 16),
-          // Section
-          _buildDropdown(
-            label: 'Section',
-            value: selectedSection,
-            items: sections,
-            onChanged: sections.isEmpty
-                ? null
-                : (value) {
-                    setState(() {
-                      selectedSection = value;
-                      subjects = _filteredSubjectsForSelection();
-                      if (!subjects.contains(selectedSubject)) {
-                        selectedSubject = subjects.isNotEmpty
-                            ? subjects.first
-                            : null;
-                      }
-                    });
-                  },
-          ),
-          const SizedBox(height: 16),
-          // Subject
-          _buildDropdown(
-            label: 'Subject',
-            value: selectedSubject,
-            items: subjects,
-            onChanged: subjects.isEmpty
-                ? null
-                : (value) {
-                    setState(() {
-                      selectedSubject = value;
-                    });
-                  },
-          ),
-          const SizedBox(height: 16),
-          // Total Marks and Time Limit
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField(
-                  label: 'Total Marks',
-                  controller: _totalMarksController,
-                  placeholder: 'e.g. 100',
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField(
-                  label: 'Time Limit',
-                  controller: _timeLimitController,
-                  placeholder: 'e.g. 90 mins',
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Schedule Test (always shown)
-          Row(
-            children: [
-              Icon(Icons.schedule, color: theme.colorScheme.primary, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                'Schedule Test',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          InkWell(
-            onTap: () async {
-              await TestSchedulePicker.show(
-                context: context,
-                initialDate: scheduledDate ?? DateTime.now(),
-                initialTime: scheduledTime ?? TimeOfDay.now(),
-                onComplete: (dateTime) {
-                  setState(() {
-                    scheduledDate = DateTime(
-                      dateTime.year,
-                      dateTime.month,
-                      dateTime.day,
-                    );
-                    scheduledTime = TimeOfDay(
-                      hour: dateTime.hour,
-                      minute: dateTime.minute,
-                    );
-                  });
-                },
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              decoration: BoxDecoration(
-                border: Border.all(color: theme.dividerColor),
-                borderRadius: BorderRadius.circular(12),
-                color: theme.cardColor,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.calendar_month_rounded,
-                    size: 24,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          scheduledDate == null
-                              ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
-                              : '${scheduledDate!.day}/${scheduledDate!.month}/${scheduledDate!.year}',
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: scheduledDate == null
-                                ? theme.colorScheme.onSurface.withOpacity(0.4)
-                                : theme.colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          scheduledTime == null
-                              ? TimeOfDay.now().format(context)
-                              : scheduledTime!.format(context),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontSize: 14,
-                            color: scheduledTime == null
-                                ? theme.colorScheme.onSurface.withOpacity(0.3)
-                                : theme.colorScheme.onSurface.withOpacity(0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 16,
-                    color: theme.colorScheme.onSurface.withOpacity(0.4),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required String label,
-    required TextEditingController controller,
-    required String placeholder,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          decoration: InputDecoration(
-            hintText: placeholder,
-            hintStyle: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.4),
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: theme.dividerColor),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: theme.dividerColor),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: theme.colorScheme.primary,
-                width: 2,
-              ),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDropdown({
-    required String label,
-    required String? value,
-    required List<String> items,
-    required void Function(String?)? onChanged,
-  }) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.dividerColor),
-          ),
-          child: DropdownButtonFormField<String>(
-            initialValue: (value != null && items.contains(value))
-                ? value
-                : null,
-            isExpanded: true,
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-            ),
-            items: items.map((String item) {
-              return DropdownMenuItem<String>(
-                value: item,
-                child: Text(
-                  item,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  softWrap: false,
-                ),
-              );
-            }).toList(),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
     );
   }
 
@@ -1081,10 +974,11 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   }
 
   Widget _buildBottomSection() {
-    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1E1E1E)
+            : Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -1098,22 +992,26 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
           padding: const EdgeInsets.all(16),
           child: SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
               onPressed: () {
                 _showScheduleDialog();
               },
+              icon: const Icon(Icons.check_circle),
+              label: const Text(
+                'Schedule Test',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: const Color(0xFF6366F1),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                elevation: 2,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                elevation: 2,
-              ),
-              child: const Text(
-                'Schedule Test',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
           ),
