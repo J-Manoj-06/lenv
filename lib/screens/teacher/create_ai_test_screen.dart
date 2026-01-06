@@ -556,7 +556,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
             // Schedule Test Section
             Row(
               children: [
-                Icon(Icons.schedule, color: Colors.blue.shade700, size: 24),
+                Icon(Icons.schedule, color: Colors.white, size: 24),
                 const SizedBox(width: 8),
                 Text(
                   'Schedule Test',
@@ -605,7 +605,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                     Icon(
                       Icons.calendar_month_rounded,
                       size: 24,
-                      color: Colors.blue.shade400,
+                      color: const Color(0xFF6A4FF7),
                     ),
                     const SizedBox(width: 16),
                     Expanded(

@@ -250,7 +250,12 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                     ),
                   )
                 : SingleChildScrollView(
-                    padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
+                    padding: const EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      top: 16,
+                      bottom: 100,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -274,14 +279,23 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                   setState(() {
                                     selectedClass = value;
                                     final grade = (selectedClass ?? '').trim();
-                                    final secList = _gradeSections[grade] ?? <String>[];
-                                    sections = secList.map((s) => 'Section $s').toList()..sort();
+                                    final secList =
+                                        _gradeSections[grade] ?? <String>[];
+                                    sections =
+                                        secList
+                                            .map((s) => 'Section $s')
+                                            .toList()
+                                          ..sort();
                                     if (!sections.contains(selectedSection)) {
-                                      selectedSection = sections.isNotEmpty ? sections.first : null;
+                                      selectedSection = sections.isNotEmpty
+                                          ? sections.first
+                                          : null;
                                     }
                                     subjects = _filteredSubjectsForSelection();
                                     if (!subjects.contains(selectedSubject)) {
-                                      selectedSubject = subjects.isNotEmpty ? subjects.first : null;
+                                      selectedSubject = subjects.isNotEmpty
+                                          ? subjects.first
+                                          : null;
                                     }
                                   });
                                 },
@@ -307,10 +321,14 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                               : (value) {
                                   setState(() {
                                     selectedSection = value;
-                                    if (selectedClass != null && value != null) {
-                                      subjects = _filteredSubjectsForSelection();
+                                    if (selectedClass != null &&
+                                        value != null) {
+                                      subjects =
+                                          _filteredSubjectsForSelection();
                                       if (!subjects.contains(selectedSubject)) {
-                                        selectedSubject = subjects.isNotEmpty ? subjects.first : null;
+                                        selectedSubject = subjects.isNotEmpty
+                                            ? subjects.first
+                                            : null;
                                       }
                                     }
                                   });
@@ -346,7 +364,8 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                           }).toList(),
                           onChanged: subjects.isEmpty
                               ? null
-                              : (value) => setState(() => selectedSubject = value),
+                              : (value) =>
+                                    setState(() => selectedSubject = value),
                         ),
                         const SizedBox(height: 16),
 
@@ -385,13 +404,16 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                         // Schedule Test Section
                         Row(
                           children: [
-                            Icon(Icons.schedule, color: Colors.blue.shade700, size: 24),
+                            Icon(
+                              Icons.schedule,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Schedule Test',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -434,12 +456,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                 Icon(
                                   Icons.calendar_month_rounded,
                                   size: 24,
-                                  color: Colors.blue.shade400,
+                                  color: const Color(0xFF6A4FF7),
                                 ),
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         scheduledDate == null
@@ -479,17 +502,20 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                           ),
                         ),
                         const SizedBox(height: 32),
-                        
+
                         // Questions header
                         Row(
                           children: [
-                            Icon(Icons.help_outline, color: Colors.orange.shade700, size: 24),
+                            Icon(
+                              Icons.help_outline,
+                              color: Colors.orange.shade700,
+                              size: 24,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Questions',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -999,10 +1025,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               icon: const Icon(Icons.check_circle),
               label: const Text(
                 'Schedule Test',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
