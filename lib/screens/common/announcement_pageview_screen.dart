@@ -176,7 +176,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                     // Resume progress when released
                     _progressController.forward();
                   },
-                  onTapDown: (details) {
+                  onTapUp: (details) {
                     final width = MediaQuery.of(context).size.width;
                     final dx = details.globalPosition.dx;
                     if (dx < width * 0.33) {

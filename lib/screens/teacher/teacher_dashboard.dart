@@ -1239,22 +1239,91 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     color: hasAnnouncement
                         ? (latestAnnouncement!.hasImage
                               ? Colors.transparent
-                              : const Color(0xFF7E57C2))
+                              : Colors.black)
                         : theme.cardColor,
                   ),
                   child: ClipOval(
                     child: hasAnnouncement && latestAnnouncement!.hasImage
-                        ? _buildCachedAnnouncementAvatar(
-                            latestAnnouncement.imageUrl!,
-                            'announcement_${latestAnnouncement.id}.jpg',
-                            currentUser?.name ?? 'Teacher',
-                            theme,
-                            null, // no color filter
+                        ? Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              // Background image
+                              _buildCachedAnnouncementAvatar(
+                                latestAnnouncement.imageUrl!,
+                                'announcement_${latestAnnouncement.id}.jpg',
+                                currentUser?.name ?? 'Teacher',
+                                theme,
+                                null,
+                              ),
+                              // Text overlay at bottom with gradient
+                              if (latestAnnouncement.data is StatusModel &&
+                                  (latestAnnouncement.data as StatusModel)
+                                      .text
+                                      .isNotEmpty)
+                                Positioned(
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.transparent,
+                                          Colors.black.withOpacity(0.7),
+                                          Colors.black.withOpacity(0.9),
+                                        ],
+                                      ),
+                                    ),
+                                    child: Text(
+                                      (latestAnnouncement.data as StatusModel)
+                                          .text,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w600,
+                                        height: 1.1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           )
-                        : _buildDefaultAvatar(
-                            currentUser?.name ?? 'Teacher',
-                            theme,
-                          ),
+                        : hasAnnouncement &&
+                                latestAnnouncement!.data is StatusModel &&
+                                (latestAnnouncement.data as StatusModel)
+                                    .text
+                                    .isNotEmpty
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Text(
+                                    (latestAnnouncement.data as StatusModel)
+                                        .text,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : _buildDefaultAvatar(
+                                currentUser?.name ?? 'Teacher',
+                                theme,
+                              ),
                   ),
                 ),
               ),
@@ -1301,6 +1370,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               'My\nAnnouncement',
               textAlign: TextAlign.center,
               maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
