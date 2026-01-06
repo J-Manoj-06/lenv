@@ -546,7 +546,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                           (announcement['creatorId'] as String).isNotEmpty &&
                           announcement['creatorId'] == widget.currentUserId)
                         Positioned(
-                          top: 16,
+                          top: 60,
                           right: 16,
                           child: SafeArea(
                             child: Material(
