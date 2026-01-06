@@ -8,6 +8,8 @@ import '../../config/cloudflare_config.dart';
 import 'dart:typed_data';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/unread_count_provider.dart';
+import '../../utils/chat_type_config.dart';
 import '../../widgets/teacher_bottom_nav.dart';
 import '../../services/teacher_service.dart';
 import '../../services/firestore_service.dart';
@@ -42,6 +44,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   ParentTeacherGroup? _sectionGroup;
   bool _isLoadingSectionGroup = false;
   String? _sectionGroupError;
+  int _sectionGroupUnreadCount = 0;
   bool _isLoading = true;
   String? _error;
   // Cache viewed principal announcement ids to avoid re-marking and stale badges
@@ -597,8 +600,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               _isLoadingSectionGroup ||
               _sectionGroupError != null
           ? null
-          : () {
-              Navigator.pushNamed(
+          : () async {
+              await Navigator.pushNamed(
                 context,
                 '/parent/section-group-chat',
                 arguments: {
@@ -612,6 +615,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   'senderRole': 'teacher',
                 },
               );
+              // Refresh unread count after returning from chat
+              _loadSectionGroupUnreadCount();
             },
       borderRadius: BorderRadius.circular(16),
       child: Container(
@@ -691,6 +696,28 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     ],
                   ),
                 ),
+                if (_sectionGroupUnreadCount > 0)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _sectionGroupUnreadCount > 99
+                          ? '99+'
+                          : _sectionGroupUnreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -879,6 +906,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       setState(() {
         _sectionGroup = group;
       });
+
+      // Load unread count for this group
+      _loadSectionGroupUnreadCount();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -890,6 +920,35 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           _isLoadingSectionGroup = false;
         });
       }
+    }
+  }
+
+  /// Load unread count for the parent-teacher section group
+  Future<void> _loadSectionGroupUnreadCount() async {
+    if (_sectionGroup == null) {
+      setState(() => _sectionGroupUnreadCount = 0);
+      return;
+    }
+
+    try {
+      final unreadProvider = Provider.of<UnreadCountProvider>(
+        context,
+        listen: false,
+      );
+      await unreadProvider.loadUnreadCount(
+        chatId: _sectionGroup!.id,
+        chatType: ChatTypeConfig.ptGroupChat,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _sectionGroupUnreadCount = unreadProvider.getUnreadCount(
+          _sectionGroup!.id,
+        );
+      });
+    } catch (e) {
+      print('Error loading section group unread count: $e');
+      setState(() => _sectionGroupUnreadCount = 0);
     }
   }
 

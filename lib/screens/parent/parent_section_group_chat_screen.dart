@@ -22,6 +22,7 @@ import '../../services/media_upload_service.dart';
 import '../../services/media_repository.dart';
 import '../../services/parent_teacher_group_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
+import '../../services/unread_count_service.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../common/announcement_view_screen.dart';
@@ -71,6 +72,7 @@ class _ParentSectionGroupChatScreenState
 
   final ParentTeacherGroupService _service = ParentTeacherGroupService();
   final MediaRepository _mediaRepository = MediaRepository();
+  final UnreadCountService _unreadService = UnreadCountService();
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
@@ -146,6 +148,25 @@ class _ParentSectionGroupChatScreenState
       firestore: FirebaseFirestore.instance,
       cacheService: LocalCacheService(),
     );
+
+    // Mark chat as read when screen opens
+    _markChatAsRead();
+  }
+
+  /// Mark this chat as read for the current user
+  Future<void> _markChatAsRead() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.uid;
+      if (userId != null) {
+        await _unreadService.markChatAsRead(
+          userId: userId,
+          chatId: widget.groupId,
+        );
+      }
+    } catch (e) {
+      print('Error marking chat as read: $e');
+    }
   }
 
   String _formatTime(DateTime dateTime) {
