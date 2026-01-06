@@ -679,8 +679,8 @@ class _TeacherCommunityChatScreenState
                     children: [
                       Text(
                         widget.community.name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: theme.textTheme.bodyLarge?.color,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -689,7 +689,7 @@ class _TeacherCommunityChatScreenState
                       Text(
                         '${widget.community.memberCount} members',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                           fontSize: 12,
                         ),
                       ),
@@ -713,10 +713,7 @@ class _TeacherCommunityChatScreenState
           )
         else ...[
           IconButton(
-            icon: Icon(
-              Icons.search,
-              color: theme.iconTheme.color,
-            ),
+            icon: Icon(Icons.search, color: theme.iconTheme.color),
             onPressed: _openSearch,
           ),
         ],

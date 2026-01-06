@@ -320,7 +320,10 @@ class _ParentSectionGroupChatScreenState
               ]
             : [
                 IconButton(
-                  icon: const Icon(Icons.search),
+                  icon: Icon(
+                    Icons.search,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
                   onPressed: _openSearch,
                 ),
               ],
@@ -1997,7 +2000,11 @@ class _ParentGroupMessageSearchScreenState
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: theme.iconTheme.color,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         titleSpacing: 0,
