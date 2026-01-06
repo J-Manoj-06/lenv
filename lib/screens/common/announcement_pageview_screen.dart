@@ -213,24 +213,19 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                 children: [
                                   // Progress bars for announcements
                                   Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: 12,
-                                    ),
+                                    padding: const EdgeInsets.only(bottom: 12),
                                     child: Row(
                                       children: List.generate(
                                         widget.announcements.length,
                                         (i) => Expanded(
                                           child: Container(
                                             height: 3,
-                                            margin:
-                                                const EdgeInsets.symmetric(
-                                                  horizontal: 3,
-                                                ),
+                                            margin: const EdgeInsets.symmetric(
+                                              horizontal: 3,
+                                            ),
                                             decoration: BoxDecoration(
                                               color: Colors.white.withOpacity(
-                                                i == _currentIndex
-                                                    ? 0.8
-                                                    : 0.2,
+                                                i == _currentIndex ? 0.8 : 0.2,
                                               ),
                                               borderRadius:
                                                   BorderRadius.circular(9999),
@@ -247,21 +242,21 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                                             FractionallySizedBox(
                                                               widthFactor:
                                                                   _progress
-                                                                        .value,
-                                                                child: Container(
-                                                                  color: theme
-                                                                      .primary,
-                                                                ),
+                                                                      .value,
+                                                              child: Container(
+                                                                color: theme
+                                                                    .primary,
                                                               ),
-                                                        );
-                                                      },
-                                                    )
-                                                  : null,
-                                            ),
+                                                            ),
+                                                      );
+                                                    },
+                                                  )
+                                                : null,
                                           ),
                                         ),
                                       ),
                                     ),
+                                  ),
                                   // Avatar + metadata row
                                   Row(
                                     children: [
