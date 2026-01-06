@@ -733,10 +733,9 @@ class _TeacherCommunityChatScreenState
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF262A30) : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(20),
-            border: isDark ? null : Border.all(
-              color: Colors.grey.shade300,
-              width: 1,
-            ),
+            border: isDark
+                ? null
+                : Border.all(color: Colors.grey.shade300, width: 1),
           ),
           child: Text(
             _formatDate(date),
