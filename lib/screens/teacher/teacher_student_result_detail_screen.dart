@@ -645,8 +645,12 @@ class _TeacherStudentResultDetailScreenState
                               : FontWeight.normal,
                           color: borderColor != null
                               ? (borderColor == Colors.green
-                                  ? (isDark ? Colors.white : Colors.green.shade900)
-                                  : (isDark ? Colors.white : Colors.red.shade900))
+                                    ? (isDark
+                                          ? Colors.white
+                                          : Colors.green.shade900)
+                                    : (isDark
+                                          ? Colors.white
+                                          : Colors.red.shade900))
                               : (isDark ? Colors.white : Colors.black87),
                         ),
                       ),

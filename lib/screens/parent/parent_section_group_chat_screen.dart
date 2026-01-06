@@ -63,6 +63,7 @@ class _ParentSectionGroupChatScreenState
   static const int _messagesPerPage = 50;
   bool _hasMoreMessages = true;
   bool _isLoadingMore = false;
+  bool _isRestoringScroll = false;
   DocumentSnapshot? _lastDocument;
   final List<CommunityMessageModel> _olderMessages = [];
 
@@ -157,13 +158,14 @@ class _ParentSectionGroupChatScreenState
 
   /// ✅ OPTIMIZATION: Scroll listener for pagination
   void _onScroll() {
-    if (!_scrollController.hasClients || _isLoadingMore || !_hasMoreMessages) {
+    if (!_scrollController.hasClients || _isLoadingMore || !_hasMoreMessages || _isRestoringScroll) {
       return;
     }
 
-    // Load more when user scrolls to 80% from the top (bottom in reverse list)
+    // Load more when user scrolls to 95% from the top (bottom in reverse list)
+    // Higher threshold prevents premature loading when just scrolling up a bit
     final scrollPosition = _scrollController.position;
-    if (scrollPosition.pixels >= scrollPosition.maxScrollExtent * 0.8) {
+    if (scrollPosition.pixels >= scrollPosition.maxScrollExtent * 0.95) {
       _loadMoreMessages();
     }
   }
@@ -172,7 +174,12 @@ class _ParentSectionGroupChatScreenState
   Future<void> _loadMoreMessages() async {
     if (_isLoadingMore || !_hasMoreMessages) return;
 
-    setState(() => _isLoadingMore = true);
+    _isLoadingMore = true;
+
+    // Save current scroll position before loading
+    final savedPosition = _scrollController.hasClients 
+        ? _scrollController.position.pixels 
+        : 0.0;
 
     try {
       final newMessages = await _service.getMessagesPaginated(
@@ -185,10 +192,23 @@ class _ParentSectionGroupChatScreenState
         _hasMoreMessages = false;
       }
 
-      if (newMessages.isNotEmpty) {
-        setState(() {
-          _olderMessages.addAll(newMessages);
-          _lastDocument = newMessages.last.documentSnapshot;
+      if (newMessages.isNotEmpty && mounted) {
+        _olderMessages.addAll(newMessages);
+        _lastDocument = newMessages.last.documentSnapshot;
+        
+        // Single setState after all data is ready
+        setState(() {});
+        
+        // Restore scroll position after rebuild, prevent scroll listener from interfering
+        _isRestoringScroll = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients && savedPosition > 0) {
+            _scrollController.jumpTo(savedPosition);
+          }
+          // Re-enable scroll listener after a short delay
+          Future.delayed(const Duration(milliseconds: 150), () {
+            _isRestoringScroll = false;
+          });
         });
       } else {
         _hasMoreMessages = false;
@@ -196,7 +216,7 @@ class _ParentSectionGroupChatScreenState
     } catch (e) {
       print('❌ Error loading more messages: $e');
     } finally {
-      setState(() => _isLoadingMore = false);
+      _isLoadingMore = false;
     }
   }
 
@@ -404,26 +424,12 @@ class _ParentSectionGroupChatScreenState
                 }
 
                 return ListView.builder(
+                  key: const PageStorageKey('parent_group_chat_list'),
                   controller: _scrollController,
                   reverse: true,
                   padding: const EdgeInsets.all(16),
-                  itemCount:
-                      allMessages.length +
-                      (_isLoadingMore ? 1 : 0), // ✅ Add loading indicator
+                  itemCount: allMessages.length,
                   itemBuilder: (context, index) {
-                    // ✅ OPTIMIZATION: Show loading indicator at the end (top in reverse list)
-                    if (index == allMessages.length) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: CircularProgressIndicator(
-                            color: primaryColor,
-                            strokeWidth: 2,
-                          ),
-                        ),
-                      );
-                    }
-
                     final msg = allMessages[index];
                     final isCurrentUser = msg.senderId == currentUserId;
                     final hasMedia = msg.mediaMetadata != null;

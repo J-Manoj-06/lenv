@@ -741,10 +741,14 @@ class _TestResultScreenState extends State<TestResultScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isCorrect
-                    ? (isDark ? Colors.green.withOpacity(0.25) : Colors.green.withOpacity(0.15))
+                    ? (isDark
+                          ? Colors.green.withOpacity(0.25)
+                          : Colors.green.withOpacity(0.15))
                     : (isDark ? Colors.grey[800] : Colors.grey[200]),
                 border: Border.all(
-                  color: isCorrect ? Colors.green : (isDark ? Colors.grey[700]! : Colors.grey[400]!),
+                  color: isCorrect
+                      ? Colors.green
+                      : (isDark ? Colors.grey[700]! : Colors.grey[400]!),
                   width: isCorrect ? 3 : 1,
                 ),
                 borderRadius: BorderRadius.circular(8),
@@ -755,7 +759,9 @@ class _TestResultScreenState extends State<TestResultScreen> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: isCorrect ? Colors.green : (isDark ? Colors.grey[700] : Colors.grey[400]),
+                      color: isCorrect
+                          ? Colors.green
+                          : (isDark ? Colors.grey[700] : Colors.grey[400]),
                       shape: BoxShape.circle,
                     ),
                     child: Center(
