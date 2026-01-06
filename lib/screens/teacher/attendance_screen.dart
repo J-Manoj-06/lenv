@@ -552,10 +552,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
-            hint: Text(
-              'Select Class',
-              style: TextStyle(color: Colors.white70),
-            ),
+            hint: Text('Select Class', style: TextStyle(color: Colors.white70)),
             selectedItemBuilder: (BuildContext context) {
               return _classes.map((className) {
                 return Align(

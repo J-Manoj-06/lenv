@@ -105,19 +105,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Widget _buildDayDivider(DateTime dt) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: const Color(0xFF1F1F1F),
+            color: isDark ? const Color(0xFF262A30) : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(14),
+            border: isDark ? null : Border.all(
+              color: Colors.grey.shade300,
+              width: 1,
+            ),
           ),
           child: Text(
             _formatDayLabel(dt),
-            style: const TextStyle(
-              color: Color(0xFF9E9E9E),
+            style: TextStyle(
+              color: isDark ? const Color(0xFF9E9E9E) : Colors.grey.shade700,
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),

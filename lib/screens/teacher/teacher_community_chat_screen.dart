@@ -724,19 +724,24 @@ class _TeacherCommunityChatScreenState
   }
 
   Widget _buildDateDivider(DateTime date) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: const Color(0xFF262A30),
+            color: isDark ? const Color(0xFF262A30) : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(20),
+            border: isDark ? null : Border.all(
+              color: Colors.grey.shade300,
+              width: 1,
+            ),
           ),
           child: Text(
             _formatDate(date),
-            style: const TextStyle(
-              color: Color(0xFF9E9E9E),
+            style: TextStyle(
+              color: isDark ? const Color(0xFF9E9E9E) : Colors.grey.shade700,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
