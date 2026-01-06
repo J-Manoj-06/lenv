@@ -1298,32 +1298,31 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                             ],
                           )
                         : hasAnnouncement &&
-                                latestAnnouncement!.data is StatusModel &&
-                                (latestAnnouncement.data as StatusModel)
-                                    .text
-                                    .isNotEmpty
-                            ? Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Text(
-                                    (latestAnnouncement.data as StatusModel)
-                                        .text,
-                                    textAlign: TextAlign.center,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      height: 1.2,
-                                    ),
-                                  ),
+                              latestAnnouncement!.data is StatusModel &&
+                              (latestAnnouncement.data as StatusModel)
+                                  .text
+                                  .isNotEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text(
+                                (latestAnnouncement.data as StatusModel).text,
+                                textAlign: TextAlign.center,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.2,
                                 ),
-                              )
-                            : _buildDefaultAvatar(
-                                currentUser?.name ?? 'Teacher',
-                                theme,
                               ),
+                            ),
+                          )
+                        : _buildDefaultAvatar(
+                            currentUser?.name ?? 'Teacher',
+                            theme,
+                          ),
                   ),
                 ),
               ),
