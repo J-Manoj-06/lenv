@@ -253,6 +253,46 @@ class MediaRepository {
     await _storageHelper.clearAllMedia();
   }
 
+  /// Save uploaded media to cache (so we don't re-download our own uploads)
+  /// This should be called after successfully uploading media
+  Future<bool> cacheUploadedMedia({
+    required String r2Key,
+    required String localPath,
+    required String fileName,
+    required String mimeType,
+    required int fileSize,
+    String? thumbnailBase64,
+  }) async {
+    try {
+      // Verify file exists
+      final file = File(localPath);
+      if (!await file.exists()) {
+        debugPrint('❌ Cannot cache: file does not exist at $localPath');
+        return false;
+      }
+
+      // Save metadata
+      final media = DownloadedMedia(
+        key: r2Key,
+        localPath: localPath,
+        fileName: fileName,
+        mimeType: mimeType,
+        fileSize: fileSize,
+        downloadedAt: DateTime.now(),
+        thumbnailBase64: thumbnailBase64,
+      );
+
+      await _storageHelper.saveMediaMetadata(media);
+      debugPrint('✅ Cached uploaded media: $fileName');
+      debugPrint('🔑 Cached with key: $r2Key');
+
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error caching uploaded media: $e');
+      return false;
+    }
+  }
+
   /// Format bytes for logging
   String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';

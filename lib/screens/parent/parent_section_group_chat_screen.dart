@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:dio/dio.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../config/cloudflare_config.dart';
 import '../../models/community_message_model.dart';
 import '../../models/media_metadata.dart';
@@ -18,6 +19,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../services/media_upload_service.dart';
+import '../../services/media_repository.dart';
 import '../../services/parent_teacher_group_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
 import '../../widgets/media_preview_card.dart';
@@ -68,13 +70,16 @@ class _ParentSectionGroupChatScreenState
   final List<CommunityMessageModel> _olderMessages = [];
 
   final ParentTeacherGroupService _service = ParentTeacherGroupService();
+  final MediaRepository _mediaRepository = MediaRepository();
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
   bool _isRecording = false;
+  bool _showEmojiPicker = false;
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   Timer? _recordingTimer;
@@ -103,6 +108,7 @@ class _ParentSectionGroupChatScreenState
     _hasText.dispose();
     _controller.dispose();
     _scrollController.dispose();
+    _focusNode.dispose();
     _recordingTimer?.cancel();
     _audioRecorder.dispose();
     super.dispose();
@@ -114,6 +120,13 @@ class _ParentSectionGroupChatScreenState
 
     // ✅ OPTIMIZATION: Setup scroll listener for pagination
     _scrollController.addListener(_onScroll);
+
+    // Hide emoji picker when keyboard shows
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
+    });
 
     // ✅ OPTIMIZATION: Listen to text changes without rebuilding
     _controller.addListener(() {
@@ -199,6 +212,17 @@ class _ParentSectionGroupChatScreenState
       }
     }
     return 'file';
+  }
+
+  void _onEmojiSelected(Emoji emoji) {
+    _controller.text += emoji.emoji;
+  }
+
+  void _onBackspacePressed() {
+    final text = _controller.text;
+    if (text.isNotEmpty) {
+      _controller.text = text.substring(0, text.length - 1);
+    }
   }
 
   /// ✅ OPTIMIZATION: Scroll listener for pagination
@@ -896,6 +920,31 @@ class _ParentSectionGroupChatScreenState
             ),
           ),
           _buildMessageInput(isDark),
+          if (_showEmojiPicker)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: EmojiPicker(
+                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                onBackspacePressed: _onBackspacePressed,
+                config: Config(
+                  height: 250,
+                  checkPlatformCompatibility: false,
+                emojiViewConfig: EmojiViewConfig(
+                  backgroundColor: isDark ? const Color(0xFF0B141A) : Colors.white,
+                  columns: 7,
+                  emojiSizeMax: 28,
+                ),
+                categoryViewConfig: CategoryViewConfig(
+                  backgroundColor: isDark ? const Color(0xFF0B141A) : Colors.white,
+                  iconColorSelected: primaryColor,
+                  indicatorColor: primaryColor,
+                ),
+                bottomActionBarConfig: BottomActionBarConfig(
+                  backgroundColor: isDark ? const Color(0xFF0B141A) : Colors.white,
+                ),
+              ),
+            ),
+            ),
         ],
       ),
     );
@@ -971,6 +1020,40 @@ class _ParentSectionGroupChatScreenState
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    // Emoji toggle - inside input, left side
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: GestureDetector(
+                        onTap: () {
+                          if (_showEmojiPicker) {
+                            // Hide emoji picker and show keyboard
+                            setState(() {
+                              _showEmojiPicker = false;
+                            });
+                            _focusNode.requestFocus();
+                          } else {
+                            // Hide keyboard and show emoji picker
+                            _focusNode.unfocus();
+                            FocusScope.of(context).unfocus();
+                            Future.delayed(const Duration(milliseconds: 100), () {
+                              if (mounted) {
+                                setState(() {
+                                  _showEmojiPicker = true;
+                                });
+                              }
+                            });
+                          }
+                        },
+                        child: Icon(
+                          _showEmojiPicker
+                              ? Icons.keyboard_outlined
+                              : Icons.emoji_emotions_outlined,
+                          color: iconColor,
+                          size: 23,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     // Attachment - inside input, left side
                     Padding(
                       padding: const EdgeInsets.only(left: 8),
@@ -1257,6 +1340,15 @@ class _ParentSectionGroupChatScreenState
         mediaMetadata: metadata,
       );
 
+      // Cache the uploaded file so we don't re-download it
+      await _mediaRepository.cacheUploadedMedia(
+        r2Key: r2Key,
+        localPath: file.path,
+        fileName: file.path.split('/').last,
+        mimeType: 'image/jpeg',
+        fileSize: await file.length(),
+      );
+
       // Remove pending message after successful upload
       if (mounted) {
         setState(() {
@@ -1377,6 +1469,15 @@ class _ParentSectionGroupChatScreenState
         mediaMetadata: metadata,
       );
 
+      // Cache the uploaded file so we don't re-download it
+      await _mediaRepository.cacheUploadedMedia(
+        r2Key: r2Key,
+        localPath: file.path,
+        fileName: file.path.split('/').last,
+        mimeType: 'application/pdf',
+        fileSize: await file.length(),
+      );
+
       if (mounted) {
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
@@ -1492,6 +1593,15 @@ class _ParentSectionGroupChatScreenState
         mediaMetadata: metadata,
       );
 
+      // Cache the uploaded file so we don't re-download it
+      await _mediaRepository.cacheUploadedMedia(
+        r2Key: r2Key,
+        localPath: file.path,
+        fileName: fileName,
+        mimeType: mime,
+        fileSize: fileSize,
+      );
+
       if (mounted) {
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
@@ -1584,6 +1694,15 @@ class _ParentSectionGroupChatScreenState
         content: '',
         mediaType: 'audio',
         mediaMetadata: metadata,
+      );
+
+      // Cache the uploaded recording so we don't re-download it
+      await _mediaRepository.cacheUploadedMedia(
+        r2Key: r2Key,
+        localPath: file.path,
+        fileName: file.path.split('/').last,
+        mimeType: mediaMessage.fileType,
+        fileSize: mediaMessage.fileSize,
       );
     } catch (e) {
       if (mounted) {

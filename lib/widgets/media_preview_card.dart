@@ -120,10 +120,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       });
     }
 
-    // If sender viewing their own media and it isn't cached, auto-download silently
-    if (widget.isMe && !_isDownloaded && !_isDownloading) {
-      _download();
-    }
+    // No longer auto-download for sender - they should have it cached from upload
+    // If not cached, user can manually download like any other media
   }
 
   Future<void> _download() async {
