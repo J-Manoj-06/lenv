@@ -2324,20 +2324,29 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             final maxHeight =
                 mq.size.height * 0.88; // cap to 88% of height for compactness
 
-            // Dark theme constants
-            const bgDark = Color(0xFF120F23);
+            // Theme-aware colors
+            final theme = Theme.of(ctx);
+            final isDark = theme.brightness == Brightness.dark;
+            final bgColor = isDark ? const Color(0xFF120F23) : Colors.white;
             const primary = Color(0xFF7961FF);
-            const cardBg = Color(0xFF1A1730);
-            const borderColor = Color(0xFF2D2640);
-            const textMuted = Color(0xFF8E8BA3);
+            final cardBg = isDark
+                ? const Color(0xFF1A1730)
+                : const Color(0xFFF5F5F5);
+            final borderColor = isDark
+                ? const Color(0xFF2D2640)
+                : const Color(0xFFE0E0E0);
+            final textMuted = isDark
+                ? const Color(0xFF8E8BA3)
+                : const Color(0xFF757575);
+            final textColor = isDark ? Colors.white : Colors.black87;
 
             return Padding(
               padding: EdgeInsets.only(bottom: kbInsets),
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: maxHeight),
                 child: Container(
-                  decoration: const BoxDecoration(
-                    color: bgDark,
+                  decoration: BoxDecoration(
+                    color: bgColor,
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(24),
                     ),
@@ -2384,18 +2393,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                const Column(
+                                Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       'New Announcement',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: textColor,
                                         fontSize: 18,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                    SizedBox(height: 2),
+                                    const SizedBox(height: 2),
                                     Text(
                                       'Visible for 24 hours',
                                       style: TextStyle(
@@ -2430,7 +2439,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                         borderRadius: BorderRadius.circular(10),
                                         border: Border.all(color: borderColor),
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         Icons.close_rounded,
                                         color: textMuted,
                                         size: 20,
@@ -2535,7 +2544,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                                           selectedAudience ==
                                                               (item['key']
                                                                   as String)
-                                                          ? Colors.white
+                                                          ? textColor
                                                           : textMuted,
                                                       fontWeight:
                                                           selectedAudience ==
@@ -2599,8 +2608,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                 controller: textController,
                                 minLines: 3,
                                 maxLines: 5,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: textColor,
                                   fontSize: 15,
                                   height: 1.5,
                                 ),
@@ -2658,10 +2667,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                                 ),
                                               ),
                                               const SizedBox(width: 10),
-                                              const Text(
+                                              Text(
                                                 'Select Standards',
                                                 style: TextStyle(
-                                                  color: Colors.white,
+                                                  color: textColor,
                                                   fontWeight: FontWeight.w600,
                                                   fontSize: 14,
                                                 ),
@@ -2794,7 +2803,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                                                         std,
                                                                       )
                                                                   ? Colors.white
-                                                                  : textMuted,
+                                                                  : (isDark
+                                                                        ? textMuted
+                                                                        : textColor),
                                                               fontSize: 13,
                                                               fontWeight:
                                                                   FontWeight
@@ -2843,10 +2854,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                                 ),
                                               ),
                                               const SizedBox(width: 10),
-                                              const Text(
+                                              Text(
                                                 'Your Sections',
                                                 style: TextStyle(
-                                                  color: Colors.white,
+                                                  color: textColor,
                                                   fontWeight: FontWeight.w600,
                                                   fontSize: 14,
                                                 ),
@@ -3011,7 +3022,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                                               selectedSections
                                                                   .contains(sec)
                                                               ? Colors.white
-                                                              : textMuted,
+                                                              : (isDark
+                                                                    ? textMuted
+                                                                    : textColor),
                                                           fontSize: 13,
                                                           fontWeight:
                                                               FontWeight.w500,
@@ -3092,7 +3105,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                         borderRadius: BorderRadius.circular(14),
                                         border: Border.all(color: borderColor),
                                       ),
-                                      child: const Row(
+                                      child: Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
                                         children: [
@@ -3101,7 +3114,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                             color: textMuted,
                                             size: 20,
                                           ),
-                                          SizedBox(width: 8),
+                                          const SizedBox(width: 8),
                                           Text(
                                             'Add Image',
                                             style: TextStyle(
