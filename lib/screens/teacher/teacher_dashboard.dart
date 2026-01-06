@@ -1377,10 +1377,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
         // Apply color filter if provided
         if (colorFilter != null) {
-          return ColorFiltered(
-            colorFilter: colorFilter,
-            child: imageWidget,
-          );
+          return ColorFiltered(colorFilter: colorFilter, child: imageWidget);
         }
 
         return imageWidget;
