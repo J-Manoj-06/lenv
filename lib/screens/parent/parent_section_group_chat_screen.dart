@@ -138,6 +138,44 @@ class _ParentSectionGroupChatScreenState
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
+  // ===== Date helpers for day separators =====
+  String _formatDayLabel(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final d = DateTime(dt.year, dt.month, dt.day);
+    if (d == today) return 'Today';
+    if (d == yesterday) return 'Yesterday';
+    return DateFormat('MMM dd, yyyy').format(dt);
+  }
+
+  Widget _buildDayDivider(DateTime dt) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF262A30) : Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(14),
+            border: isDark
+                ? null
+                : Border.all(color: Colors.grey.shade300, width: 1),
+          ),
+          child: Text(
+            _formatDayLabel(dt),
+            style: TextStyle(
+              color: isDark ? const Color(0xFF9E9E9E) : Colors.grey.shade700,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   String _getFileName(CommunityMessageModel msg) {
     final meta = msg.mediaMetadata;
     if (meta?.originalFileName != null && meta!.originalFileName!.isNotEmpty) {
@@ -435,6 +473,17 @@ class _ParentSectionGroupChatScreenState
                   itemBuilder: (context, index) {
                     final msg = allMessages[index];
                     final isCurrentUser = msg.senderId == currentUserId;
+                    
+                    // Day separator logic
+                    final isOldest = index == allMessages.length - 1;
+                    final currentDate = msg.createdAt;
+                    final nextDate = isOldest
+                        ? null
+                        : allMessages[index + 1].createdAt;
+                    final showDayDivider =
+                        isOldest ||
+                        _formatDayLabel(currentDate) != _formatDayLabel(nextDate!);
+                    
                     final hasMedia = msg.mediaMetadata != null;
                     final bubbleColor = hasMedia
                         ? Colors.transparent
@@ -455,39 +504,45 @@ class _ParentSectionGroupChatScreenState
                             : null);
 
                     if (msg.type == 'announcement') {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Center(
-                          child: InkWell(
-                            onTap: () {
-                              final role = (msg.senderRole).toLowerCase();
-                              final postedByLabel =
-                                  'Posted by ${msg.senderRole}';
-                              openAnnouncementView(
-                                context,
-                                role: role,
-                                title: msg.content.isNotEmpty
-                                    ? msg.content
-                                    : 'Announcement',
-                                subtitle: '',
-                                postedByLabel: postedByLabel,
-                                avatarUrl: null,
-                                postedAt: msg.createdAt,
-                                expiresAt: msg.createdAt.add(
-                                  const Duration(hours: 24),
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showDayDivider) _buildDayDivider(currentDate),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Center(
+                              child: InkWell(
+                                onTap: () {
+                                  final role = (msg.senderRole).toLowerCase();
+                                  final postedByLabel =
+                                      'Posted by ${msg.senderRole}';
+                                  openAnnouncementView(
+                                    context,
+                                    role: role,
+                                    title: msg.content.isNotEmpty
+                                        ? msg.content
+                                        : 'Announcement',
+                                    subtitle: '',
+                                    postedByLabel: postedByLabel,
+                                    avatarUrl: null,
+                                    postedAt: msg.createdAt,
+                                    expiresAt: msg.createdAt.add(
+                                      const Duration(hours: 24),
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  msg.content,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white70 : Colors.black54,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              );
-                            },
-                            child: Text(
-                              msg.content,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                fontSize: 12,
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       );
                     }
 
@@ -496,12 +551,16 @@ class _ParentSectionGroupChatScreenState
                       return const SizedBox.shrink();
                     }
 
-                    return ValueListenableBuilder<Set<String>>(
-                      valueListenable: _selectedMessages,
-                      builder: (context, selectedSet, _) {
-                        final isSelected = selectedSet.contains(msg.messageId);
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showDayDivider) _buildDayDivider(currentDate),
+                        ValueListenableBuilder<Set<String>>(
+                          valueListenable: _selectedMessages,
+                          builder: (context, selectedSet, _) {
+                            final isSelected = selectedSet.contains(msg.messageId);
 
-                        return Padding(
+                            return Padding(
                           key: ValueKey(msg.messageId),
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Row(
@@ -795,6 +854,8 @@ class _ParentSectionGroupChatScreenState
                           ),
                         );
                       },
+                    ),
+                      ],
                     );
                   },
                 );
