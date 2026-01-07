@@ -14,6 +14,7 @@ import 'package:dio/dio.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../utils/link_utils.dart';
 import '../../config/cloudflare_config.dart';
 import '../../models/community_message_model.dart';
 import '../../models/media_metadata.dart';
@@ -850,22 +851,47 @@ class _ParentSectionGroupChatScreenState
                                                     if (msg.content.isNotEmpty)
                                                       Linkify(
                                                         onOpen: (link) async {
-                                                          final uri = Uri.parse(link.url);
-                                                          if (await canLaunchUrl(uri)) {
-                                                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                                          final uri = Uri.parse(
+                                                            link.url,
+                                                          );
+                                                          if (await canLaunchUrl(
+                                                            uri,
+                                                          )) {
+                                                            await launchUrl(
+                                                              uri,
+                                                              mode: LaunchMode
+                                                                  .externalApplication,
+                                                            );
                                                           }
                                                         },
-                                                        text: msg.content,
+                                                        text: LinkUtils
+                                                            .addProtocolToBareUrls(
+                                                          msg.content,
+                                                        ),
+                                                        options: const LinkifyOptions(
+                                                          defaultToHttps: true,
+                                                        ),
                                                         style: TextStyle(
                                                           color: textColor,
                                                           fontSize: 15,
                                                         ),
                                                         linkStyle: TextStyle(
                                                           color: isCurrentUser
-                                                              ? const Color(0xFF0066CC)
-                                                              : (widget.senderRole == 'parent' ? const Color(0xFF14A670) : const Color(0xFF6366F1)),
+                                                              ? const Color(
+                                                                  0xFF0066CC,
+                                                                )
+                                                              : (widget.senderRole ==
+                                                                        'parent'
+                                                                    ? const Color(
+                                                                        0xFF14A670,
+                                                                      )
+                                                                    : const Color(
+                                                                        0xFF6366F1,
+                                                                      )),
                                                           fontSize: 15,
-                                                          decoration: TextDecoration.underline,
+                                                          decoration:
+                                                              TextDecoration
+                                                                  .underline,
                                                         ),
                                                       ),
                                                   ],

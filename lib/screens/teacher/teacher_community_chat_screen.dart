@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
+import '../../utils/link_utils.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:open_filex/open_filex.dart';
@@ -949,10 +950,18 @@ class _TeacherCommunityChatScreenState
                                 onOpen: (link) async {
                                   final uri = Uri.parse(link.url);
                                   if (await canLaunchUrl(uri)) {
-                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                    await launchUrl(
+                                      uri,
+                                      mode: LaunchMode.externalApplication,
+                                    );
                                   }
                                 },
-                                text: message.content,
+                                text: LinkUtils.addProtocolToBareUrls(
+                                  message.content,
+                                ),
+                                options: const LinkifyOptions(
+                                  defaultToHttps: true,
+                                ),
                                 style: TextStyle(
                                   color: theme.textTheme.bodyLarge?.color,
                                   fontSize: 14,

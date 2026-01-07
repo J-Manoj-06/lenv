@@ -12,6 +12,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../utils/link_utils.dart';
 import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/student_provider.dart';
@@ -1455,10 +1456,18 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                 onOpen: (link) async {
                                   final uri = Uri.parse(link.url);
                                   if (await canLaunchUrl(uri)) {
-                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                    await launchUrl(
+                                      uri,
+                                      mode: LaunchMode.externalApplication,
+                                    );
                                   }
                                 },
-                                text: message.content,
+                                text: LinkUtils.addProtocolToBareUrls(
+                                  message.content,
+                                ),
+                                options: const LinkifyOptions(
+                                  defaultToHttps: true,
+                                ),
                                 style: TextStyle(
                                   color: isCurrentUser
                                       ? const Color(0xFF1A1D21)

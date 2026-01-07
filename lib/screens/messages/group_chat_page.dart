@@ -14,6 +14,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../utils/link_utils.dart';
 import '../../models/group_chat_message.dart';
 import '../../models/media_metadata.dart';
 import '../../services/group_messaging_service.dart';
@@ -2036,10 +2037,14 @@ class _MessageBubble extends StatelessWidget {
                             onOpen: (link) async {
                               final uri = Uri.parse(link.url);
                               if (await canLaunchUrl(uri)) {
-                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                await launchUrl(
+                                  uri,
+                                  mode: LaunchMode.externalApplication,
+                                );
                               }
                             },
-                            text: message.message,
+                            text: LinkUtils.addProtocolToBareUrls(message.message),
+                            options: const LinkifyOptions(defaultToHttps: true),
                             style: TextStyle(
                               color: isMe
                                   ? const Color(0xFF1A1D21)

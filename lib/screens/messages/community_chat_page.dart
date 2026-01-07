@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../utils/link_utils.dart';
 import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
 import '../../services/cloudflare_r2_service.dart';
@@ -652,16 +653,22 @@ class _MessageBubble extends StatelessWidget {
                           onOpen: (link) async {
                             final uri = Uri.parse(link.url);
                             if (await canLaunchUrl(uri)) {
-                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
                             }
                           },
-                          text: message.message,
+                          text: LinkUtils.addProtocolToBareUrls(message.message),
+                          options: const LinkifyOptions(defaultToHttps: true),
                           style: TextStyle(
                             color: isMe ? Colors.white : Colors.white,
                             fontSize: 14,
                           ),
                           linkStyle: TextStyle(
-                            color: isMe ? const Color(0xFF90CAF9) : const Color(0xFFFFA726),
+                            color: isMe
+                                ? const Color(0xFF90CAF9)
+                                : const Color(0xFFFFA726),
                             fontSize: 14,
                             decoration: TextDecoration.underline,
                           ),
