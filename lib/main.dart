@@ -13,6 +13,7 @@ import 'providers/daily_challenge_provider.dart';
 import 'providers/parent_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/unread_count_provider.dart';
+import 'utils/navigation_debounce_observer.dart';
 import 'routes/app_router.dart';
 import 'services/local_cache_service.dart';
 
@@ -121,6 +122,7 @@ class MyApp extends StatelessWidget {
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
             onGenerateRoute: AppRouter.generateRoute,
+            navigatorObservers: [NavigationDebounceObserver()],
             initialRoute: '/',
           );
         },
