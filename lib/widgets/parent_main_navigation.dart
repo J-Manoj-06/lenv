@@ -68,8 +68,9 @@ class _ParentMainNavigationState extends State<ParentMainNavigation> {
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             color: theme.cardColor,
-            border:
-                Border(top: BorderSide(color: theme.dividerColor, width: 1)),
+            border: Border(
+              top: BorderSide(color: theme.dividerColor, width: 1),
+            ),
           ),
           child: SafeArea(
             top: false,
