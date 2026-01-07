@@ -593,10 +593,7 @@ class _ErrorState extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
 
-  const _ErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _ErrorState({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -618,10 +615,7 @@ class _ErrorState extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: onRetry,
-              child: const Text('Retry'),
-            ),
+            FilledButton(onPressed: onRetry, child: const Text('Retry')),
           ],
         ),
       ),
@@ -775,7 +769,9 @@ class _TestCard extends StatelessWidget {
       } else {
         // Lock results until due time
         dateLabel = 'Available After:';
-        dateValue = item.endDate != null ? fmt.format(item.endDate!) : 'Due time';
+        dateValue = item.endDate != null
+            ? fmt.format(item.endDate!)
+            : 'Due time';
         buttonText = 'Results Locked';
         onPressed = () {};
       }
@@ -916,15 +912,15 @@ class _TestCard extends StatelessWidget {
                   ),
                 ],
               ),
-                _PrimaryButton(
+              _PrimaryButton(
                 label: buttonText,
                 onPressed: onPressed,
                 isPrimary: item.isPending && !isExpired,
                 enabled:
-                  (item.isPending &&
-                    !isExpired &&
-                    buttonText != 'Yet to start') ||
-                  buttonText == 'View Results',
+                    (item.isPending &&
+                        !isExpired &&
+                        buttonText != 'Yet to start') ||
+                    buttonText == 'View Results',
               ),
             ],
           ),
