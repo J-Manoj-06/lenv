@@ -864,13 +864,15 @@ class _ParentSectionGroupChatScreenState
                                                             );
                                                           }
                                                         },
-                                                        text: LinkUtils
-                                                            .addProtocolToBareUrls(
-                                                          msg.content,
-                                                        ),
-                                                        options: const LinkifyOptions(
-                                                          defaultToHttps: true,
-                                                        ),
+                                                        text:
+                                                            LinkUtils.addProtocolToBareUrls(
+                                                              msg.content,
+                                                            ),
+                                                        options:
+                                                            const LinkifyOptions(
+                                                              defaultToHttps:
+                                                                  true,
+                                                            ),
                                                         style: TextStyle(
                                                           color: textColor,
                                                           fontSize: 15,

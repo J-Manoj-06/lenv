@@ -659,7 +659,9 @@ class _MessageBubble extends StatelessWidget {
                               );
                             }
                           },
-                          text: LinkUtils.addProtocolToBareUrls(message.message),
+                          text: LinkUtils.addProtocolToBareUrls(
+                            message.message,
+                          ),
                           options: const LinkifyOptions(defaultToHttps: true),
                           style: TextStyle(
                             color: isMe ? Colors.white : Colors.white,
