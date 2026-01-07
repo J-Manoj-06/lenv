@@ -10,6 +10,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/student_provider.dart';
@@ -1449,8 +1451,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                             ],
                             // Text content
                             if (message.content.isNotEmpty)
-                              Text(
-                                message.content,
+                              Linkify(
+                                onOpen: (link) async {
+                                  final uri = Uri.parse(link.url);
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                                text: message.content,
                                 style: TextStyle(
                                   color: isCurrentUser
                                       ? const Color(0xFF1A1D21)
@@ -1458,6 +1466,15 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                   fontSize: 15,
                                   height: 1.45,
                                   letterSpacing: 0.15,
+                                ),
+                                linkStyle: TextStyle(
+                                  color: isCurrentUser
+                                      ? const Color(0xFF0066CC)
+                                      : const Color(0xFFFFA726),
+                                  fontSize: 15,
+                                  height: 1.45,
+                                  letterSpacing: 0.15,
+                                  decoration: TextDecoration.underline,
                                 ),
                               ),
                           ],

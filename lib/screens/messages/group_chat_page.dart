@@ -12,6 +12,8 @@ import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/group_chat_message.dart';
 import '../../models/media_metadata.dart';
 import '../../services/group_messaging_service.dart';
@@ -2030,14 +2032,28 @@ class _MessageBubble extends StatelessWidget {
                             const SizedBox(height: 8),
                         ],
                         if (message.message.isNotEmpty)
-                          Text(
-                            message.message,
+                          Linkify(
+                            onOpen: (link) async {
+                              final uri = Uri.parse(link.url);
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            text: message.message,
                             style: TextStyle(
                               color: isMe
                                   ? const Color(0xFF1A1D21)
                                   : theme.colorScheme.onSurface,
                               fontSize: 14,
                               height: 1.5,
+                            ),
+                            linkStyle: TextStyle(
+                              color: isMe
+                                  ? const Color(0xFF0066CC)
+                                  : theme.colorScheme.primary,
+                              fontSize: 14,
+                              height: 1.5,
+                              decoration: TextDecoration.underline,
                             ),
                           ),
                       ],

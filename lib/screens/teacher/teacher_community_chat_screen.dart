@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:open_filex/open_filex.dart';
@@ -944,12 +945,24 @@ class _TeacherCommunityChatScreenState
                             ],
                             // Text content
                             if (message.content.isNotEmpty)
-                              Text(
-                                message.content,
+                              Linkify(
+                                onOpen: (link) async {
+                                  final uri = Uri.parse(link.url);
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                                text: message.content,
                                 style: TextStyle(
                                   color: theme.textTheme.bodyLarge?.color,
                                   fontSize: 14,
                                   height: 1.5,
+                                ),
+                                linkStyle: TextStyle(
+                                  color: const Color(0xFF6A4FF7),
+                                  fontSize: 14,
+                                  height: 1.5,
+                                  decoration: TextDecoration.underline,
                                 ),
                               ),
                           ],
