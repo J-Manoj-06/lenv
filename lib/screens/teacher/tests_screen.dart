@@ -20,6 +20,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   bool _initialLoadDone = false; // ensure we wait for auth user
   // Migration flag removed (website now writes correct studentId values).
   Timer? _ticker; // drives live countdown and status transitions
+  Timer? _tabSwitchDebounce; // debounce rapid tab switching
 
   @override
   void initState() {
@@ -159,6 +160,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _ticker?.cancel();
+    _tabSwitchDebounce?.cancel();
     super.dispose();
   }
 
@@ -217,6 +219,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                           );
                         },
                         child: ListView.builder(
+                          key: ValueKey(_selectedTabIndex),
                           padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
                           itemCount: filtered.length,
                           itemBuilder: (_, i) => Padding(
@@ -333,10 +336,19 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () {
-                    setState(() {
-                      _selectedTabIndex = index;
-                    });
-                    _armTicker();
+                    // Debounce rapid tab switches
+                    _tabSwitchDebounce?.cancel();
+                    _tabSwitchDebounce = Timer(
+                      const Duration(milliseconds: 200),
+                      () {
+                        if (mounted) {
+                          setState(() {
+                            _selectedTabIndex = index;
+                          });
+                          _armTicker();
+                        }
+                      },
+                    );
                   },
                   borderRadius: BorderRadius.circular(20),
                   child: AnimatedContainer(

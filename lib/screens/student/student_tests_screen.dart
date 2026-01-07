@@ -155,17 +155,22 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _AllTestsTab extends StatelessWidget {
+class _AllTestsTab extends StatefulWidget {
   final String studentId;
   const _AllTestsTab({required this.studentId});
 
+  @override
+  State<_AllTestsTab> createState() => _AllTestsTabState();
+}
+
+class _AllTestsTabState extends State<_AllTestsTab> {
   @override
   Widget build(BuildContext context) {
     // Unified query: get all student assignments, then fetch test details and classify locally.
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('testResults')
-          .where('studentId', isEqualTo: studentId)
+          .where('studentId', isEqualTo: widget.studentId)
           .where(
             'status',
             whereIn: ['assigned', 'started', 'completed', 'submitted'],
@@ -174,6 +179,13 @@ class _AllTestsTab extends StatelessWidget {
       builder: (context, assignedSnap) {
         if (assignedSnap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (assignedSnap.hasError) {
+          return _ErrorState(
+            message: 'Failed to load tests: ${assignedSnap.error}',
+            onRetry: () => setState(() {}),
+          );
         }
 
         final resultDocs = assignedSnap.data?.docs ?? [];
@@ -200,6 +212,13 @@ class _AllTestsTab extends StatelessWidget {
           builder: (context, testsSnap) {
             if (testsSnap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
+            }
+
+            if (testsSnap.hasError) {
+              return _ErrorState(
+                message: 'Failed to load test details: ${testsSnap.error}',
+                onRetry: () => setState(() {}),
+              );
             }
 
             final testDocs = testsSnap.data?.docs ?? [];
@@ -563,6 +582,46 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(message, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({
+    required this.message,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 48,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: onRetry,
+              child: const Text('Retry'),
+            ),
           ],
         ),
       ),
