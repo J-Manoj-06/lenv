@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/teacher/teacher_dashboard.dart';
@@ -64,11 +65,23 @@ class _TeacherMainNavigationState extends State<TeacherMainNavigation> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: _GlassyBottomBar(
-        currentIndex: _currentIndex,
-        onTap: _onTap,
+    return WillPopScope(
+      onWillPop: () async {
+        // If not on Home tab, switch to Home and consume back press
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          return false;
+        }
+        // On Home tab: exit the app
+        await SystemNavigator.pop();
+        return false;
+      },
+      child: Scaffold(
+        body: IndexedStack(index: _currentIndex, children: _screens),
+        bottomNavigationBar: _GlassyBottomBar(
+          currentIndex: _currentIndex,
+          onTap: _onTap,
+        ),
       ),
     );
   }

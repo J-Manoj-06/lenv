@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/student/student_dashboard_screen.dart';
 import '../screens/student/student_tests_screen.dart';
@@ -64,51 +65,62 @@ class _StudentMainNavigationState extends State<StudentMainNavigation> {
 
     final theme = Theme.of(context);
 
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          border: Border(top: BorderSide(color: theme.dividerColor, width: 1)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 64,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _NavItem(
-                  icon: Icons.home_outlined,
-                  label: 'Home',
-                  isSelected: _currentIndex == 0,
-                  onTap: () => _onTap(0),
-                ),
-                _NavItem(
-                  icon: Icons.assignment,
-                  label: 'Tests',
-                  isSelected: _currentIndex == 1,
-                  onTap: () => _onTap(1),
-                ),
-                _NavItem(
-                  icon: Icons.chat_bubble_outline,
-                  label: 'Message',
-                  isSelected: _currentIndex == 2,
-                  onTap: () => _onTap(2),
-                ),
-                _NavItem(
-                  icon: Icons.workspace_premium_outlined,
-                  label: 'Rewards',
-                  isSelected: _currentIndex == 3,
-                  onTap: () => _onTap(3),
-                ),
-                _NavItem(
-                  icon: Icons.leaderboard,
-                  label: 'Leaderboard',
-                  isSelected: _currentIndex == 4,
-                  onTap: () => _onTap(4),
-                ),
-              ],
+    return WillPopScope(
+      onWillPop: () async {
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          return false;
+        }
+        await SystemNavigator.pop();
+        return false;
+      },
+      child: Scaffold(
+        body: IndexedStack(index: _currentIndex, children: _screens),
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            border:
+                Border(top: BorderSide(color: theme.dividerColor, width: 1)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 64,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _NavItem(
+                    icon: Icons.home_outlined,
+                    label: 'Home',
+                    isSelected: _currentIndex == 0,
+                    onTap: () => _onTap(0),
+                  ),
+                  _NavItem(
+                    icon: Icons.assignment,
+                    label: 'Tests',
+                    isSelected: _currentIndex == 1,
+                    onTap: () => _onTap(1),
+                  ),
+                  _NavItem(
+                    icon: Icons.chat_bubble_outline,
+                    label: 'Message',
+                    isSelected: _currentIndex == 2,
+                    onTap: () => _onTap(2),
+                  ),
+                  _NavItem(
+                    icon: Icons.workspace_premium_outlined,
+                    label: 'Rewards',
+                    isSelected: _currentIndex == 3,
+                    onTap: () => _onTap(3),
+                  ),
+                  _NavItem(
+                    icon: Icons.leaderboard,
+                    label: 'Leaderboard',
+                    isSelected: _currentIndex == 4,
+                    onTap: () => _onTap(4),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

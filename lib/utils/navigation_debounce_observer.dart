@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 /// When the same named route is pushed twice within [debounceDuration], the
 /// second push is immediately popped so users don't get duplicate pages.
 class NavigationDebounceObserver extends NavigatorObserver {
-  NavigationDebounceObserver({this.debounceDuration = const Duration(milliseconds: 700)});
+  NavigationDebounceObserver({
+    this.debounceDuration = const Duration(milliseconds: 700),
+  });
 
   final Duration debounceDuration;
   Route<dynamic>? _lastPushed;
@@ -18,17 +20,18 @@ class NavigationDebounceObserver extends NavigatorObserver {
     final lastName = _lastPushed?.settings.name;
     final now = DateTime.now();
 
-    final sameNamedRoute = routeName != null &&
-      lastName != null &&
-      routeName == lastName;
-    final sameTypeRoute = routeName == null &&
-      lastName == null &&
-      _lastPushed != null &&
-      route.runtimeType == _lastPushed!.runtimeType;
+    final sameNamedRoute =
+        routeName != null && lastName != null && routeName == lastName;
+    final sameTypeRoute =
+        routeName == null &&
+        lastName == null &&
+        _lastPushed != null &&
+        route.runtimeType == _lastPushed!.runtimeType;
 
-    final isDuplicate = (sameNamedRoute || sameTypeRoute) &&
-      _lastPushAt != null &&
-      now.difference(_lastPushAt!) < debounceDuration;
+    final isDuplicate =
+        (sameNamedRoute || sameTypeRoute) &&
+        _lastPushAt != null &&
+        now.difference(_lastPushAt!) < debounceDuration;
 
     if (isDuplicate) {
       // Drop the duplicate by popping it as soon as it's pushed

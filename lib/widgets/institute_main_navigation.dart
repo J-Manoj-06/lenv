@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
 import '../screens/institute/institute_dashboard_screen.dart';
@@ -44,12 +45,22 @@ class _InstituteMainNavigationState extends State<InstituteMainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: _GlassyBottomBar(
-        currentIndex: _currentIndex,
-        onTap: _onTap,
-        primary: _primary,
+    return WillPopScope(
+      onWillPop: () async {
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          return false;
+        }
+        await SystemNavigator.pop();
+        return false;
+      },
+      child: Scaffold(
+        body: IndexedStack(index: _currentIndex, children: _screens),
+        bottomNavigationBar: _GlassyBottomBar(
+          currentIndex: _currentIndex,
+          onTap: _onTap,
+          primary: _primary,
+        ),
       ),
     );
   }
