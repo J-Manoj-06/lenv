@@ -94,8 +94,11 @@ class MediaRepository {
         );
       }
 
+      // Normalize r2Key: add 'media/' prefix if missing (for backward compatibility with old messages)
+      final normalizedKey = r2Key.startsWith('media/') ? r2Key : 'media/$r2Key';
+      
       // Build Cloudflare Worker URL
-      final url = '$cloudflareBaseUrl/$r2Key';
+      final url = '$cloudflareBaseUrl/$normalizedKey';
       debugPrint('🔗 Download URL: $url');
 
       const maxRetries = 3;

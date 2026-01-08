@@ -21,6 +21,7 @@ import '../../services/community_service.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../pdf_viewer_screen.dart';
 import '../../services/media_upload_service.dart';
+import '../../services/background_upload_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
@@ -238,53 +239,37 @@ class _TeacherCommunityChatScreenState
       if (pickedFile == null) return;
 
       final file = File(pickedFile.path);
+      if (!file.existsSync()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image file not found')),
+        );
+        return;
+      }
 
-      setState(() => _isUploading = true);
-
-      // WhatsApp-style upload: compression + thumbnails + temporary storage
-      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
-
-      final result = await _whatsappMediaUpload.uploadImage(
-        imageFile: file,
-        messageId: messageId,
+      // Queue upload in background service
+      final uploadId = await BackgroundUploadService().queueUpload(
+        file: file,
         conversationId: widget.community.id,
         senderId: _teacherId!,
-        onProgress: (progress) {
-          debugPrint('Upload progress: ${(progress * 100).toInt()}%');
-        },
+        senderRole: 'teacher',
+        mediaType: 'message',
+        chatType: 'community',
+        senderName: _teacherName,
       );
 
-      setState(() => _isUploading = false);
-
-      if (result.success && result.metadata != null) {
-        await _communityService.sendMessage(
-          communityId: widget.community.id,
-          senderId: _teacherId!,
-          senderName: _teacherName!,
-          senderRole: 'Teacher',
-          content: '',
-          imageUrl: '',
-          mediaType: 'image',
-          mediaMetadata: result.metadata,
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image queued for upload - will send in background'),
+            backgroundColor: Colors.green,
+          ),
         );
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Image sent successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        throw Exception(result.error?.message ?? 'Upload failed');
       }
     } catch (e) {
-      setState(() => _isUploading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send image: $e'),
+            content: Text('Failed to queue image: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -304,66 +289,37 @@ class _TeacherCommunityChatScreenState
       if (result == null || result.files.isEmpty) return;
 
       final file = File(result.files.single.path!);
+      if (!file.existsSync()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PDF file not found')),
+        );
+        return;
+      }
 
-      setState(() => _isUploading = true);
-
-      final mediaMessage = await _mediaUploadService.uploadMedia(
+      // Queue upload in background service
+      final uploadId = await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: widget.community.id,
         senderId: _teacherId!,
-        senderRole: 'Teacher',
-        mediaType: 'community',
-        onProgress: (progress) {
-          debugPrint('Upload progress: $progress%');
-        },
-      );
-
-      setState(() => _isUploading = false);
-
-      debugPrint('📦 PDF Upload complete:');
-      debugPrint('   File size: ${mediaMessage.fileSize} bytes');
-      debugPrint('   File type: ${mediaMessage.fileType}');
-      debugPrint('   R2 URL: ${mediaMessage.r2Url}');
-
-      // Create MediaMetadata with file size for proper display
-      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: '',
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        originalFileName: mediaMessage.fileName,
-      );
-
-      // Send message with metadata
-      await _communityService.sendMessage(
-        communityId: widget.community.id,
-        senderId: _teacherId!,
-        senderName: _teacherName!,
-        senderRole: 'Teacher',
-        content: '',
-        mediaType: 'pdf',
-        mediaMetadata: metadata,
+        senderRole: 'teacher',
+        mediaType: 'message',
+        chatType: 'community',
+        senderName: _teacherName,
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('PDF sent successfully'),
+            content: Text('PDF queued for upload - will send in background'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
-      setState(() => _isUploading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send PDF: $e'),
+            content: Text('Failed to queue PDF: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -380,65 +336,37 @@ class _TeacherCommunityChatScreenState
       if (result == null || result.files.isEmpty) return;
 
       final file = File(result.files.single.path!);
+      if (!file.existsSync()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Audio file not found')),
+        );
+        return;
+      }
 
-      setState(() => _isUploading = true);
-
-      final mediaMessage = await _mediaUploadService.uploadMedia(
+      // Queue upload in background service
+      final uploadId = await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: widget.community.id,
         senderId: _teacherId!,
-        senderRole: 'Teacher',
-        mediaType: 'community',
-        onProgress: (progress) {
-          debugPrint('Upload progress: $progress%');
-        },
-      );
-
-      setState(() => _isUploading = false);
-
-      debugPrint('🎵 Audio Upload complete:');
-      debugPrint('   File size: ${mediaMessage.fileSize} bytes');
-      debugPrint('   R2 URL: ${mediaMessage.r2Url}');
-
-      // Create MediaMetadata
-      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: '',
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        originalFileName: mediaMessage.fileName,
-      );
-
-      // Send message with metadata
-      await _communityService.sendMessage(
-        communityId: widget.community.id,
-        senderId: _teacherId!,
-        senderName: _teacherName!,
-        senderRole: 'Teacher',
-        content: '',
-        mediaType: 'audio',
-        mediaMetadata: metadata,
+        senderRole: 'teacher',
+        mediaType: 'message',
+        chatType: 'community',
+        senderName: _teacherName,
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Audio sent successfully'),
+            content: Text('Audio queued for upload - will send in background'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
-      setState(() => _isUploading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send audio: $e'),
+            content: Text('Failed to queue audio: $e'),
             backgroundColor: Colors.red,
           ),
         );
