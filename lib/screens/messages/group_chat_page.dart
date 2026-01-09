@@ -19,6 +19,7 @@ import '../../models/group_chat_message.dart';
 import '../../models/media_metadata.dart';
 import '../../services/group_messaging_service.dart';
 import '../../services/media_upload_service.dart';
+import '../../services/background_upload_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
@@ -79,6 +80,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final List<GroupChatMessage> _pendingMessages = [];
   // Track upload progress per pending messageId
   final Map<String, double> _pendingUploadProgress = {};
+  // Track which messages are currently uploading
+  final Set<String> _uploadingMessageIds = {};
   // Local media paths for the sender (so they view from disk, no re-download)
   final Map<String, String> _localSenderMediaPaths = {};
   // Stream lastReadAt dynamically for real-time splitter updates
@@ -90,10 +93,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
   // Show unread split inside chat to aid context (user requested)
   final bool _showUnreadDivider = true;
   DateTime _lastMarkedReadAt = DateTime.fromMillisecondsSinceEpoch(0);
+  UnreadCountProvider? _unreadRef;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Cache provider reference to avoid context lookup in dispose
+    _unreadRef ??= Provider.of<UnreadCountProvider>(context, listen: false);
   }
 
   // ===== Date helpers for day separators =====
@@ -274,6 +280,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       uploadProgress: uploadProgress,
                       localSenderMediaPaths: _localSenderMediaPaths,
                       selectionMode: _isSelectionMode,
+                      uploadingMessageIds: _uploadingMessageIds,
+                      pendingUploadProgress: _pendingUploadProgress,
                       key: ValueKey('bubble-${message.id}'),
                     ),
                   ),
@@ -319,6 +327,29 @@ class _GroupChatPageState extends State<GroupChatPage> {
         setState(() => _showEmojiPicker = false);
       }
     });
+
+    // Listen to background upload progress
+    final uploadService = BackgroundUploadService();
+    uploadService.onUploadProgress = (messageId, isUploading, progress) {
+      if (mounted) {
+        setState(() {
+          if (isUploading) {
+            _uploadingMessageIds.add(messageId);
+            _pendingUploadProgress[messageId] = progress;
+          } else {
+            // Upload complete - remove pending message and progress
+            _uploadingMessageIds.remove(messageId);
+            _pendingUploadProgress.remove(messageId);
+            _pendingMessages.removeWhere(
+              (msg) =>
+                  msg.id == 'pending:$messageId' ||
+                  msg.mediaMetadata?.messageId == messageId,
+            );
+          }
+        });
+      }
+    };
+
     // Initialize MediaUploadService with CloudflareConfig
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -461,10 +492,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
   void dispose() {
     // Final mark as read when leaving to ensure badge clears
     try {
-      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+      final unread = _unreadRef;
       final chatId = '${widget.classId}|${widget.subjectId}';
       print('👋 Exiting chat, final mark as read: $chatId');
-      unread.markChatAsRead(chatId);
+      unread?.markChatAsRead(chatId);
     } catch (e) {
       print('⚠️ Error in dispose mark-as-read: $e');
     }
@@ -584,95 +615,76 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
+      final currentUserName = authProvider.currentUser?.name ?? 'You';
 
       if (currentUserId == null) {
-        throw Exception('User not authenticated');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User not authenticated')),
+          );
+        }
+        return;
       }
 
-      setState(() {
-        _isUploading = true;
-        _uploadingMediaType = 'image';
-      });
+      final file = File(image.path);
+      if (!file.existsSync()) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Image file not found')));
+        }
+        return;
+      }
 
-      // WhatsApp-style upload: compression + thumbnails + temporary storage
       final conversationId = '${widget.classId}_${widget.subjectId}';
-      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${currentUserId.hashCode}';
 
-      // Optimistic: show local bubble immediately using original image path
-      // This avoids waiting for upload and Firestore stream
-      final pendingMetadata = MediaMetadata(
-        messageId: messageId,
-        r2Key: 'pending/$messageId',
-        publicUrl: '',
-        localPath: image.path,
-        thumbnail: '',
-        deletedLocally: false,
-        serverStatus: ServerStatus.available,
-        expiresAt: DateTime.now().add(const Duration(days: 30)),
-        uploadedAt: DateTime.now(),
-        fileSize: null,
-        mimeType: 'image/jpeg',
-      );
-
-      final pendingMsg = GroupChatMessage(
+      // Create pending message for immediate display
+      final pendingMessage = GroupChatMessage(
         id: 'pending:$messageId',
         senderId: currentUserId,
-        senderName: authProvider.currentUser?.name ?? 'You',
+        senderName: currentUserName,
         message: '',
-        imageUrl: null,
-        mediaMetadata: pendingMetadata,
         timestamp: DateTime.now().millisecondsSinceEpoch,
+        mediaMetadata: MediaMetadata(
+          messageId: messageId,
+          r2Key: 'pending/$messageId',
+          publicUrl: '', // Will be set after upload
+          thumbnail: file.path, // Use local file path as thumbnail
+          expiresAt: DateTime.now().add(const Duration(days: 30)),
+          uploadedAt: DateTime.now(),
+          originalFileName: file.path.split('/').last,
+          fileSize: await file.length(),
+          mimeType: 'image/jpeg',
+        ),
       );
 
       setState(() {
-        _pendingMessages.insert(0, pendingMsg);
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.0;
+        _localSenderMediaPaths[messageId] = file.path;
       });
-      _scrollToLatest();
 
-      final result = await _whatsappMediaUpload.uploadImage(
-        imageFile: File(image.path),
-        messageId: messageId,
+      // Queue upload in background service
+      await BackgroundUploadService().queueUpload(
+        file: file,
         conversationId: conversationId,
         senderId: currentUserId,
-        onProgress: (progress) {
-          print('Upload progress: ${(progress * 100).toInt()}%');
-          setState(() {
-            _pendingUploadProgress[messageId] = progress;
-          });
-        },
+        senderRole: 'group',
+        mediaType: 'message',
+        chatType: 'group',
+        senderName: currentUserName,
       );
 
-      setState(() {
-        _isUploading = false;
-        _uploadingMediaType = '';
-      });
-
-      if (result.success && result.metadata != null) {
-        // Replace pending bubble with final Firestore-backed message
-        // Send message with media metadata (no imageUrl for WhatsApp-style)
-        await _sendMessage(mediaMetadata: result.metadata);
-        // Remove pending item; Firestore stream will re-render with real doc
-        setState(() {
-          _pendingMessages.removeWhere(
-            (m) => m.mediaMetadata?.messageId == messageId,
-          );
-          _pendingUploadProgress.remove(messageId);
-        });
-      } else {
-        throw Exception(result.error?.message ?? 'Upload failed');
-      }
+      // Scroll to show the new message
+      _scrollToBottom(force: true);
     } catch (e) {
-      setState(() => _isUploading = false);
-      // On failure, clear pending message if any
-      setState(() {
-        _pendingMessages.removeWhere((m) => m.id.startsWith('pending:'));
-        // Clear any progress tracked
-        _pendingUploadProgress.clear();
-      });
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+        ).showSnackBar(SnackBar(content: Text('Failed to queue image: $e')));
       }
     }
   }
@@ -690,129 +702,82 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
+      final currentUserName = authProvider.currentUser?.name ?? 'You';
 
       if (currentUserId == null) {
-        throw Exception('User not authenticated');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User not authenticated')),
+          );
+        }
+        return;
       }
 
-      setState(() {
-        _isUploading = true;
-        _uploadingMediaType = 'pdf';
-      });
+      if (!file.existsSync()) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('PDF file not found')));
+        }
+        return;
+      }
 
-      // Optimistic pending message
-      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
-      final pendingMetadata = MediaMetadata(
-        messageId: messageId,
-        r2Key: 'pending/$messageId',
-        publicUrl: '',
-        localPath: file.path, // show immediately from disk for sender
-        thumbnail: '',
-        deletedLocally: false,
-        serverStatus: ServerStatus.available,
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: await file.length(),
-        mimeType: 'application/pdf',
-      );
-      final pendingMsg = GroupChatMessage(
+      final conversationId = '${widget.classId}_${widget.subjectId}';
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${currentUserId.hashCode}';
+
+      // Create pending message for immediate display
+      final pendingMessage = GroupChatMessage(
         id: 'pending:$messageId',
         senderId: currentUserId,
-        senderName: authProvider.currentUser?.name ?? 'You',
+        senderName: currentUserName,
         message: '',
-        imageUrl: null,
-        mediaMetadata: pendingMetadata,
         timestamp: DateTime.now().millisecondsSinceEpoch,
+        mediaMetadata: MediaMetadata(
+          messageId: messageId,
+          r2Key: 'pending/$messageId',
+          publicUrl: '', // Will be set after upload
+          thumbnail: '', // PDF has no thumbnail
+          expiresAt: DateTime.now().add(const Duration(days: 30)),
+          uploadedAt: DateTime.now(),
+          originalFileName: file.path.split('/').last,
+          fileSize: await file.length(),
+          mimeType: 'application/pdf',
+        ),
       );
+
       setState(() {
-        _pendingMessages.insert(0, pendingMsg);
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
         _pendingUploadProgress[messageId] = 0.0;
+        _localSenderMediaPaths[messageId] = file.path;
       });
-      _scrollToLatest();
 
-      // Upload to Cloudflare R2 using MediaUploadService
-      final conversationId = '${widget.classId}_${widget.subjectId}';
-
-      final mediaMessage = await _mediaUploadService.uploadMedia(
+      // Queue upload in background service
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: conversationId,
         senderId: currentUserId,
-        senderRole: 'student',
-        mediaType: 'message', // Permanent storage for group messages
-        onProgress: (progress) {
-          final doubleVal = (progress as num).toDouble();
-          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
-          setState(() {
-            _pendingUploadProgress[messageId] = normalized;
-          });
-        },
+        senderRole: 'group',
+        mediaType: 'message',
+        chatType: 'group',
+        senderName: currentUserName,
       );
 
-      setState(() => _isUploading = false);
-
-      print('📦 PDF Upload complete:');
-      print('   File size: ${mediaMessage.fileSize} bytes');
-      print('   File type: ${mediaMessage.fileType}');
-      print('   R2 URL: ${mediaMessage.r2Url}');
-      print('   File name: ${mediaMessage.fileName}');
-
-      // Create MediaMetadata with file size for proper display
-      final r2Key = _extractR2Key(mediaMessage.r2Url);
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: '', // No thumbnail for PDF
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        originalFileName: mediaMessage.fileName,
-        // Do NOT persist sender local path to Firestore; keep it locally only
-      );
-
-      // Keep sender-local path for immediate viewing without download
-      _localSenderMediaPaths[mediaMessage.id] = file.path;
-
-      print('📝 Creating metadata:');
-      print('   R2 Key: ${metadata.r2Key}');
-      print('   File Size: ${metadata.fileSize} bytes');
-      print('   MIME Type: ${metadata.mimeType}');
-
-      // Send message with metadata (not just URL)
-      await _sendMessage(mediaMetadata: metadata);
-      setState(() {
-        _pendingMessages.removeWhere(
-          (m) => m.mediaMetadata?.messageId == messageId,
-        );
-        _pendingUploadProgress.remove(messageId);
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('PDF sent successfully')));
-      }
+      // Scroll to show the new message
+      _scrollToBottom(force: true);
     } catch (e) {
-      setState(() => _isUploading = false);
-      setState(() {
-        _pendingMessages.removeWhere((m) => m.id.startsWith('pending:'));
-        _pendingUploadProgress.clear();
-      });
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send PDF: $e')));
+        ).showSnackBar(SnackBar(content: Text('Failed to queue PDF: $e')));
       }
     }
   }
 
   Future<void> _pickAndSendAudio() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['mp3', 'm4a', 'wav', 'aac', 'ogg'],
-      );
+      final result = await FilePicker.platform.pickFiles(type: FileType.audio);
 
       if (result == null || result.files.isEmpty) return;
 
@@ -820,132 +785,75 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
+      final currentUserName = authProvider.currentUser?.name ?? 'You';
 
       if (currentUserId == null) {
-        throw Exception('User not authenticated');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User not authenticated')),
+          );
+        }
+        return;
       }
 
-      setState(() {
-        _isUploading = true;
-        _uploadingMediaType = 'audio';
-      });
-
-      // Optimistic pending message for picked audio
-      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
-      final ext = file.path.split('.').last.toLowerCase();
-      final mime = ext == 'mp3'
-          ? 'audio/mpeg'
-          : ext == 'm4a'
-          ? 'audio/aac'
-          : ext == 'wav'
-          ? 'audio/wav'
-          : 'audio/aac';
-      final pendingMetadata = MediaMetadata(
-        messageId: messageId,
-        r2Key: 'pending/$messageId',
-        publicUrl: '',
-        localPath: file.path, // allow immediate playback
-        thumbnail: '',
-        deletedLocally: false,
-        serverStatus: ServerStatus.available,
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: await file.length(),
-        mimeType: mime,
-        originalFileName: file.uri.pathSegments.isNotEmpty
-            ? file.uri.pathSegments.last
-            : null,
-      );
-      final pendingMsg = GroupChatMessage(
-        id: 'pending:$messageId',
-        senderId: currentUserId,
-        senderName: authProvider.currentUser?.name ?? 'You',
-        message: '',
-        imageUrl: null,
-        mediaMetadata: pendingMetadata,
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-      );
-      setState(() {
-        _pendingMessages.insert(0, pendingMsg);
-        _pendingUploadProgress[messageId] = 0.0;
-      });
-      _scrollToLatest();
+      if (!file.existsSync()) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Audio file not found')));
+        }
+        return;
+      }
 
       final conversationId = '${widget.classId}_${widget.subjectId}';
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${currentUserId.hashCode}';
 
-      final mediaMessage = await _mediaUploadService.uploadMedia(
+      // Create pending message for immediate display
+      final pendingMessage = GroupChatMessage(
+        id: 'pending:$messageId',
+        senderId: currentUserId,
+        senderName: currentUserName,
+        message: '',
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        mediaMetadata: MediaMetadata(
+          messageId: messageId,
+          r2Key: 'pending/$messageId',
+          publicUrl: '', // Will be set after upload
+          thumbnail: '', // Audio has no thumbnail
+          expiresAt: DateTime.now().add(const Duration(days: 30)),
+          uploadedAt: DateTime.now(),
+          originalFileName: file.path.split('/').last,
+          fileSize: await file.length(),
+          mimeType: 'audio/mpeg',
+        ),
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.0;
+        _localSenderMediaPaths[messageId] = file.path;
+      });
+
+      // Queue upload in background service
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: conversationId,
         senderId: currentUserId,
-        senderRole: 'student',
+        senderRole: 'group',
         mediaType: 'message',
-        onProgress: (progress) {
-          final doubleVal = (progress as num).toDouble();
-          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
-          setState(() {
-            _pendingUploadProgress[messageId] = normalized;
-          });
-        },
+        chatType: 'group',
+        senderName: currentUserName,
       );
 
-      setState(() => _isUploading = false);
-
-      final r2Key = _extractR2Key(mediaMessage.r2Url);
-
-      // Copy the picked audio file to app directory so sender can play immediately
-      String? cachedPath;
-      try {
-        final appDir = await getApplicationDocumentsDirectory();
-        final cacheDir = Directory('${appDir.path}/audio_cache');
-        if (!await cacheDir.exists()) {
-          await cacheDir.create(recursive: true);
-        }
-
-        final fileName = r2Key.split('/').last;
-        final cachedFile = File('${cacheDir.path}/$fileName');
-        await file.copy(cachedFile.path);
-        cachedPath = cachedFile.path;
-        print('✅ Cached picked audio locally at: $cachedPath');
-      } catch (e) {
-        print('⚠️ Failed to cache audio: $e');
-      }
-
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: '',
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        localPath: cachedPath, // Include local path for immediate playback
-        originalFileName: mediaMessage.fileName,
-      );
-
-      await _sendMessage(mediaMetadata: metadata);
-      setState(() {
-        _pendingMessages.removeWhere(
-          (m) => m.mediaMetadata?.messageId == messageId,
-        );
-        _pendingUploadProgress.remove(messageId);
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Audio sent successfully')),
-        );
-      }
+      // Scroll to show the new message
+      _scrollToBottom(force: true);
     } catch (e) {
-      setState(() => _isUploading = false);
-      setState(() {
-        _pendingMessages.removeWhere((m) => m.id.startsWith('pending:'));
-        _pendingUploadProgress.clear();
-      });
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send audio: $e')));
+        ).showSnackBar(SnackBar(content: Text('Failed to queue audio: $e')));
       }
     }
   }
@@ -1464,8 +1372,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         Future.microtask(
                           () => _maybeMarkAsRead(lastReadMs, messages),
                         );
+
+                        // Merge pending messages with Firestore messages
+                        final allMessages = [..._pendingMessages, ...messages];
+
                         return _buildMessageList(
-                          messages,
+                          allMessages,
                           lastReadMs,
                           currentUserId,
                           showDivider:
@@ -1925,6 +1837,8 @@ class _MessageBubble extends StatelessWidget {
   final double? uploadProgress;
   final Map<String, String> localSenderMediaPaths;
   final bool selectionMode;
+  final Set<String> uploadingMessageIds;
+  final Map<String, double> pendingUploadProgress;
 
   const _MessageBubble({
     super.key,
@@ -1934,6 +1848,8 @@ class _MessageBubble extends StatelessWidget {
     this.uploadProgress,
     required this.localSenderMediaPaths,
     this.selectionMode = false,
+    required this.uploadingMessageIds,
+    required this.pendingUploadProgress,
   });
 
   @override
@@ -2094,6 +2010,10 @@ class _MessageBubble extends StatelessWidget {
       '📦 Building attachment: ${metadata.r2Key} with size: $fileSize bytes',
     );
 
+    // Check if this specific message is uploading
+    final isUploading = uploadingMessageIds.contains(metadata.messageId);
+    final uploadProgressVal = pendingUploadProgress[metadata.messageId];
+
     return MediaPreviewCard(
       key: ValueKey('media-${metadata.messageId}-${metadata.r2Key}'),
       r2Key: metadata.r2Key,
@@ -2104,8 +2024,8 @@ class _MessageBubble extends StatelessWidget {
       localPath:
           metadata.localPath ?? localSenderMediaPaths[metadata.messageId],
       isMe: isMe,
-      uploading: uploading,
-      uploadProgress: uploadProgress,
+      uploading: isUploading,
+      uploadProgress: uploadProgressVal,
       selectionMode: selectionMode,
     );
   }

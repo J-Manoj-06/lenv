@@ -43,3 +43,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Node.js
+node_modules/
+**/node_modules/
+
+# Firebase functions
+functions/node_modules/
+
+# Package lock noise (optional but recommended)
+npm-debug.log*
+yarn.lock
+package-lock.json

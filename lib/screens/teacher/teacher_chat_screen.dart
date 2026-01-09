@@ -8,6 +8,7 @@ import 'dart:async';
 import '../../services/chat_service.dart';
 import '../../models/media_metadata.dart';
 import '../../services/media_upload_service.dart';
+import '../../services/background_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
@@ -440,12 +441,23 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
       );
       if (image == null) return;
 
-      setState(() => _isUploading = true);
-
       final file = File(image.path);
+      if (!file.existsSync()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image file not found')),
+        );
+        return;
+      }
 
-      // Upload using MediaUploadService
-      final mediaMessage = await _mediaUploadService.uploadMedia(
+      if (_conversationId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Initializing conversation...')),
+        );
+        return;
+      }
+
+      // Queue upload in background service
+      final uploadId = await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: _conversationId!,
         senderId: widget.teacherId,
@@ -453,32 +465,23 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         mediaType: 'message',
       );
 
-      // Create MediaMetadata from MediaMessage
-      final r2Key = _extractR2Key(mediaMessage.r2Url);
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: mediaMessage.thumbnailUrl ?? '',
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        originalFileName: mediaMessage.fileName,
+      // Show confirmation
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Image queued for upload'),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () {
+              // Could navigate to uploads page if needed
+            },
+          ),
+        ),
       );
-
-      if (mounted) {
-        await _sendMessage(mediaMetadata: metadata.toFirestore());
-      }
     } catch (e) {
-      print('❌ Error uploading image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to upload image: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isUploading = false);
+      print('❌ Error queueing image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to queue image: $e')),
+      );
     }
   }
 
@@ -490,12 +493,23 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
       );
       if (result == null || result.files.isEmpty) return;
 
-      setState(() => _isUploading = true);
-
       final file = File(result.files.single.path!);
+      if (!file.existsSync()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PDF file not found')),
+        );
+        return;
+      }
 
-      // Upload using MediaUploadService
-      final mediaMessage = await _mediaUploadService.uploadMedia(
+      if (_conversationId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Initializing conversation...')),
+        );
+        return;
+      }
+
+      // Queue upload in background service
+      final uploadId = await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: _conversationId!,
         senderId: widget.teacherId,
@@ -503,32 +517,21 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         mediaType: 'message',
       );
 
-      // Create MediaMetadata from MediaMessage
-      final r2Key = _extractR2Key(mediaMessage.r2Url);
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: '',
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        originalFileName: mediaMessage.fileName,
+      // Show confirmation
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('PDF queued for upload'),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () {},
+          ),
+        ),
       );
-
-      if (mounted) {
-        await _sendMessage(mediaMetadata: metadata.toFirestore());
-      }
     } catch (e) {
-      print('❌ Error uploading PDF: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to upload PDF: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isUploading = false);
+      print('❌ Error queueing PDF: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to queue PDF: $e')),
+      );
     }
   }
 
@@ -537,12 +540,23 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
       final result = await FilePicker.platform.pickFiles(type: FileType.audio);
       if (result == null || result.files.isEmpty) return;
 
-      setState(() => _isUploading = true);
-
       final file = File(result.files.single.path!);
+      if (!file.existsSync()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Audio file not found')),
+        );
+        return;
+      }
 
-      // Upload using MediaUploadService
-      final mediaMessage = await _mediaUploadService.uploadMedia(
+      if (_conversationId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Initializing conversation...')),
+        );
+        return;
+      }
+
+      // Queue upload in background service
+      final uploadId = await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: _conversationId!,
         senderId: widget.teacherId,
@@ -550,32 +564,21 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         mediaType: 'message',
       );
 
-      // Create MediaMetadata from MediaMessage
-      final r2Key = _extractR2Key(mediaMessage.r2Url);
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: '',
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        originalFileName: mediaMessage.fileName,
+      // Show confirmation
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Audio queued for upload'),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () {},
+          ),
+        ),
       );
-
-      if (mounted) {
-        await _sendMessage(mediaMetadata: metadata.toFirestore());
-      }
     } catch (e) {
-      print('❌ Error uploading audio: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to upload audio: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isUploading = false);
+      print('❌ Error queueing audio: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to queue audio: $e')),
+      );
     }
   }
 }

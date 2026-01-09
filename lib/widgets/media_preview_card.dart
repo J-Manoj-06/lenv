@@ -388,6 +388,16 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                     ),
                   ),
                 ),
+              )
+            else if (widget.isMe)
+              // Sender: show status message if not yet downloaded/cached
+              Text(
+                'Uploading... tap to refresh',
+                style: TextStyle(
+                  color: isDark ? Colors.white60 : Colors.black54,
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
           ],
         ),
@@ -636,33 +646,74 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   Widget _buildThumbnailFallback() {
-    if (widget.thumbnailBase64 == null || widget.thumbnailBase64!.isEmpty) {
-      return Container(
+    final thumb = widget.thumbnailBase64;
+    if (thumb == null || thumb.isEmpty) {
+      return _thumbnailPlaceholder();
+    }
+
+    // Check if it's a local file path (pending upload)
+    if (thumb.startsWith('/') || thumb.contains(':\\')) {
+      print('📁 Thumbnail is a local file path, loading from disk: $thumb');
+      final file = File(thumb);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          height: 260,
+          width: 260,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('❌ Error loading local thumbnail: $error');
+            return _thumbnailPlaceholder();
+          },
+        );
+      } else {
+        print('❌ Local thumbnail file not found: $thumb');
+        return _thumbnailPlaceholder();
+      }
+    }
+
+    // Check if it's actually a URL (starts with http/https) instead of base64
+    if (thumb.startsWith('http://') || thumb.startsWith('https://')) {
+      print('🌐 Thumbnail is a URL, loading via network: $thumb');
+      return Image.network(
+        thumb,
         height: 260,
         width: 260,
-        color: Colors.grey[800],
-        child: const Icon(Icons.image, size: 64, color: Colors.white54),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          print('❌ Error loading network thumbnail: $error');
+          return _thumbnailPlaceholder();
+        },
       );
     }
 
-    return Image.memory(
-      base64Decode(widget.thumbnailBase64!),
+    try {
+      final bytes = base64Decode(thumb);
+      return Image.memory(
+        bytes,
+        height: 260,
+        width: 260,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          print(
+            '❌ Error loading thumbnail (decode ok but render failed): $error',
+          );
+          return _thumbnailPlaceholder();
+        },
+      );
+    } catch (e) {
+      // Guard against invalid/non-base64 thumbnails (e.g., URL accidentally stored)
+      print('❌ Invalid thumbnail base64 or format, using placeholder: $e');
+      return _thumbnailPlaceholder();
+    }
+  }
+
+  Widget _thumbnailPlaceholder() {
+    return Container(
       height: 260,
       width: 260,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        print('❌ Error loading thumbnail');
-        return Container(
-          height: 260,
-          width: 260,
-          color: Colors.grey[800],
-          child: const Icon(
-            Icons.broken_image,
-            size: 64,
-            color: Colors.white54,
-          ),
-        );
-      },
+      color: Colors.grey[800],
+      child: const Icon(Icons.image, size: 64, color: Colors.white54),
     );
   }
 }
