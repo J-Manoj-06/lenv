@@ -60,24 +60,26 @@ class PendingUpload {
     'error': error,
   };
 
-  static PendingUpload fromJson(Map<String, dynamic> json) => PendingUpload(
-    id: json['id'],
-    filePath: json['filePath'],
-    conversationId: json['conversationId'],
-    senderId: json['senderId'],
-    senderRole: json['senderRole'],
-    chatType: json['chatType'] ?? 'direct',
-    senderName: json['senderName'],
-    mediaType: json['mediaType'],
-    fileName: json['fileName'],
-    mimeType: json['mimeType'],
-    status: UploadStatus.values.firstWhere(
-      (s) => s.toString() == json['status'],
-      orElse: () => UploadStatus.pending,
-    ),
-    progress: (json['progress'] as num).toDouble(),
-  )..r2Url = json['r2Url']
-   ..error = json['error'];
+  static PendingUpload fromJson(Map<String, dynamic> json) =>
+      PendingUpload(
+          id: json['id'],
+          filePath: json['filePath'],
+          conversationId: json['conversationId'],
+          senderId: json['senderId'],
+          senderRole: json['senderRole'],
+          chatType: json['chatType'] ?? 'direct',
+          senderName: json['senderName'],
+          mediaType: json['mediaType'],
+          fileName: json['fileName'],
+          mimeType: json['mimeType'],
+          status: UploadStatus.values.firstWhere(
+            (s) => s.toString() == json['status'],
+            orElse: () => UploadStatus.pending,
+          ),
+          progress: (json['progress'] as num).toDouble(),
+        )
+        ..r2Url = json['r2Url']
+        ..error = json['error'];
 }
 
 enum UploadStatus { pending, uploading, completed, failed, cancelled }
@@ -97,9 +99,10 @@ class BackgroundUploadService extends ChangeNotifier {
   Timer? _processingTimer;
   bool _isProcessing = false;
   bool _initialized = false;
-  
+
   // Callback for UI to track uploading messages
-  Function(String messageId, bool isUploading, double progress)? onUploadProgress;
+  Function(String messageId, bool isUploading, double progress)?
+  onUploadProgress;
 
   List<PendingUpload> get uploads => _uploads;
 
@@ -129,14 +132,11 @@ class BackgroundUploadService extends ChangeNotifier {
 
   void _startProcessing() {
     _processingTimer?.cancel();
-    _processingTimer = Timer.periodic(
-      const Duration(seconds: 2),
-      (_) {
-        if (!_isProcessing) {
-          _processQueue();
-        }
-      },
-    );
+    _processingTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!_isProcessing) {
+        _processQueue();
+      }
+    });
   }
 
   Future<String> queueUpload({
@@ -147,7 +147,8 @@ class BackgroundUploadService extends ChangeNotifier {
     required String mediaType,
     String chatType = 'direct', // 'direct' | 'group' | 'community'
     String? senderName,
-    String? messageId, // Optional: use client-generated pending messageId for progress mapping
+    String?
+    messageId, // Optional: use client-generated pending messageId for progress mapping
   }) async {
     // Ensure service is initialized
     if (!_initialized) {
@@ -155,7 +156,8 @@ class BackgroundUploadService extends ChangeNotifier {
     }
 
     // Use provided messageId so UI can map progress to the same pending message
-    final uploadId = messageId ?? DateTime.now().millisecondsSinceEpoch.toString();
+    final uploadId =
+        messageId ?? DateTime.now().millisecondsSinceEpoch.toString();
 
     final upload = PendingUpload(
       id: uploadId,
@@ -185,7 +187,9 @@ class BackgroundUploadService extends ChangeNotifier {
     _isProcessing = true;
 
     try {
-      final pendingUploads = _uploads.where((u) => u.status == UploadStatus.pending).toList();
+      final pendingUploads = _uploads
+          .where((u) => u.status == UploadStatus.pending)
+          .toList();
 
       for (final upload in pendingUploads) {
         if (!File(upload.filePath).existsSync()) {
@@ -227,10 +231,10 @@ class BackgroundUploadService extends ChangeNotifier {
 
           // Build media metadata from upload result
           final r2Key = _extractR2Key(mediaMessage.r2Url);
-          
+
           // Store thumbnail URL directly (MediaPreviewCard now handles both base64 and URLs)
           final thumbnailStr = mediaMessage.thumbnailUrl ?? '';
-          
+
           final metadata = MediaMetadata(
             messageId: mediaMessage.id,
             r2Key: r2Key,
@@ -261,7 +265,9 @@ class BackgroundUploadService extends ChangeNotifier {
               );
               await _groupService.sendGroupMessage(classId, subjectId, message);
             } else {
-              debugPrint('⚠️ Invalid group conversationId: ${upload.conversationId}');
+              debugPrint(
+                '⚠️ Invalid group conversationId: ${upload.conversationId}',
+              );
             }
           } else if (upload.chatType == 'community') {
             // conversationId is communityId here
@@ -352,7 +358,8 @@ class BackgroundUploadService extends ChangeNotifier {
       'mp4': 'video/mp4',
       'wav': 'audio/wav',
       'doc': 'application/msword',
-      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'docx':
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     };
     return mimeTypes[extension] ?? 'application/octet-stream';
   }
