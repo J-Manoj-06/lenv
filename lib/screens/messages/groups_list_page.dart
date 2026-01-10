@@ -75,7 +75,7 @@ class _GroupsListPageState extends State<GroupsListPage>
   }
 
   void _listenForMessageUpdates(String classId, GroupSubject subject) {
-    final chatId = '${classId}|${subject.id}';
+    final chatId = '$classId|${subject.id}';
     // Listen to all messages, not just the latest one, to ensure we catch every update
     final query = FirebaseFirestore.instance
         .collection('classes')
@@ -113,8 +113,8 @@ class _GroupsListPageState extends State<GroupsListPage>
     if (mounted) {
       setState(() {
         _subjects.sort((a, b) {
-          final at = _lastMessageTs['${_classId}|${a.id}'] ?? 0;
-          final bt = _lastMessageTs['${_classId}|${b.id}'] ?? 0;
+          final at = _lastMessageTs['$_classId|${a.id}'] ?? 0;
+          final bt = _lastMessageTs['$_classId|${b.id}'] ?? 0;
           return bt.compareTo(at);
         });
       });
@@ -188,16 +188,15 @@ class _GroupsListPageState extends State<GroupsListPage>
       });
 
       // Load unread counts for these subjects
-      final chatIds = subjects.map((s) => '${_classId}|${s.id}').toList();
+      final chatIds = subjects.map((s) => '$_classId|${s.id}').toList();
       final chatTypes = {
-        for (final s in subjects)
-          '${_classId}|${s.id}': ChatTypeConfig.groupChat,
+        for (final s in subjects) '$_classId|${s.id}': ChatTypeConfig.groupChat,
       };
       await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
 
       // Fetch latest message timestamp for sorting like WhatsApp
       for (final s in subjects) {
-        final chatId = '${_classId}|${s.id}';
+        final chatId = '$_classId|${s.id}';
         try {
           final snap = await FirebaseFirestore.instance
               .collection('classes')
@@ -221,8 +220,8 @@ class _GroupsListPageState extends State<GroupsListPage>
       if (mounted) {
         setState(() {
           _subjects.sort((a, b) {
-            final at = _lastMessageTs['${_classId}|${a.id}'] ?? 0;
-            final bt = _lastMessageTs['${_classId}|${b.id}'] ?? 0;
+            final at = _lastMessageTs['$_classId|${a.id}'] ?? 0;
+            final bt = _lastMessageTs['$_classId|${b.id}'] ?? 0;
             return bt.compareTo(at);
           });
         });
@@ -342,7 +341,7 @@ class _GroupsListPageState extends State<GroupsListPage>
       separatorBuilder: (context, index) => const SizedBox(height: 14),
       itemBuilder: (context, index) {
         final subject = _subjects[index];
-        final chatId = '${_classId}|${subject.id}';
+        final chatId = '$_classId|${subject.id}';
 
         return _SubjectGroupCard(
           subject: subject,

@@ -24,7 +24,6 @@ import '../../services/local_cache_service.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/media_repository.dart';
 import '../../services/parent_teacher_group_service.dart';
-import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/unread_count_service.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
@@ -2022,8 +2021,9 @@ class _ParentGroupMessageSearchScreenState
     if (mime.isNotEmpty) return Icons.insert_drive_file_outlined;
     if (m.type == 'audio') return Icons.audiotrack;
     if (m.type == 'image') return Icons.image_outlined;
-    if (m.type == 'pdf' || m.type == 'file')
+    if (m.type == 'pdf' || m.type == 'file') {
       return Icons.insert_drive_file_outlined;
+    }
     return Icons.chat_bubble_outline;
   }
 
@@ -2098,7 +2098,7 @@ class _ParentGroupMessageSearchScreenState
       try {
         final mediaId = meta.mediaId ?? '';
         if (mediaId.isNotEmpty) {
-          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(
+          final cachedMedia = LocalCacheService().getCachedMediaMetadata(
             mediaId,
           );
           if (cachedMedia != null && cachedMedia['localPath'] != null) {
@@ -2187,7 +2187,7 @@ class _ParentGroupMessageSearchScreenState
       try {
         final mediaId = meta.mediaId ?? '';
         if (mediaId.isNotEmpty) {
-          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(
+          final cachedMedia = LocalCacheService().getCachedMediaMetadata(
             mediaId,
           );
           if (cachedMedia != null && cachedMedia['localPath'] != null) {
@@ -2254,7 +2254,7 @@ class _ParentGroupMessageSearchScreenState
       final finalFileName = cleanFileName.endsWith('.pdf')
           ? cleanFileName
           : '$cleanFileName.pdf';
-      final filePath = '${tempDir.path}/$timestamp\_$finalFileName';
+      final filePath = '${tempDir.path}/${timestamp}_$finalFileName';
 
       final dio = Dio();
       await dio.download(url, filePath);
@@ -2650,7 +2650,7 @@ class AudioPlayerModal extends StatefulWidget {
 
 class _AudioPlayerModalState extends State<AudioPlayerModal> {
   bool _isPlaying = false;
-  Duration _duration = Duration.zero;
+  final Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
 
   @override

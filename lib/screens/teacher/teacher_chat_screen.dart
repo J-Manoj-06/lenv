@@ -6,7 +6,6 @@ import 'package:record/record.dart';
 import 'dart:io';
 import 'dart:async';
 import '../../services/chat_service.dart';
-import '../../models/media_metadata.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/background_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
@@ -52,7 +51,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
-  bool _isUploading = false;
+  final bool _isUploading = false;
 
   Future<void> _batchUpdateIncoming(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
@@ -443,9 +442,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
 
       final file = File(image.path);
       if (!file.existsSync()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Image file not found')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Image file not found')));
         return;
       }
 
@@ -479,9 +478,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
       );
     } catch (e) {
       print('❌ Error queueing image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to queue image: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to queue image: $e')));
     }
   }
 
@@ -495,9 +494,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
 
       final file = File(result.files.single.path!);
       if (!file.existsSync()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF file not found')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('PDF file not found')));
         return;
       }
 
@@ -521,17 +520,14 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('PDF queued for upload'),
-          action: SnackBarAction(
-            label: 'View',
-            onPressed: () {},
-          ),
+          action: SnackBarAction(label: 'View', onPressed: () {}),
         ),
       );
     } catch (e) {
       print('❌ Error queueing PDF: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to queue PDF: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to queue PDF: $e')));
     }
   }
 
@@ -542,9 +538,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
 
       final file = File(result.files.single.path!);
       if (!file.existsSync()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Audio file not found')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Audio file not found')));
         return;
       }
 
@@ -568,17 +564,14 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Audio queued for upload'),
-          action: SnackBarAction(
-            label: 'View',
-            onPressed: () {},
-          ),
+          action: SnackBarAction(label: 'View', onPressed: () {}),
         ),
       );
     } catch (e) {
       print('❌ Error queueing audio: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to queue audio: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to queue audio: $e')));
     }
   }
 }

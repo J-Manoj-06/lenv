@@ -43,7 +43,6 @@
     "path-to-regexp": "^6.3.0",
     "pathe": "^2.0.3",
     "semver": "^7.7.3",
-    "sharp": "^0.33.5",
     "simple-swizzle": "^0.2.4",
     "stoppable": "^1.1.0",
     "supports-color": "^10.2.2",

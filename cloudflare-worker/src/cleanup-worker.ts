@@ -1,14 +1,12 @@
-/**
- * Cloudflare Worker: Firestore Announcement Cleanup
- * 
- * This worker replaces Firebase scheduled Cloud Functions for TTL cleanup.
- * Runs every 6 hours to delete expired announcements from Firestore.
- * 
- * Cost: FREE (Cloudflare Workers free tier)
- * Schedule: Cron trigger (0 */6 * * *)
- * 
- * Deployment: wrangler deploy --config wrangler-cleanup.jsonc
- */
+// Cloudflare Worker: Firestore Announcement Cleanup
+//
+// This worker replaces Firebase scheduled Cloud Functions for TTL cleanup.
+// Runs every 6 hours to delete expired announcements from Firestore.
+//
+// Cost: FREE (Cloudflare Workers free tier)
+// Schedule: Cron trigger (0 */6 * * *)
+//
+// Deployment: wrangler deploy --config wrangler-cleanup.jsonc
 
 interface Env {
   FIREBASE_PROJECT_ID: string;
@@ -176,7 +174,7 @@ async function queryExpiredAnnouncements(
     throw new Error(`Firestore query failed: ${response.statusText}`);
   }
 
-  const results = await response.json();
+  const results = await response.json() as any[];
   return results
     .filter((r: any) => r.document)
     .map((r: any) => r.document);

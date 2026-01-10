@@ -18,7 +18,6 @@ import '../../models/institute_announcement_model.dart';
 import '../../services/parent_teacher_group_service.dart';
 import '../../models/parent_teacher_group.dart';
 import 'attendance_screen.dart';
-import '../common/announcement_view_screen.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../../services/media_repository.dart';
 

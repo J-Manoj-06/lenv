@@ -10,13 +10,13 @@ class UnreadBadge extends StatelessWidget {
   final double? fontSize;
 
   const UnreadBadge({
-    Key? key,
+    super.key,
     required this.count,
     this.backgroundColor,
     this.textColor,
     this.badgeSize = 32,
     this.fontSize = 14,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +73,7 @@ class PositionedUnreadBadge extends StatelessWidget {
   final double topOffset;
 
   const PositionedUnreadBadge({
-    Key? key,
+    super.key,
     required this.count,
     this.backgroundColor,
     this.textColor,
@@ -81,7 +81,7 @@ class PositionedUnreadBadge extends StatelessWidget {
     this.fontSize = 14,
     this.rightOffset = 8,
     this.topOffset = 8,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -111,11 +111,11 @@ class InlineUnreadBadge extends StatelessWidget {
   final Color? textColor;
 
   const InlineUnreadBadge({
-    Key? key,
+    super.key,
     required this.count,
     this.backgroundColor,
     this.textColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

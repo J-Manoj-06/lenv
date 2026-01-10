@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
-import '../../utils/chat_type_config.dart';
 import '../../widgets/unread_badge_widget.dart';
 import '../messages/group_chat_page.dart';
 

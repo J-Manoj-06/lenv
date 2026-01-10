@@ -54,7 +54,7 @@ class _TeacherCommunityChatScreenState
   String? _teacherName;
   String? _teacherId;
   bool _showEmojiPicker = false;
-  bool _isUploading = false;
+  final bool _isUploading = false;
 
   // Multi-select functionality
   bool _selectionMode = false;
@@ -149,8 +149,8 @@ class _TeacherCommunityChatScreenState
 
     resolvedName = (resolvedName != null && resolvedName.isNotEmpty)
         ? resolvedName
-        : (currentUser.name?.trim().isNotEmpty == true
-              ? currentUser.name!.trim()
+        : (currentUser.name.trim().isNotEmpty == true
+              ? currentUser.name.trim()
               : (fallbackEmailName.isNotEmpty ? fallbackEmailName : 'Teacher'));
 
     if (mounted) {
@@ -240,9 +240,9 @@ class _TeacherCommunityChatScreenState
 
       final file = File(pickedFile.path);
       if (!file.existsSync()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Image file not found')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Image file not found')));
         return;
       }
 
@@ -290,9 +290,9 @@ class _TeacherCommunityChatScreenState
 
       final file = File(result.files.single.path!);
       if (!file.existsSync()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF file not found')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('PDF file not found')));
         return;
       }
 
@@ -337,9 +337,9 @@ class _TeacherCommunityChatScreenState
 
       final file = File(result.files.single.path!);
       if (!file.existsSync()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Audio file not found')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Audio file not found')));
         return;
       }
 
@@ -1588,8 +1588,9 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
     if (mime.isNotEmpty) return Icons.insert_drive_file_outlined;
     if (m.type == 'audio') return Icons.audiotrack;
     if (m.type == 'image') return Icons.image_outlined;
-    if (m.type == 'pdf' || m.type == 'file')
+    if (m.type == 'pdf' || m.type == 'file') {
       return Icons.insert_drive_file_outlined;
+    }
     return Icons.chat_bubble_outline;
   }
 
@@ -1671,7 +1672,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       try {
         final mediaId = meta.mediaId ?? '';
         if (mediaId.isNotEmpty) {
-          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(
+          final cachedMedia = LocalCacheService().getCachedMediaMetadata(
             mediaId,
           );
           if (cachedMedia != null && cachedMedia['localPath'] != null) {
@@ -1762,7 +1763,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       try {
         final mediaId = meta.mediaId ?? '';
         if (mediaId.isNotEmpty) {
-          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(
+          final cachedMedia = LocalCacheService().getCachedMediaMetadata(
             mediaId,
           );
           if (cachedMedia != null && cachedMedia['localPath'] != null) {
@@ -1835,7 +1836,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
           ? cleanFileName
           : '$cleanFileName.pdf';
 
-      final filePath = '${tempDir.path}/$timestamp\_$finalFileName';
+      final filePath = '${tempDir.path}/${timestamp}_$finalFileName';
 
       // Download using Dio
       final dio = Dio();
@@ -1952,7 +1953,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
 
       // Save to Downloads folder
       final downloadsPath =
-          externalDir.path.split('/Android').first + '/Download';
+          '${externalDir.path.split('/Android').first}/Download';
       final downloadsDir = Directory(downloadsPath);
 
       if (!await downloadsDir.exists()) {
@@ -1961,7 +1962,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final cleanFileName = fileName.replaceAll(RegExp(r'[^\w\s\-\.]'), '');
-      final filePath = '${downloadsDir.path}/LENV_$timestamp\_$cleanFileName';
+      final filePath = '${downloadsDir.path}/LENV_${timestamp}_$cleanFileName';
 
       // Download using Dio
       final dio = Dio();
@@ -2359,7 +2360,7 @@ class AudioPlayerModal extends StatefulWidget {
 
 class _AudioPlayerModalState extends State<AudioPlayerModal> {
   bool _isPlaying = false;
-  Duration _duration = Duration.zero;
+  final Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
 
   @override

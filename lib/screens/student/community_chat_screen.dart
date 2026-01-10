@@ -1634,7 +1634,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Message deleted'),
-            backgroundColor: const Color(0xFF4CAF50),
+            backgroundColor: Color(0xFF4CAF50),
           ),
         );
       }
@@ -2293,8 +2293,9 @@ class _StudentCommunityMessageSearchScreenState
     if (mime.isNotEmpty) return Icons.insert_drive_file_outlined;
     if (m.type == 'audio') return Icons.audiotrack;
     if (m.type == 'image') return Icons.image_outlined;
-    if (m.type == 'pdf' || m.type == 'file')
+    if (m.type == 'pdf' || m.type == 'file') {
       return Icons.insert_drive_file_outlined;
+    }
     return Icons.chat_bubble_outline;
   }
 
@@ -2369,7 +2370,7 @@ class _StudentCommunityMessageSearchScreenState
       try {
         final mediaId = meta.mediaId ?? '';
         if (mediaId.isNotEmpty) {
-          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(
+          final cachedMedia = LocalCacheService().getCachedMediaMetadata(
             mediaId,
           );
           if (cachedMedia != null && cachedMedia['localPath'] != null) {
@@ -2458,7 +2459,7 @@ class _StudentCommunityMessageSearchScreenState
       try {
         final mediaId = meta.mediaId ?? '';
         if (mediaId.isNotEmpty) {
-          final cachedMedia = await LocalCacheService().getCachedMediaMetadata(
+          final cachedMedia = LocalCacheService().getCachedMediaMetadata(
             mediaId,
           );
           if (cachedMedia != null && cachedMedia['localPath'] != null) {
@@ -2525,7 +2526,7 @@ class _StudentCommunityMessageSearchScreenState
       final finalFileName = cleanFileName.endsWith('.pdf')
           ? cleanFileName
           : '$cleanFileName.pdf';
-      final filePath = '${tempDir.path}/$timestamp\_$finalFileName';
+      final filePath = '${tempDir.path}/${timestamp}_$finalFileName';
 
       final dio = Dio();
       await dio.download(url, filePath);
@@ -2921,7 +2922,7 @@ class AudioPlayerModal extends StatefulWidget {
 
 class _AudioPlayerModalState extends State<AudioPlayerModal> {
   bool _isPlaying = false;
-  Duration _duration = Duration.zero;
+  final Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
 
   @override
