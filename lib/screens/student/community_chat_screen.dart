@@ -23,6 +23,7 @@ import '../../services/media_upload_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
+import '../../services/media_repository.dart';
 import '../../config/cloudflare_config.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/modern_attachment_sheet.dart';
@@ -46,8 +47,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final WhatsAppMediaUploadService _whatsappMediaUpload;
-
   late final MediaUploadService _mediaUploadService;
+  final MediaRepository _mediaRepository = MediaRepository();
   bool _isUploading = false;
   bool _isRecording = false;
   bool _showEmojiPicker = false;
@@ -61,8 +62,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   // Optimistic pending messages and per-upload progress
   final List<CommunityMessageModel> _pendingMessages = [];
   final Map<String, double> _pendingUploadProgress = {};
-  // Sender-only local paths to avoid re-downloading our own uploads
-  final Map<String, String> _localSenderMediaPaths = {};
 
   // Theme helpers
   Color get _primary => const Color(0xFFF2800D);
@@ -389,11 +388,17 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       }
 
       if (result.success && result.metadata != null) {
-        // Keep sender-local path to avoid re-download
-        _localSenderMediaPaths[result.metadata!.messageId] = image.path;
-        debugPrint(
-          '📌 Cached sender local path: ${image.path} for messageId: ${result.metadata!.messageId}',
+        // Cache the uploaded image to local storage
+        final r2Key = result.metadata!.r2Key;
+        await _mediaRepository.cacheUploadedMedia(
+          r2Key: r2Key,
+          localPath: image.path,
+          fileName: result.metadata!.originalFileName ?? 'image.jpg',
+          mimeType: result.metadata!.mimeType ?? 'image/jpeg',
+          fileSize: result.metadata!.fileSize ?? 0,
+          thumbnailBase64: result.metadata!.thumbnail,
         );
+        debugPrint('✅ Cached uploaded image: $r2Key at ${image.path}');
 
         await _communityService.sendMessage(
           communityId: widget.community.id,
@@ -577,8 +582,15 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         originalFileName: mediaMessage.fileName,
       );
 
-      // Keep sender-local path to avoid re-download
-      _localSenderMediaPaths[mediaMessage.id] = file.path;
+      // Cache the uploaded PDF to local storage
+      await _mediaRepository.cacheUploadedMedia(
+        r2Key: r2Key,
+        localPath: file.path,
+        fileName: mediaMessage.fileName,
+        mimeType: mediaMessage.fileType,
+        fileSize: mediaMessage.fileSize,
+      );
+      debugPrint('✅ Cached uploaded PDF: $r2Key at ${file.path}');
 
       await _communityService.sendMessage(
         communityId: widget.community.id,
@@ -742,8 +754,15 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         originalFileName: mediaMessage.fileName,
       );
 
-      // Keep sender-local path so playback is instant without download
-      _localSenderMediaPaths[mediaMessage.id] = file.path;
+      // Cache the uploaded audio to local storage
+      await _mediaRepository.cacheUploadedMedia(
+        r2Key: r2Key,
+        localPath: file.path,
+        fileName: mediaMessage.fileName,
+        mimeType: mediaMessage.fileType,
+        fileSize: mediaMessage.fileSize,
+      );
+      debugPrint('✅ Cached uploaded audio: $r2Key at ${file.path}');
 
       await _communityService.sendMessage(
         communityId: widget.community.id,
@@ -970,9 +989,20 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         uploadedAt: DateTime.now(),
         fileSize: mediaMessage.fileSize,
         mimeType: mediaMessage.fileType,
-        localPath: cachedPath,
         originalFileName: mediaMessage.fileName,
       );
+
+      // Cache the uploaded audio using MediaRepository for proper download management
+      if (cachedPath != null) {
+        await _mediaRepository.cacheUploadedMedia(
+          r2Key: r2Key,
+          localPath: cachedPath,
+          fileName: mediaMessage.fileName,
+          mimeType: mediaMessage.fileType,
+          fileSize: mediaMessage.fileSize,
+        );
+        debugPrint('✅ Cached uploaded audio: $r2Key at $cachedPath');
+      }
 
       await _communityService.sendMessage(
         communityId: widget.community.id,
@@ -991,11 +1021,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         );
         _pendingUploadProgress.remove(messageId);
       });
-
-      // Store sender-local path for playback
-      if (cachedPath != null) {
-        _localSenderMediaPaths[mediaMessage.id] = cachedPath;
-      }
 
       // Delete the temporary recording file
       try {
@@ -1317,7 +1342,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     String currentUserName,
     bool isUploading,
     double? uploadProgress,
-    Map<String, String> localSenderMediaPaths,
   ) {
     final isSelected = _selectedMessages.contains(message.messageId);
     return GestureDetector(
@@ -1437,11 +1461,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                 fileSize: message.mediaMetadata!.fileSize ?? 0,
                                 thumbnailBase64:
                                     message.mediaMetadata!.thumbnail,
-                                localPath:
-                                    message.mediaMetadata!.localPath ??
-                                    localSenderMediaPaths[message
-                                        .mediaMetadata!
-                                        .messageId],
                                 isMe: isCurrentUser,
                                 uploading: isUploading,
                                 uploadProgress: uploadProgress,
@@ -1621,8 +1640,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           }
         }
 
-        // Delete message completely
-        await messageRef.delete();
+        // ✅ FIXED: Mark message as deleted instead of completely deleting
+        // This preserves chat history and allows proper filtering
+        await messageRef.update({
+          'isDeleted': true,
+          'content': '', // Clear content
+          'mediaMetadata': null, // Clear media metadata
+        });
       }
 
       setState(() {
@@ -2147,7 +2171,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                                 student.name,
                                 isPending,
                                 uploadProgress,
-                                _localSenderMediaPaths,
                               ),
                           ],
                         );

@@ -62,53 +62,14 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   Future<void> _checkDownloadStatus() async {
-    // If localPath provided (WhatsApp upload), use it directly
-    if (widget.localPath != null && widget.localPath!.isNotEmpty) {
-      final file = File(widget.localPath!);
-
-      // Validate that the file extension matches the media type
-      final filePath = widget.localPath!.toLowerCase();
-      final isAudioFile =
-          filePath.endsWith('.m4a') ||
-          filePath.endsWith('.mp3') ||
-          filePath.endsWith('.aac') ||
-          filePath.endsWith('.wav');
-
-      // If this is supposed to be an image but localPath points to audio, ignore it
-      if (_isImage && isAudioFile) {
-        print(
-          '⚠️ Skipping invalid localPath: audio file for image type: ${widget.localPath}',
-        );
-        if (mounted) {
-          setState(() {
-            _isDownloaded = false;
-            _localPath = null;
-          });
-        }
-        return;
-      }
-
-      final exists = await file.exists();
-
-      print('📋 Using provided localPath: ${widget.localPath}');
-      print('   File exists: $exists');
-
-      if (mounted) {
-        setState(() {
-          _isDownloaded = exists;
-          _localPath = exists ? widget.localPath : null;
-        });
-      }
-      return;
-    }
-
-    // Otherwise check repository
+    // ALWAYS check repository for download status
+    // Never trust localPath from Firestore - it might be from a different device/session
     final downloaded = await _repository.isDownloaded(widget.r2Key);
     final path = await _repository.getLocalFilePath(widget.r2Key);
 
-    print('📋 Check status for: ${widget.r2Key}');
+    print('📋 Check download status for: ${widget.r2Key}');
     print('   Downloaded: $downloaded');
-    print('   Local path: $path');
+    print('   Local path from cache: $path');
     print(
       '   File size: ${widget.fileSize} bytes (${_formatSize(widget.fileSize)})',
     );
@@ -120,8 +81,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       });
     }
 
-    // No longer auto-download for sender - they should have it cached from upload
-    // If not cached, user can manually download like any other media
+    // ✅ No auto-download - user must explicitly click download button
   }
 
   Future<void> _download() async {
@@ -191,6 +151,25 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         ),
       );
     }
+  }
+
+  /// Open PDF directly from R2 URL without downloading (for sender)
+  void _openFromR2() {
+    if (!_isPdf) return;
+    
+    // Construct the public URL for the file on R2
+    final publicUrl = 'https://files.lenv1.tech/${widget.r2Key}';
+    
+    print('🌐 Opening PDF from R2: $publicUrl');
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PDFViewerScreen(
+          path: publicUrl,
+          title: widget.fileName,
+        ),
+      ),
+    );
   }
 
   /// Note: This method is kept for future implementation but currently unused
@@ -390,13 +369,20 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 ),
               )
             else if (widget.isMe)
-              // Sender: show status message if not yet downloaded/cached
-              Text(
-                'Uploading... tap to refresh',
-                style: TextStyle(
-                  color: isDark ? Colors.white60 : Colors.black54,
-                  fontSize: 11,
-                  fontStyle: FontStyle.italic,
+              // Sender: show View button (can open directly from R2)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: widget.selectionMode ? null : () => _openFromR2(),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('View PDF'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _accentColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                 ),
               ),
           ],

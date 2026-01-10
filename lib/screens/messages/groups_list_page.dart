@@ -346,9 +346,13 @@ class _GroupsListPageState extends State<GroupsListPage>
         return _SubjectGroupCard(
           subject: subject,
           chatId: chatId,
-          onTap: () {
-            Navigator.push(
-              context,
+          onTap: () async {
+            // Capture context before any async operations
+            final navContext = context;
+            
+            // Navigate and wait for return
+            await Navigator.push(
+              navContext,
               MaterialPageRoute(
                 builder: (context) => GroupChatPage(
                   classId: _classId!,
@@ -358,18 +362,24 @@ class _GroupsListPageState extends State<GroupsListPage>
                   icon: subject.icon,
                 ),
               ),
-            ).then((_) {
-              // Refresh this chat's count on return
-              final unreadProvider = Provider.of<UnreadCountProvider>(
-                context,
-                listen: false,
-              );
-              unreadProvider.refreshChat(chatId);
-              unreadProvider.loadUnreadCount(
-                chatId: chatId,
-                chatType: ChatTypeConfig.groupChat,
-              );
-            });
+            );
+            
+            // Refresh unread count after returning - only if widget still mounted
+            if (mounted) {
+              try {
+                final unreadProvider = Provider.of<UnreadCountProvider>(
+                  navContext,
+                  listen: false,
+                );
+                unreadProvider.refreshChat(chatId);
+                unreadProvider.loadUnreadCount(
+                  chatId: chatId,
+                  chatType: ChatTypeConfig.groupChat,
+                );
+              } catch (e) {
+                print('⚠️ Skipped unread refresh: widget disposed ($e)');
+              }
+            }
           },
         );
       },

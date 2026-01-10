@@ -21,6 +21,7 @@ import '../../services/community_service.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../pdf_viewer_screen.dart';
 import '../../services/media_upload_service.dart';
+import '../../services/media_repository.dart';
 import '../../services/background_upload_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
@@ -49,6 +50,7 @@ class _TeacherCommunityChatScreenState
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
+  final MediaRepository _mediaRepository = MediaRepository();
   late final WhatsAppMediaUploadService _whatsappMediaUpload;
   final ValueNotifier<String> _messageText = ValueNotifier<String>('');
   String? _teacherName;

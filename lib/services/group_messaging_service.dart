@@ -119,7 +119,8 @@ class GroupMessagingService {
               .where((doc) {
                 // Filter out documents with invalid data
                 final data = doc.data();
-                return data['timestamp'] != null;
+                // ✅ FIXED: Also filter out deleted messages
+                return data['timestamp'] != null && !(data['isDeleted'] ?? false);
               })
               .map((doc) => GroupChatMessage.fromFirestore(doc.data(), doc.id))
               .toList();

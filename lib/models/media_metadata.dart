@@ -56,12 +56,15 @@ class MediaMetadata {
   }
 
   /// Convert to Firestore document
+  /// NOTE: localPath is intentionally excluded - it's device-specific and should
+  /// only be stored in local download cache, never in Firestore.
+  /// This prevents auto-download issues when signing in on different devices.
   Map<String, dynamic> toFirestore() {
     return {
       'messageId': messageId,
       'r2Key': r2Key,
       'publicUrl': publicUrl,
-      'localPath': localPath,
+      // 'localPath': localPath, // ❌ REMOVED: Never save device-specific paths to Firestore
       'thumbnail': thumbnail,
       'deletedLocally': deletedLocally,
       'serverStatus': serverStatus.toString(),

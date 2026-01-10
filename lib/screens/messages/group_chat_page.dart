@@ -374,12 +374,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
     // Set up stream to track lastReadAt in real-time
     _setupLastReadStream();
 
-    // Mark as read on entry so splitter can detect read messages
-    _markAsRead();
-
-    // Scroll to bottom on initial load
+    // Scroll to bottom on initial load AND mark as read after frame
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _scrollToBottom(force: true),
+      (_) {
+        if (mounted) {
+          _scrollToBottom(force: true);
+          // Mark as read on entry so splitter can detect read messages
+          // Schedule this separately to avoid build conflicts
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) {
+              _markAsRead();
+            }
+          });
+        }
+      },
     );
   }
 
@@ -445,6 +453,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Future<void> _markChatAsReadForUser() async {
+    if (!mounted) return; // Don't try to access context if widget is disposed
+    
     try {
       final unread = Provider.of<UnreadCountProvider>(context, listen: false);
       final chatId = '${widget.classId}|${widget.subjectId}';
@@ -452,40 +462,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
     } catch (e) {
       print('❌ Error marking chat read in provider: $e');
     }
-  }
-
-  void _maybeMarkAsRead(int lastReadMs, List<GroupChatMessage> messages) {
-    if (messages.isEmpty) return;
-
-    final newestTimestamp = messages.first.timestamp;
-    // If already read, no need to mark again
-    if (newestTimestamp <= lastReadMs) return;
-
-    // Check if user is near bottom (actively viewing latest messages)
-    final nearBottom =
-        !_scrollController.hasClients || _scrollController.offset < 120;
-    if (!nearBottom) return;
-
-    // Debounce to avoid excessive writes - use 5 seconds to prevent feedback loop
-    final now = DateTime.now();
-    if (now.difference(_lastMarkedReadAt) < const Duration(seconds: 5)) return;
-
-    print('🔔 Scheduling auto-mark-as-read in 2 seconds');
-    _lastMarkedReadAt = now;
-
-    // Delay mark-as-read by 2 seconds to allow user to see the unread divider
-    Future.delayed(const Duration(seconds: 2), () {
-      // Check if widget is still mounted and still at bottom
-      if (!mounted) return;
-      final stillNearBottom =
-          !_scrollController.hasClients || _scrollController.offset < 120;
-      if (!stillNearBottom) return;
-
-      print('✅ Executing delayed mark-as-read');
-      _markChatAsReadForUser().catchError((e) {
-        print('⚠️ Auto mark-as-read failed: $e');
-      });
-    });
   }
 
   @override
@@ -1368,13 +1344,41 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         print(
                           '🔍 StreamBuilder lastReadAt: ${readSnapshot.data?.toDate() ?? "null"}, lastReadMs=$lastReadMs, hasValidData=$hasValidData',
                         );
-                        // Schedule mark-as-read after build completes to avoid setState during build
-                        Future.microtask(
-                          () => _maybeMarkAsRead(lastReadMs, messages),
-                        );
 
-                        // Merge pending messages with Firestore messages
-                        final allMessages = [..._pendingMessages, ...messages];
+                        // Merge pending messages with Firestore messages, removing duplicates
+                        // (pending messages that have been successfully uploaded to Firestore)
+                        final allMessages = <GroupChatMessage>[..._pendingMessages, ...messages];
+                        
+                        // Remove pending messages that now have a corresponding Firestore message
+                        // Match by: same sender + timestamp within 5 seconds + media keys match
+                        allMessages.removeWhere((pendingMsg) {
+                          if (!pendingMsg.id.startsWith('pending:')) return false;
+                          
+                          // Check if this pending message has a corresponding Firestore message
+                          final hasFirebaseVersion = messages.any((fsMsg) {
+                            final senderMatch = fsMsg.senderId == pendingMsg.senderId;
+                            final timeMatch = (fsMsg.timestamp - pendingMsg.timestamp).abs() < 5000; // within 5 seconds
+                            
+                            // For media messages: must match the exact r2Key
+                            if (pendingMsg.mediaMetadata != null && fsMsg.mediaMetadata != null) {
+                              return senderMatch && timeMatch && fsMsg.mediaMetadata!.r2Key == pendingMsg.mediaMetadata!.r2Key;
+                            }
+                            // For text-only messages: sender + time match is enough
+                            if (pendingMsg.mediaMetadata == null && fsMsg.mediaMetadata == null) {
+                              return senderMatch && timeMatch;
+                            }
+                            // If one has media and other doesn't, they don't match
+                            return false;
+                          });
+                          
+                          // Remove if we found a matching Firestore version
+                          if (hasFirebaseVersion) {
+                            try {
+                              _pendingMessages.remove(pendingMsg);
+                            } catch (_) {}
+                          }
+                          return hasFirebaseVersion;
+                        });
 
                         return _buildMessageList(
                           allMessages,
@@ -1765,8 +1769,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
           }
         }
 
-        // Delete message completely for everyone
-        await messageRef.delete();
+        // ✅ FIXED: Mark message as deleted instead of completely deleting
+        // This preserves chat history and allows proper filtering
+        await messageRef.update({
+          'isDeleted': true,
+          'message': '', // Clear content
+          'mediaMetadata': null, // Clear media metadata
+          'imageUrl': null,
+        });
       }
 
       setState(() {
