@@ -785,7 +785,8 @@ class CommunityService {
                 // Filter out documents with invalid timestamp data
                 final data = doc.data();
                 // ✅ FIXED: Also filter out deleted messages
-                return data['createdAt'] != null && !(data['isDeleted'] ?? false);
+                return data['createdAt'] != null &&
+                    !(data['isDeleted'] ?? false);
               })
               .map((doc) => CommunityMessageModel.fromFirestore(doc))
               .toList();

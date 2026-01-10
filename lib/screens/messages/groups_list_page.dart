@@ -349,7 +349,7 @@ class _GroupsListPageState extends State<GroupsListPage>
           onTap: () async {
             // Capture context before any async operations
             final navContext = context;
-            
+
             // Navigate and wait for return
             await Navigator.push(
               navContext,
@@ -363,7 +363,7 @@ class _GroupsListPageState extends State<GroupsListPage>
                 ),
               ),
             );
-            
+
             // Refresh unread count after returning - only if widget still mounted
             if (mounted) {
               try {

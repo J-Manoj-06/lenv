@@ -156,18 +156,16 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   /// Open PDF directly from R2 URL without downloading (for sender)
   void _openFromR2() {
     if (!_isPdf) return;
-    
+
     // Construct the public URL for the file on R2
     final publicUrl = 'https://files.lenv1.tech/${widget.r2Key}';
-    
+
     print('🌐 Opening PDF from R2: $publicUrl');
-    
+
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PDFViewerScreen(
-          path: publicUrl,
-          title: widget.fileName,
-        ),
+        builder: (_) =>
+            PDFViewerScreen(path: publicUrl, title: widget.fileName),
       ),
     );
   }

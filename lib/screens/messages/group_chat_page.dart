@@ -375,20 +375,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _setupLastReadStream();
 
     // Scroll to bottom on initial load AND mark as read after frame
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) {
-        if (mounted) {
-          _scrollToBottom(force: true);
-          // Mark as read on entry so splitter can detect read messages
-          // Schedule this separately to avoid build conflicts
-          Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted) {
-              _markAsRead();
-            }
-          });
-        }
-      },
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _scrollToBottom(force: true);
+        // Mark as read on entry so splitter can detect read messages
+        // Schedule this separately to avoid build conflicts
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) {
+            _markAsRead();
+          }
+        });
+      }
+    });
   }
 
   void _setupLastReadStream() {
@@ -454,7 +452,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   Future<void> _markChatAsReadForUser() async {
     if (!mounted) return; // Don't try to access context if widget is disposed
-    
+
     try {
       final unread = Provider.of<UnreadCountProvider>(context, listen: false);
       final chatId = '${widget.classId}|${widget.subjectId}';
@@ -1347,30 +1345,42 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
                         // Merge pending messages with Firestore messages, removing duplicates
                         // (pending messages that have been successfully uploaded to Firestore)
-                        final allMessages = <GroupChatMessage>[..._pendingMessages, ...messages];
-                        
+                        final allMessages = <GroupChatMessage>[
+                          ..._pendingMessages,
+                          ...messages,
+                        ];
+
                         // Remove pending messages that now have a corresponding Firestore message
                         // Match by: same sender + timestamp within 5 seconds + media keys match
                         allMessages.removeWhere((pendingMsg) {
-                          if (!pendingMsg.id.startsWith('pending:')) return false;
-                          
+                          if (!pendingMsg.id.startsWith('pending:'))
+                            return false;
+
                           // Check if this pending message has a corresponding Firestore message
                           final hasFirebaseVersion = messages.any((fsMsg) {
-                            final senderMatch = fsMsg.senderId == pendingMsg.senderId;
-                            final timeMatch = (fsMsg.timestamp - pendingMsg.timestamp).abs() < 5000; // within 5 seconds
-                            
+                            final senderMatch =
+                                fsMsg.senderId == pendingMsg.senderId;
+                            final timeMatch =
+                                (fsMsg.timestamp - pendingMsg.timestamp).abs() <
+                                5000; // within 5 seconds
+
                             // For media messages: must match the exact r2Key
-                            if (pendingMsg.mediaMetadata != null && fsMsg.mediaMetadata != null) {
-                              return senderMatch && timeMatch && fsMsg.mediaMetadata!.r2Key == pendingMsg.mediaMetadata!.r2Key;
+                            if (pendingMsg.mediaMetadata != null &&
+                                fsMsg.mediaMetadata != null) {
+                              return senderMatch &&
+                                  timeMatch &&
+                                  fsMsg.mediaMetadata!.r2Key ==
+                                      pendingMsg.mediaMetadata!.r2Key;
                             }
                             // For text-only messages: sender + time match is enough
-                            if (pendingMsg.mediaMetadata == null && fsMsg.mediaMetadata == null) {
+                            if (pendingMsg.mediaMetadata == null &&
+                                fsMsg.mediaMetadata == null) {
                               return senderMatch && timeMatch;
                             }
                             // If one has media and other doesn't, they don't match
                             return false;
                           });
-                          
+
                           // Remove if we found a matching Firestore version
                           if (hasFirebaseVersion) {
                             try {
