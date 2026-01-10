@@ -650,6 +650,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         mediaType: 'message',
         chatType: 'group',
         senderName: currentUserName,
+        messageId: messageId,
       );
 
       // Scroll to show the new message
@@ -736,6 +737,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         mediaType: 'message',
         chatType: 'group',
         senderName: currentUserName,
+        messageId: messageId,
       );
 
       // Scroll to show the new message
@@ -819,6 +821,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         mediaType: 'message',
         chatType: 'group',
         senderName: currentUserName,
+        messageId: messageId,
       );
 
       // Scroll to show the new message

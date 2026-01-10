@@ -395,37 +395,40 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       children: [
         card,
         Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.45),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 56,
-                    height: 56,
-                    child: CircularProgressIndicator(
-                      value: widget.uploadProgress,
-                      strokeWidth: 4,
-                      color: Colors.white,
-                      backgroundColor: Colors.white24,
+          child: AbsorbPointer(
+            absorbing: true,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.45),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 56,
+                      height: 56,
+                      child: CircularProgressIndicator(
+                        value: widget.uploadProgress,
+                        strokeWidth: 4,
+                        color: Colors.white,
+                        backgroundColor: Colors.white24,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    widget.uploadProgress == null
-                        ? 'Sending...'
-                        : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 10),
+                    Text(
+                      widget.uploadProgress == null
+                          ? 'Sending...'
+                          : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -566,34 +569,37 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               // Uploading overlay centered inside the image (for sender pending)
               if (widget.uploading)
                 Positioned.fill(
-                  child: Container(
-                    color: Colors.black.withOpacity(0.45),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 56,
-                            height: 56,
-                            child: CircularProgressIndicator(
-                              value: widget.uploadProgress,
-                              strokeWidth: 4,
-                              color: Colors.white,
-                              backgroundColor: Colors.white24,
+                  child: AbsorbPointer(
+                    absorbing: true,
+                    child: Container(
+                      color: Colors.black.withOpacity(0.45),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 56,
+                              height: 56,
+                              child: CircularProgressIndicator(
+                                value: widget.uploadProgress,
+                                strokeWidth: 4,
+                                color: Colors.white,
+                                backgroundColor: Colors.white24,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            widget.uploadProgress == null
-                                ? 'Sending...'
-                                : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                            const SizedBox(height: 10),
+                            Text(
+                              widget.uploadProgress == null
+                                  ? 'Sending...'
+                                  : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

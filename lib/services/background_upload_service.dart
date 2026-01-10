@@ -147,13 +147,15 @@ class BackgroundUploadService extends ChangeNotifier {
     required String mediaType,
     String chatType = 'direct', // 'direct' | 'group' | 'community'
     String? senderName,
+    String? messageId, // Optional: use client-generated pending messageId for progress mapping
   }) async {
     // Ensure service is initialized
     if (!_initialized) {
       await initialize();
     }
 
-    final uploadId = DateTime.now().millisecondsSinceEpoch.toString();
+    // Use provided messageId so UI can map progress to the same pending message
+    final uploadId = messageId ?? DateTime.now().millisecondsSinceEpoch.toString();
 
     final upload = PendingUpload(
       id: uploadId,
@@ -207,6 +209,15 @@ class BackgroundUploadService extends ChangeNotifier {
             senderId: upload.senderId,
             senderRole: upload.senderRole,
             mediaType: upload.mediaType,
+            onProgress: (p) {
+              // p is 0-100 (int). Normalize to 0.0-1.0
+              final normalized = p.toDouble() > 1
+                  ? p.toDouble() / 100.0
+                  : p.toDouble();
+              upload.progress = normalized;
+              notifyListeners();
+              onUploadProgress?.call(upload.id, true, normalized);
+            },
           );
 
           upload.r2Url = mediaMessage.r2Url;
