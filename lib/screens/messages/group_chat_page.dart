@@ -204,7 +204,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
       unreadDividerIndex = null;
     }
 
-
     return ListView.builder(
       controller: _scrollController,
       reverse: true,
@@ -242,8 +241,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
             isOldest ||
             _formatDayLabel(currentDate) != _formatDayLabel(nextDate!);
 
-        if (_showUnreadDivider && showDivider && unreadDividerIndex == index) {
-        }
+        if (_showUnreadDivider && showDivider && unreadDividerIndex == index) {}
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -398,7 +396,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
       if (currentUser == null) return;
       final chatId = '${widget.classId}|${widget.subjectId}';
 
-
       _lastReadAtStream = FirebaseFirestore.instance
           .collection('users')
           .doc(currentUser.uid)
@@ -438,10 +435,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
           widget.subjectId,
           currentUser.uid,
         );
-
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> _markChatAsReadForUser() async {
@@ -451,8 +446,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final unread = Provider.of<UnreadCountProvider>(context, listen: false);
       final chatId = '${widget.classId}|${widget.subjectId}';
       await unread.markChatAsRead(chatId);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   @override
@@ -467,8 +461,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       Future.microtask(() {
         unread?.markChatAsRead(chatId);
       });
-    } catch (e) {
-    }
+    } catch (e) {}
 
     _messageController.dispose();
     _scrollController.dispose();
@@ -624,7 +617,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ),
       );
 
-
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
         _uploadingMessageIds.add(messageId);
@@ -711,8 +703,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
           mimeType: 'application/pdf',
         ),
       );
-      
-      debugPrint('📝 Created pending message: id=${pendingMessage.id}, messageId=$messageId');
+
+      debugPrint(
+        '📝 Created pending message: id=${pendingMessage.id}, messageId=$messageId',
+      );
 
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
@@ -723,7 +717,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       // Ensure UI updates before scrolling
       await Future.delayed(const Duration(milliseconds: 100));
-      
+
       // Queue upload in background service
       await BackgroundUploadService().queueUpload(
         file: file,
@@ -846,8 +840,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       if (_isRecording) {
         try {
           await _audioRecorder.stop();
-        } catch (e) {
-        }
+        } catch (e) {}
 
         _recordingTimer?.cancel();
       }
@@ -954,8 +947,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         if (await file.exists()) {
           await file.delete();
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1009,8 +1001,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         if (await file.exists()) {
           await file.delete();
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     // Clear state
@@ -1259,17 +1250,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             )
                             .toList();
 
-                    debugPrint('📥 FIRESTORE SNAPSHOT: ${messages.length} messages received');
+                    debugPrint(
+                      '📥 FIRESTORE SNAPSHOT: ${messages.length} messages received',
+                    );
                     for (var msg in messages.take(3)) {
-                      debugPrint('   msg.id=${msg.id}, msgId=${msg.mediaMetadata?.messageId}, sender=${msg.senderId}');
+                      debugPrint(
+                        '   msg.id=${msg.id}, msgId=${msg.mediaMetadata?.messageId}, sender=${msg.senderId}',
+                      );
                     }
 
                     // Log Firestore messages with their mediaMetadata.messageId
                     if (messages.isNotEmpty) {
-                      for (final msg in messages.take(3)) {
-                      }
+                      for (final msg in messages.take(3)) {}
                     }
-
 
                     // Auto-scroll when a new newest message arrives (keep latest in view)
                     final newestId = messages.isNotEmpty
@@ -1323,14 +1316,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
                         // Merge pending messages with Firestore messages, removing duplicates
                         // (pending messages that have been successfully uploaded to Firestore)
-                        debugPrint('\n🔄 MERGE: ${_pendingMessages.length} pending + ${messages.length} firestore');
+                        debugPrint(
+                          '\n🔄 MERGE: ${_pendingMessages.length} pending + ${messages.length} firestore',
+                        );
                         for (var p in _pendingMessages) {
-                          debugPrint('   PENDING: id=${p.id}, msgId=${p.mediaMetadata?.messageId}');
+                          debugPrint(
+                            '   PENDING: id=${p.id}, msgId=${p.mediaMetadata?.messageId}',
+                          );
                         }
                         for (var f in messages.take(3)) {
-                          debugPrint('   FIRESTORE: id=${f.id}, msgId=${f.mediaMetadata?.messageId}');
+                          debugPrint(
+                            '   FIRESTORE: id=${f.id}, msgId=${f.mediaMetadata?.messageId}',
+                          );
                         }
-                        
+
                         final allMessages = <GroupChatMessage>[
                           ..._pendingMessages,
                           ...messages,
@@ -1361,9 +1360,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               final messageIdMatch =
                                   serverMsgId == pendingMsgId;
 
-                              debugPrint('🔍 DEDUP CHECK: pending=${pendingMsg.id}, server=${fsMsg.id}');
-                              debugPrint('   pendingMsgId=$pendingMsgId, serverMsgId=$serverMsgId, match=$messageIdMatch');
-                              debugPrint('   senderMatch=$senderMatch, timeMatch=$timeMatch');
+                              debugPrint(
+                                '🔍 DEDUP CHECK: pending=${pendingMsg.id}, server=${fsMsg.id}',
+                              );
+                              debugPrint(
+                                '   pendingMsgId=$pendingMsgId, serverMsgId=$serverMsgId, match=$messageIdMatch',
+                              );
+                              debugPrint(
+                                '   senderMatch=$senderMatch, timeMatch=$timeMatch',
+                              );
 
                               return senderMatch && timeMatch && messageIdMatch;
                             }
@@ -1378,7 +1383,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
                           // Remove if we found a matching Firestore version
                           if (hasFirebaseVersion) {
-                            debugPrint('✅ REMOVING PENDING: ${pendingMsg.id} (found matching Firestore message)');
+                            debugPrint(
+                              '✅ REMOVING PENDING: ${pendingMsg.id} (found matching Firestore message)',
+                            );
                             try {
                               _pendingMessages.remove(pendingMsg);
                             } catch (_) {}
@@ -1767,8 +1774,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 r2Domain: CloudflareConfig.r2Domain,
               );
               await r2Service.deleteFile(key: r2Key);
-            } catch (e) {
-            }
+            } catch (e) {}
           }
         }
 
@@ -2287,8 +2293,7 @@ class _GroupMessageSearchScreenState extends State<GroupMessageSearchScreen> {
             }
           }
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       if (!mounted) return;
 
@@ -2374,8 +2379,7 @@ class _GroupMessageSearchScreenState extends State<GroupMessageSearchScreen> {
             }
           }
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       if (!mounted) return;
 
