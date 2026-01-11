@@ -68,7 +68,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     final downloaded = await _repository.isDownloaded(widget.r2Key);
     final path = await _repository.getLocalFilePath(widget.r2Key);
 
-
     if (mounted) {
       setState(() {
         _isDownloaded = downloaded;

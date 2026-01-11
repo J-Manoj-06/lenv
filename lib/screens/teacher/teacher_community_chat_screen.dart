@@ -1869,8 +1869,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
             }
           }
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       if (!mounted) return;
 
@@ -1958,8 +1957,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
             }
           }
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       if (!mounted) return;
 
@@ -2098,18 +2096,18 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                     ),
                   );
                 }
-                
+
                 final tempDir = await getTemporaryDirectory();
                 final timestamp = DateTime.now().millisecondsSinceEpoch;
                 final filePath = '${tempDir.path}/${timestamp}_$fileName';
-                
+
                 final dio = Dio();
                 await dio.download(url, filePath);
-                
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).hideCurrentSnackBar();
                 }
-                
+
                 await OpenFilex.open(filePath, type: 'application/pdf');
               } catch (e) {
                 if (mounted) {
