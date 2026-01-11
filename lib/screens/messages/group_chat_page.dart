@@ -1315,7 +1315,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     // Log Firestore messages with their mediaMetadata.messageId
                     if (messages.isNotEmpty) {
                       for (final msg in messages.take(3)) {
-                        print('🔥 Firestore msg: id=${msg.id}, messageId=${msg.mediaMetadata?.messageId}, r2Key=${msg.mediaMetadata?.r2Key}, file=${msg.mediaMetadata?.originalFileName}');
+                        print(
+                          '🔥 Firestore msg: id=${msg.id}, messageId=${msg.mediaMetadata?.messageId}, r2Key=${msg.mediaMetadata?.r2Key}, file=${msg.mediaMetadata?.originalFileName}',
+                        );
                       }
                     }
 
@@ -1402,12 +1404,17 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             // For media messages: match by messageId (both pending and server have same messageId)
                             if (pendingMsg.mediaMetadata != null &&
                                 fsMsg.mediaMetadata != null) {
-                              final pendingMsgId = pendingMsg.mediaMetadata!.messageId;
-                              final serverMsgId = fsMsg.mediaMetadata!.messageId;
-                              final messageIdMatch = serverMsgId == pendingMsgId;
-                              
-                              print('🔍 DEDUP CHECK: pending="${pendingMsgId}" vs server="${serverMsgId}" → match=$messageIdMatch, sender=$senderMatch, time=$timeMatch');
-                              
+                              final pendingMsgId =
+                                  pendingMsg.mediaMetadata!.messageId;
+                              final serverMsgId =
+                                  fsMsg.mediaMetadata!.messageId;
+                              final messageIdMatch =
+                                  serverMsgId == pendingMsgId;
+
+                              print(
+                                '🔍 DEDUP CHECK: pending="${pendingMsgId}" vs server="${serverMsgId}" → match=$messageIdMatch, sender=$senderMatch, time=$timeMatch',
+                              );
+
                               return senderMatch && timeMatch && messageIdMatch;
                             }
                             // For text-only messages: sender + time match is enough
