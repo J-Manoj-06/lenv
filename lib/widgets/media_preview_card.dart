@@ -185,7 +185,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           _isDownloaded = true;
           _localPath = result.localPath;
         });
-        
+
         // Open with system app picker
         await OpenFilex.open(result.localPath!, type: 'application/pdf');
       } else {
