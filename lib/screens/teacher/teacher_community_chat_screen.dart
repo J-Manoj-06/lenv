@@ -19,7 +19,6 @@ import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
 import '../common/announcement_pageview_screen.dart';
-import '../pdf_viewer_screen.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/media_repository.dart';
 import '../../services/background_upload_service.dart';

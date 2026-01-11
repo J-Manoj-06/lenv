@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/media_repository.dart';
-import '../screens/pdf_viewer_screen.dart';
 import '../screens/audio_player_screen.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:open_filex/open_filex.dart';

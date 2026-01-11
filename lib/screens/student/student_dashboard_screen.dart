@@ -40,82 +40,76 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.65) ??
       Colors.grey;
 
+  // Loading state (same as teacher dashboard)
+  bool _isLoading = true;
+  String? _error;
+
   @override
   void initState() {
     super.initState();
-    // Pre-load cached data synchronously during initState
-    // This ensures student data is available for immediate display
-    _preloadCachedData();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _loadDashboardData();
-    });
-  }
-
-  void _preloadCachedData() {
-    final studentProvider = Provider.of<StudentProvider>(
-      context,
-      listen: false,
-    );
-    final authProvider = Provider.of<app_auth.AuthProvider>(
-      context,
-      listen: false,
-    );
-
-    final userId =
-        authProvider.currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (userId != null) {
-      // Load cached data asynchronously and update provider
-      CacheManager.getStudentDataCache(studentId: userId)
-          .then((cachedStudent) {
-            if (cachedStudent != null && mounted) {
-              // Directly update the provider's student to show cached data immediately
-              studentProvider.setCurrentStudentFromCache(cachedStudent);
-            }
-          })
-          .catchError((e) {
-          });
-    }
+    _loadDashboardData();
   }
 
   Future<void> _loadDashboardData() async {
-    final authProvider = Provider.of<app_auth.AuthProvider>(
-      context,
-      listen: false,
-    );
-    final studentProvider = Provider.of<StudentProvider>(
-      context,
-      listen: false,
-    );
-    final dailyChallengeProvider = Provider.of<DailyChallengeProvider>(
-      context,
-      listen: false,
-    );
-
-    // Ensure auth is initialized before proceeding
-    if (authProvider.currentUser == null && !authProvider.isLoading) {
-      await authProvider.initializeAuth();
-    }
-    // Resolve UID robustly: prefer provider uid, else FirebaseAuth
-    String? userId = authProvider.currentUser?.uid;
-    userId ??= FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null || userId.isEmpty) {
-      return;
-    }
-
-    final resolvedUserId = userId;
-
     try {
-      await FirestoreService().processEndedTests();
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      final authProvider = Provider.of<app_auth.AuthProvider>(
+        context,
+        listen: false,
+      );
+      final studentProvider = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      );
+      final dailyChallengeProvider = Provider.of<DailyChallengeProvider>(
+        context,
+        listen: false,
+      );
+
+      // Ensure auth is initialized before proceeding
+      if (authProvider.currentUser == null && !authProvider.isLoading) {
+        await authProvider.initializeAuth();
+      }
+
+      // Resolve UID robustly: prefer provider uid, else FirebaseAuth
+      String? userId = authProvider.currentUser?.uid;
+      userId ??= FirebaseAuth.instance.currentUser?.uid;
+
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          _error = 'No user logged in';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final resolvedUserId = userId;
+
+      try {
+        await FirestoreService().processEndedTests();
+      } catch (e) {
+        // Ignore test processing errors
+      }
+
+      // CRITICAL: Initialize daily challenge BEFORE loading student data
+      await dailyChallengeProvider.initialize(resolvedUserId);
+
+      // Load student data (with cache integration)
+      await studentProvider.loadDashboardData(resolvedUserId);
+
+      setState(() {
+        _isLoading = false;
+      });
     } catch (e) {
+      setState(() {
+        _error = 'Failed to load dashboard: ${e.toString()}';
+        _isLoading = false;
+      });
     }
-
-    // CRITICAL: Initialize daily challenge BEFORE loading student data
-    // This ensures challenge state is ready when dashboard renders
-    await dailyChallengeProvider.initialize(resolvedUserId);
-
-    // Load student data (with cache integration)
-    await studentProvider.loadDashboardData(resolvedUserId);
   }
 
   @override
@@ -127,6 +121,37 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           context,
         ).currentUser;
 
+        // Show skeleton loading (same as teacher)
+        if (_isLoading) {
+          return Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: _buildLoadingSkeleton(),
+          );
+        }
+
+        // Show error if data fetch failed (same as teacher)
+        if (_error != null) {
+          return Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(_error!),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadDashboardData,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Show dashboard content
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: RefreshIndicator(
@@ -524,7 +549,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         viewStatuses.isEmpty ||
                         viewStatuses.any((isViewed) => !isViewed);
 
-
                     return _buildAnnouncementAvatar('Principal', hasUnread, () {
                       _openCrossPersonAnnouncementViewer(
                         creatorGroups,
@@ -719,8 +743,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   .update({
                     'viewedBy': FieldValue.arrayUnion([currentUserId]),
                   })
-                  .catchError((e) {
-                  });
+                  .catchError((e) {});
             } else if (type == 'principal') {
               final principalAnnouncement =
                   originalData['data'] as InstituteAnnouncementModel;
@@ -743,7 +766,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     String userId,
   ) async {
     try {
-
       // Add user to views subcollection (no instituteId check needed)
       await FirebaseFirestore.instance
           .collection('institute_announcements')
@@ -751,7 +773,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           .collection('views')
           .doc(userId)
           .set({'viewedAt': FieldValue.serverTimestamp()});
-
 
       // Verify write
       final verify = await FirebaseFirestore.instance
@@ -762,8 +783,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           .get();
 
       // StreamBuilder will automatically update the UI
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Stream real-time view status for principal announcements
@@ -771,8 +791,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     List<InstituteAnnouncementModel> announcements,
     String userId,
   ) {
-    for (var i = 0; i < announcements.length; i++) {
-    }
+    for (var i = 0; i < announcements.length; i++) {}
 
     if (announcements.isEmpty) {
       return Stream.value([]);
@@ -899,8 +918,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           userSection =
               (studentDoc.data()?['section'] as String?)?.trim() ?? '';
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     return {'standard': userStandard, 'section': userSection};
@@ -1779,17 +1797,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Widget _buildBadgesSection(StudentModel? student) {
     if (student == null) return const SizedBox.shrink();
 
-
     return FutureBuilder<List<Badge>>(
       future: BadgeService().fetchEarnedBadges(student.uid),
       builder: (context, snapshot) {
-
-        if (snapshot.hasError) {
-        }
+        if (snapshot.hasError) {}
 
         final earnedBadges = snapshot.data ?? [];
         final earnedIds = earnedBadges.map((b) => b.id).toSet();
-
 
         // Prioritize earned badges first, then fill with locked badges
         final displayBadges = <Badge>[];
@@ -1804,7 +1818,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               .take(6 - displayBadges.length);
           displayBadges.addAll(unearnedBadges);
         }
-
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1963,6 +1976,84 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // Skeleton loading screen (same as teacher dashboard)
+  Widget _buildLoadingSkeleton() {
+    final theme = Theme.of(context);
+    final shimmerColor = theme.brightness == Brightness.dark
+        ? Colors.grey[800]
+        : Colors.grey[300];
+
+    return Column(
+      children: [
+        // Header skeleton
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_primary.withOpacity(0.3), _primary.withOpacity(0.1)],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 200,
+                height: 24,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: shimmerColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: 150,
+                height: 16,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: shimmerColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Points card skeleton
+                Container(
+                  height: 180,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: shimmerColor,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Cards skeleton
+                ...List.generate(
+                  4,
+                  (index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Container(
+                      height: 100,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: shimmerColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
