@@ -169,13 +169,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
     bool showDivider = true,
   }) {
     // Pre-compute a single divider position: the first read message after unread ones
+    // BUT: only show divider if there are unread messages from OTHER users (not self)
     int? unreadDividerIndex;
     bool hasUnread = false;
     bool hasRead = false;
+    bool hasUnreadFromOthers = false;
+    
     for (int i = 0; i < messages.length; i++) {
       final isUnread = messages[i].timestamp > lastReadMs;
+      final isFromOthers = messages[i].senderId != currentUserId;
+      
       hasUnread = hasUnread || isUnread;
       hasRead = hasRead || !isUnread;
+      
+      // Track if there are any unread messages from other users
+      if (isUnread && isFromOthers) {
+        hasUnreadFromOthers = true;
+      }
+      
       if (i > 0) {
         final prevUnread = messages[i - 1].timestamp > lastReadMs;
         final currUnread = isUnread;
@@ -194,8 +205,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
         '🟡 Divider placed at last index (${messages.length - 1}) - edge case',
       );
     }
+    
+    // Only show divider if there are unread messages from OTHER users
+    if (!hasUnreadFromOthers) {
+      unreadDividerIndex = null;
+      print('⚪ Divider hidden: all unread messages are from current user');
+    }
+    
     print(
-      '📊 Divider index=$unreadDividerIndex, hasUnread=$hasUnread, hasRead=$hasRead, totalMessages=${messages.length}',
+      '📊 Divider index=$unreadDividerIndex, hasUnread=$hasUnread, hasRead=$hasRead, hasUnreadFromOthers=$hasUnreadFromOthers, totalMessages=${messages.length}',
     );
 
     return ListView.builder(
@@ -1360,7 +1378,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         ];
 
                         // Remove pending messages that now have a corresponding Firestore message
-                        // Match by: same sender + timestamp within 5 seconds + media keys match
+                        // Match by: messageId in mediaMetadata (since pending has r2Key='pending/...' and server has 'media/...')
                         allMessages.removeWhere((pendingMsg) {
                           if (!pendingMsg.id.startsWith('pending:')) {
                             return false;
@@ -1374,13 +1392,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 (fsMsg.timestamp - pendingMsg.timestamp).abs() <
                                 5000; // within 5 seconds
 
-                            // For media messages: must match the exact r2Key
+                            // For media messages: match by messageId (both pending and server have same messageId)
                             if (pendingMsg.mediaMetadata != null &&
                                 fsMsg.mediaMetadata != null) {
-                              return senderMatch &&
-                                  timeMatch &&
-                                  fsMsg.mediaMetadata!.r2Key ==
-                                      pendingMsg.mediaMetadata!.r2Key;
+                              final messageIdMatch =
+                                  fsMsg.mediaMetadata!.messageId ==
+                                      pendingMsg.mediaMetadata!.messageId;
+                              return senderMatch && timeMatch && messageIdMatch;
                             }
                             // For text-only messages: sender + time match is enough
                             if (pendingMsg.mediaMetadata == null &&

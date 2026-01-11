@@ -238,7 +238,7 @@ class BackgroundUploadService extends ChangeNotifier {
           final thumbnailStr = mediaMessage.thumbnailUrl ?? '';
 
           final metadata = MediaMetadata(
-            messageId: mediaMessage.id,
+            messageId: upload.id, // Use the pending messageId for proper dedup
             r2Key: r2Key,
             publicUrl: mediaMessage.r2Url,
             thumbnail: thumbnailStr, // This is a URL string, not base64
