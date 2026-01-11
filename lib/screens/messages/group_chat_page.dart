@@ -92,7 +92,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final Duration _soundDebounce = const Duration(milliseconds: 500);
   // Show unread split inside chat to aid context (user requested)
   final bool _showUnreadDivider = true;
-  DateTime _lastMarkedReadAt = DateTime.fromMillisecondsSinceEpoch(0);
+  final DateTime _lastMarkedReadAt = DateTime.fromMillisecondsSinceEpoch(0);
   UnreadCountProvider? _unreadRef;
 
   @override
@@ -205,6 +205,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       itemCount: messages.length,
       itemBuilder: (context, index) {
         final message = messages[index];
+        final hasMeta = message.mediaMetadata != null;
         // Skip deleted messages - don't display them at all
         if (message.isDeleted) {
           return const SizedBox.shrink();
@@ -217,6 +218,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
         final uploadProgress = isPending
             ? _pendingUploadProgress[message.mediaMetadata?.messageId]
             : null;
+        print(
+          '🧩 Build message: id=${message.id}, hasMeta=$hasMeta, isPending=$isPending, uploadProgress=${uploadProgress ?? 'null'}',
+        );
 
         // Show a day divider above the first message of each day.
         // List is reverse + sorted desc, so the "next" item (index+1)
@@ -337,14 +341,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
             _uploadingMessageIds.add(messageId);
             _pendingUploadProgress[messageId] = progress;
           } else {
-            // Upload complete - remove pending message and progress
+            // Upload complete - only remove uploading state, keep pending visible
+            // Dedup logic will remove pending when server message arrives
             _uploadingMessageIds.remove(messageId);
             _pendingUploadProgress.remove(messageId);
-            _pendingMessages.removeWhere(
-              (msg) =>
-                  msg.id == 'pending:$messageId' ||
-                  msg.mediaMetadata?.messageId == messageId,
-            );
           }
         });
       }
@@ -465,11 +465,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
   @override
   void dispose() {
     // Final mark as read when leaving to ensure badge clears
+    // Schedule for after the current frame to avoid "widget tree locked" error
     try {
       final unread = _unreadRef;
       final chatId = '${widget.classId}|${widget.subjectId}';
       print('👋 Exiting chat, final mark as read: $chatId');
-      unread?.markChatAsRead(chatId);
+
+      // Use scheduleMicrotask to defer the call until after dispose completes
+      Future.microtask(() {
+        unread?.markChatAsRead(chatId);
+      });
     } catch (e) {
       print('⚠️ Error in dispose mark-as-read: $e');
     }
@@ -634,12 +639,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ),
       );
 
+      print(
+        '🟠 Pending (image) created: id=${pendingMessage.id}, r2Key=${pendingMessage.mediaMetadata?.r2Key}, file=${pendingMessage.mediaMetadata?.originalFileName}, size=${pendingMessage.mediaMetadata?.fileSize}',
+      );
+
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
         _uploadingMessageIds.add(messageId);
         _pendingUploadProgress[messageId] = 0.0;
         _localSenderMediaPaths[messageId] = file.path;
       });
+      print(
+        '🟠 Pending inserted (image): messageId=$messageId, pendingCount=${_pendingMessages.length}',
+      );
 
       // Queue upload in background service
       await BackgroundUploadService().queueUpload(
@@ -720,6 +732,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
           mimeType: 'application/pdf',
         ),
       );
+      print(
+        '🟠 Pending (pdf) created: id=${pendingMessage.id}, r2Key=${pendingMessage.mediaMetadata?.r2Key}, file=${pendingMessage.mediaMetadata?.originalFileName}, size=${pendingMessage.mediaMetadata?.fileSize}',
+      );
 
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
@@ -727,6 +742,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
         _pendingUploadProgress[messageId] = 0.0;
         _localSenderMediaPaths[messageId] = file.path;
       });
+      print(
+        '🟠 Pending inserted (pdf): messageId=$messageId, pendingCount=${_pendingMessages.length}',
+      );
 
       // Queue upload in background service
       await BackgroundUploadService().queueUpload(
@@ -804,6 +822,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
           mimeType: 'audio/mpeg',
         ),
       );
+      print(
+        '🟠 Pending (audio) created: id=${pendingMessage.id}, r2Key=${pendingMessage.mediaMetadata?.r2Key}, file=${pendingMessage.mediaMetadata?.originalFileName}, size=${pendingMessage.mediaMetadata?.fileSize}',
+      );
 
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
@@ -811,6 +832,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
         _pendingUploadProgress[messageId] = 0.0;
         _localSenderMediaPaths[messageId] = file.path;
       });
+      print(
+        '🟠 Pending inserted (audio): messageId=$messageId, pendingCount=${_pendingMessages.length}',
+      );
 
       // Queue upload in background service
       await BackgroundUploadService().queueUpload(
@@ -1251,42 +1275,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       );
                     }
 
-                    if (!snapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFFFF8800),
-                        ),
-                      );
-                    }
+                    // Always proceed to merge with optimistic pending messages,
+                    // even while the stream is still connecting. This ensures
+                    // the pending preview appears immediately.
 
                     // Filter out messages deleted by current user
-                    var messages = snapshot.data!
-                        .where(
-                          (m) =>
-                              !(m.deletedFor?.contains(currentUserId) ?? false),
-                        )
-                        .toList();
+                    // DO NOT merge pending messages here - let the nested StreamBuilder handle it
+                    final messages =
+                        (snapshot.data ?? const <GroupChatMessage>[])
+                            .where(
+                              (m) =>
+                                  !(m.deletedFor?.contains(currentUserId) ??
+                                      false),
+                            )
+                            .toList();
 
-                    // Merge optimistic pending messages
-                    // Dedupe using mediaMetadata.messageId when available
-                    final deliveredIds = messages
-                        .map((m) => m.mediaMetadata?.messageId)
-                        .where((id) => id != null)
-                        .cast<String>()
-                        .toSet();
-
-                    final pendingVisible = _pendingMessages
-                        .where(
-                          (m) =>
-                              m.mediaMetadata?.messageId == null ||
-                              !deliveredIds.contains(
-                                m.mediaMetadata!.messageId,
-                              ),
-                        )
-                        .toList();
-
-                    messages = [...pendingVisible, ...messages]
-                      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+                    print(
+                      '🟦 FirstStreamBuilder: snapshot.data.length=${snapshot.data?.length ?? 0}, _pendingMessages.length=${_pendingMessages.length}',
+                    );
 
                     print(
                       '🧭 Messages snapshot: count=${messages.length}, newestId=${messages.isNotEmpty ? messages.first.id : 'none'}',
@@ -1356,8 +1362,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         // Remove pending messages that now have a corresponding Firestore message
                         // Match by: same sender + timestamp within 5 seconds + media keys match
                         allMessages.removeWhere((pendingMsg) {
-                          if (!pendingMsg.id.startsWith('pending:'))
+                          if (!pendingMsg.id.startsWith('pending:')) {
                             return false;
+                          }
 
                           // Check if this pending message has a corresponding Firestore message
                           final hasFirebaseVersion = messages.any((fsMsg) {

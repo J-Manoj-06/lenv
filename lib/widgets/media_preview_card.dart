@@ -244,6 +244,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
   @override
   Widget build(BuildContext context) {
+    print(
+      '🎨 MediaPreviewCard: r2Key=${widget.r2Key}, fileName=${widget.fileName}, isMe=${widget.isMe}, uploading=${widget.uploading}, progress=${widget.uploadProgress}',
+    );
     // For IMAGES: Show WhatsApp-style preview (image with tap to expand)
     if (_isImage) {
       return _buildImagePreview();
@@ -388,7 +391,12 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       ),
     );
 
-    if (!widget.uploading) return card;
+    // Hide overlay when upload completes (progress reaches 1.0), even if still marked as "uploading"
+    // This allows the pending message to stay visible without blocking interaction
+    final shouldShowOverlay =
+        widget.uploading && ((widget.uploadProgress ?? 0.0) < 0.99);
+    print('🎨 MediaPreviewCard overlay: $shouldShowOverlay');
+    if (!shouldShowOverlay) return card;
 
     return Stack(
       alignment: Alignment.center,

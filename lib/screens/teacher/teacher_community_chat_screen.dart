@@ -63,6 +63,10 @@ class _TeacherCommunityChatScreenState
   final ValueNotifier<Set<String>> _selectedMessages =
       ValueNotifier<Set<String>>({});
 
+  // Optimistic pending messages and per-upload progress
+  final List<CommunityMessageModel> _pendingMessages = [];
+  final Map<String, double> _pendingUploadProgress = {};
+
   @override
   void initState() {
     super.initState();
@@ -90,6 +94,21 @@ class _TeacherCommunityChatScreenState
     _whatsappMediaUpload = WhatsAppMediaUploadService(
       workerBaseUrl: 'https://whatsapp-media-worker.giridharannj.workers.dev',
     );
+
+    // Bridge background upload progress to UI (optimistic pending messages)
+    BackgroundUploadService().onUploadProgress =
+        (String messageId, bool isUploading, double progress) {
+          if (!mounted) return;
+          setState(() {
+            if (isUploading) {
+              _pendingUploadProgress[messageId] = progress;
+            } else {
+              // Upload complete - only remove progress, keep pending visible
+              // Dedup logic will remove pending when server message arrives
+              _pendingUploadProgress.remove(messageId);
+            }
+          });
+        };
 
     _loadTeacherData();
     WidgetsBinding.instance.addPostFrameCallback(
@@ -248,8 +267,60 @@ class _TeacherCommunityChatScreenState
         return;
       }
 
-      // Queue upload in background service
-      final uploadId = await BackgroundUploadService().queueUpload(
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${_teacherId.hashCode}';
+
+      // Create optimistic pending message
+      final pendingMeta = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: file.path,
+        thumbnail: file.path, // show immediate local preview
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType: 'image/jpeg',
+        originalFileName: file.path.split('/').last,
+      );
+
+      final pending = CommunityMessageModel(
+        messageId: 'pending:$messageId',
+        communityId: widget.community.id,
+        senderId: _teacherId!,
+        senderName: _teacherName!,
+        senderRole: 'Teacher',
+        senderAvatar: '',
+        type: 'image',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: pendingMeta.originalFileName ?? 'image.jpg',
+        mediaMetadata: pendingMeta,
+        createdAt: DateTime.now(),
+        updatedAt: null,
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: const {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+        deletedFor: const [],
+      );
+
+      if (mounted) {
+        setState(() {
+          _pendingMessages.insert(0, pending);
+          _pendingUploadProgress[messageId] = 0.0;
+        });
+      }
+
+      // Queue upload with background service
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: widget.community.id,
         senderId: _teacherId!,
@@ -257,16 +328,8 @@ class _TeacherCommunityChatScreenState
         mediaType: 'message',
         chatType: 'community',
         senderName: _teacherName,
+        messageId: messageId,
       );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Image queued for upload - will send in background'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -298,8 +361,59 @@ class _TeacherCommunityChatScreenState
         return;
       }
 
-      // Queue upload in background service
-      final uploadId = await BackgroundUploadService().queueUpload(
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${_teacherId.hashCode}';
+
+      // Create optimistic pending
+      final pendingMeta = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: file.path,
+        thumbnail: '',
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType: 'application/pdf',
+        originalFileName: result.files.single.name,
+      );
+
+      final pending = CommunityMessageModel(
+        messageId: 'pending:$messageId',
+        communityId: widget.community.id,
+        senderId: _teacherId!,
+        senderName: _teacherName!,
+        senderRole: 'Teacher',
+        senderAvatar: '',
+        type: 'pdf',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: pendingMeta.originalFileName ?? 'Document.pdf',
+        mediaMetadata: pendingMeta,
+        createdAt: DateTime.now(),
+        updatedAt: null,
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: const {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+        deletedFor: const [],
+      );
+
+      if (mounted) {
+        setState(() {
+          _pendingMessages.insert(0, pending);
+          _pendingUploadProgress[messageId] = 0.0;
+        });
+      }
+
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: widget.community.id,
         senderId: _teacherId!,
@@ -307,16 +421,8 @@ class _TeacherCommunityChatScreenState
         mediaType: 'message',
         chatType: 'community',
         senderName: _teacherName,
+        messageId: messageId,
       );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF queued for upload - will send in background'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -345,8 +451,62 @@ class _TeacherCommunityChatScreenState
         return;
       }
 
-      // Queue upload in background service
-      final uploadId = await BackgroundUploadService().queueUpload(
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${_teacherId.hashCode}';
+
+      final pendingMeta = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        localPath: file.path,
+        thumbnail: '',
+        deletedLocally: false,
+        serverStatus: ServerStatus.available,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType:
+            result.files.single.extension != null &&
+                result.files.single.extension!.toLowerCase() == 'm4a'
+            ? 'audio/aac'
+            : 'audio/mpeg',
+        originalFileName: result.files.single.name,
+      );
+
+      final pending = CommunityMessageModel(
+        messageId: 'pending:$messageId',
+        communityId: widget.community.id,
+        senderId: _teacherId!,
+        senderName: _teacherName!,
+        senderRole: 'Teacher',
+        senderAvatar: '',
+        type: 'audio',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: pendingMeta.originalFileName ?? 'Audio',
+        mediaMetadata: pendingMeta,
+        createdAt: DateTime.now(),
+        updatedAt: null,
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: const {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+        deletedFor: const [],
+      );
+
+      if (mounted) {
+        setState(() {
+          _pendingMessages.insert(0, pending);
+          _pendingUploadProgress[messageId] = 0.0;
+        });
+      }
+
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: widget.community.id,
         senderId: _teacherId!,
@@ -354,16 +514,8 @@ class _TeacherCommunityChatScreenState
         mediaType: 'message',
         chatType: 'community',
         senderName: _teacherName,
+        messageId: messageId,
       );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Audio queued for upload - will send in background'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -432,11 +584,7 @@ class _TeacherCommunityChatScreenState
             child: StreamBuilder<List<CommunityMessageModel>>(
               stream: _communityService.getMessagesStream(widget.community.id),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF6A4FF7)),
-                  );
-                }
+                // Render pending optimistic messages immediately; avoid blocking on stream connect.
 
                 if (snapshot.hasError) {
                   return Center(
@@ -447,12 +595,33 @@ class _TeacherCommunityChatScreenState
                   );
                 }
 
-                // Ensure messages are ordered newest -> oldest so reverse: true renders correctly
-                final messages = List<CommunityMessageModel>.from(
+                // Merge server messages with optimistic pending ones
+                final messagesFromServer = List<CommunityMessageModel>.from(
                   snapshot.data ?? <CommunityMessageModel>[],
                 )..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-                if (messages.isEmpty) {
+                final seenIds = messagesFromServer
+                    .map((m) => m.mediaMetadata?.messageId ?? m.messageId)
+                    .toSet();
+
+                final combined = <CommunityMessageModel>[
+                  ...messagesFromServer,
+                  ..._pendingMessages.where((p) {
+                    final key = p.mediaMetadata?.messageId ?? p.messageId;
+                    return !seenIds.contains(key);
+                  }),
+                ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+                if (combined.isEmpty) {
+                  // Show loader only if still connecting and nothing to render.
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF6A4FF7),
+                      ),
+                    );
+                  }
+
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -487,20 +656,29 @@ class _TeacherCommunityChatScreenState
                   controller: _scrollController,
                   reverse: true,
                   padding: const EdgeInsets.all(16),
-                  itemCount: messages.length,
+                  itemCount: combined.length,
                   itemBuilder: (context, index) {
-                    final message = messages[index];
+                    final message = combined[index];
 
-                    // Skip deleted messages
                     if (message.isDeleted) {
                       return const SizedBox.shrink();
                     }
 
                     final isCurrentUser = message.senderId == _teacherId;
+                    final isPending =
+                        message.messageId.startsWith('pending:') ||
+                        (message.mediaMetadata?.r2Key.startsWith('pending/') ??
+                            false);
+                    final metaId =
+                        message.mediaMetadata?.messageId ?? message.messageId;
+                    final uploadProgress = isPending
+                        ? _pendingUploadProgress[metaId]
+                        : null;
+
                     final showDateDivider =
-                        index == messages.length - 1 ||
+                        index == combined.length - 1 ||
                         _formatDate(message.createdAt) !=
-                            _formatDate(messages[index + 1].createdAt);
+                            _formatDate(combined[index + 1].createdAt);
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -511,6 +689,8 @@ class _TeacherCommunityChatScreenState
                             message,
                             isCurrentUser,
                             _teacherName!,
+                            isPending,
+                            uploadProgress,
                           ),
                         if (showDateDivider)
                           _buildDateDivider(message.createdAt),
@@ -725,6 +905,8 @@ class _TeacherCommunityChatScreenState
     CommunityMessageModel message,
     bool isCurrentUser,
     String currentUserName,
+    bool isUploading,
+    double? uploadProgress,
   ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -868,6 +1050,9 @@ class _TeacherCommunityChatScreenState
                                         message.mediaMetadata!.thumbnail,
                                     localPath: message.mediaMetadata!.localPath,
                                     isMe: isCurrentUser,
+                                    uploading: isUploading,
+                                    uploadProgress: uploadProgress,
+                                    selectionMode: _selectionMode,
                                   ),
                                 ),
                               ),

@@ -227,7 +227,9 @@ class BackgroundUploadService extends ChangeNotifier {
           upload.r2Url = mediaMessage.r2Url;
           upload.status = UploadStatus.completed;
           upload.progress = 1.0;
-          onUploadProgress?.call(upload.id, false, 1.0);
+          // Keep isUploading=true until Firestore write propagates
+          // UI will show 100% progress but keep overlay until server message arrives
+          onUploadProgress?.call(upload.id, true, 1.0);
 
           // Build media metadata from upload result
           final r2Key = _extractR2Key(mediaMessage.r2Url);

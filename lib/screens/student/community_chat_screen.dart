@@ -24,6 +24,7 @@ import '../../services/whatsapp_media_upload_service.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../services/media_repository.dart';
+import '../../services/background_upload_service.dart';
 import '../../config/cloudflare_config.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/modern_attachment_sheet.dart';
@@ -102,6 +103,21 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       workerBaseUrl:
           'https://whatsapp-media-worker.giridharannj.workers.dev', // TODO: Update with actual worker URL
     );
+
+    // Bridge background upload progress to UI (pending optimistic messages)
+    BackgroundUploadService().onUploadProgress =
+        (String messageId, bool isUploading, double progress) {
+          if (!mounted) return;
+          setState(() {
+            if (isUploading) {
+              _pendingUploadProgress[messageId] = progress;
+            } else {
+              // Upload complete - only remove progress, keep pending visible
+              // Dedup logic will remove pending when server message arrives
+              _pendingUploadProgress.remove(messageId);
+            }
+          });
+        };
 
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToBottom(force: true),
@@ -320,7 +336,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         r2Key: 'pending/$messageId',
         publicUrl: '',
         localPath: image.path,
-        thumbnail: '',
+        thumbnail: image.path, // show immediate local preview
         deletedLocally: false,
         serverStatus: ServerStatus.available,
         expiresAt: DateTime.now().add(const Duration(days: 365)),
@@ -366,6 +382,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         });
         _scrollToBottom(force: true);
       }
+      debugPrint(
+        '🟠 Pending (image) created+inserted: id=pending:$messageId, r2Key=${pendingMetadata.r2Key}, file=${pendingMetadata.originalFileName}, size=${pendingMetadata.fileSize}',
+      );
 
       final result = await _whatsappMediaUpload.uploadImage(
         imageFile: File(image.path),
@@ -546,77 +565,24 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         _pendingUploadProgress[messageId] = 0.0;
       });
       _scrollToBottom(force: true);
+      debugPrint(
+        '🟠 Pending (pdf) created+inserted: id=pending:$messageId, r2Key=${pendingMetadata.r2Key}, file=${pendingMetadata.originalFileName}, size=${pendingMetadata.fileSize}',
+      );
 
-      final mediaMessage = await _mediaUploadService.uploadMedia(
+      // Do not block input; overlay is per-message
+      if (mounted) setState(() => _isUploading = false);
+
+      // Queue upload in background service; UI shows overlay via pending
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: widget.community.id,
         senderId: student.uid,
-        senderRole: 'Student',
-        mediaType: 'community',
-        onProgress: (progress) {
-          final doubleVal = (progress as num).toDouble();
-          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
-          setState(() {
-            _pendingUploadProgress[messageId] = normalized;
-          });
-        },
-      );
-
-      setState(() => _isUploading = false);
-
-      debugPrint('📦 PDF Upload complete:');
-      debugPrint('   File size: ${mediaMessage.fileSize} bytes');
-      debugPrint('   File type: ${mediaMessage.fileType}');
-      debugPrint('   R2 URL: ${mediaMessage.r2Url}');
-
-      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: '',
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        originalFileName: mediaMessage.fileName,
-      );
-
-      // Cache the uploaded PDF to local storage
-      await _mediaRepository.cacheUploadedMedia(
-        r2Key: r2Key,
-        localPath: file.path,
-        fileName: mediaMessage.fileName,
-        mimeType: mediaMessage.fileType,
-        fileSize: mediaMessage.fileSize,
-      );
-      debugPrint('✅ Cached uploaded PDF: $r2Key at ${file.path}');
-
-      await _communityService.sendMessage(
-        communityId: widget.community.id,
-        senderId: student.uid,
+        senderRole: 'student',
+        mediaType: 'message',
+        chatType: 'community',
         senderName: student.name,
-        senderRole: 'Student',
-        content: '',
-        mediaType: 'pdf',
-        mediaMetadata: metadata,
+        messageId: messageId,
       );
-
-      setState(() {
-        _pendingMessages.removeWhere(
-          (m) => m.mediaMetadata?.messageId == messageId,
-        );
-        _pendingUploadProgress.remove(messageId);
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF sent successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
     } catch (e) {
       setState(() => _isUploading = false);
       setState(() {
@@ -719,76 +685,24 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         _pendingUploadProgress[messageId] = 0.0;
       });
       _scrollToBottom(force: true);
+      debugPrint(
+        '🟠 Pending (audio) created+inserted: id=pending:$messageId, r2Key=${pendingMetadata.r2Key}, file=${pendingMetadata.originalFileName}, size=${pendingMetadata.fileSize}',
+      );
 
-      final mediaMessage = await _mediaUploadService.uploadMedia(
+      // Do not block input; overlay is per-message
+      if (mounted) setState(() => _isUploading = false);
+
+      // Queue upload in background service; UI shows overlay via pending
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: widget.community.id,
         senderId: student.uid,
-        senderRole: 'Student',
-        mediaType: 'community',
-        onProgress: (progress) {
-          final doubleVal = (progress as num).toDouble();
-          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
-          setState(() {
-            _pendingUploadProgress[messageId] = normalized;
-          });
-        },
-      );
-
-      setState(() => _isUploading = false);
-
-      debugPrint('🎵 Audio Upload complete:');
-      debugPrint('   File size: ${mediaMessage.fileSize} bytes');
-      debugPrint('   R2 URL: ${mediaMessage.r2Url}');
-
-      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: '',
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        originalFileName: mediaMessage.fileName,
-      );
-
-      // Cache the uploaded audio to local storage
-      await _mediaRepository.cacheUploadedMedia(
-        r2Key: r2Key,
-        localPath: file.path,
-        fileName: mediaMessage.fileName,
-        mimeType: mediaMessage.fileType,
-        fileSize: mediaMessage.fileSize,
-      );
-      debugPrint('✅ Cached uploaded audio: $r2Key at ${file.path}');
-
-      await _communityService.sendMessage(
-        communityId: widget.community.id,
-        senderId: student.uid,
+        senderRole: 'student',
+        mediaType: 'message',
+        chatType: 'community',
         senderName: student.name,
-        senderRole: 'Student',
-        content: '',
-        mediaType: 'audio',
-        mediaMetadata: metadata,
+        messageId: messageId,
       );
-
-      setState(() {
-        _pendingMessages.removeWhere(
-          (m) => m.mediaMetadata?.messageId == messageId,
-        );
-        _pendingUploadProgress.remove(messageId);
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Audio sent successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
     } catch (e) {
       setState(() => _isUploading = false);
       setState(() {
@@ -2051,13 +1965,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     widget.community.id,
                   ),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(_primary),
-                        ),
-                      );
-                    }
+                    // Do not block UI with a spinner while the stream connects.
+                    // We want pending optimistic messages to render instantly.
 
                     if (snapshot.hasError) {
                       return Center(
@@ -2097,6 +2006,15 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     combined.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
                     if (combined.isEmpty) {
+                      // If we're still connecting and have no messages, show a subtle loader.
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(_primary),
+                          ),
+                        );
+                      }
+
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -2147,6 +2065,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                         final uploadProgress = isPending
                             ? _pendingUploadProgress[metaId]
                             : null;
+                        debugPrint(
+                          '🧩 Build student msg: id=${message.messageId}, hasMeta=${message.mediaMetadata != null}, isPending=$isPending, progress=${uploadProgress ?? 'null'}',
+                        );
                         // Messages sorted desc; ListView reversed. The visually previous item is index+1 (older).
                         // Show divider above the oldest message of each day (day boundary with older item),
                         // and always above the global oldest.
