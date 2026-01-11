@@ -143,11 +143,18 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     }
   }
 
-  /// Open PDF directly from R2 URL without downloading (for sender)
+  /// Open PDF - checks if downloaded first, otherwise downloads
   Future<void> _openFromR2() async {
     if (!_isPdf) return;
 
-    // For sender, download to temp location and open with system app picker
+    // Check if already downloaded locally
+    if (_isDownloaded && _localPath != null) {
+      // Open immediately without downloading
+      await OpenFilex.open(_localPath!, type: 'application/pdf');
+      return;
+    }
+
+    // Not downloaded yet - download first then open
     try {
       // Show loading indicator
       if (mounted) {
@@ -173,6 +180,12 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
       // Check if download succeeded
       if (result.success && result.localPath != null) {
+        // Update state
+        setState(() {
+          _isDownloaded = true;
+          _localPath = result.localPath;
+        });
+        
         // Open with system app picker
         await OpenFilex.open(result.localPath!, type: 'application/pdf');
       } else {
