@@ -1291,6 +1291,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       _initializedFirstSnapshot = true;
                     }
 
+                    // If no Firestore messages but we have pending messages, show them
+                    if (messages.isEmpty && _pendingMessages.isNotEmpty) {
+                      return _buildMessageList(
+                        _pendingMessages,
+                        0, // No last read timestamp since no messages yet
+                        currentUserId,
+                        showDivider: false,
+                      );
+                    }
+
                     if (messages.isEmpty) {
                       return const Center(
                         child: Text(
