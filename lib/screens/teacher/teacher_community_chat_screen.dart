@@ -2086,15 +2086,41 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
             child: const Text('Save to Device'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      PDFViewerScreen(path: url, title: fileName),
-                ),
-              );
+              // Download to temp and open with system app picker
+              try {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Preparing PDF...'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+                
+                final tempDir = await getTemporaryDirectory();
+                final timestamp = DateTime.now().millisecondsSinceEpoch;
+                final filePath = '${tempDir.path}/${timestamp}_$fileName';
+                
+                final dio = Dio();
+                await dio.download(url, filePath);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                }
+                
+                await OpenFilex.open(filePath, type: 'application/pdf');
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             child: const Text('View'),
           ),

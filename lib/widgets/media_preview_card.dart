@@ -3,6 +3,7 @@ import '../services/media_repository.dart';
 import '../screens/pdf_viewer_screen.dart';
 import '../screens/audio_player_screen.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:open_filex/open_filex.dart';
 import 'dart:ui';
 import 'dart:convert';
 import 'dart:io';
@@ -120,12 +121,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     if (_localPath == null) return;
 
     if (_isPdf) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) =>
-              PDFViewerScreen(path: _localPath!, title: widget.fileName),
-        ),
-      );
+      // Open with system app picker (Drive, Adobe, etc.)
+      OpenFilex.open(_localPath!, type: 'application/pdf');
     } else if (_isAudio) {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -148,19 +145,50 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   /// Open PDF directly from R2 URL without downloading (for sender)
-  void _openFromR2() {
+  Future<void> _openFromR2() async {
     if (!_isPdf) return;
 
-    // Construct the public URL for the file on R2
-    final publicUrl = 'https://files.lenv1.tech/${widget.r2Key}';
+    // For sender, download to temp location and open with system app picker
+    try {
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Preparing PDF...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
 
+      // Download to cache
+      final result = await MediaRepository().downloadMedia(
+        r2Key: widget.r2Key,
+        fileName: widget.fileName,
+        mimeType: widget.mimeType,
+        onProgress: (progress) {},
+      );
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            PDFViewerScreen(path: publicUrl, title: widget.fileName),
-      ),
-    );
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+
+      // Check if download succeeded
+      if (result.success && result.localPath != null) {
+        // Open with system app picker
+        await OpenFilex.open(result.localPath!, type: 'application/pdf');
+      } else {
+        throw Exception(result.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   /// Note: This method is kept for future implementation but currently unused
