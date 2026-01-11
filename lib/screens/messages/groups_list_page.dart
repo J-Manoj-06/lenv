@@ -499,9 +499,6 @@ class _SubjectGroupCard extends StatelessWidget {
                 child: Consumer<UnreadCountProvider>(
                   builder: (_, provider, __) {
                     final count = provider.getUnreadCount(chatId);
-                    debugPrint(
-                      '[GroupsList] badge chatId=$chatId count=$count',
-                    );
                     return UnreadBadge(count: count);
                   },
                 ),

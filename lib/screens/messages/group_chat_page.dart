@@ -174,19 +174,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
     bool hasUnread = false;
     bool hasRead = false;
     bool hasUnreadFromOthers = false;
-    
+
     for (int i = 0; i < messages.length; i++) {
       final isUnread = messages[i].timestamp > lastReadMs;
       final isFromOthers = messages[i].senderId != currentUserId;
-      
+
       hasUnread = hasUnread || isUnread;
       hasRead = hasRead || !isUnread;
-      
+
       // Track if there are any unread messages from other users
       if (isUnread && isFromOthers) {
         hasUnreadFromOthers = true;
       }
-      
+
       if (i > 0) {
         final prevUnread = messages[i - 1].timestamp > lastReadMs;
         final currUnread = isUnread;
@@ -205,13 +205,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
         '🟡 Divider placed at last index (${messages.length - 1}) - edge case',
       );
     }
-    
+
     // Only show divider if there are unread messages from OTHER users
     if (!hasUnreadFromOthers) {
       unreadDividerIndex = null;
       print('⚪ Divider hidden: all unread messages are from current user');
     }
-    
+
     print(
       '📊 Divider index=$unreadDividerIndex, hasUnread=$hasUnread, hasRead=$hasRead, hasUnreadFromOthers=$hasUnreadFromOthers, totalMessages=${messages.length}',
     );
@@ -751,7 +751,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ),
       );
       print(
-        '🟠 Pending (pdf) created: id=${pendingMessage.id}, r2Key=${pendingMessage.mediaMetadata?.r2Key}, file=${pendingMessage.mediaMetadata?.originalFileName}, size=${pendingMessage.mediaMetadata?.fileSize}',
+        '🟠 Pending (pdf) created: id=${pendingMessage.id}, messageId=${pendingMessage.mediaMetadata?.messageId}, r2Key=${pendingMessage.mediaMetadata?.r2Key}, file=${pendingMessage.mediaMetadata?.originalFileName}, size=${pendingMessage.mediaMetadata?.fileSize}',
       );
 
       setState(() {
@@ -1312,6 +1312,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       '🟦 FirstStreamBuilder: snapshot.data.length=${snapshot.data?.length ?? 0}, _pendingMessages.length=${_pendingMessages.length}',
                     );
 
+                    // Log Firestore messages with their mediaMetadata.messageId
+                    if (messages.isNotEmpty) {
+                      for (final msg in messages.take(3)) {
+                        print('🔥 Firestore msg: id=${msg.id}, messageId=${msg.mediaMetadata?.messageId}, r2Key=${msg.mediaMetadata?.r2Key}, file=${msg.mediaMetadata?.originalFileName}');
+                      }
+                    }
+
                     print(
                       '🧭 Messages snapshot: count=${messages.length}, newestId=${messages.isNotEmpty ? messages.first.id : 'none'}',
                     );
@@ -1395,9 +1402,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             // For media messages: match by messageId (both pending and server have same messageId)
                             if (pendingMsg.mediaMetadata != null &&
                                 fsMsg.mediaMetadata != null) {
-                              final messageIdMatch =
-                                  fsMsg.mediaMetadata!.messageId ==
-                                      pendingMsg.mediaMetadata!.messageId;
+                              final pendingMsgId = pendingMsg.mediaMetadata!.messageId;
+                              final serverMsgId = fsMsg.mediaMetadata!.messageId;
+                              final messageIdMatch = serverMsgId == pendingMsgId;
+                              
+                              print('🔍 DEDUP CHECK: pending="${pendingMsgId}" vs server="${serverMsgId}" → match=$messageIdMatch, sender=$senderMatch, time=$timeMatch');
+                              
                               return senderMatch && timeMatch && messageIdMatch;
                             }
                             // For text-only messages: sender + time match is enough
