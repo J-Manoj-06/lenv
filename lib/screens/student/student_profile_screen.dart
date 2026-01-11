@@ -52,7 +52,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       _startLiveAttendanceStream();
       _startLiveClassRankStream();
     } catch (e) {
-      print('Error loading student data: $e');
     }
   }
 
@@ -117,7 +116,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             }
           },
           onError: (e) {
-            print('⚠️ attendance stream error (profile): $e');
             if (mounted) setState(() => _attendanceLoading = false);
           },
         );
@@ -149,7 +147,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             }
           },
           onError: (e) {
-            print('⚠️ class rank stream error: $e');
           },
         );
   }
@@ -726,7 +723,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         ).pushNamedAndRemoveUntil('/role-selection', (route) => false);
       }
     } catch (e) {
-      print('Error during logout: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error logging out. Please try again.')),

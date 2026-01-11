@@ -108,7 +108,6 @@ class _StatusViewScreenState extends State<StatusViewScreen>
           });
     } catch (e) {
       // Silently fail - viewing tracking is not critical
-      print('Failed to mark as viewed: $e');
     }
   }
 

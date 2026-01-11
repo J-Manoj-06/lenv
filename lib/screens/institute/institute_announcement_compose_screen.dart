@@ -83,8 +83,6 @@ class _InstituteAnnouncementComposeScreenState
 
       String? imageUrl;
       if (_imageBytes != null) {
-        print('📤 Starting Cloudflare R2 upload...');
-
         // Initialize Cloudflare R2 Service with working credentials
         final r2Service = CloudflareR2Service(
           accountId: CloudflareConfig.accountId,
@@ -96,8 +94,6 @@ class _InstituteAnnouncementComposeScreenState
 
         final fileName =
             'announcement_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-        print('📂 Uploading to: announcements/$fileName');
 
         // Generate signed URL
         final signedData = await r2Service.generateSignedUploadUrl(
@@ -111,8 +107,6 @@ class _InstituteAnnouncementComposeScreenState
           signedUrl: signedData['url'],
           contentType: 'image/jpeg',
         );
-
-        print('✅ Upload successful! URL: $imageUrl');
       }
 
       final now = DateTime.now();
@@ -151,10 +145,7 @@ class _InstituteAnnouncementComposeScreenState
           const SnackBar(content: Text('Announcement posted successfully')),
         );
       }
-    } catch (e, stackTrace) {
-      print('❌ Storage upload error: $e');
-      print('Stack trace: $stackTrace');
-
+    } catch (e) {
       if (mounted) {
         String errorMsg = 'Error posting announcement';
         if (e.toString().contains('object-not-found') ||

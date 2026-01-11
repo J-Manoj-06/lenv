@@ -58,12 +58,6 @@ class CloudFunctionUploadService {
       // Get MIME type
       final mimeType = getMimeType(fileName) ?? 'application/octet-stream';
 
-      print('📤 Uploading file via Cloud Function');
-      print('   File: $fileName ($fileSizeKb KB)');
-      print('   Type: $mimeType');
-      print(
-        '   Path: schools/$schoolId/communities/$communityId/groups/$groupId/messages/$messageId',
-      );
 
       // Prepare request body
       final requestBody = {
@@ -95,10 +89,8 @@ class CloudFunctionUploadService {
 
       onProgress?.call(80);
 
-      print('🔄 Cloud Function response: ${response.statusCode}');
 
       if (response.statusCode != 200) {
-        print('❌ Cloud Function error: ${response.body}');
         throw Exception('Upload failed: ${response.statusCode}');
       }
 
@@ -111,9 +103,6 @@ class CloudFunctionUploadService {
 
       onProgress?.call(100);
 
-      print('✅ File uploaded successfully');
-      print('   Public URL: ${responseData['publicUrl']}');
-      print('   R2 Path: ${responseData['r2Path']}');
 
       return {
         'publicUrl': responseData['publicUrl'] as String,
@@ -123,7 +112,6 @@ class CloudFunctionUploadService {
         'fileSizeKb': responseData['fileSizeKb'] as double,
       };
     } catch (e) {
-      print('❌ Upload error: $e');
       onProgress?.call(0);
       rethrow;
     }

@@ -74,9 +74,6 @@ class LeaderboardService {
       final studentsSnap = await q.get();
       if (studentsSnap.docs.isEmpty) return <LeaderboardEntry>[];
 
-      print(
-        '📊 Found ${studentsSnap.docs.length} students in class $className',
-      );
 
       // 2) Batch fetch rewardPoints from users collection
       final entries = <LeaderboardEntry>[];
@@ -107,7 +104,6 @@ class LeaderboardService {
       // 3) Sort by score (descending) and assign ranks
       return _dedupeAndRank(entries, limit: limit);
     } catch (e) {
-      print('❌ Error getting overall leaderboard: $e');
       return [];
     }
   }
@@ -216,9 +212,6 @@ class LeaderboardService {
       return;
     }
 
-    print(
-      '🔄 Creating optimized leaderboard stream for $schoolCode / $className',
-    );
 
     // ✅ STEP 1: Emit cached data IMMEDIATELY for instant display (0 seconds!)
     final cachedData = await CacheManager.getLeaderboardCache(
@@ -227,7 +220,6 @@ class LeaderboardService {
     );
 
     if (cachedData != null && cachedData.isNotEmpty) {
-      print('⚡ Emitting cached leaderboard (${cachedData.length} entries)');
       yield _cacheableListToEntries(cachedData);
     }
 
@@ -245,7 +237,6 @@ class LeaderboardService {
       }
 
       lastUpdate = now;
-      print('🔄 Real-time update detected, refreshing leaderboard...');
 
       // Fetch fresh data and cache it
       final entries = await getOverallLeaderboardForClassWithCache(

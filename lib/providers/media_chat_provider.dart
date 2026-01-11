@@ -107,7 +107,6 @@ class MediaChatProvider extends ChangeNotifier {
       _currentError = null;
       // Note: Use file_picker package for file selection
       // This is a simplified example
-      print('Implement file picker for PDF');
     } catch (e) {
       _setError('Failed to pick PDF: $e');
     }
@@ -149,10 +148,8 @@ class MediaChatProvider extends ChangeNotifier {
       _currentError = null;
       notifyListeners();
 
-      print('✅ Media uploaded: ${media.fileName}');
     } catch (e) {
       _setError('Upload failed: $e');
-      print('❌ Upload error: $e');
     }
   }
 
@@ -179,9 +176,6 @@ class MediaChatProvider extends ChangeNotifier {
       // Get file name
       final fileName = file.path.split('/').last;
 
-      print('📤 Starting Cloudflare Worker upload');
-      print('   File: $fileName');
-      print('   Message ID: $messageId');
 
       // Upload via Cloudflare Worker (no Firebase dependency)
       final result = await _workerUploadService.uploadFile(
@@ -197,8 +191,6 @@ class MediaChatProvider extends ChangeNotifier {
         },
       );
 
-      print('✅ Cloudflare Worker upload complete');
-      print('   Public URL: ${result['publicUrl']}');
 
       // Create MediaMessage with the returned URL
       final media = MediaMessage(
@@ -225,11 +217,9 @@ class MediaChatProvider extends ChangeNotifier {
       _uploadProgress.remove(messageId);
       notifyListeners();
 
-      print('✅ Media message created and added to list');
     } catch (e) {
       _setError('Cloud Function upload failed: $e');
       _uploadProgress.remove(messageId);
-      print('❌ Cloud Function upload error: $e');
       notifyListeners();
       rethrow;
     }
@@ -315,7 +305,6 @@ class MediaChatProvider extends ChangeNotifier {
   Future<void> downloadMedia(MediaMessage media) async {
     try {
       // TODO: Implement download using dio or path_provider
-      print('Downloading: ${media.fileName}');
     } catch (e) {
       _setError('Failed to download: $e');
     }

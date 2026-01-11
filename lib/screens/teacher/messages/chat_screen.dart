@@ -157,13 +157,11 @@ class _ChatScreenState extends State<ChatScreen> {
         try {
           await _recorder.stop();
         } catch (e) {
-          print('Error stopping recorder: $e');
         }
 
         try {
           _recordingTimer.cancel();
         } catch (e) {
-          print('Timer cancel error: $e');
         }
       }
 
@@ -182,7 +180,6 @@ class _ChatScreenState extends State<ChatScreen> {
           await file.delete();
         }
       } catch (e) {
-        print('Error deleting temp file: $e');
       }
 
       if (mounted) {
@@ -217,7 +214,6 @@ class _ChatScreenState extends State<ChatScreen> {
       try {
         _recordingTimer.cancel();
       } catch (e) {
-        print('Timer cancel error: $e');
       }
     }
 
@@ -229,7 +225,6 @@ class _ChatScreenState extends State<ChatScreen> {
           await file.delete();
         }
       } catch (e) {
-        print('Error deleting recording: $e');
       }
     }
 

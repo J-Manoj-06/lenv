@@ -9,16 +9,11 @@ final rewardsRepositoryProvider = Provider<RewardsRepository>((ref) {
 
 /// Provides the complete rewards catalog with all products
 final rewardsCatalogProvider = FutureProvider<List<ProductModel>>((ref) async {
-  print('🎁 rewardsCatalogProvider: Starting catalog fetch...');
   try {
     final repository = ref.watch(rewardsRepositoryProvider);
     final catalog = await repository.getCatalog();
-    print(
-      '✅ rewardsCatalogProvider: Successfully loaded ${catalog.length} products',
-    );
     return catalog;
   } catch (e) {
-    print('❌ rewardsCatalogProvider: Error loading catalog: $e');
     rethrow;
   }
 });
@@ -28,16 +23,11 @@ final productsSearchProvider = FutureProvider.family<List<ProductModel>, String>
   ref,
   query,
 ) async {
-  print('🔍 productsSearchProvider: Searching for "$query"...');
   try {
     final repository = ref.watch(rewardsRepositoryProvider);
     final results = await repository.searchProducts(query);
-    print(
-      '✅ productsSearchProvider: Found ${results.length} results for "$query"',
-    );
     return results;
   } catch (e) {
-    print('❌ productsSearchProvider: Error searching products: $e');
     rethrow;
   }
 });
@@ -47,17 +37,14 @@ final studentPointsProvider = StreamProvider.family<double, String>((
   ref,
   studentId,
 ) {
-  print('💰 studentPointsProvider: Starting stream for student: $studentId');
   try {
     final repository = ref.watch(rewardsRepositoryProvider);
     final pointsStream = repository.streamStudentPoints(studentId);
 
     return pointsStream.map((points) {
-      print('💰 studentPointsProvider: Updated points for $studentId: $points');
       return points;
     });
   } catch (e) {
-    print('❌ studentPointsProvider: Error creating stream: $e');
     rethrow;
   }
 });
@@ -65,21 +52,14 @@ final studentPointsProvider = StreamProvider.family<double, String>((
 /// Provides list of reward requests for a student (real-time)
 final studentRequestsProvider =
     StreamProvider.family<List<RewardRequestModel>, String>((ref, studentId) {
-      print(
-        '📋 studentRequestsProvider: Starting stream for student: $studentId',
-      );
       try {
         final repository = ref.watch(rewardsRepositoryProvider);
         final requestsStream = repository.streamStudentRequests(studentId);
 
         return requestsStream.map((requests) {
-          print(
-            '📋 studentRequestsProvider: Updated requests for $studentId: ${requests.length} items',
-          );
           return requests;
         });
       } catch (e) {
-        print('❌ studentRequestsProvider: Error creating stream: $e');
         rethrow;
       }
     });
@@ -87,21 +67,14 @@ final studentRequestsProvider =
 /// Provides list of reward requests for a parent to review (real-time)
 final parentRequestsProvider =
     StreamProvider.family<List<RewardRequestModel>, String>((ref, parentId) {
-      print(
-        '👨‍👩‍👧 parentRequestsProvider: Starting stream for parent: $parentId',
-      );
       try {
         final repository = ref.watch(rewardsRepositoryProvider);
         final requestsStream = repository.streamParentRequests(parentId);
 
         return requestsStream.map((requests) {
-          print(
-            '👨‍👩‍👧 parentRequestsProvider: Updated requests for $parentId: ${requests.length} items',
-          );
           return requests;
         });
       } catch (e) {
-        print('❌ parentRequestsProvider: Error creating stream: $e');
         rethrow;
       }
     });

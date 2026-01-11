@@ -71,7 +71,6 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
         }
       }
     } catch (e) {
-      print('❌ Error loading schools in UI: $e');
       if (mounted) {
         setState(() {
           _isLoadingSchools = false;

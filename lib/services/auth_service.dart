@@ -19,12 +19,10 @@ class AuthService {
     try {
       // First try to get from users collection
       // ignore: avoid_print
-      print('[AuthService] getUserData: trying users/$uid');
       final userDoc = await _firestore.collection('users').doc(uid).get();
       if (userDoc.exists) {
         final data = userDoc.data()!;
         // ignore: avoid_print
-        print('[AuthService] getUserData: found users/$uid');
         // CRITICAL: Ensure uid is set in the data map before converting to UserModel
         // The uid is stored as the document ID in Firestore, not in the data itself
         data['uid'] = uid;
@@ -35,15 +33,11 @@ class AuthService {
       final user = _auth.currentUser;
       if (user != null) {
         // ignore: avoid_print
-        print(
-          '[AuthService] getUserData: users/$uid not found, searching role collections for ${user.email}',
-        );
         return await _getUserFromRoleCollections(uid, user.email!);
       }
 
       return null;
     } catch (e) {
-      print('❌ Error getting user data: $e');
       return null;
     }
   }
@@ -84,8 +78,6 @@ class AuthService {
     String email,
   ) async {
     try {
-      print('🔍 Searching for user with email: $email');
-
       // Define collection-role mapping
       final collections = {
         'teachers': UserRole.teacher,
@@ -100,8 +92,6 @@ class AuthService {
         final collectionName = entry.key;
         final role = entry.value;
 
-        print('  Checking $collectionName collection...');
-
         // Try searching by 'email' field first
         var querySnapshot = await _firestore
             .collection(collectionName)
@@ -111,7 +101,6 @@ class AuthService {
 
         // If not found and it's students collection, try alternative field names
         if (querySnapshot.docs.isEmpty && collectionName == 'students') {
-          print('    Not found by email, trying studentEmail field...');
           querySnapshot = await _firestore
               .collection(collectionName)
               .where('studentEmail', isEqualTo: email)
@@ -120,9 +109,7 @@ class AuthService {
         }
 
         if (querySnapshot.docs.isNotEmpty) {
-          print('  ✅ Found user in $collectionName');
           final data = querySnapshot.docs.first.data();
-          print('  📄 Document data: $data');
 
           // UPDATE: Ensure the user document in 'users' collection has the correct Auth UID
           try {
@@ -139,15 +126,12 @@ class AuthService {
 
               // If uid is empty or doesn't match, update it
               if (storedUid == null || storedUid.isEmpty || storedUid != uid) {
-                print('  🔄 Updating users document with Auth UID: $uid');
                 await _firestore.collection('users').doc(userDoc.id).update({
                   'uid': uid,
                 });
-                print('  ✅ Users document updated successfully');
               }
             }
           } catch (e) {
-            print('  ⚠️ Failed to update users document: $e');
             // Continue anyway - not critical
           }
 
@@ -175,11 +159,8 @@ class AuthService {
         }
       }
 
-      print('  ⚠️ User not found in any role collection');
       return null;
-    } catch (e, stackTrace) {
-      print('❌ Error searching role collections: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       return null;
     }
   }

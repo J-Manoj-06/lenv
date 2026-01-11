@@ -144,9 +144,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
         // Debug print to verify
         // ignore: avoid_print
-        print(
-          '🏅 ${copy['studentName'] ?? copy['name']}: points=$points (docId=$docId uid=$uid)',
-        );
       }
 
       final enriched = deduped.values.toList();
@@ -165,7 +162,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading leaderboard data: $e');
       setState(() {
         _error = 'Failed to load data: $e';
         _isLoading = false;

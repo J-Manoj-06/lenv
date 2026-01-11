@@ -114,7 +114,6 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
             ? '$studentClass|'
             : '$studentClass|$studentSection';
 
-        print('🔍 Efficient query token: "$token" for ${child.schoolCode}');
 
         // OPTIMIZED: Single query with arrayContains on indexed field
         final teachersSnapshot = await FirebaseFirestore.instance
@@ -133,13 +132,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
                   .docs;
 
         if (teachersSnapshot.docs.isEmpty) {
-          print(
-            'ℹ️ Tokens not populated yet. Using classAssignments parsing fallback',
-          );
         } else {
-          print(
-            '✅ Found ${teachersSnapshot.docs.length} matching teachers directly',
-          );
         }
 
         for (final doc in docsToScan) {
@@ -193,9 +186,6 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
             teacherIds.add(teacherId);
             final teacherName =
                 data['teacherName'] ?? data['name'] ?? 'Unknown Teacher';
-            print(
-              '✅ Teacher: $teacherName${subject != null ? " - $subject" : ""}',
-            );
 
             final teacherUid = (data['uid'] as String?) ?? teacherId;
             teachersList.add({
@@ -210,7 +200,6 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         }
       }
 
-      print('📋 Total unique teachers found: ${teachersList.length}');
 
       // Sort by name
       teachersList.sort(
@@ -224,7 +213,6 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         _lastLoadedChildId = child.uid; // Track which child we loaded for
       });
     } catch (e) {
-      print('❌ Error loading teachers: $e');
       setState(() => _isLoading = false);
     }
   }

@@ -45,7 +45,6 @@ class WhatsAppMediaUploadService {
 
       // Step 2 & 3: Generate thumbnail and compress in parallel
       onProgress?.call(0.1);
-      debugPrint('🚀 Compressing and generating thumbnail in parallel...');
       final results = await Future.wait([
         _compressionService.generateThumbnail(imageFile, returnBase64: true),
         _compressionService.compressImage(imageFile),
@@ -53,12 +52,9 @@ class WhatsAppMediaUploadService {
       final thumbnail = results[0] as String;
       final compressedBytes = results[1] as Uint8List;
 
-      debugPrint('✅ Compressed: ${compressedBytes.length} bytes');
-
       // Step 4: Upload to Cloudflare Worker with retry
       onProgress?.call(0.5);
       final uploadStartTime = DateTime.now();
-      debugPrint('☁️ Uploading to R2...');
 
       // We encode to JPEG in compression, so use consistent JPEG MIME
       final mimeType = 'image/jpeg';
@@ -81,12 +77,10 @@ class WhatsAppMediaUploadService {
       final uploadDuration = DateTime.now().difference(uploadStartTime);
       final speedKBps =
           (compressedBytes.length / 1024) / uploadDuration.inSeconds;
-      debugPrint('⚡ Upload speed: ${speedKBps.toStringAsFixed(1)} KB/s');
 
       onProgress?.call(0.9);
 
       // Step 5: Create metadata with sender's local path
-      debugPrint('✅ Upload complete!');
 
       // Save to local storage for consistency across app restarts
       final localPath = await _storageService.saveImage(
@@ -112,7 +106,6 @@ class WhatsAppMediaUploadService {
 
       return UploadResult(success: true, metadata: metadata);
     } catch (e) {
-      debugPrint('❌ Upload error: $e');
       return UploadResult(
         success: false,
         error: UploadError.unknown,
@@ -135,8 +128,6 @@ class WhatsAppMediaUploadService {
     const initialDelay = Duration(seconds: 2);
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
-      debugPrint('🔄 Upload attempt $attempt/$maxRetries');
-
       final result = await _uploadToWorker(
         imageBytes: imageBytes,
         messageId: messageId,
@@ -163,9 +154,6 @@ class WhatsAppMediaUploadService {
 
       // Exponential backoff
       final delay = initialDelay * attempt;
-      debugPrint(
-        '⏳ Retrying in ${delay.inSeconds}s due to: ${result.errorMessage}',
-      );
       await Future.delayed(delay);
     }
 
@@ -206,9 +194,6 @@ class WhatsAppMediaUploadService {
         ),
       );
 
-      debugPrint(
-        '📨 Worker request: fields=${request.fields} fileExt=$fileExt contentType=$mimeType bytes=${imageBytes.length}',
-      );
       final streamedResponse = await request.send().timeout(
         const Duration(seconds: 60),
         onTimeout: () => throw TimeoutException('Upload timeout after 60s'),
@@ -216,10 +201,8 @@ class WhatsAppMediaUploadService {
 
       final response = await http.Response.fromStream(streamedResponse);
 
-      debugPrint('📬 Worker response status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        debugPrint('📦 Worker response body: $data');
 
         if (data['success'] == true) {
           return UploadResult(
@@ -254,29 +237,25 @@ class WhatsAppMediaUploadService {
           errorMessage: 'HTTP ${response.statusCode}: ${response.body}',
         );
       }
-    } on SocketException catch (e) {
-      debugPrint('❌ Network error: $e');
+    } on SocketException {
       return UploadResult(
         success: false,
         error: UploadError.networkError,
         errorMessage: 'Network connection failed',
       );
-    } on TimeoutException catch (e) {
-      debugPrint('❌ Timeout error: $e');
+    } on TimeoutException {
       return UploadResult(
         success: false,
         error: UploadError.timeout,
         errorMessage: 'Upload timeout - please check your connection',
       );
-    } on http.ClientException catch (e) {
-      debugPrint('❌ Client exception: $e');
+    } on http.ClientException {
       return UploadResult(
         success: false,
         error: UploadError.networkError,
         errorMessage: 'Connection reset - network unstable',
       );
     } catch (e) {
-      debugPrint('❌ Worker upload exception: $e');
       return UploadResult(
         success: false,
         error: UploadError.unknown,

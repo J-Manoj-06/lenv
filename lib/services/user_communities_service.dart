@@ -30,11 +30,9 @@ class UserCommunitiesService {
     try {
       // Return cached data if valid
       if (_isCacheValid(userId)) {
-        print('📦 Using cached user_communities data');
         return _cachedUserCommunities;
       }
 
-      print('🔍 Fetching user_communities for: $userId');
 
       final doc = await _firestore
           .collection('user_communities')
@@ -42,7 +40,6 @@ class UserCommunitiesService {
           .get();
 
       if (!doc.exists || doc.data() == null) {
-        print('⚠️ user_communities document not found for user: $userId');
         return null;
       }
 
@@ -53,10 +50,8 @@ class UserCommunitiesService {
       _cacheTimestamp = DateTime.now();
       _cachedUserId = userId;
 
-      print('✅ Fetched ${data['totalCommunities'] ?? 0} communities');
       return data;
     } catch (e) {
-      print('❌ Error fetching user_communities: $e');
       return null;
     }
   }
@@ -187,9 +182,7 @@ class UserCommunitiesService {
         _cachedUserCommunities!['totalUnread'] = newTotalUnread;
       }
 
-      print('✅ Marked community as read: $communityId');
     } catch (e) {
-      print('❌ Error marking community as read: $e');
     }
   }
 
@@ -237,9 +230,7 @@ class UserCommunitiesService {
         clearCache();
       }
 
-      print('✅ Incremented unread count for community: $communityId');
     } catch (e) {
-      print('❌ Error incrementing unread count: $e');
     }
   }
 
@@ -283,7 +274,6 @@ class UserCommunitiesService {
         _cachedUserCommunities!['communities'] = communities;
       }
     } catch (e) {
-      print('❌ Error updating last message: $e');
     }
   }
 
@@ -291,7 +281,6 @@ class UserCommunitiesService {
   /// This should ideally be done server-side
   Future<bool> rebuildUserCommunitiesIndex(String userId) async {
     try {
-      print('🔄 Rebuilding user_communities index for: $userId');
 
       // Scan community members to find user's communities
       final memberQuery = await _firestore
@@ -301,7 +290,6 @@ class UserCommunitiesService {
           .get();
 
       if (memberQuery.docs.isEmpty) {
-        print('⚠️ No communities found for user');
         return false;
       }
 
@@ -375,12 +363,8 @@ class UserCommunitiesService {
       // Clear cache to force refresh
       clearCache();
 
-      print(
-        '✅ Rebuilt user_communities index: ${communities.length} communities',
-      );
       return true;
     } catch (e) {
-      print('❌ Error rebuilding user_communities index: $e');
       return false;
     }
   }

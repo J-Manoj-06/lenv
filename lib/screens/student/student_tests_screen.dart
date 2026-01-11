@@ -283,13 +283,9 @@ class _AllTestsTabState extends State<_AllTestsTab> {
                   matchingDoc.reference.update({'status': 'completed'}).catchError((
                     e,
                   ) {
-                    print(
-                      '⚠️ Auto-heal status update failed for testResult ${matchingDoc!.id}: $e',
-                    );
                   });
                 }
               } catch (e) {
-                print('❌ Error converting result for test ${t.id}: $e');
                 items.add(_TestListItem.pending(test: t));
               }
             }
@@ -451,9 +447,6 @@ class _CompletedTab extends StatelessWidget {
               submittedAt != null ||
               (score is num && score > 0);
         }).toList();
-        print(
-          '📊 Completed tests query returned ${assignmentDocs.length} assignments',
-        );
 
         if (assignmentDocs.isEmpty) {
           return const _EmptyState(message: 'No completed tests');
@@ -471,7 +464,6 @@ class _CompletedTab extends StatelessWidget {
           return const _EmptyState(message: 'No completed tests');
         }
 
-        print('📝 Fetching test details for ${testIds.length} unique tests');
 
         // Fetch test details from scheduledTests collection
         return StreamBuilder<QuerySnapshot>(
@@ -485,9 +477,6 @@ class _CompletedTab extends StatelessWidget {
             }
 
             final testDocs = testsSnap.data?.docs ?? [];
-            print(
-              '📚 Retrieved ${testDocs.length} test details from scheduledTests',
-            );
 
             // Convert to TestModel using fromScheduledTest
             final Map<String, TestModel> testById = {};
@@ -499,7 +488,6 @@ class _CompletedTab extends StatelessWidget {
                 );
                 testById[test.id] = test;
               } catch (e) {
-                print('❌ Error converting test ${doc.id}: $e');
               }
             }
 
@@ -542,7 +530,6 @@ class _CompletedTab extends StatelessWidget {
                   ),
                 );
               } catch (e) {
-                print('❌ Error creating result for test $testId: $e');
               }
             }
 

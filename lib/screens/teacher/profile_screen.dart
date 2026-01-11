@@ -53,7 +53,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await authProvider.initializeAuth();
       final user = authProvider.currentUser;
       // ignore: avoid_print
-      print('[Profile] init for user: ${user?.email}');
 
       if (user == null) {
         setState(() {
@@ -91,7 +90,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     } catch (e) {
       // ignore: avoid_print
-      print('❌ [Profile] load error: $e');
       setState(() {
         _error = 'Failed to load profile';
         _isLoading = false;
@@ -863,7 +861,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     } catch (e) {
-      print('Error during logout: $e');
       if (mounted) {
         showErrorDialog(
           context,

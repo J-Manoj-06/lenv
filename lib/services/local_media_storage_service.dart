@@ -49,11 +49,9 @@ class LocalMediaStorageService {
       final file = File(filePath);
 
       await file.writeAsBytes(imageBytes);
-      debugPrint('✅ Saved image to: $filePath');
 
       return filePath;
     } catch (e) {
-      debugPrint('❌ Error saving image: $e');
       rethrow;
     }
   }
@@ -69,11 +67,9 @@ class LocalMediaStorageService {
       final file = File(filePath);
 
       await file.writeAsBytes(thumbnailBytes);
-      debugPrint('✅ Saved thumbnail to: $filePath');
 
       return filePath;
     } catch (e) {
-      debugPrint('❌ Error saving thumbnail: $e');
       rethrow;
     }
   }
@@ -87,14 +83,11 @@ class LocalMediaStorageService {
       final file = File(filePath);
 
       if (await file.exists()) {
-        debugPrint('✅ Loaded image from: $filePath');
         return file;
       } else {
-        debugPrint('⚠️ Image file not found: $filePath');
         return null;
       }
     } catch (e) {
-      debugPrint('❌ Error loading image: $e');
       return null;
     }
   }
@@ -107,7 +100,6 @@ class LocalMediaStorageService {
       final file = File(filePath);
       return await file.exists();
     } catch (e) {
-      debugPrint('❌ Error checking image existence: $e');
       return false;
     }
   }
@@ -128,14 +120,11 @@ class LocalMediaStorageService {
 
       if (await file.exists()) {
         await file.delete();
-        debugPrint('✅ Deleted image: $filePath');
         return true;
       } else {
-        debugPrint('⚠️ Image file not found for deletion: $filePath');
         return false;
       }
     } catch (e) {
-      debugPrint('❌ Error deleting image: $e');
       return false;
     }
   }
@@ -149,12 +138,10 @@ class LocalMediaStorageService {
 
       if (await file.exists()) {
         await file.delete();
-        debugPrint('✅ Deleted thumbnail: $filePath');
         return true;
       }
       return false;
     } catch (e) {
-      debugPrint('❌ Error deleting thumbnail: $e');
       return false;
     }
   }
@@ -176,10 +163,8 @@ class LocalMediaStorageService {
         }
       }
 
-      debugPrint('✅ Cleared $deletedCount chat images');
       return deletedCount;
     } catch (e) {
-      debugPrint('❌ Error clearing chat media: $e');
       return 0;
     }
   }
@@ -198,7 +183,6 @@ class LocalMediaStorageService {
 
       return 1000000000; // Default 1 GB
     } catch (e) {
-      debugPrint('❌ Error checking storage: $e');
       return 0;
     }
   }
@@ -211,7 +195,6 @@ class LocalMediaStorageService {
       const buffer = 50 * 1024 * 1024;
       return available > (requiredBytes + buffer);
     } catch (e) {
-      debugPrint('❌ Error checking storage availability: $e');
       return false;
     }
   }
@@ -226,7 +209,6 @@ class LocalMediaStorageService {
       }
       return 0;
     } catch (e) {
-      debugPrint('❌ Error getting file size: $e');
       return 0;
     }
   }
@@ -249,7 +231,6 @@ class LocalMediaStorageService {
 
       return totalSize;
     } catch (e) {
-      debugPrint('❌ Error calculating storage: $e');
       return 0;
     }
   }

@@ -56,9 +56,6 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _initialized = true;
-          debugPrint(
-            '🔄 DailyChallengeCard: Re-initializing for new student ${widget.studentId}',
-          );
           context.read<DailyChallengeProvider>().initialize(widget.studentId);
         }
       });

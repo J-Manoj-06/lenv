@@ -37,9 +37,6 @@ class UnreadCountProvider with ChangeNotifier {
     required String chatType,
   }) async {
     if (_currentUserId == null) {
-      debugPrint(
-        '[UnreadProvider] skip loadUnreadCount (no user) chatId=$chatId type=$chatType',
-      );
       return;
     }
 
@@ -50,9 +47,6 @@ class UnreadCountProvider with ChangeNotifier {
       final collection = ChatTypeConfig.getMessagesCollectionPath(
         chatType: chatType,
         chatId: chatId,
-      );
-      debugPrint(
-        '[UnreadProvider] loadUnreadCount chatId=$chatId type=$chatType collection=$collection user=$_currentUserId',
       );
 
       // Force refresh so new messages are counted immediately
@@ -66,10 +60,7 @@ class UnreadCountProvider with ChangeNotifier {
       );
 
       _unreadCounts[chatId] = count;
-      debugPrint('[UnreadProvider] loaded count=$count chatId=$chatId');
       notifyListeners();
-    } catch (e) {
-      print('⚠️ Error loading unread count: $e');
     } finally {
       _loadingChats.remove(chatId);
       notifyListeners();
@@ -82,9 +73,6 @@ class UnreadCountProvider with ChangeNotifier {
     required Map<String, String> chatTypes, // chatId -> chatType
   }) async {
     if (_currentUserId == null || chatIds.isEmpty) {
-      debugPrint(
-        '[UnreadProvider] skip batch (user=${_currentUserId ?? 'null'} chatIds=${chatIds.length})',
-      );
       return;
     }
 
@@ -104,10 +92,6 @@ class UnreadCountProvider with ChangeNotifier {
           );
         }
       }
-      debugPrint(
-        '[UnreadProvider] batch load chatIds=${chatIds.length} collections=${collections.length} user=$_currentUserId',
-      );
-      debugPrint('[UnreadProvider] chatIds: ${chatIds.join(", ")}');
 
       // Clear caches for these chats to avoid stale zeros
       for (final id in chatIds) {
@@ -125,12 +109,7 @@ class UnreadCountProvider with ChangeNotifier {
 
       // Update cache
       _unreadCounts.addAll(counts);
-      debugPrint(
-        '[UnreadProvider] batch counts loaded: ${counts.entries.map((e) => '${e.key}:${e.value}').join(', ')}',
-      );
       notifyListeners();
-    } catch (e) {
-      print('⚠️ Error loading batch counts: $e');
     } finally {
       _loadingChats.clear();
       notifyListeners();
@@ -148,7 +127,6 @@ class UnreadCountProvider with ChangeNotifier {
     // Update Firestore (non-blocking)
     _service.markChatAsRead(userId: _currentUserId!, chatId: chatId).catchError(
       (e) {
-        print('⚠️ Error marking chat as read: $e');
         // If fails, next load will fix it
       },
     );

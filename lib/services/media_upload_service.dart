@@ -136,7 +136,6 @@ class MediaUploadService {
 
       return mediaMessage;
     } catch (e) {
-      print('❌ Upload failed: $e');
       rethrow;
     }
   }
@@ -202,7 +201,6 @@ class MediaUploadService {
         'height': compressedImage.height,
       };
     } catch (e) {
-      print('⚠️ Image compression failed, using original: $e');
       return {'bytes': imageBytes, 'width': 1920, 'height': 1080};
     }
   }
@@ -222,7 +220,6 @@ class MediaUploadService {
 
       return img.encodeJpg(thumbnail, quality: THUMBNAIL_QUALITY);
     } catch (e) {
-      print('⚠️ Thumbnail generation failed: $e');
       return imageBytes;
     }
   }
@@ -246,7 +243,6 @@ class MediaUploadService {
 
       return url;
     } catch (e) {
-      print('⚠️ Thumbnail upload failed, using main image: $e');
       return '';
     }
   }
@@ -273,7 +269,6 @@ class MediaUploadService {
             'lastMediaType': media.fileType,
           }, SetOptions(merge: true));
     } catch (e) {
-      print('❌ Failed to save metadata to Firestore: $e');
       rethrow;
     }
   }
@@ -295,7 +290,6 @@ class MediaUploadService {
       // Clear local cache
       await _cacheService.deleteMediaCache(mediaId);
     } catch (e) {
-      print('❌ Failed to delete media: $e');
       rethrow;
     }
   }
@@ -317,7 +311,6 @@ class MediaUploadService {
           .doc(mediaId)
           .update({readField: true});
     } catch (e) {
-      print('❌ Failed to mark media as read: $e');
       rethrow;
     }
   }
@@ -367,7 +360,6 @@ class MediaUploadService {
           .map((doc) => MediaMessage.fromFirestore(doc))
           .toList();
     } catch (e) {
-      print('❌ Failed to get media: $e');
       rethrow;
     }
   }

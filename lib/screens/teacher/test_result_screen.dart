@@ -77,7 +77,6 @@ class _TestResultScreenState extends State<TestResultScreen> {
             final result = TestResultModel.fromFirestore(doc);
             completed.add(result);
           } catch (e) {
-            print('Error parsing result: $e');
           }
         }
       }
@@ -96,13 +95,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
           _questions = List<Map<String, dynamic>>.from(
             testData['questions'].map((q) => Map<String, dynamic>.from(q)),
           );
-          print('📝 Loaded ${_questions.length} questions');
           for (var i = 0; i < _questions.length; i++) {
-            print(
-              'Q${i + 1}: ${_questions[i]['questionText'] ?? _questions[i]['question']}',
-            );
-            print('Options: ${_questions[i]['options']}');
-            print('Correct: ${_questions[i]['correctAnswer']}');
           }
         }
       }
@@ -166,7 +159,6 @@ class _TestResultScreenState extends State<TestResultScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading test results: $e');
       setState(() => _isLoading = false);
     }
   }

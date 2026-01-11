@@ -33,12 +33,7 @@ class TestCompletionHelper {
       // Save to Firestore
       await _testService.saveTestResult(studentId, testResult);
 
-      print('✅ Test result saved successfully!');
-      print('   Subject: $subject');
-      print('   Score: $score/$totalQuestions (${testResult.percentage}%)');
-      print('   Grade: ${testResult.grade}');
     } catch (e) {
-      print('❌ Error saving test result: $e');
       rethrow;
     }
   }
@@ -66,7 +61,6 @@ class TestCompletionHelper {
       await Future.delayed(const Duration(milliseconds: 500));
     }
 
-    print('✅ Generated 5 dummy test results for testing!');
   }
 }
 

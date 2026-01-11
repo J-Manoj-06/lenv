@@ -114,7 +114,6 @@ class ParentProvider with ChangeNotifier {
   /// Load all children linked to this parent
   Future<void> loadChildren() async {
     if (_parentEmail == null) {
-      print('⚠️ ParentProvider: No parent email set');
       return;
     }
 
@@ -123,9 +122,7 @@ class ParentProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      print('📥 ParentProvider: Loading children for $_parentEmail');
       _children = await _parentService.getChildrenByParentEmail(_parentEmail!);
-      print('✅ ParentProvider: Loaded ${_children.length} children');
 
       // ✅ Load persisted child selection
       await _loadPersistedSelection();
@@ -136,7 +133,6 @@ class ParentProvider with ChangeNotifier {
       }
     } catch (e) {
       _childrenError = 'Failed to load children: $e';
-      print('❌ ParentProvider Error: $_childrenError');
     } finally {
       _isLoadingChildren = false;
       notifyListeners();
@@ -155,11 +151,9 @@ class ParentProvider with ChangeNotifier {
         final savedIndex = _children.indexWhere((c) => c.uid == savedChildUid);
         if (savedIndex >= 0) {
           _selectedChildIndex = savedIndex;
-          print('✅ Restored child selection: ${_children[savedIndex].name}');
         }
       }
     } catch (e) {
-      print('⚠️ Failed to load persisted selection: $e');
     }
   }
 
@@ -171,9 +165,7 @@ class ParentProvider with ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_selectedChildKey, child.uid);
-      print('💾 Persisted child selection: ${child.name}');
     } catch (e) {
-      print('⚠️ Failed to persist selection: $e');
     }
   }
 
@@ -196,11 +188,6 @@ class ParentProvider with ChangeNotifier {
     final child = selectedChild;
     if (child == null) return;
 
-    print('📥 Loading data for child: ${child.name}');
-    print('  - Child UID: ${child.uid}');
-    print('  - Child rewardPoints: ${child.rewardPoints}');
-    print('  - Child className: ${child.className}');
-    print('  - Child schoolCode: ${child.schoolCode}');
 
     // Load all data in parallel
     await Future.wait([
@@ -231,7 +218,6 @@ class ParentProvider with ChangeNotifier {
       _sectionGroup = await _ptGroupService.ensureGroupForChild(child: child);
     } catch (e) {
       _sectionGroupError = 'Failed to load parent-teacher group: $e';
-      print('❌ ParentProvider: $_sectionGroupError');
     } finally {
       _isLoadingSectionGroup = false;
       notifyListeners();
@@ -246,10 +232,8 @@ class ParentProvider with ChangeNotifier {
 
     try {
       _testResults = await _parentService.getStudentTestResults(studentId);
-      print('✅ Loaded ${_testResults.length} test results');
     } catch (e) {
       _testsError = 'Failed to load test results: $e';
-      print('❌ Error loading test results: $e');
     } finally {
       _isLoadingTests = false;
       notifyListeners();
@@ -266,10 +250,8 @@ class ParentProvider with ChangeNotifier {
       _rewardRequests = await _parentService.getStudentRewardRequests(
         studentId,
       );
-      print('✅ Loaded ${_rewardRequests.length} reward requests');
     } catch (e) {
       _rewardsError = 'Failed to load reward requests: $e';
-      print('❌ Error loading reward requests: $e');
     } finally {
       _isLoadingRewards = false;
       notifyListeners();
@@ -286,10 +268,8 @@ class ParentProvider with ChangeNotifier {
       _announcements = await _parentService.getAnnouncementsForStudent(
         studentId,
       );
-      print('✅ Loaded ${_announcements.length} announcements');
     } catch (e) {
       _announcementsError = 'Failed to load announcements: $e';
-      print('❌ Error loading announcements: $e');
     } finally {
       _isLoadingAnnouncements = false;
       notifyListeners();
@@ -308,9 +288,6 @@ class ParentProvider with ChangeNotifier {
       _announcements = await _parentService.getAnnouncementsForParentEmail(
         _parentEmail!,
       );
-      print(
-        '✅ Loaded aggregated parent announcements: ${_announcements.length}',
-      );
 
       // Fallback: if aggregated announcements are empty but children are present,
       // load per-child announcements (some parent docs may not contain schoolCode)
@@ -324,17 +301,12 @@ class ParentProvider with ChangeNotifier {
               merged[a['id'] as String? ?? UniqueKey().toString()] = a;
             }
           } catch (e) {
-            print('❌ Error loading announcements for child ${child.uid}: $e');
           }
         }
         _announcements = merged.values.toList();
-        print(
-          '✅ Loaded fallback per-child announcements: ${_announcements.length}',
-        );
       }
     } catch (e) {
       _announcementsError = 'Failed to load parent announcements: $e';
-      print('❌ Error loading parent announcements: $e');
     } finally {
       _isLoadingAnnouncements = false;
       notifyListeners();
@@ -377,13 +349,8 @@ class ParentProvider with ChangeNotifier {
       _performanceStats = await _parentService.getStudentPerformanceStats(
         studentId,
       );
-      print('✅ Loaded performance stats: $_performanceStats');
-      print('  - completedTests: ${_performanceStats['completedTests']}');
-      print('  - totalTests: ${_performanceStats['totalTests']}');
-      print('  - averageScore: ${_performanceStats['averageScore']}');
     } catch (e) {
       _performanceError = 'Failed to load performance stats: $e';
-      print('❌ Error loading performance stats: $e');
     } finally {
       _isLoadingPerformance = false;
       notifyListeners();
@@ -398,10 +365,8 @@ class ParentProvider with ChangeNotifier {
 
     try {
       _conversations = await _parentService.getParentConversations(parentId);
-      print('✅ Loaded ${_conversations.length} conversations');
     } catch (e) {
       _conversationsError = 'Failed to load conversations: $e';
-      print('❌ Error loading conversations: $e');
     } finally {
       _isLoadingConversations = false;
       notifyListeners();
@@ -412,10 +377,8 @@ class ParentProvider with ChangeNotifier {
   Future<void> loadUpcomingTests(String studentId) async {
     try {
       _upcomingTests = await _parentService.getUpcomingTests(studentId);
-      print('✅ Loaded ${_upcomingTests.length} upcoming tests');
       notifyListeners();
     } catch (e) {
-      print('❌ Error loading upcoming tests: $e');
     }
   }
 
@@ -423,28 +386,20 @@ class ParentProvider with ChangeNotifier {
   Future<void> loadRewardHistory(String studentId) async {
     try {
       _rewardHistory = await _parentService.getStudentRewardHistory(studentId);
-      print('✅ Loaded ${_rewardHistory.length} reward history items');
       notifyListeners();
     } catch (e) {
-      print('❌ Error loading reward history: $e');
     }
   }
 
   /// Load attendance for a student
   Future<void> loadAttendance(String studentId) async {
     try {
-      print('🔄 Loading attendance for student: $studentId');
       _attendance = await _parentService.getStudentAttendance(studentId);
       _attendanceBreakdown = await _parentService.getStudentAttendanceBreakdown(
         studentId,
       );
-      print('✅ Loaded attendance: $_attendance%');
-      print(
-        '✅ Breakdown: present=${_attendanceBreakdown['present']}, absent=${_attendanceBreakdown['absent']}, late=${_attendanceBreakdown['late']}, total=${_attendanceBreakdown['total']}',
-      );
       notifyListeners();
     } catch (e) {
-      print('❌ Error loading attendance: $e');
     }
   }
 
@@ -463,7 +418,6 @@ class ParentProvider with ChangeNotifier {
 
       return success;
     } catch (e) {
-      print('❌ Error approving reward request: $e');
       return false;
     }
   }
@@ -484,7 +438,6 @@ class ParentProvider with ChangeNotifier {
 
       return success;
     } catch (e) {
-      print('❌ Error rejecting reward request: $e');
       return false;
     }
   }

@@ -42,19 +42,15 @@ class YouTubeApiService {
         '$_baseUrl/search?part=snippet&type=video&maxResults=$maxResults&q=${Uri.encodeComponent(query)}&key=$_apiKey',
       );
 
-      print('🔍 Searching YouTube for: "$query"');
-      print('   URL: ${url.toString().replaceAll(_apiKey, 'API_KEY')}');
 
       // Make HTTP GET request
       final response = await http.get(url);
 
-      print('   Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         // Parse and return JSON response
         final data = json.decode(response.body) as Map<String, dynamic>;
         final itemCount = (data['items'] as List?)?.length ?? 0;
-        print('✅ Found $itemCount videos');
         return data;
       } else {
         // Try to parse YouTube error payload to show specific reason
@@ -73,14 +69,11 @@ class YouTubeApiService {
               : '';
           final messageText = error?['message'] ?? '';
           message = 'YouTube API error $code/$status: $messageText ($reason)';
-          print('❌ $message');
         } catch (_) {
-          print('❌ YouTube API error: ${response.statusCode}');
         }
         throw Exception(message);
       }
     } catch (e) {
-      print('❌ Exception in searchVideos: $e');
       rethrow;
     }
   }
@@ -113,7 +106,6 @@ class YouTubeApiService {
         );
       }
     } catch (e) {
-      print('❌ Exception in getVideoDetails: $e');
       rethrow;
     }
   }

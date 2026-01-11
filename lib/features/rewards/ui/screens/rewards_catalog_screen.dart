@@ -43,7 +43,6 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
   @override
   Widget build(BuildContext context) {
     final searchQuery = _searchController.text;
-    print('🎁 RewardsCatalogScreen: Building with searchQuery="$searchQuery"');
     final productsAsync = searchQuery.isEmpty
         ? ref.watch(rewardsCatalogProvider)
         : ref.watch(productsSearchProvider(searchQuery));
@@ -78,9 +77,6 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
           Expanded(
             child: productsAsync.when(
               data: (products) {
-                print(
-                  '✅ RewardsCatalogScreen: Data loaded with ${products.length} products',
-                );
                 if (products.isEmpty) {
                   return _buildEmptyState(context, isDark);
                 }
@@ -139,7 +135,6 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
                 );
               },
               loading: () {
-                print('⏳ RewardsCatalogScreen: Loading...');
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -161,8 +156,6 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
                 );
               },
               error: (error, st) {
-                print('❌ RewardsCatalogScreen: Error loading products: $error');
-                print('📍 Stack trace: $st');
                 return _buildErrorState(context, error, isDark);
               },
             ),
@@ -203,9 +196,6 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
     return TextField(
       controller: _searchController,
       onChanged: (_) {
-        print(
-          '🎁 RewardsCatalogScreen: Search text changed to "${_searchController.text}"',
-        );
         setState(() {});
       },
       decoration: InputDecoration(

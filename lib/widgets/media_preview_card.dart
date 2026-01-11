@@ -67,12 +67,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     final downloaded = await _repository.isDownloaded(widget.r2Key);
     final path = await _repository.getLocalFilePath(widget.r2Key);
 
-    print('📋 Check download status for: ${widget.r2Key}');
-    print('   Downloaded: $downloaded');
-    print('   Local path from cache: $path');
-    print(
-      '   File size: ${widget.fileSize} bytes (${_formatSize(widget.fileSize)})',
-    );
 
     if (mounted) {
       setState(() {
@@ -160,7 +154,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     // Construct the public URL for the file on R2
     final publicUrl = 'https://files.lenv1.tech/${widget.r2Key}';
 
-    print('🌐 Opening PDF from R2: $publicUrl');
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -244,9 +237,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
   @override
   Widget build(BuildContext context) {
-    print(
-      '🎨 MediaPreviewCard: r2Key=${widget.r2Key}, fileName=${widget.fileName}, isMe=${widget.isMe}, uploading=${widget.uploading}, progress=${widget.uploadProgress}',
-    );
     // For IMAGES: Show WhatsApp-style preview (image with tap to expand)
     if (_isImage) {
       return _buildImagePreview();
@@ -395,7 +385,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     // This allows the pending message to stay visible without blocking interaction
     final shouldShowOverlay =
         widget.uploading && ((widget.uploadProgress ?? 0.0) < 0.99);
-    print('🎨 MediaPreviewCard overlay: $shouldShowOverlay');
     if (!shouldShowOverlay) return card;
 
     return Stack(
@@ -489,7 +478,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                       filePath.endsWith('.webp');
 
                   if (!isImageFile) {
-                    print('⚠️ Invalid image file type: $_localPath');
                     return _buildThumbnailFallback();
                   }
 
@@ -499,7 +487,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                     width: 260,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
-                      print('❌ Error loading image from: $_localPath');
                       return _buildThumbnailFallback();
                     },
                   );
@@ -651,7 +638,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
     // Check if it's a local file path (pending upload)
     if (thumb.startsWith('/') || thumb.contains(':\\')) {
-      print('📁 Thumbnail is a local file path, loading from disk: $thumb');
       final file = File(thumb);
       if (file.existsSync()) {
         return Image.file(
@@ -660,26 +646,22 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           width: 260,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
-            print('❌ Error loading local thumbnail: $error');
             return _thumbnailPlaceholder();
           },
         );
       } else {
-        print('❌ Local thumbnail file not found: $thumb');
         return _thumbnailPlaceholder();
       }
     }
 
     // Check if it's actually a URL (starts with http/https) instead of base64
     if (thumb.startsWith('http://') || thumb.startsWith('https://')) {
-      print('🌐 Thumbnail is a URL, loading via network: $thumb');
       return Image.network(
         thumb,
         height: 260,
         width: 260,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          print('❌ Error loading network thumbnail: $error');
           return _thumbnailPlaceholder();
         },
       );
@@ -693,15 +675,11 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         width: 260,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          print(
-            '❌ Error loading thumbnail (decode ok but render failed): $error',
-          );
           return _thumbnailPlaceholder();
         },
       );
     } catch (e) {
       // Guard against invalid/non-base64 thumbnails (e.g., URL accidentally stored)
-      print('❌ Invalid thumbnail base64 or format, using placeholder: $e');
       return _thumbnailPlaceholder();
     }
   }

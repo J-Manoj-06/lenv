@@ -131,11 +131,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   }
 
   Future<void> _ensureConversation() async {
-    print('🔍 Teacher Chat - Building conversation ID:');
-    print('  schoolCode: ${widget.schoolCode}');
-    print('  teacherId: ${widget.teacherId}');
-    print('  parentId: ${widget.parentId}');
-    print('  studentId: ${widget.studentId}');
 
     final id = await _chat.ensureConversation(
       schoolCode: widget.schoolCode,
@@ -147,7 +142,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
       section: widget.section,
     );
 
-    print('✅ Conversation ID: $id');
 
     setState(() => _conversationId = id);
   }
@@ -423,7 +417,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         mediaMetadata: mediaMetadata,
       );
     } catch (e) {
-      print('❌ Error sending message: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -477,7 +470,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         ),
       );
     } catch (e) {
-      print('❌ Error queueing image: $e');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to queue image: $e')));
@@ -524,7 +516,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         ),
       );
     } catch (e) {
-      print('❌ Error queueing PDF: $e');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to queue PDF: $e')));
@@ -568,7 +559,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         ),
       );
     } catch (e) {
-      print('❌ Error queueing audio: $e');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to queue audio: $e')));

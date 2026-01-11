@@ -112,7 +112,6 @@ class MessageGroupsService {
           .get();
 
       if (!teacherGroupsDoc.exists || teacherGroupsDoc.data() == null) {
-        print('⚠️ teacher_groups not found, falling back to classes scan');
         return _getTeachingContextsFallback(teacherId);
       }
 
@@ -149,10 +148,8 @@ class MessageGroupsService {
         }
       }
 
-      print('✅ Found ${contexts.length} teaching contexts from teacher_groups');
       return contexts;
     } catch (e) {
-      print('❌ Error reading teacher_groups: $e');
       return _getTeachingContextsFallback(teacherId);
     }
   }
@@ -161,7 +158,6 @@ class MessageGroupsService {
   Future<List<TeachingContext>> _getTeachingContextsFallback(
     String teacherId,
   ) async {
-    print('📊 Using fallback: scanning all classes...');
     final classesSnapshot = await _firestore.collection('classes').get();
     List<TeachingContext> contexts = [];
 
@@ -241,9 +237,6 @@ class MessageGroupsService {
       );
     } catch (e) {
       // Group chat may not exist yet
-      print(
-        '⚠️ No messages yet for class: ${context.classId}, subject: $subjectId. Error: $e',
-      );
     }
 
     return MessageGroup(
@@ -264,7 +257,6 @@ class MessageGroupsService {
   Future<List<MessageGroup>> getTeacherMessageGroups(String teacherId) async {
     // ✅ NEW: Return cached results if valid (no Firestore queries!)
     if (_isCacheValid()) {
-      print('📦 Using cached message groups (instant load)');
       return _groupCache.values.toList();
     }
 
@@ -739,9 +731,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
             },
           }, SetOptions(merge: true));
 
-      print('✅ Marked group $groupId as read in Firestore');
     } catch (e) {
-      print('⚠️ Failed to mark group as read: $e');
     }
   }
 

@@ -24,7 +24,6 @@ class ThemeProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      print('❌ Error loading theme mode: $e');
     }
   }
 
@@ -37,9 +36,7 @@ class ThemeProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_themeModeKey, mode.toString());
-      print('✅ Theme mode saved: ${mode.toString()}');
     } catch (e) {
-      print('❌ Error saving theme mode: $e');
     }
   }
 

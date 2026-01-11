@@ -60,12 +60,6 @@ class CloudflareWorkerUploadService {
       // Get MIME type
       final mimeType = _getMimeType(fileName) ?? 'application/octet-stream';
 
-      print('📤 Uploading file via Cloudflare Worker');
-      print('   File: $fileName ($fileSizeKb KB)');
-      print('   Type: $mimeType');
-      print(
-        '   Path: schools/$schoolId/communities/$communityId/groups/$groupId/messages/$messageId',
-      );
 
       // Prepare multipart form data
       final request = http.MultipartRequest(
@@ -102,14 +96,12 @@ class CloudflareWorkerUploadService {
 
       onProgress?.call(80);
 
-      print('🔄 Worker response: ${streamedResponse.statusCode}');
 
       // Get response body
       final responseBody = await streamedResponse.stream.bytesToString();
       final responseData = _parseJsonResponse(responseBody);
 
       if (streamedResponse.statusCode != 200) {
-        print('❌ Worker error: $responseBody');
         throw Exception('Upload failed: ${streamedResponse.statusCode}');
       }
 
@@ -119,9 +111,6 @@ class CloudflareWorkerUploadService {
 
       onProgress?.call(100);
 
-      print('✅ File uploaded successfully via Worker');
-      print('   Public URL: ${responseData['publicUrl']}');
-      print('   Key: ${responseData['key']}');
 
       return {
         'publicUrl': responseData['publicUrl'] as String,
@@ -131,7 +120,6 @@ class CloudflareWorkerUploadService {
         'expiresAt': responseData['expiresAt'] as String,
       };
     } catch (e) {
-      print('❌ Worker upload failed: $e');
       rethrow;
     }
   }
@@ -167,7 +155,6 @@ class CloudflareWorkerUploadService {
     try {
       return jsonDecode(body) as Map<String, dynamic>;
     } catch (e) {
-      print('⚠️ Failed to parse response: $e');
       return {'error': 'Invalid response format', 'raw': body};
     }
   }

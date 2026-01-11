@@ -249,6 +249,13 @@ class BackgroundUploadService extends ChangeNotifier {
             originalFileName: mediaMessage.fileName,
           );
 
+          debugPrint(
+            '📤 BackgroundUploadService creating metadata: messageId=${upload.id}, r2Key=$r2Key',
+          );
+          debugPrint(
+            '   Sending to Firestore with metadata.messageId=${upload.id}',
+          );
+
           // Route to the correct messaging service based on chatType
           if (upload.chatType == 'group' || upload.senderRole == 'group') {
             // conversationId expected as "{classId}_{subjectId}"
@@ -266,11 +273,7 @@ class BackgroundUploadService extends ChangeNotifier {
                 timestamp: DateTime.now().millisecondsSinceEpoch,
               );
               await _groupService.sendGroupMessage(classId, subjectId, message);
-            } else {
-              debugPrint(
-                '⚠️ Invalid group conversationId: ${upload.conversationId}',
-              );
-            }
+            } else {}
           } else if (upload.chatType == 'community') {
             // conversationId is communityId here
             String inferredType = 'file';
@@ -296,12 +299,9 @@ class BackgroundUploadService extends ChangeNotifier {
               mediaMetadata: metadata.toFirestore(),
             );
           }
-
-          debugPrint('✅ Upload completed: ${upload.fileName}');
         } catch (e) {
           upload.status = UploadStatus.failed;
           upload.error = e.toString();
-          debugPrint('❌ Upload failed for ${upload.fileName}: $e');
         }
 
         notifyListeners();

@@ -20,7 +20,6 @@ class AnnouncementCleanupService {
         final today = DateTime.now().toIso8601String().split('T')[0];
         
         if (lastCleanup == today) {
-          print('ℹ️ Announcements already cleaned today');
           return;
         }
       }
@@ -35,7 +34,6 @@ class AnnouncementCleanupService {
           .get();
       
       if (expired.docs.isEmpty) {
-        print('ℹ️ No expired announcements found');
         return;
       }
       
@@ -49,14 +47,12 @@ class AnnouncementCleanupService {
       }
       
       await batch.commit();
-      print('🗑️ Cleaned up ${expired.docs.length} expired announcements');
       
       // Mark cleanup as done today
       final prefs = await SharedPreferences.getInstance();
       final today = DateTime.now().toIso8601String().split('T')[0];
       await prefs.setString(_lastCleanupKey, today);
     } catch (e) {
-      print('⚠️ Announcement cleanup error: $e');
       // Silent fail - cleanup is not critical for app functionality
     }
   }
@@ -73,7 +69,6 @@ class AnnouncementCleanupService {
         final today = DateTime.now().toIso8601String().split('T')[0];
         
         if (lastCleanup == today) {
-          print('ℹ️ Status posts already cleaned today');
           return;
         }
       }
@@ -87,7 +82,6 @@ class AnnouncementCleanupService {
           .get();
       
       if (expired.docs.isEmpty) {
-        print('ℹ️ No expired status posts found');
         return;
       }
       
@@ -97,14 +91,12 @@ class AnnouncementCleanupService {
       }
       
       await batch.commit();
-      print('🗑️ Cleaned up ${expired.docs.length} expired status posts');
       
       // Mark cleanup as done today
       final prefs = await SharedPreferences.getInstance();
       final today = DateTime.now().toIso8601String().split('T')[0];
       await prefs.setString('last_status_cleanup', today);
     } catch (e) {
-      print('⚠️ Status cleanup error: $e');
       // Silent fail
     }
   }
@@ -112,14 +104,12 @@ class AnnouncementCleanupService {
   /// Run all cleanup tasks
   /// Call this once per day when principal/admin logs in
   static Future<void> runAllCleanup({bool force = false}) async {
-    print('🧹 Starting cleanup tasks...');
     
     await Future.wait([
       cleanupExpiredAnnouncements(force: force),
       cleanupExpiredStatus(force: force),
     ]);
     
-    print('✅ Cleanup tasks completed');
   }
   
   /// Force cleanup (ignores daily limit)

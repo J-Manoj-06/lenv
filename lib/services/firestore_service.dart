@@ -93,7 +93,6 @@ class FirestoreService {
     }
 
     await docRef.set(data);
-    print('✅ Test created in scheduledTests collection: ${docRef.id}');
     return docRef.id;
   }
 
@@ -560,15 +559,9 @@ class FirestoreService {
         }
         await batch.commit();
       }
-      print(
-        '✅ Deleted ${assignmentsQ.docs.length} testResults for test $testId',
-      );
 
       // Best-effort: decrement pendingTests for students who had pending assignments
       if (assignedStudentIds.isNotEmpty) {
-        print(
-          '📉 Decrementing pendingTests for ${assignedStudentIds.length} students',
-        );
         for (final chunk in _chunk<String>(assignedStudentIds, 400)) {
           final batch = _db.batch();
           for (final sid in chunk) {
@@ -584,10 +577,8 @@ class FirestoreService {
 
       // Finally delete the test from scheduledTests
       await testRef.delete();
-      print('✅ Test deleted from scheduledTests: $testId');
     } catch (e) {
       // Fallback to simple delete if anything goes wrong
-      print('❌ Error in deleteTestCascade: $e');
       try {
         await _db.collection('scheduledTests').doc(testId).delete();
       } catch (_) {}
@@ -748,17 +739,12 @@ class FirestoreService {
 
   Stream<List<TestModel>> getTestsByTeacher(String teacherId) {
     // Query scheduledTests collection - sort in memory to avoid index requirement
-    print(
-      '🔍 FirestoreService.getTestsByTeacher called with teacherId: $teacherId',
-    );
     return _db
         .collection('scheduledTests')
         .where('teacherId', isEqualTo: teacherId)
         .snapshots()
         .map((snapshot) {
-          print('📊 Snapshot received with ${snapshot.docs.length} documents');
           for (var doc in snapshot.docs) {
-            print('   - Test: ${doc.data()['title']} (${doc.id})');
           }
 
           // Parse all tests
@@ -819,7 +805,6 @@ class FirestoreService {
               tests.add(test);
             }
           } catch (e) {
-            print('❌ Error converting test ${doc.id}: $e');
           }
         }
       }
@@ -1127,7 +1112,6 @@ class FirestoreService {
 
             if (fallbackEnd != null && now.isAfter(fallbackEnd)) {
               testHasEnded = true;
-              print('✅ Test end detected via fallback: $fallbackEnd');
             }
           }
         } catch (_) {}
@@ -1148,11 +1132,7 @@ class FirestoreService {
       } catch (_) {}
 
       if (testHasEnded) {
-        print('✅ Test has ended - updating points and leaderboard');
       } else {
-        print(
-          '⏳ Test still active - points will be awarded after test ends at $testEndDate',
-        );
       }
 
       // NEW LOGIC: Raw marks gained from test result's totalPoints field
@@ -1205,14 +1185,9 @@ class FirestoreService {
           };
 
           await assignmentDoc.reference.update(updateData);
-          print(
-            '✅ Updated assignment document with test result (ID: ${assignmentDoc.id})',
-          );
         } else {
-          print('⚠️  No assignment document found for this test');
         }
       } catch (e) {
-        print('❌ Error updating assignment: $e');
       }
 
       // Update student counters and points ONLY if test has ended
@@ -1220,7 +1195,6 @@ class FirestoreService {
         // Use previously computed points
         final earnedPoints = earnedPointsCandidate; // raw marks
 
-        print('🎯 Test has ended - awarding $earnedPoints points');
 
         // Update student counters (users collection preferred, fallback to students)
         bool countersUpdated = false;
@@ -1237,7 +1211,6 @@ class FirestoreService {
               'rewardPoints': FieldValue.increment(earnedPoints), // raw marks
             });
             countersUpdated = true;
-            print('✅ Updated users collection with $earnedPoints points');
           } else {
             final uq = await _db
                 .collection('users')
@@ -1253,14 +1226,10 @@ class FirestoreService {
                 'totalPoints': FieldValue.increment(earnedPoints),
                 'rewardPoints': FieldValue.increment(earnedPoints),
               });
-              print(
-                '✅ Updated users collection (by uid) with $earnedPoints points',
-              );
               countersUpdated = true;
             }
           }
         } catch (e) {
-          print('⚠️ Error updating users collection: $e');
         }
 
         if (!countersUpdated) {
@@ -1276,18 +1245,14 @@ class FirestoreService {
                 'totalPoints': FieldValue.increment(earnedPoints),
                 'rewardPoints': FieldValue.increment(earnedPoints),
               });
-              print('✅ Updated students collection with $earnedPoints points');
               countersUpdated = true;
             }
           } catch (e) {
-            print('⚠️ Error updating students collection: $e');
           }
         }
 
         if (countersUpdated) {
-          print('✅ Student counters and points updated successfully');
         } else {
-          print('⚠️  Could not update student counters');
         }
 
         // Save points record to student_rewards collection for history
@@ -1306,14 +1271,10 @@ class FirestoreService {
               timestamp: DateTime.now(),
             ).toJson(),
           );
-          print('✅ Points record saved to student_rewards collection');
         } catch (e) {
-          print('⚠️ Error saving points record: $e');
         }
       } else {
         // Test hasn't ended yet - mark for later processing
-        print('⏳ Skipping points/leaderboard update - test still active');
-        print('   Points and leaderboard will be updated after: $testEndDate');
       }
 
       // NOTE: We no longer update the "tests" collection as it's being phased out
@@ -1384,11 +1345,6 @@ class FirestoreService {
     required double totalMarks,
     required int points,
   }) async {
-    print('💾 savePointsToFirestore called:');
-    print('   studentId: $studentId');
-    print('   testId: $testId');
-    print('   marks: $marks/$totalMarks');
-    print('   points: $points');
 
     final doc = _db.collection('student_rewards').doc();
     final payload = RewardPointsModel(
@@ -1403,7 +1359,6 @@ class FirestoreService {
 
     final batch = _db.batch();
     batch.set(doc, payload);
-    print('   ✓ Added student_rewards doc: ${doc.id}');
 
     // Prefer users collection for points, but also try students if exists
     final userRef = _db.collection('users').doc(studentId);
@@ -1412,7 +1367,6 @@ class FirestoreService {
       'totalPoints': FieldValue.increment(points),
       'rewardPoints': FieldValue.increment(points),
     }, SetOptions(merge: true));
-    print('   ✓ Queued increment to users/$studentId: +$points points');
 
     // Optional: update students collection if present
     final studentRef = _db.collection('students').doc(studentId);
@@ -1423,19 +1377,13 @@ class FirestoreService {
           'totalPoints': FieldValue.increment(points),
           'rewardPoints': FieldValue.increment(points),
         });
-        print('   ✓ Queued increment to students/$studentId: +$points points');
       } else {
-        print(
-          '   ⚠️ students/$studentId does not exist, skipping students collection update',
-        );
       }
     } catch (_) {
       // ignore if collection not present
-      print('   ⚠️ Error checking students collection');
     }
 
     await batch.commit();
-    print('   ✅ Batch committed successfully!');
   }
 
   /// Products catalog
@@ -1675,7 +1623,6 @@ class FirestoreService {
     // Save to Firestore
     await docRef.set(testDoc);
 
-    print('✅ AI test saved to scheduledTests: ${docRef.id}');
     return docRef.id;
   }
 
@@ -1713,12 +1660,8 @@ class FirestoreService {
         }
       }
 
-      print(
-        '📚 Found ${previousQuestions.length} previous questions for context',
-      );
       return previousQuestions.take(5).toList(); // Limit to 5 questions
     } catch (e) {
-      print('⚠️ Error fetching previous questions: $e');
       return []; // Return empty list on error, don't fail the generation
     }
   }
@@ -1729,7 +1672,6 @@ class FirestoreService {
   Future<void> processEndedTests() async {
     try {
       final now = DateTime.now();
-      print('🔄 Processing ended tests to award pending points...');
 
       // Find completed results that have not yet awarded points
       final pendingResultsSnap = await _db
@@ -1740,7 +1682,6 @@ class FirestoreService {
           .get();
 
       if (pendingResultsSnap.docs.isEmpty) {
-        print('✅ No pending completed results found');
         return;
       }
 
@@ -1751,9 +1692,6 @@ class FirestoreService {
           .toSet()
           .toList();
 
-      print(
-        '📋 Found ${pendingResultsSnap.docs.length} pending results for ${testIds.length} tests',
-      );
 
       // Helper: check if a test has ended by reading scheduledTests
       Future<Map<String, bool>> loadEndedStatus(List<String> ids) async {
@@ -1818,7 +1756,6 @@ class FirestoreService {
                   await doc.reference.update({
                     'endDate': Timestamp.fromDate(computedEnd),
                   });
-                  print('⚡ Backfilled endDate for test ${doc.id}');
                 }
               } catch (_) {}
             }
@@ -1833,7 +1770,6 @@ class FirestoreService {
         return endedMap[tid] == true;
       }).toList();
 
-      print('📊 Found ${resultsToProcess.length} completed results to process');
 
       int processed = 0;
       final processedTestIds = <String>{};
@@ -1968,7 +1904,6 @@ class FirestoreService {
                 previousScorePercent: prevPercent,
               );
             } catch (e) {
-              print('⚠️ Error awarding badges for $studentId on $testId: $e');
             }
 
             // Update prev for next iteration
@@ -1976,11 +1911,7 @@ class FirestoreService {
 
             processedTestIds.add(testId);
             processed++;
-            print(
-              '✅ Awarded $earnedPoints points and evaluated badges for $studentId (test $testId)',
-            );
           } catch (e) {
-            print('❌ Error processing result ${resultDoc.id}: $e');
           }
         }
       }
@@ -2009,17 +1940,11 @@ class FirestoreService {
             }
             await batch.commit();
           }
-          print(
-            '📢 Marked ${processedTestIds.length} tests as results published',
-          );
         } catch (e) {
-          print('⚠️ Error publishing results: $e');
         }
       }
 
-      print('✅ Processed $processed test results');
     } catch (e) {
-      print('❌ Error processing ended tests: $e');
     }
   }
 

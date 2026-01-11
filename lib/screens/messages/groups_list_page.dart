@@ -144,7 +144,6 @@ class _GroupsListPageState extends State<GroupsListPage>
       final studentUid = widget.studentId;
 
       if (studentUid.isEmpty) {
-        print('❌ GroupsListPage: studentId is empty');
         if (!mounted) return;
         setState(() {
           _subjects = [];
@@ -154,17 +153,12 @@ class _GroupsListPageState extends State<GroupsListPage>
         return;
       }
 
-      print(
-        '📱 GroupsListPage: Loading class subjects for student: $studentUid',
-      );
-
       // Get student's class ID from their profile (checks students collection first)
       final classId = await _messagingService.getStudentClassId(studentUid);
 
       if (!mounted) return;
 
       if (classId == null) {
-        print('❌ GroupsListPage: No class ID found for student: $studentUid');
         setState(() {
           _subjects = [];
           _isLoading = false;
@@ -174,14 +168,12 @@ class _GroupsListPageState extends State<GroupsListPage>
       }
 
       _classId = classId;
-      print('✅ GroupsListPage: Found classId: $classId');
 
       // Fetch subjects from classes/{classId}/subjects collection
       final subjects = await _messagingService.getClassSubjects(classId);
 
       if (!mounted) return;
 
-      print('✅ GroupsListPage: Loaded ${subjects.length} subjects');
       setState(() {
         _subjects = subjects;
         _isLoading = false;
@@ -237,9 +229,7 @@ class _GroupsListPageState extends State<GroupsListPage>
       for (final s in subjects) {
         _listenForMessageUpdates(_classId!, s);
       }
-    } catch (e, stackTrace) {
-      print('❌ GroupsListPage error: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
     }
@@ -376,9 +366,7 @@ class _GroupsListPageState extends State<GroupsListPage>
                   chatId: chatId,
                   chatType: ChatTypeConfig.groupChat,
                 );
-              } catch (e) {
-                print('⚠️ Skipped unread refresh: widget disposed ($e)');
-              }
+              } catch (e) {}
             }
           },
         );

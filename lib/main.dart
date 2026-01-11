@@ -27,45 +27,31 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print('✅ Firebase initialized successfully');
 
     // Initialize Local Cache Service for media messaging
     await LocalCacheService().initialize();
-    print('✅ Local cache service initialized');
 
     // Enable offline persistence for Firestore
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
-    print('✅ Firestore offline persistence enabled');
 
     // Test Firestore connection
     try {
-      print('🔥 Testing Firestore connection...');
       final testQuery = await FirebaseFirestore.instance
           .collection('schools')
           .limit(1)
           .get(const GetOptions(source: Source.server));
-      print('✅ Firestore connected! Found ${testQuery.docs.length} schools');
       if (testQuery.docs.isNotEmpty) {
-        print('   Sample school: ${testQuery.docs.first.data()}');
       }
     } catch (firestoreError) {
-      print('❌ Firestore connection error: $firestoreError');
-      print('   This usually means:');
-      print('   1. Firestore rules deny access');
-      print('   2. Collection does not exist');
-      print('   3. Network/internet issue');
-      print('   App will use cached data if available');
     }
   } catch (e) {
     // If Firebase is already initialized (e.g., hot reload), ignore the error
     if (!e.toString().contains('duplicate-app')) {
-      print('❌ Firebase initialization error: $e');
       rethrow;
     } else {
-      print('ℹ️ Firebase already initialized (hot reload)');
     }
   }
 
@@ -106,7 +92,6 @@ class MyApp extends StatelessWidget {
           update: (context, auth, previous) {
             // When user logs out, clear all cached challenge state
             if (auth.currentUser == null && previous != null) {
-              print('🔄 User logged out - clearing daily challenge state');
               previous.clearAllState();
             }
             return previous ?? DailyChallengeProvider();

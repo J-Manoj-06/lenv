@@ -84,20 +84,8 @@ class CloudflareR2Service {
           '&X-Amz-SignedHeaders=${credential['signedHeaders']}'
           '&X-Amz-Signature=${credential['signature']}';
 
-      print('✅ Signed URL generated');
-      print('🔍 Key: $key');
-      print('🔍 Encoded Key: $encodedKey');
       if (fileName != safeFileName) {
-        print('🔍 Original filename: $fileName');
-        print('🔍 Sanitized filename: $safeFileName');
       }
-      print(
-        '🔍 Expires In: ${expiryDuration.inSeconds} seconds (${(expiryDuration.inHours)} hours)',
-      );
-      print('🔍 Upload endpoint: $_endpoint');
-      print(
-        '🔍 Upload URL format: {accountId}/r2.cloudflarestorage.com/{bucket}/{key}',
-      );
 
       return {
         'url': uploadUrl,
@@ -124,9 +112,6 @@ class CloudflareR2Service {
     Function(int)? onProgress,
   }) async {
     try {
-      print('🔍 R2 Upload: Starting upload');
-      print('🔍 R2 Upload: Content-Type: $contentType');
-      print('🔍 R2 Upload: File size: ${fileBytes.length} bytes');
 
       final request = http.Request('PUT', Uri.parse(signedUrl))
         ..bodyBytes = fileBytes
@@ -134,11 +119,9 @@ class CloudflareR2Service {
 
       // Simulate progress for PUT request
       onProgress?.call(0);
-      print('🔍 R2 Upload: Sending request...');
 
       final streamedResponse = await request.send();
 
-      print('🔍 R2 Upload: Response status: ${streamedResponse.statusCode}');
 
       if (streamedResponse.statusCode == 200) {
         // Simulate progress completion
@@ -157,16 +140,12 @@ class CloudflareR2Service {
 
         // r2Domain already includes https://, so just concatenate
         final publicUrl = '$r2Domain$pathWithoutBucket';
-        print('✅ R2 Upload: Success! URL: $publicUrl');
         return publicUrl;
       } else {
-        print('❌ R2 Upload: Failed with status ${streamedResponse.statusCode}');
         final responseBody = await streamedResponse.stream.bytesToString();
-        print('❌ R2 Upload: Response: $responseBody');
         throw Exception('Upload failed: ${streamedResponse.statusCode}');
       }
     } catch (e) {
-      print('❌ R2 Upload: Exception: $e');
       throw Exception('Failed to upload file: $e');
     }
   }
@@ -185,14 +164,6 @@ class CloudflareR2Service {
     final dateStr = _formatAmzDate(date);
     final shortDate = dateStr.substring(0, 8);
 
-    print('🕐 Device local time: ${DateTime.now()}');
-    print('🕐 UTC time used for signature: $dateStr');
-    print(
-      '⚠️ If you see 403 RequestTimeTooSkewed, your device clock is out of sync',
-    );
-    print(
-      '⚠️ FIX: Settings → Date & Time → Turn OFF "Set automatically", wait 5s, turn it back ON',
-    );
 
     // AWS Signature V4 process
     final credentialScope = '$shortDate/auto/s3/aws4_request';
@@ -204,8 +175,6 @@ class CloudflareR2Service {
     // what the HTTP client will send and what R2 will receive
     final encodedCredential = Uri.encodeComponent(credential);
     final encodedKey = key.split('/').map(Uri.encodeComponent).join('/');
-    print('🔐 Debug - key original: $key');
-    print('🔐 Debug - key encoded : $encodedKey');
     final canonicalQueryString =
         'X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=$encodedCredential&X-Amz-Date=$dateStr&X-Amz-Expires=$expiresAt&X-Amz-SignedHeaders=host';
     final canonicalHeaders = 'host:$uploadHostname';
@@ -216,12 +185,6 @@ class CloudflareR2Service {
         '$method\n/$bucketName/$encodedKey\n$canonicalQueryString\n$canonicalHeaders\n\n$signedHeaders\n$hashedPayload';
 
     // Debug: Log canonical request for troubleshooting
-    print('🔐 Debug - Canonical Request (escaped):');
-    print('---');
-    print(canonicalRequest.replaceAll('\n', '\\n'));
-    print('---');
-    print('🔐 Debug - uploadHostname: $uploadHostname');
-    print('🔐 Debug - bucketName: $bucketName');
 
     // Create string to sign
     final hashedRequest = sha256
@@ -277,7 +240,6 @@ class CloudflareR2Service {
         throw Exception('Cannot delete: Empty file key provided');
       }
 
-      print('🗑️ Deleting R2 file with key: $key');
 
       // Ensure key is properly encoded
       final keyParts = key.split('/');
@@ -304,12 +266,9 @@ class CloudflareR2Service {
           '&X-Amz-SignedHeaders=${credential['signedHeaders']}'
           '&X-Amz-Signature=${credential['signature']}';
 
-      print('📍 Delete URL built successfully');
-      print('🌐 Sending DELETE request...');
 
       final response = await http.delete(Uri.parse(deleteUrl));
 
-      print('📊 Delete response status: ${response.statusCode}');
 
       if (response.statusCode != 204 && response.statusCode != 200) {
         throw Exception(
@@ -317,9 +276,7 @@ class CloudflareR2Service {
         );
       }
 
-      print('✅ File successfully deleted from R2: $key');
     } catch (e) {
-      print('❌ Failed to delete file from R2: $e');
       throw Exception('Failed to delete file from R2: $e');
     }
   }

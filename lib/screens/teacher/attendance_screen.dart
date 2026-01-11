@@ -73,7 +73,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         await _loadStudents();
       }
     } catch (e) {
-      print('Error loading teacher data: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -103,9 +102,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return;
       }
 
-      print(
-        'Loading students for school: $schoolCode, standard: $selectedStandard, section: $selectedSection',
-      );
 
       // Fetch students from 'students' collection
       final snapshot = await FirebaseFirestore.instance
@@ -115,15 +111,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           .where('section', isEqualTo: selectedSection)
           .get();
 
-      print('Found ${snapshot.docs.length} students');
       if (snapshot.docs.isNotEmpty) {
-        print('Sample student data: ${snapshot.docs.first.data()}');
       } else {
-        print('No students found. Query params:');
-        print('  schoolCode: $schoolCode');
-        print('  className: Grade $selectedStandard');
-        print('  section: $selectedSection');
-        print("  collection: 'students'");
       }
 
       final List<Map<String, dynamic>> students = [];
@@ -176,7 +165,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       // After loading students, hydrate any existing attendance and lock if already submitted
       await _fetchExistingAttendance();
     } catch (e) {
-      print('Error loading students: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -249,7 +237,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error fetching existing attendance: $e');
     }
   }
 
@@ -401,10 +388,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       if (updateCount > 0) {
         await batch.commit();
-        print('✅ Updated attendance for $updateCount students');
       }
     } catch (e) {
-      print('⚠️ Error updating student attendance percentages: $e');
       // Don't throw - this is a background update, shouldn't block main flow
     }
   }
@@ -989,14 +974,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               .trim();
       final studentEmail = (student['email'] ?? '').toString().trim();
 
-      print('🔍 Opening chat for student: ${student['name']}');
-      print('   Student ID: $studentId');
-      print(
-        '   Parent Phone: ${parentPhone.isEmpty ? "not provided" : parentPhone}',
-      );
-      print(
-        '   Student Email: ${studentEmail.isEmpty ? "not provided" : studentEmail}',
-      );
 
       // Fetch parent for this student (with all available hints)
       final parentData = await messagingService.fetchParentForStudent(
@@ -1042,7 +1019,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return;
       }
 
-      print('✅ Parent found: ${parentData['parentName']}');
 
       // Build required chat params
       final authProvider2 = Provider.of<AuthProvider>(context, listen: false);
@@ -1085,7 +1061,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         ),
       );
     } catch (e) {
-      print('❌ Error in _openChat: $e');
       if (!mounted) return;
       Navigator.pop(context); // Close loading
       ScaffoldMessenger.of(context).showSnackBar(

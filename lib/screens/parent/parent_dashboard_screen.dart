@@ -32,33 +32,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    print('👨‍👩‍👧 ParentDashboard: initState called');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print(
-        '👨‍👩‍👧 ParentDashboard: Post-frame callback triggered, calling _initializeParentData()',
-      );
       _initializeParentData();
     });
   }
 
   Future<void> _initializeParentData() async {
-    print('👨‍👩‍👧 _initializeParentData: Starting initialization');
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final parentProvider = Provider.of<ParentProvider>(context, listen: false);
 
     if (authProvider.currentUser != null) {
       final parentEmail = authProvider.currentUser!.email;
       final parentId = authProvider.currentUser!.uid;
-      print(
-        '👨‍👩‍👧 _initializeParentData: Initializing with email=$parentEmail, id=$parentId',
-      );
 
       await parentProvider.initialize(parentEmail, parentId: parentId);
-      print(
-        '👨‍👩‍👧 _initializeParentData: Initialization complete, isLoadingChildren=${parentProvider.isLoadingChildren}',
-      );
     } else {
-      print('❌ _initializeParentData: No current user found!');
     }
   }
 

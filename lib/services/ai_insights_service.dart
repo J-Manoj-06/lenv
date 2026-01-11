@@ -27,13 +27,7 @@ class AiInsightsService {
         .where((test) => !test.isAttempted)
         .toList();
 
-    print('🎯 [AI Insights] Total tests: ${results.length}');
-    print('✅ Attempted: ${attemptedTests.length}');
-    print('❌ Not attempted: ${notAttemptedTests.length}');
     for (var test in results) {
-      print(
-        '   - ${test.subject}: status=${test.status}, isAttempted=${test.isAttempted}',
-      );
     }
 
     if (attemptedTests.isEmpty) {

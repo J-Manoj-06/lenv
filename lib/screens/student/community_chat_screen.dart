@@ -382,9 +382,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         });
         _scrollToBottom(force: true);
       }
-      debugPrint(
-        '🟠 Pending (image) created+inserted: id=pending:$messageId, r2Key=${pendingMetadata.r2Key}, file=${pendingMetadata.originalFileName}, size=${pendingMetadata.fileSize}',
-      );
 
       final result = await _whatsappMediaUpload.uploadImage(
         imageFile: File(image.path),
@@ -417,7 +414,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           fileSize: result.metadata!.fileSize ?? 0,
           thumbnailBase64: result.metadata!.thumbnail,
         );
-        debugPrint('✅ Cached uploaded image: $r2Key at ${image.path}');
 
         await _communityService.sendMessage(
           communityId: widget.community.id,
@@ -448,14 +444,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           );
         }
       } else {
-        debugPrint(
-          '❌ UploadResult failure: error=${result.error} message=${result.errorMessage}',
-        );
         throw Exception(
           result.errorMessage ?? result.error?.message ?? 'Upload failed',
         );
       }
-    } catch (e, st) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _isUploading = false;
@@ -465,8 +458,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           _pendingUploadProgress.clear();
         });
       }
-      debugPrint('❌ CommunityChat image send failed: $e');
-      debugPrint('📄 Stacktrace: $st');
 
       // User-friendly error message
       String userMessage = 'Failed to send image';
@@ -565,9 +556,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         _pendingUploadProgress[messageId] = 0.0;
       });
       _scrollToBottom(force: true);
-      debugPrint(
-        '🟠 Pending (pdf) created+inserted: id=pending:$messageId, r2Key=${pendingMetadata.r2Key}, file=${pendingMetadata.originalFileName}, size=${pendingMetadata.fileSize}',
-      );
 
       // Do not block input; overlay is per-message
       if (mounted) setState(() => _isUploading = false);
@@ -685,9 +673,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         _pendingUploadProgress[messageId] = 0.0;
       });
       _scrollToBottom(force: true);
-      debugPrint(
-        '🟠 Pending (audio) created+inserted: id=pending:$messageId, r2Key=${pendingMetadata.r2Key}, file=${pendingMetadata.originalFileName}, size=${pendingMetadata.fileSize}',
-      );
 
       // Do not block input; overlay is per-message
       if (mounted) setState(() => _isUploading = false);
@@ -746,7 +731,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         _recordingTimer.cancel();
       } catch (e) {
         // Timer might not be initialized
-        print('Timer cancel error: $e');
       }
     }
 
@@ -757,9 +741,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         if (await file.exists()) {
           await file.delete();
         }
-      } catch (e) {
-        print('Error deleting recording: $e');
-      }
+      } catch (e) {}
     }
 
     // Clear state
@@ -785,15 +767,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     if (_isRecording) {
       try {
         await _audioRecorder.stop();
-      } catch (e) {
-        print('Error stopping recorder: $e');
-      }
+      } catch (e) {}
 
       try {
         _recordingTimer.cancel();
-      } catch (e) {
-        print('Timer cancel error: $e');
-      }
+      } catch (e) {}
     }
 
     // IMMEDIATELY update UI to show we're not recording anymore
@@ -872,10 +850,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         },
       );
 
-      debugPrint('🎵 Recording Upload complete:');
-      debugPrint('   File size: ${mediaMessage.fileSize} bytes');
-      debugPrint('   R2 URL: ${mediaMessage.r2Url}');
-
       // Copy recorded audio to cache for local playback before deleting temp
       String? cachedPath;
       try {
@@ -888,10 +862,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         final cachedFile = File('${cacheDir.path}/$fileName');
         await File(_recordingPath!).copy(cachedFile.path);
         cachedPath = cachedFile.path;
-        print('✅ Cached recorded audio locally at: $cachedPath');
-      } catch (e) {
-        print('⚠️ Failed to cache audio: $e');
-      }
+      } catch (e) {}
 
       final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
       final metadata = MediaMetadata(
@@ -915,7 +886,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           mimeType: mediaMessage.fileType,
           fileSize: mediaMessage.fileSize,
         );
-        debugPrint('✅ Cached uploaded audio: $r2Key at $cachedPath');
       }
 
       await _communityService.sendMessage(
@@ -942,9 +912,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         if (await file.exists()) {
           await file.delete();
         }
-      } catch (e) {
-        print('Error deleting temp file: $e');
-      }
+      } catch (e) {}
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1517,7 +1485,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         final docSnapshot = await messageRef.get();
 
         if (!docSnapshot.exists) {
-          print('⚠️ Message not found: $messageId');
           continue;
         }
 
@@ -1547,10 +1514,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                 secretAccessKey: CloudflareConfig.secretAccessKey,
                 r2Domain: CloudflareConfig.r2Domain,
               ).deleteFile(key: r2Key);
-              print('🗑️ Deleted media from Cloudflare: $r2Key');
-            } catch (e) {
-              print('⚠️ Failed to delete media from Cloudflare: $e');
-            }
+            } catch (e) {}
           }
         }
 
@@ -1577,7 +1541,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         );
       }
     } catch (e) {
-      print('❌ Error deleting messages: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2065,9 +2028,6 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                         final uploadProgress = isPending
                             ? _pendingUploadProgress[metaId]
                             : null;
-                        debugPrint(
-                          '🧩 Build student msg: id=${message.messageId}, hasMeta=${message.mediaMetadata != null}, isPending=$isPending, progress=${uploadProgress ?? 'null'}',
-                        );
                         // Messages sorted desc; ListView reversed. The visually previous item is index+1 (older).
                         // Show divider above the oldest message of each day (day boundary with older item),
                         // and always above the global oldest.
@@ -2324,9 +2284,7 @@ class _StudentCommunityMessageSearchScreenState
             }
           }
         }
-      } catch (e) {
-        print('Cache check failed: $e');
-      }
+      } catch (e) {}
 
       if (!mounted) return;
 
@@ -2369,7 +2327,6 @@ class _StudentCommunityMessageSearchScreenState
         ),
       );
     } catch (e) {
-      print('Error showing image: $e');
       if (mounted) {
         showDialog(
           context: context,
@@ -2413,9 +2370,7 @@ class _StudentCommunityMessageSearchScreenState
             }
           }
         }
-      } catch (e) {
-        print('Cache check failed: $e');
-      }
+      } catch (e) {}
 
       if (!mounted) return;
 
@@ -2427,7 +2382,6 @@ class _StudentCommunityMessageSearchScreenState
         ),
       );
     } catch (e) {
-      print('Error showing audio player: $e');
       if (mounted) {
         showModalBottomSheet(
           context: context,

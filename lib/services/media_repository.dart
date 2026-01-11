@@ -34,7 +34,6 @@ class MediaRepository {
 
       return true;
     } catch (e) {
-      debugPrint('❌ Error checking download status: $e');
       return false;
     }
   }
@@ -49,7 +48,6 @@ class MediaRepository {
       final exists = await _storageHelper.fileExists(metadata.localPath);
       return exists ? metadata.localPath : null;
     } catch (e) {
-      debugPrint('❌ Error getting local file path: $e');
       return null;
     }
   }
@@ -81,11 +79,9 @@ class MediaRepository {
     String? thumbnailBase64,
   }) async {
     try {
-      debugPrint('📥 Starting download: $r2Key');
 
       // Check if already downloaded
       if (await isDownloaded(r2Key)) {
-        debugPrint('✅ Already downloaded: $r2Key');
         final metadata = await _storageHelper.getMediaMetadata(r2Key);
         return DownloadResult(
           success: true,
@@ -99,7 +95,6 @@ class MediaRepository {
       
       // Build Cloudflare Worker URL
       final url = '$cloudflareBaseUrl/$normalizedKey';
-      debugPrint('🔗 Download URL: $url');
 
       const maxRetries = 3;
       int attempt = 0;
@@ -107,7 +102,6 @@ class MediaRepository {
 
       while (true) {
         attempt++;
-        debugPrint('🌐 HTTP request (attempt $attempt/$maxRetries): $url');
         final request = http.Request('GET', Uri.parse(url));
         streamedResponse = await request.send();
 
@@ -120,14 +114,10 @@ class MediaRepository {
             (streamedResponse.statusCode == 404 ||
                 streamedResponse.statusCode == 403 ||
                 streamedResponse.statusCode >= 500)) {
-          debugPrint(
-            '❌ HTTP ${streamedResponse.statusCode}; retrying after short delay',
-          );
           await Future.delayed(const Duration(milliseconds: 800));
           continue;
         }
 
-        debugPrint('❌ HTTP Error: ${streamedResponse.statusCode}');
         return DownloadResult(
           success: false,
           message: 'Download failed: HTTP ${streamedResponse.statusCode}',
@@ -136,10 +126,8 @@ class MediaRepository {
 
       // Get content length for progress tracking
       final contentLength = streamedResponse.contentLength ?? 0;
-      debugPrint('📦 Content length: ${_formatBytes(contentLength)}');
 
       // Collect bytes with progress tracking
-      debugPrint('⬇️ Starting download...');
       final bytes = <int>[];
       int downloadedBytes = 0;
 
@@ -151,9 +139,6 @@ class MediaRepository {
           final progress = downloadedBytes / contentLength;
           onProgress(progress);
           if (downloadedBytes % (1024 * 100) == 0) {
-            debugPrint(
-              '  ⬇️ Progress: ${(progress * 100).toInt()}% (${_formatBytes(downloadedBytes)}/${_formatBytes(contentLength)})',
-            );
           }
         }
       }
@@ -166,9 +151,6 @@ class MediaRepository {
       final targetFileName = baseName;
 
       // Save to public storage (Android MediaStore) or fallback app storage
-      debugPrint(
-        '💾 Saving ${_formatBytes(bytes.length)} to public storage...',
-      );
       String savedPath;
       try {
         savedPath = await _storageHelper.saveToPublicStorage(
@@ -177,7 +159,6 @@ class MediaRepository {
           mimeType: mimeType,
         );
       } catch (e) {
-        debugPrint('❌ Error saving to public storage: $e');
         return DownloadResult(
           success: false,
           message: 'Failed to save file: $e',
@@ -185,11 +166,8 @@ class MediaRepository {
       }
 
       final actualFileSize = await File(savedPath).length();
-      debugPrint('💾 Saved to: $savedPath');
-      debugPrint('📂 File exists: ${await File(savedPath).exists()}');
 
       if (!await File(savedPath).exists()) {
-        debugPrint('❌ ERROR: File was written but does not exist!');
         return DownloadResult(
           success: false,
           message: 'File was not saved properly',
@@ -208,8 +186,6 @@ class MediaRepository {
       );
 
       await _storageHelper.saveMediaMetadata(media);
-      debugPrint('✅ Download complete: $fileName (${media.formattedSize})');
-      debugPrint('🔑 Saved with key: $r2Key');
 
       return DownloadResult(
         success: true,
@@ -217,7 +193,6 @@ class MediaRepository {
         message: 'Downloaded successfully',
       );
     } catch (e) {
-      debugPrint('❌ Download error: $e');
       return DownloadResult(success: false, message: 'Download failed: $e');
     }
   }
@@ -232,10 +207,8 @@ class MediaRepository {
       // Remove metadata
       await _storageHelper.removeMediaMetadata(r2Key);
 
-      debugPrint('🗑️ Deleted: $r2Key');
       return true;
     } catch (e) {
-      debugPrint('❌ Error deleting media: $e');
       return false;
     }
   }
@@ -271,7 +244,6 @@ class MediaRepository {
       // Verify file exists
       final file = File(localPath);
       if (!await file.exists()) {
-        debugPrint('❌ Cannot cache: file does not exist at $localPath');
         return false;
       }
 
@@ -287,12 +259,9 @@ class MediaRepository {
       );
 
       await _storageHelper.saveMediaMetadata(media);
-      debugPrint('✅ Cached uploaded media: $fileName');
-      debugPrint('🔑 Cached with key: $r2Key');
 
       return true;
     } catch (e) {
-      debugPrint('❌ Error caching uploaded media: $e');
       return false;
     }
   }

@@ -170,7 +170,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
         }
       }
     } catch (e) {
-      print('Error calculating attendance: $e');
     }
   }
 

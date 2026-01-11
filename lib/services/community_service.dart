@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import '../models/community_model.dart';
 import '../models/community_member_model.dart';
 import '../models/community_message_model.dart';
@@ -37,7 +36,6 @@ class CommunityService {
       final userGrade = _extractGrade(student.className);
 
       if (userGrade.isEmpty) {
-        debugPrint('⚠️ Could not extract grade from: ${student.className}');
         return [];
       }
 
@@ -72,12 +70,8 @@ class CommunityService {
       // Sort by member count (most popular first)
       communities.sort((a, b) => b.memberCount.compareTo(a.memberCount));
 
-      debugPrint(
-        '✅ Found ${communities.length} explore communities for $userGrade',
-      );
       return communities;
     } catch (e) {
-      debugPrint('❌ Error getting explore communities: $e');
       return [];
     }
   }
@@ -112,12 +106,8 @@ class CommunityService {
       // Sort by member count (most popular first)
       communities.sort((a, b) => b.memberCount.compareTo(a.memberCount));
 
-      debugPrint(
-        '✅ Found ${communities.length} explore communities for teacher',
-      );
       return communities;
     } catch (e) {
-      debugPrint('❌ Error getting teacher explore communities: $e');
       return [];
     }
   }
@@ -133,9 +123,6 @@ class CommunityService {
           .get(const GetOptions(source: Source.server));
 
       if (!indexDoc.exists || indexDoc.data() == null) {
-        debugPrint(
-          '⚠️ user_communities document not found, falling back to collectionGroup',
-        );
         return _getMyCommFallback(userId);
       }
 
@@ -172,12 +159,7 @@ class CommunityService {
             'communityIds': FieldValue.arrayUnion(missingInIndex),
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
-          debugPrint(
-            '🩺 Self-healed user_communities by adding ${missingInIndex.length} missing id(s)',
-          );
-        } catch (e) {
-          debugPrint('⚠️ Failed to self-heal user_communities: $e');
-        }
+        } catch (e) {}
       }
 
       if (communityIds.isEmpty) {
@@ -204,10 +186,8 @@ class CommunityService {
         return bTime.compareTo(aTime);
       });
 
-      debugPrint('✅ Found ${communities.length} joined communities via index');
       return communities;
     } catch (e) {
-      debugPrint('❌ Error getting my communities: $e');
       return [];
     }
   }
@@ -248,10 +228,8 @@ class CommunityService {
         return bTime.compareTo(aTime);
       });
 
-      debugPrint('✅ Found ${communities.length} joined communities (fallback)');
       return communities;
     } catch (e) {
-      debugPrint('❌ Error in fallback: $e');
       return [];
     }
   }
@@ -265,7 +243,6 @@ class CommunityService {
         .snapshots()
         .asyncMap((indexDoc) async {
           if (!indexDoc.exists || indexDoc.data() == null) {
-            debugPrint('⚠️ user_communities not found, using fallback');
             return _getMyCommStreamFallback(userId);
           }
 
@@ -331,7 +308,6 @@ class CommunityService {
 
       return communities;
     } catch (e) {
-      debugPrint('❌ Error in stream fallback: $e');
       return [];
     }
   }
@@ -390,11 +366,8 @@ class CommunityService {
       }, SetOptions(merge: true));
 
       await batch.commit();
-      debugPrint('✅ Successfully joined community: $communityId');
-      debugPrint('✅ Updated user_communities index for: ${student.uid}');
       return true;
     } catch (e) {
-      debugPrint('❌ Error joining community: $e');
       return false;
     }
   }
@@ -457,11 +430,8 @@ class CommunityService {
       }, SetOptions(merge: true));
 
       await batch.commit();
-      debugPrint('✅ Teacher successfully joined community: $communityId');
-      debugPrint('✅ Updated user_communities index for teacher: $teacherId');
       return true;
     } catch (e) {
-      debugPrint('❌ Error teacher joining community: $e');
       return false;
     }
   }
@@ -489,10 +459,8 @@ class CommunityService {
       });
 
       await batch.commit();
-      debugPrint('✅ Successfully left community: $communityId');
       return true;
     } catch (e) {
-      debugPrint('❌ Error leaving community: $e');
       return false;
     }
   }
@@ -531,7 +499,6 @@ class CommunityService {
             );
       }).toList();
     } catch (e) {
-      debugPrint('❌ Error searching communities: $e');
       return [];
     }
   }
@@ -555,7 +522,6 @@ class CommunityService {
           )
           .toList();
     } catch (e) {
-      debugPrint('❌ Error filtering by category: $e');
       return [];
     }
   }
@@ -572,7 +538,6 @@ class CommunityService {
       }
       return null;
     } catch (e) {
-      debugPrint('❌ Error getting community: $e');
       return null;
     }
   }
@@ -592,7 +557,6 @@ class CommunityService {
           .map((doc) => CommunityMemberModel.fromFirestore(doc))
           .toList();
     } catch (e) {
-      debugPrint('❌ Error getting members: $e');
       return [];
     }
   }
@@ -682,7 +646,6 @@ class CommunityService {
       });
 
       await batch.commit();
-      debugPrint('✅ Message sent to community: $communityId');
 
       // ✅ OPTIMIZATION: Update user_communities for all members (async, non-blocking)
       _updateUserCommunitiesAfterMessage(
@@ -694,7 +657,6 @@ class CommunityService {
 
       return true;
     } catch (e) {
-      debugPrint('❌ Error sending message: $e');
       return false;
     }
   }
@@ -756,13 +718,8 @@ class CommunityService {
       if (batchCount > 0) {
         await batch.commit();
       }
-
-      debugPrint(
-        '✅ Updated user_communities for ${membersSnapshot.docs.length} members',
-      );
     } catch (e) {
       // Don't throw - message was already sent successfully
-      debugPrint('⚠️ Failed to update user_communities: $e');
     }
   }
 
@@ -816,7 +773,6 @@ class CommunityService {
           .map((doc) => CommunityMessageModel.fromFirestore(doc))
           .toList();
     } catch (e) {
-      debugPrint('❌ Error getting messages: $e');
       return [];
     }
   }
@@ -884,7 +840,6 @@ class CommunityService {
         hasMore: hasMore,
       );
     } catch (e) {
-      debugPrint('❌ Error searching messages: $e');
       return MessageSearchPage(
         messages: const [],
         lastDoc: lastDoc,
@@ -933,10 +888,8 @@ class CommunityService {
       }
 
       await messageRef.update({'reactions': reactions});
-      debugPrint('✅ Reaction updated for message: $messageId');
       return true;
     } catch (e) {
-      debugPrint('❌ Error adding reaction: $e');
       return false;
     }
   }
@@ -958,10 +911,8 @@ class CommunityService {
         'unreadCount': 0,
       });
 
-      debugPrint('✅ Messages marked as read for user: $userId');
       return true;
     } catch (e) {
-      debugPrint('❌ Error marking messages as read: $e');
       return false;
     }
   }
@@ -982,14 +933,12 @@ class CommunityService {
 
       final snapshot = await messageRef.get();
       if (!snapshot.exists) {
-        debugPrint('❌ Message not found: $messageId');
         return false;
       }
 
       final data = snapshot.data();
       final senderId = data?['senderId'] as String?;
       if (senderId == null || senderId != userId) {
-        debugPrint('🚫 Unauthorized delete attempt by $userId for $messageId');
         return false;
       }
 
@@ -1004,10 +953,8 @@ class CommunityService {
         'reactions': {},
       });
 
-      debugPrint('✅ Message deleted: $messageId');
       return true;
     } catch (e) {
-      debugPrint('❌ Error deleting message: $e');
       return false;
     }
   }
@@ -1031,10 +978,8 @@ class CommunityService {
         'editedAt': FieldValue.serverTimestamp(),
       });
 
-      debugPrint('✅ Message edited: $messageId');
       return true;
     } catch (e) {
-      debugPrint('❌ Error editing message: $e');
       return false;
     }
   }

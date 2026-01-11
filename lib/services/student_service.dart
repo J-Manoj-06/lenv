@@ -150,13 +150,7 @@ class StudentService {
       if ((resolvedSchoolCode == null || resolvedSchoolCode.isEmpty) &&
           studentRefData != null) {
         resolvedSchoolCode = studentRefData['schoolCode'] as String?;
-        print(
-          '📌 StudentService: Enriching schoolCode from students collection: "$resolvedSchoolCode"',
-        );
       } else {
-        print(
-          '📌 StudentService: Using existing schoolCode from base: "$resolvedSchoolCode"',
-        );
       }
 
       // Resolve school name via schoolCode -> schools collection lookup
@@ -220,28 +214,19 @@ class StudentService {
       }
 
       if (updates.isNotEmpty) {
-        print('📌 StudentService: Updating users/${user.uid} with: $updates');
         try {
           await _firestore.collection('users').doc(user.uid).update(updates);
-          print('✅ StudentService: Successfully updated users collection');
         } catch (e) {
-          print('❌ StudentService: Failed to update users collection: $e');
           // ignore; UI will still use resolved values even if persist fails
         }
       } else {
-        print('📌 StudentService: No updates needed for users/${user.uid}');
       }
 
       // ✅ CRITICAL FIX: Also sync back to students collection if data was enriched
       if (studentRefData != null && updates.isNotEmpty) {
-        print(
-          '📌 StudentService: Syncing enriched data back to students collection...',
-        );
         try {
           await _firestore.collection('students').doc(user.uid).update(updates);
-          print('✅ StudentService: Successfully synced students collection');
         } catch (e) {
-          print('⚠️ StudentService: Failed to sync students collection: $e');
         }
       }
 
@@ -252,9 +237,6 @@ class StudentService {
             .doc(user.uid)
             .get();
         if (!studentsDoc.exists) {
-          print(
-            '📌 StudentService: Creating students/${user.uid} with full profile...',
-          );
           // Create complete profile document in students collection
           await _firestore.collection('students').doc(user.uid).set({
             'uid': user.uid,
@@ -271,25 +253,19 @@ class StudentService {
             'createdAt': FieldValue.serverTimestamp(),
             // Don't set reward fields - they'll be populated by rewards system
           }, SetOptions(merge: true));
-          print('✅ StudentService: Created students/${user.uid} document');
         } else {
           final doc = studentsDoc.data() ?? {};
           // Check if profile fields are missing/empty
           if ((doc['className'] as String?)?.isEmpty ?? true) {
-            print(
-              '📌 StudentService: Fixing missing profile fields in students/${user.uid}',
-            );
             await _firestore.collection('students').doc(user.uid).update({
               'className': resolvedClassName ?? '',
               'section': resolvedSection ?? '',
               'schoolCode': resolvedSchoolCode ?? '',
               'schoolName': resolvedSchoolName ?? '',
             });
-            print('✅ StudentService: Fixed profile fields');
           }
         }
       } catch (e) {
-        print('⚠️ StudentService: Error ensuring students document: $e');
       }
 
       // Return enriched model for UI
@@ -303,7 +279,6 @@ class StudentService {
         schoolName: resolvedSchoolName,
       );
     } catch (e) {
-      print('Error getting student: $e');
       // Fallback to minimal student model built from auth + rewards sum
       final user = _auth.currentUser;
       if (user != null) {
@@ -329,7 +304,6 @@ class StudentService {
         if (pts is num) totalPoints += pts.toDouble();
       }
     } catch (e) {
-      print('Fallback: failed to sum student_rewards: $e');
     }
 
     return StudentModel(
@@ -392,7 +366,6 @@ class StudentService {
         await _firestore.collection('users').doc(uid).update(updates);
       }
     } catch (e) {
-      print('Error updating student stats: $e');
       rethrow;
     }
   }
@@ -421,7 +394,6 @@ class StudentService {
         await _firestore.collection('users').doc(uid).update(updates);
       }
     } catch (e) {
-      print('Error updating student profile: $e');
       rethrow;
     }
   }
@@ -445,7 +417,6 @@ class StudentService {
 
       return DailyChallengeModel.fromFirestore(snapshot.docs.first);
     } catch (e) {
-      print('Error getting daily challenge: $e');
       return null;
     }
   }
@@ -467,7 +438,6 @@ class StudentService {
           .map((doc) => NotificationModel.fromFirestore(doc))
           .toList();
     } catch (e) {
-      print('Error getting notifications: $e');
       return [];
     }
   }
@@ -483,7 +453,6 @@ class StudentService {
 
       return snapshot.docs.length;
     } catch (e) {
-      print('Error getting unread count: $e');
       return 0;
     }
   }
@@ -495,7 +464,6 @@ class StudentService {
         'isRead': true,
       });
     } catch (e) {
-      print('Error marking notification as read: $e');
     }
   }
 
@@ -514,7 +482,6 @@ class StudentService {
       }
       await batch.commit();
     } catch (e) {
-      print('Error marking all notifications as read: $e');
     }
   }
 
@@ -549,9 +516,6 @@ class StudentService {
 
       // If correct, update student points AND create student_rewards entry
       if (isCorrect) {
-        print(
-          '🎯 Daily Challenge: Awarding ${challenge.points} points to student $studentId',
-        );
 
         // Create student_rewards entry (same as test points)
         final rewardDoc = _firestore.collection('student_rewards').doc();
@@ -572,14 +536,10 @@ class StudentService {
           'totalPoints': FieldValue.increment(challenge.points),
         }, SetOptions(merge: true));
 
-        print(
-          '✅ Daily Challenge: Points saved to student_rewards and users collection',
-        );
       }
 
       return isCorrect;
     } catch (e) {
-      print('Error submitting challenge answer: $e');
       return false;
     }
   }
@@ -602,7 +562,6 @@ class StudentService {
 
       return snapshot.docs.isNotEmpty;
     } catch (e) {
-      print('Error checking challenge attempt: $e');
       return false;
     }
   }
@@ -619,7 +578,6 @@ class StudentService {
 
       return snapshot.docs.length;
     } catch (e) {
-      print('Error getting pending tests: $e');
       return 0;
     }
   }
@@ -650,7 +608,6 @@ class StudentService {
 
       return totalScore / snapshot.docs.length;
     } catch (e) {
-      print('Error calculating monthly progress: $e');
       return 0.0;
     }
   }
@@ -665,7 +622,6 @@ class StudentService {
       if (!doc.exists) return null;
       return TestResultModel.fromFirestore(doc);
     } catch (e) {
-      print('Error getting test result: $e');
       return null;
     }
   }

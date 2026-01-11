@@ -63,13 +63,11 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     final List<QuestionResult> out = [];
     for (int i = 0; i < ans.length; i++) {
       final a = ans[i];
-      print('🔍 Processing answer $i: keys=${a.keys.toList()}, data=$a');
       final questionText = (a['questionText'] ?? 'Question ${i + 1}')
           .toString();
       final userAnswer = _extractAnswer(a, forCorrect: false);
       final correctAnswer = _extractAnswer(a, forCorrect: true);
       final isCorrect = (a['isCorrect'] ?? false) == true;
-      print('   📝 Extracted: user="$userAnswer", correct="$correctAnswer", isCorrect=$isCorrect');
       out.add(
         QuestionResult(
           index: i + 1,
@@ -119,12 +117,10 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     for (final k in keys) {
       if (a.containsKey(k) && a[k] != null) {
         val = a[k];
-        print('      🔑 Found ${forCorrect ? 'correct' : 'user'} answer in key "$k": $val');
         break;
       }
     }
     if (val == null) {
-      print('      ❌ No ${forCorrect ? 'correct' : 'user'} answer found in keys: ${a.keys.toList()}');
     }
 
     // Resolve single-letter answers against options list when available
@@ -189,13 +185,6 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
             );
           }
           final result = snapshot.data!;
-          print('📊 Test Result Loaded:');
-          print('   ID: ${result.id}');
-          print('   Score: ${result.score}%');
-          print('   Total Questions: ${result.totalQuestions}');
-          print('   Correct Answers: ${result.correctAnswers}');
-          print('   Answers Array Length: ${result.answers.length}');
-          print('   Status: completedAt=${result.completedAt}');
           // Compute percentage safely with fallbacks to new fields
           final derivedTotal = result.totalQuestions > 0
               ? result.totalQuestions
@@ -210,7 +199,6 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
           final double pct = (() {
             if (result.percentage != null) {
               final p = result.percentage!;
-              print('   Using percentage field: $p');
               return p.clamp(0, 100).toDouble();
             }
             // Fallback: compute from correct/total if available
@@ -218,13 +206,9 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
             final correct = derivedCorrect;
             if (totalQ > 0) {
               final computed = ((correct / totalQ) * 100).clamp(0.0, 100.0);
-              print(
-                '   Computed from correct/total: $computed ($correct/$totalQ)',
-              );
               return computed;
             }
             // Last fallback: use score field (already a percentage in new model)
-            print('   Using score field: ${result.score}');
             return (result.score).clamp(0.0, 100.0);
           })();
 

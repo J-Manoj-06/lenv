@@ -30,7 +30,6 @@ class DailyContentService {
       final data = doc.data()!;
       return DailyContent.fromMap(data);
     } catch (e) {
-      print('Error fetching daily content: $e');
       return null;
     }
   }

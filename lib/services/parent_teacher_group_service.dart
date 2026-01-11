@@ -212,7 +212,6 @@ class ParentTeacherGroupService {
           .whereType<CommunityMessageModel>()
           .toList();
     } catch (e) {
-      print('❌ Error fetching paginated messages: $e');
       return [];
     }
   }
@@ -366,14 +365,12 @@ class ParentTeacherGroupService {
             }
           }
         } catch (e) {
-          print('Error parsing message: $e');
           continue;
         }
       }
 
       return results;
     } catch (e) {
-      print('Error searching messages: $e');
       return [];
     }
   }

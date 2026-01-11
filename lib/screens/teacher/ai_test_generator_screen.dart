@@ -374,12 +374,8 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
         }
       }
 
-      print(
-        '📚 Fetched ${allQuestions.length} previous questions for uniqueness check',
-      );
       return allQuestions;
     } catch (e) {
-      print('⚠️ Error fetching previous questions: $e');
       return [];
     }
   }

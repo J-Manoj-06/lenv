@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/media_metadata.dart';
 import 'local_media_storage_service.dart';
@@ -24,7 +23,6 @@ class MediaDownloadService {
     try {
       // Check if already deleted locally
       if (metadata.deletedLocally) {
-        debugPrint('⚠️ Image deleted locally, skip download');
         return DownloadResult(
           success: false,
           error: DownloadError.deletedLocally,
@@ -36,7 +34,6 @@ class MediaDownloadService {
       if (metadata.hasLocalFile) {
         final exists = await _storageService.imageExists(metadata.messageId);
         if (exists) {
-          debugPrint('✅ Image already exists locally');
           return DownloadResult(
             success: true,
             metadata: metadata,
@@ -47,7 +44,6 @@ class MediaDownloadService {
 
       // Check server status
       if (metadata.serverStatus == ServerStatus.expired) {
-        debugPrint('⚠️ Image expired on server');
         return DownloadResult(
           success: false,
           error: DownloadError.expired,
@@ -57,7 +53,6 @@ class MediaDownloadService {
 
       if (metadata.serverStatus == ServerStatus.missing ||
           metadata.serverStatus == ServerStatus.deleted) {
-        debugPrint('⚠️ Image missing on server');
         return DownloadResult(
           success: false,
           error: DownloadError.missing,
@@ -70,7 +65,6 @@ class MediaDownloadService {
           metadata.fileSize ?? 5 * 1024 * 1024; // 5 MB default
       final hasSpace = await _storageService.hasEnoughStorage(estimatedSize);
       if (!hasSpace) {
-        debugPrint('❌ Insufficient storage');
         return DownloadResult(
           success: false,
           error: DownloadError.storageFull,
@@ -85,7 +79,6 @@ class MediaDownloadService {
         onProgress: onProgress,
       );
     } catch (e) {
-      debugPrint('❌ Download error: $e');
       return DownloadResult(
         success: false,
         error: DownloadError.unknown,
@@ -103,8 +96,6 @@ class MediaDownloadService {
     int attempt = 1,
   }) async {
     try {
-      debugPrint('📥 Downloading image (attempt $attempt/$maxRetries)...');
-
       final response = await http
           .get(Uri.parse(url))
           .timeout(
@@ -220,7 +211,6 @@ class MediaDownloadService {
     Function(double progress)? onProgress,
   }) async {
     final delay = initialRetryDelayMs * (1 << (attempt - 1)); // 2^n
-    debugPrint('⏳ Retrying in ${delay}ms...');
     await Future.delayed(Duration(milliseconds: delay));
 
     return await _downloadWithRetry(
@@ -242,7 +232,6 @@ class MediaDownloadService {
       // Validate file size
       final expectedSize = metadata.fileSize;
       if (expectedSize != null && bytes.length != expectedSize) {
-        debugPrint('⚠️ Partial download detected');
         return DownloadResult(
           success: false,
           error: DownloadError.partialDownload,
@@ -262,14 +251,12 @@ class MediaDownloadService {
         serverStatus: ServerStatus.available,
       );
 
-      debugPrint('✅ Download complete: $localPath');
       return DownloadResult(
         success: true,
         metadata: updatedMetadata,
         fromCache: false,
       );
     } catch (e) {
-      debugPrint('❌ Error saving downloaded file: $e');
       return DownloadResult(
         success: false,
         error: DownloadError.saveFailed,
@@ -288,7 +275,6 @@ class MediaDownloadService {
     final serverStatus = ServerStatus.fromHttpCode(statusCode);
     final updatedMetadata = metadata.copyWith(serverStatus: serverStatus);
 
-    debugPrint('❌ HTTP $statusCode: ${error.toString()}');
     return DownloadResult(
       success: false,
       error: error,

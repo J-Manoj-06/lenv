@@ -36,12 +36,10 @@ class ImageCompressionService {
       });
     } catch (e) {
       // Fallback: return original bytes without compression
-      debugPrint('❌ Error compressing image, using original bytes: $e');
       try {
         final bytes = await imageFile.readAsBytes();
         return bytes;
       } catch (readErr) {
-        debugPrint('❌ Failed to read original image bytes: $readErr');
         rethrow;
       }
     }
@@ -70,7 +68,6 @@ class ImageCompressionService {
       }
     } catch (e) {
       // Fallback: return a tiny 1x1 PNG base64
-      debugPrint('❌ Error generating thumbnail, using placeholder: $e');
       const tinyPngBase64 =
           'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+JYQUAAAAASUVORK5CYII=';
       return tinyPngBase64;
@@ -149,7 +146,6 @@ class ImageCompressionService {
       }
       return {'width': image.width, 'height': image.height};
     } catch (e) {
-      debugPrint('❌ Error getting image dimensions: $e');
       rethrow;
     }
   }
@@ -167,7 +163,6 @@ class ImageCompressionService {
       final image = img.decodeImage(bytes);
       return image != null;
     } catch (e) {
-      debugPrint('❌ Invalid image file: $e');
       return false;
     }
   }
@@ -182,7 +177,6 @@ class ImageCompressionService {
       // depending on image content
       return (originalSize * 0.2).round();
     } catch (e) {
-      debugPrint('❌ Error estimating size: $e');
       return 0;
     }
   }

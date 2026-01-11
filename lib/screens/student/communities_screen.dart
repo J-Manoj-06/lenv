@@ -52,34 +52,30 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
         .orderBy('createdAt', descending: true);
 
     // Store the listener so we can cancel it on dispose
-    _messageListeners[communityId] = query.snapshots().listen(
-      (snapshot) {
-        if (snapshot.docs.isNotEmpty && mounted) {
-          final newTs =
-              (snapshot.docs.first.data()['createdAt'] as Timestamp?)
-                  ?.millisecondsSinceEpoch ??
-              0;
+    _messageListeners[communityId] = query.snapshots().listen((snapshot) {
+      if (snapshot.docs.isNotEmpty && mounted) {
+        final newTs =
+            (snapshot.docs.first.data()['createdAt'] as Timestamp?)
+                ?.millisecondsSinceEpoch ??
+            0;
 
-          // Update timestamp and resort immediately
-          _lastMessageTs[communityId] = newTs;
-          _resortCommunities();
+        // Update timestamp and resort immediately
+        _lastMessageTs[communityId] = newTs;
+        _resortCommunities();
 
-          // Refresh unread count for this community
-          try {
-            final unread = Provider.of<UnreadCountProvider>(
-              context,
-              listen: false,
-            );
-            unread.loadUnreadCount(
-              chatId: communityId,
-              chatType: ChatTypeConfig.communityChat,
-            );
-          } catch (_) {}
-        }
-      },
-      onError: (e) =>
-          print('Error listening to messages for community $communityId: $e'),
-    );
+        // Refresh unread count for this community
+        try {
+          final unread = Provider.of<UnreadCountProvider>(
+            context,
+            listen: false,
+          );
+          unread.loadUnreadCount(
+            chatId: communityId,
+            chatType: ChatTypeConfig.communityChat,
+          );
+        } catch (_) {}
+      }
+    }, onError: (e) => {});
   }
 
   void _resortCommunities() {
@@ -103,7 +99,6 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
 
     if (student == null) return;
 
-    debugPrint('🔄 Loading communities for student: ${student.uid}');
     setState(() => _isLoading = true);
 
     // Ensure unread provider has user (fallback to student uid if Auth not ready)
@@ -116,8 +111,6 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
     } catch (_) {}
 
     final communities = await _communityService.getMyComm(student.uid);
-
-    debugPrint('📋 Loaded ${communities.length} communities');
 
     // Fetch latest message timestamp for each community
     for (final c in communities) {

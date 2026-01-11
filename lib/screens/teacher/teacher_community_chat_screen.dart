@@ -1870,7 +1870,6 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
           }
         }
       } catch (e) {
-        print('Cache check failed: $e');
       }
 
       if (!mounted) return;
@@ -1914,7 +1913,6 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
         ),
       );
     } catch (e) {
-      print('Error showing image: $e');
       // Fallback to network image
       if (mounted) {
         showDialog(
@@ -1961,7 +1959,6 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
           }
         }
       } catch (e) {
-        print('Cache check failed: $e');
       }
 
       if (!mounted) return;
@@ -1974,7 +1971,6 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
         ),
       );
     } catch (e) {
-      print('Error showing audio player: $e');
       // Fallback to network audio
       if (mounted) {
         showModalBottomSheet(

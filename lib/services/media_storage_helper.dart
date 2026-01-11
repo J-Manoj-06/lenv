@@ -28,13 +28,10 @@ class MediaStorageHelper {
         );
         if (!await mediaDir.exists()) {
           await mediaDir.create(recursive: true);
-          print('✅ Created media directory: ${mediaDir.path}');
         }
-        print('📁 Using Downloads: ${mediaDir.path}');
         return mediaDir;
       }
     } catch (e) {
-      print('⚠️ Downloads directory not available: $e');
     }
 
     // Fallback 1: External storage
@@ -47,11 +44,9 @@ class MediaStorageHelper {
         if (!await mediaDir.exists()) {
           await mediaDir.create(recursive: true);
         }
-        print('📁 Using external storage: ${mediaDir.path}');
         return mediaDir;
       }
     } catch (e) {
-      print('⚠️ External storage not available: $e');
     }
 
     // Fallback 2: App documents
@@ -63,10 +58,8 @@ class MediaStorageHelper {
       if (!await mediaDir.exists()) {
         await mediaDir.create(recursive: true);
       }
-      print('📁 Using app documents: ${mediaDir.path}');
       return mediaDir;
     } catch (e) {
-      print('❌ All storage options failed: $e');
       throw Exception('Unable to get storage directory: $e');
     }
   }
@@ -124,13 +117,10 @@ class MediaStorageHelper {
             uriString: uri,
           );
           final finalPath = resolvedPath ?? uri;
-          print('✅ Saved to public storage: $finalPath');
           return finalPath;
         }
 
-        print('⚠️ MediaStore save returned null, falling back to app storage');
       } catch (e) {
-        print('❌ MediaStore save failed, falling back: $e');
         // Fall through to non-Android path
       }
     }
@@ -140,7 +130,6 @@ class MediaStorageHelper {
     final outPath = p.join(dir.path, fileName);
     final file = File(outPath);
     await file.writeAsBytes(bytes, flush: true);
-    print('✅ Saved to app storage: $outPath');
     return outPath;
   }
 
@@ -157,7 +146,6 @@ class MediaStorageHelper {
     final fileName = '$prefix$sanitizedBase';
 
     final fullPath = p.join(mediaDir.path, fileName);
-    print('📝 Generated local path for $r2Key: $fullPath');
     return fullPath;
   }
 
@@ -165,7 +153,6 @@ class MediaStorageHelper {
   Future<bool> fileExists(String localPath) async {
     final file = File(localPath);
     final exists = await file.exists();
-    print('${exists ? '✅' : '❌'} File exists check: $localPath = $exists');
     return exists;
   }
 
@@ -173,16 +160,12 @@ class MediaStorageHelper {
   Future<bool> deleteFile(String localPath) async {
     try {
       final file = File(localPath);
-      print('🗑️ Attempting to delete: $localPath');
       if (await file.exists()) {
         await file.delete();
-        print('✅ File deleted: $localPath');
         return true;
       }
-      print('⚠️ File not found: $localPath');
       return false;
     } catch (e) {
-      print('❌ Error deleting file: $e');
       return false;
     }
   }
@@ -196,7 +179,6 @@ class MediaStorageHelper {
       }
       return 0;
     } catch (e) {
-      print('❌ Error getting file size: $e');
       return 0;
     }
   }
@@ -213,9 +195,7 @@ class MediaStorageHelper {
       );
 
       await prefs.setString(_storageKey, json.encode(jsonMap));
-      print('✅ Saved metadata for: ${media.key}');
     } catch (e) {
-      print('❌ Error saving media metadata: $e');
     }
   }
 
@@ -225,7 +205,6 @@ class MediaStorageHelper {
       final all = await getAllMediaMetadata();
       return all[key];
     } catch (e) {
-      print('❌ Error getting media metadata: $e');
       return null;
     }
   }
@@ -248,7 +227,6 @@ class MediaStorageHelper {
         ),
       );
     } catch (e) {
-      print('❌ Error loading media metadata: $e');
       return {};
     }
   }
@@ -265,9 +243,7 @@ class MediaStorageHelper {
       );
 
       await prefs.setString(_storageKey, json.encode(jsonMap));
-      print('✅ Removed metadata for: $key');
     } catch (e) {
-      print('❌ Error removing media metadata: $e');
     }
   }
 
@@ -284,9 +260,7 @@ class MediaStorageHelper {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_storageKey);
 
-      print('✅ Cleared all media');
     } catch (e) {
-      print('❌ Error clearing all media: $e');
     }
   }
 
@@ -296,7 +270,6 @@ class MediaStorageHelper {
       final all = await getAllMediaMetadata();
       return all.values.fold<int>(0, (sum, media) => sum + media.fileSize);
     } catch (e) {
-      print('❌ Error calculating storage: $e');
       return 0;
     }
   }

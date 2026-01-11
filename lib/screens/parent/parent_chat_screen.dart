@@ -98,11 +98,6 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
     final teacherId = widget.teacherId;
     final studentId = child.uid;
 
-    print('🔍 Parent Chat - Building conversation ID:');
-    print('  schoolCode: $schoolCode');
-    print('  teacherId: $teacherId');
-    print('  parentId: $parentAuthUid');
-    print('  studentId: $studentId');
 
     final id = await _chat.ensureConversation(
       schoolCode: schoolCode,
@@ -114,7 +109,6 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
       section: widget.section,
     );
 
-    print('✅ Conversation ID: $id');
 
     setState(() => _conversationId = id);
   }

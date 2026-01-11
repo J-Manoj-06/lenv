@@ -133,17 +133,5 @@ class AITestConfig {
 
   /// Print configuration status
   static void printStatus() {
-    print('═══════════════════════════════════════════════════════');
-    print('🤖 AI Test Configuration Status');
-    print('═══════════════════════════════════════════════════════');
-    print(
-      'Mode: ${useDirectAPI ? "Direct API (Testing)" : "Firebase Function (Production)"}',
-    );
-    print('Status: $statusMessage');
-    print('Endpoint: $apiEndpoint');
-    print('Model: $model');
-    print('Temperature: $temperature');
-    print('Max Tokens: $maxTokens');
-    print('═══════════════════════════════════════════════════════');
   }
 }

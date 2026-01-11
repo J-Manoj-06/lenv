@@ -9,7 +9,6 @@ class FirestoreSeedData {
   /// Seed schools data - run this first before creating users
   static Future<void> seedSchools() async {
     try {
-      print('🏫 Seeding schools data...');
 
       final schools = [
         {
@@ -31,12 +30,9 @@ class FirestoreSeedData {
             .collection('schools')
             .doc(school['id'] as String)
             .set(school);
-        print('  ✓ Created school: ${school['name']}');
       }
 
-      print('✅ Schools seeded successfully!');
     } catch (e) {
-      print('❌ Error seeding schools: $e');
       rethrow;
     }
   }
@@ -44,31 +40,23 @@ class FirestoreSeedData {
   /// Seed all test data for a student
   static Future<void> seedStudentData(String studentUid) async {
     try {
-      print('🌱 Seeding data for student: $studentUid');
 
       // 1. Create student document
       await _seedStudentDocument(studentUid);
-      print('✅ Student document created');
 
       // 2. Create today's daily challenge
       await _seedDailyChallenge();
-      print('✅ Daily challenge created');
 
       // 3. Create sample notifications
       await _seedNotifications(studentUid);
-      print('✅ Notifications created');
 
       // 4. Create sample tests
       await _seedTests();
-      print('✅ Tests created');
 
       // 5. Create sample test results
       await _seedTestResults(studentUid);
-      print('✅ Test results created');
 
-      print('🎉 All data seeded successfully!');
     } catch (e) {
-      print('❌ Error seeding data: $e');
       rethrow;
     }
   }
@@ -362,13 +350,11 @@ class FirestoreSeedData {
     if (user != null) {
       await seedStudentData(user.uid);
     } else {
-      print('❌ No user is currently signed in');
     }
   }
 
   /// Delete all test data (use carefully!)
   static Future<void> clearTestData(String studentUid) async {
-    print('🗑️ Clearing test data for student: $studentUid');
 
     // Delete notifications
     final notificationsQuery = await _firestore
@@ -400,6 +386,5 @@ class FirestoreSeedData {
     // Delete student document
     await _firestore.collection('users').doc(studentUid).delete();
 
-    print('✅ Test data cleared');
   }
 }

@@ -49,22 +49,16 @@ class DailyChallengeProvider with ChangeNotifier {
   /// CRITICAL: This must run on EVERY dashboard load (including app restart)
   Future<void> initialize(String studentId) async {
     final today = _getTodayDate();
-    print('🔧 DailyChallengeProvider.initialize for student: $studentId');
 
     // STEP 1: Load from cache first for instant display
     await _loadFromCache(studentId, today);
-    print('📦 Cache loaded for $studentId');
 
     // STEP 2: Check answer status from Firestore (CRITICAL)
     // This ensures correct state even after app restart
     await _checkIfAnsweredToday(studentId);
-    print(
-      '✅ Answer status checked. Has answered: ${_hasAnsweredStates[studentId]}',
-    );
 
     // STEP 3: Fetch fresh challenge data in background
     await fetchChallenge(studentId, forceRefresh: false);
-    print('🔄 Fresh challenge data fetched');
   }
 
   /// Load cached challenge from SharedPreferences (per student)
@@ -85,7 +79,6 @@ class DailyChallengeProvider with ChangeNotifier {
       }
     } catch (e) {
       // Ignore cache errors
-      debugPrint('Error loading cache for student $studentId: $e');
     }
   }
 
@@ -103,7 +96,6 @@ class DailyChallengeProvider with ChangeNotifier {
       await prefs.setString(cacheKey, date);
       await prefs.setString(dataKey, jsonEncode(data));
     } catch (e) {
-      debugPrint('Error saving cache for student $studentId: $e');
     }
   }
 
@@ -113,9 +105,6 @@ class DailyChallengeProvider with ChangeNotifier {
   Future<void> _checkIfAnsweredToday(String studentId) async {
     try {
       final today = _getTodayDate();
-      debugPrint(
-        '🔍 Checking if student $studentId answered today ($today)...',
-      );
 
       // CRITICAL: Force fresh read from Firestore
       // This ensures we always get the latest answer status from the server
@@ -129,20 +118,13 @@ class DailyChallengeProvider with ChangeNotifier {
         _hasAnsweredStates[studentId] = true;
         final isCorrect = answerDoc.data()?['isCorrect'] == true;
         _resultStates[studentId] = isCorrect ? 'correct' : 'incorrect';
-        debugPrint(
-          '✅ Student $studentId has already answered today: ${isCorrect ? "correct" : "incorrect"}',
-        );
       } else {
         _hasAnsweredStates[studentId] = false;
         _resultStates[studentId] = null;
-        debugPrint('📝 Student $studentId has NOT answered today');
       }
       notifyListeners();
     } catch (e) {
       // If server fetch fails (no internet), fall back to local cache
-      debugPrint(
-        '⚠️ Server fetch failed for $studentId, trying local cache: $e',
-      );
       try {
         final today = _getTodayDate();
         final answerDoc = await _firestore
@@ -154,18 +136,11 @@ class DailyChallengeProvider with ChangeNotifier {
           _hasAnsweredStates[studentId] = true;
           final isCorrect = answerDoc.data()?['isCorrect'] == true;
           _resultStates[studentId] = isCorrect ? 'correct' : 'incorrect';
-          debugPrint(
-            '✅ Student $studentId (cached): ${isCorrect ? "correct" : "incorrect"}',
-          );
         } else {
           _hasAnsweredStates[studentId] = false;
           _resultStates[studentId] = null;
-          debugPrint('📝 Student $studentId (cached): NOT answered');
         }
       } catch (cacheError) {
-        debugPrint(
-          '❌ Both server and cache failed for $studentId: $cacheError',
-        );
         _hasAnsweredStates[studentId] = false;
         _resultStates[studentId] = null;
       }
@@ -206,12 +181,8 @@ class DailyChallengeProvider with ChangeNotifier {
         _cachedChallenges[studentId] = jsonDecode(cachedDataPref);
         _cachedDate = today;
         _errorMessage = null;
-        debugPrint('✅ Loaded cached challenge for student $studentId');
       } else {
         // Fetch new challenge from OpenTriviaDB
-        debugPrint(
-          '🔄 Fetching NEW challenge from OpenTriviaDB for student $studentId',
-        );
 
         // Get student's standard/class from Firestore
         int standard = 8; // Default
@@ -227,7 +198,6 @@ class DailyChallengeProvider with ChangeNotifier {
                 data?['standard'] ?? data?['class'] ?? data?['grade'] ?? 8;
           }
         } catch (e) {
-          debugPrint('⚠️ Could not fetch student standard, using default: $e');
         }
 
         // Fetch from OpenTriviaDB
@@ -246,20 +216,13 @@ class DailyChallengeProvider with ChangeNotifier {
           await _saveToCache(studentId, today, challengeData);
           await prefs.setInt(standardKey, standard);
 
-          debugPrint(
-            '✅ Fetched and cached new challenge for student $studentId (standard: $standard)',
-          );
         } else {
           _cachedChallenges[studentId] = null;
           _errorMessage = 'Unable to fetch challenge from OpenTriviaDB';
-          debugPrint(
-            '❌ Failed to fetch challenge from OpenTriviaDB for student $studentId',
-          );
         }
       }
     } catch (e) {
       _errorMessage = 'Error loading challenge: ${e.toString()}';
-      debugPrint('❌ Error in fetchChallenge for student $studentId: $e');
     } finally {
       _loadingStates[studentId] = false;
       notifyListeners();
@@ -281,12 +244,10 @@ class DailyChallengeProvider with ChangeNotifier {
     final cachedChallenge = _cachedChallenges[studentId];
 
     if (selectedAnswer == null) {
-      debugPrint('❌ Submit failed: No selected answer for student $studentId');
       return false;
     }
 
     if (cachedChallenge == null) {
-      debugPrint('❌ Submit failed: No cached challenge for student $studentId');
       return false;
     }
 
@@ -298,9 +259,6 @@ class DailyChallengeProvider with ChangeNotifier {
       final isCorrect = selectedAnswer == correctAnswer;
       final today = _getTodayDate();
 
-      debugPrint(
-        '📝 Submitting answer for student $studentId: selected="$selectedAnswer", correct="$correctAnswer", isCorrect=$isCorrect',
-      );
 
       // Save answer record to daily_challenge_answers with student-specific doc ID
       final docId = '${studentId}_$today';
@@ -314,15 +272,11 @@ class DailyChallengeProvider with ChangeNotifier {
         'answeredAt': FieldValue.serverTimestamp(),
       });
 
-      debugPrint('✅ Saved to daily_challenge_answers with doc ID: $docId');
 
       // Update streak regardless of correct/incorrect answer
       await _updateStreak(studentId, today);
 
       if (isCorrect) {
-        debugPrint(
-          '🎯 Daily Challenge: Awarding 5 points to student $studentId',
-        );
 
         // Create student_rewards entry for THIS student only
         final rewardDoc = _firestore.collection('student_rewards').doc();
@@ -343,9 +297,6 @@ class DailyChallengeProvider with ChangeNotifier {
           'rewardPoints': FieldValue.increment(5),
         }, SetOptions(merge: true));
 
-        debugPrint(
-          '✅ Student $studentId: Points saved to student_rewards and users collection',
-        );
 
         // Award badges for daily challenge
         try {
@@ -356,9 +307,6 @@ class DailyChallengeProvider with ChangeNotifier {
           final streakDays =
               (studentDoc.data()?['dailyChallengeStreak'] as int?) ?? 1;
 
-          debugPrint(
-            '🏆 Awarding badges for daily challenge: streak=$streakDays',
-          );
 
           await _badgeRules.onDailyChallenge(
             studentId: studentId,
@@ -367,9 +315,7 @@ class DailyChallengeProvider with ChangeNotifier {
             accuracyPercent: 100, // Daily challenge is single question
           );
 
-          debugPrint('✅ Badges awarded successfully for student $studentId');
         } catch (e) {
-          debugPrint('❌ Error awarding badges: $e');
         }
       }
 
@@ -381,18 +327,12 @@ class DailyChallengeProvider with ChangeNotifier {
       // Clear selected answer after submission
       _selectedAnswers[studentId] = null;
 
-      debugPrint(
-        '✅ Daily Challenge: Updated state for student $studentId - hasAnswered: true, result: ${isCorrect ? "correct" : "incorrect"}',
-      );
 
       notifyListeners();
 
       return isCorrect;
     } catch (e) {
       _errorMessage = 'Error submitting answer: ${e.toString()}';
-      debugPrint(
-        '❌ Error submitting daily challenge for student $studentId: $e',
-      );
       _submittingStates[studentId] = false;
       notifyListeners();
       return false;
@@ -409,7 +349,6 @@ class DailyChallengeProvider with ChangeNotifier {
           .get();
 
       if (!studentDoc.exists) {
-        debugPrint('⚠️ Student document not found for $studentId');
         return;
       }
 
@@ -452,11 +391,7 @@ class DailyChallengeProvider with ChangeNotifier {
         'lastStreakDate': today,
       }, SetOptions(merge: true));
 
-      debugPrint(
-        '🔥 Updated streak for $studentId: $newStreak (previous: $currentStreak, lastDate: $lastStreakDate)',
-      );
     } catch (e) {
-      debugPrint('❌ Error updating streak for $studentId: $e');
     }
   }
 
@@ -505,9 +440,7 @@ class DailyChallengeProvider with ChangeNotifier {
         }
       }
 
-      debugPrint('🧹 DailyChallengeProvider: Cleared SharedPreferences cache');
     } catch (e) {
-      debugPrint('⚠️ Error clearing SharedPreferences: $e');
     }
 
     // Clear in-memory state
@@ -519,7 +452,6 @@ class DailyChallengeProvider with ChangeNotifier {
     _errorMessage = null;
     _loadingStates.clear();
     _submittingStates.clear();
-    debugPrint('🧹 DailyChallengeProvider: All state cleared for user switch');
     notifyListeners();
   }
 
@@ -542,7 +474,6 @@ class DailyChallengeProvider with ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      debugPrint('Error clearing cache for student $studentId: $e');
     }
   }
 }

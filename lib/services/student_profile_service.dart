@@ -28,7 +28,6 @@ class StudentProfileService {
       // Default subjects if nothing found
       return ['Maths', 'Science', 'English', 'Social'];
     } catch (e) {
-      print('Error fetching student subjects: $e');
       return ['Maths', 'Science', 'English', 'Social'];
     }
   }
@@ -49,7 +48,6 @@ class StudentProfileService {
       }
       return [];
     } catch (e) {
-      print('Error fetching subjects from class: $e');
       return [];
     }
   }
@@ -64,7 +62,6 @@ class StudentProfileService {
         'subjects': subjects,
       });
     } catch (e) {
-      print('Error updating student subjects: $e');
       rethrow;
     }
   }
@@ -82,7 +79,6 @@ class StudentProfileService {
       }
       return {};
     } catch (e) {
-      print('Error fetching student profile: $e');
       return {};
     }
   }
@@ -95,7 +91,6 @@ class StudentProfileService {
     try {
       await _firestore.collection('students').doc(studentId).update(updates);
     } catch (e) {
-      print('Error updating student profile: $e');
       rethrow;
     }
   }
@@ -111,7 +106,6 @@ class StudentProfileService {
           .doc(studentId)
           .set(profile, SetOptions(merge: true));
     } catch (e) {
-      print('Error setting student profile: $e');
       rethrow;
     }
   }

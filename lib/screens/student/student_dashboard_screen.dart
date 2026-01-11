@@ -43,20 +43,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    print('🏠 StudentDashboard: initState called');
     // Pre-load cached data synchronously during initState
     // This ensures student data is available for immediate display
     _preloadCachedData();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      print('🏠 StudentDashboard: Post-frame callback triggered');
-      print('🏠 StudentDashboard: Calling _loadDashboardData()');
       await _loadDashboardData();
     });
   }
 
   void _preloadCachedData() {
-    print('🏠 _preloadCachedData: Attempting to load cached student data...');
     final studentProvider = Provider.of<StudentProvider>(
       context,
       listen: false,
@@ -73,21 +69,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       CacheManager.getStudentDataCache(studentId: userId)
           .then((cachedStudent) {
             if (cachedStudent != null && mounted) {
-              print(
-                '🏠 _preloadCachedData: Found cached student, updating provider',
-              );
               // Directly update the provider's student to show cached data immediately
               studentProvider.setCurrentStudentFromCache(cachedStudent);
             }
           })
           .catchError((e) {
-            print('🏠 _preloadCachedData: Cache load error (non-fatal): $e');
           });
     }
   }
 
   Future<void> _loadDashboardData() async {
-    print('🏠 _loadDashboardData: Starting...');
     final authProvider = Provider.of<app_auth.AuthProvider>(
       context,
       listen: false,
@@ -101,40 +92,27 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       listen: false,
     );
 
-    print(
-      '🏠 _loadDashboardData: Auth status - currentUser=${authProvider.currentUser?.uid}, isLoading=${authProvider.isLoading}',
-    );
     // Ensure auth is initialized before proceeding
     if (authProvider.currentUser == null && !authProvider.isLoading) {
-      print('🏠 _loadDashboardData: Auth not initialized, initializing now...');
       await authProvider.initializeAuth();
     }
     // Resolve UID robustly: prefer provider uid, else FirebaseAuth
     String? userId = authProvider.currentUser?.uid;
     userId ??= FirebaseAuth.instance.currentUser?.uid;
     if (userId == null || userId.isEmpty) {
-      print(
-        '❌ _loadDashboardData: No authenticated user found (provider and Firebase)',
-      );
       return;
     }
 
     final resolvedUserId = userId;
-    print('✅ _loadDashboardData: Loading dashboard for user: $userId');
 
     try {
       await FirestoreService().processEndedTests();
     } catch (e) {
-      print('⚠️ Error processing ended tests: $e');
     }
 
     // CRITICAL: Initialize daily challenge BEFORE loading student data
     // This ensures challenge state is ready when dashboard renders
-    print('🎯 Initializing daily challenge for user: $resolvedUserId');
     await dailyChallengeProvider.initialize(resolvedUserId);
-    print(
-      '✅ Daily challenge initialized. Has answered: ${dailyChallengeProvider.hasAnsweredToday(resolvedUserId)}',
-    );
 
     // Load student data (with cache integration)
     await studentProvider.loadDashboardData(resolvedUserId);
@@ -234,7 +212,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         firstName = emailParts.isNotEmpty ? emailParts.first : 'Student';
       }
     } catch (e) {
-      debugPrint('Error parsing name: $e');
       firstName = 'Student';
     }
 
@@ -547,9 +524,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         viewStatuses.isEmpty ||
                         viewStatuses.any((isViewed) => !isViewed);
 
-                    debugPrint(
-                      '🎨 STUDENT: Building avatar - Statuses: $viewStatuses, hasUnread: $hasUnread',
-                    );
 
                     return _buildAnnouncementAvatar('Principal', hasUnread, () {
                       _openCrossPersonAnnouncementViewer(
@@ -746,17 +720,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     'viewedBy': FieldValue.arrayUnion([currentUserId]),
                   })
                   .catchError((e) {
-                    debugPrint('Error marking teacher status viewed: $e');
                   });
             } else if (type == 'principal') {
               final principalAnnouncement =
                   originalData['data'] as InstituteAnnouncementModel;
-              debugPrint(
-                '🔵 STUDENT: Marking principal announcement as viewed',
-              );
-              debugPrint('   Announcement ID: ${principalAnnouncement.id}');
-              debugPrint('   User ID: $currentUserId');
-              debugPrint('   Title: ${principalAnnouncement.text}');
               _markPrincipalAnnouncementAsViewed(
                 principalAnnouncement.id,
                 currentUserId,
@@ -776,10 +743,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     String userId,
   ) async {
     try {
-      debugPrint('🟢 STUDENT: Writing view to Firestore...');
-      debugPrint(
-        '   Path: institute_announcements/$announcementId/views/$userId',
-      );
 
       // Add user to views subcollection (no instituteId check needed)
       await FirebaseFirestore.instance
@@ -789,7 +752,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           .doc(userId)
           .set({'viewedAt': FieldValue.serverTimestamp()});
 
-      debugPrint('✅ STUDENT: Successfully wrote view to Firestore');
 
       // Verify write
       final verify = await FirebaseFirestore.instance
@@ -798,13 +760,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           .collection('views')
           .doc(userId)
           .get();
-      debugPrint(
-        '🔍 STUDENT: Verification - Document exists: ${verify.exists}',
-      );
 
       // StreamBuilder will automatically update the UI
     } catch (e) {
-      debugPrint('❌ STUDENT: Error in _markPrincipalAnnouncementAsViewed: $e');
     }
   }
 
@@ -813,13 +771,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     List<InstituteAnnouncementModel> announcements,
     String userId,
   ) {
-    debugPrint(
-      '🔄 STUDENT: Setting up stream for ${announcements.length} principal announcements',
-    );
     for (var i = 0; i < announcements.length; i++) {
-      debugPrint(
-        '   [$i] ID: ${announcements[i].id}, Title: ${announcements[i].text}',
-      );
     }
 
     if (announcements.isEmpty) {
@@ -828,7 +780,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
     // For single announcement, simple stream
     if (announcements.length == 1) {
-      debugPrint('📡 STUDENT: Using single announcement stream');
       return FirebaseFirestore.instance
           .collection('institute_announcements')
           .doc(announcements.first.id)
@@ -836,7 +787,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           .doc(userId)
           .snapshots()
           .map((doc) {
-            debugPrint('📥 STUDENT: Stream update - Exists: ${doc.exists}');
             return [doc.exists];
           })
           .distinct(
@@ -845,9 +795,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     }
 
     // For multiple announcements, use snapshot listener instead of polling
-    debugPrint(
-      '📡 STUDENT: Using snapshot listener for multiple announcements',
-    );
     // Listen to the first announcement and check all when it changes
     return FirebaseFirestore.instance
         .collection('institute_announcements')
@@ -866,9 +813,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 .get();
             results.add(doc.exists);
           }
-          debugPrint(
-            '📥 STUDENT: Checked ${results.length} announcements - Results: $results',
-          );
           return results;
         })
         .distinct((prev, next) {
@@ -956,7 +900,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               (studentDoc.data()?['section'] as String?)?.trim() ?? '';
         }
       } catch (e) {
-        print('⚠️ Error fetching section: $e');
       }
     }
 
@@ -1129,7 +1072,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       }
 
       // Cache miss or expired - fetch from Firestore
-      debugPrint('🔍 Fetching topper points from Firestore (cache miss)');
 
       Query query = FirebaseFirestore.instance.collection('users');
 
@@ -1143,9 +1085,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       query = query.where('role', isEqualTo: 'student');
 
       final snapshot = await query.get();
-      debugPrint(
-        '📊 Fetched ${snapshot.docs.length} students for topper calculation',
-      );
 
       int maxPoints = 0;
       for (final doc in snapshot.docs) {
@@ -1169,7 +1108,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
       return maxPoints;
     } catch (e) {
-      debugPrint('❌ Error getting topper points: $e');
       return 0;
     }
   }
@@ -1841,22 +1779,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Widget _buildBadgesSection(StudentModel? student) {
     if (student == null) return const SizedBox.shrink();
 
-    print('🎯 Building badges section for student: ${student.uid}');
 
     return FutureBuilder<List<Badge>>(
       future: BadgeService().fetchEarnedBadges(student.uid),
       builder: (context, snapshot) {
-        print('🎯 Badge FutureBuilder state: ${snapshot.connectionState}');
 
         if (snapshot.hasError) {
-          print('❌ Badge fetch error: ${snapshot.error}');
         }
 
         final earnedBadges = snapshot.data ?? [];
         final earnedIds = earnedBadges.map((b) => b.id).toSet();
 
-        print('🎯 Earned badges count: ${earnedBadges.length}');
-        print('🎯 Earned badge IDs: $earnedIds');
 
         // Prioritize earned badges first, then fill with locked badges
         final displayBadges = <Badge>[];
@@ -1872,9 +1805,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           displayBadges.addAll(unearnedBadges);
         }
 
-        print(
-          '🎯 Displaying ${displayBadges.length} badges in dashboard (${earnedBadges.length} earned)',
-        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -156,7 +156,6 @@ class _TakeTestScreenState extends State<TakeTestScreen>
       // Fallback: keep original order
       _prepareShuffledOptions();
       setState(() {});
-      debugPrint('⚠️ Failed to load shuffled question order: $e');
     }
   }
 
@@ -390,10 +389,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
             previousScorePercent: previousScorePercent,
           );
         } catch (e) {
-          print('⚠️ Error awarding badges: $e');
         }
       } else {
-        print('⏳ Test still active - badges will be awarded after test ends');
       }
 
       if (!mounted) return;

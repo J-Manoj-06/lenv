@@ -52,12 +52,6 @@ class _TeacherStudentResultDetailScreenState
       }
 
       _result = TestResultModel.fromFirestore(resultDoc);
-      print('\n📊 === RESULT LOADED ===');
-      print('Student: ${_result!.studentName}');
-      print('Answers count: ${_result!.answers.length}');
-      print(
-        'First answer sample: ${_result!.answers.isNotEmpty ? _result!.answers[0] : "none"}',
-      );
 
       // Load test questions
       final testDoc = await firestore
@@ -71,16 +65,13 @@ class _TeacherStudentResultDetailScreenState
           _questions = List<Map<String, dynamic>>.from(
             testData['questions'].map((q) => Map<String, dynamic>.from(q)),
           );
-          print('Questions loaded: ${_questions.length}');
           if (_questions.isNotEmpty) {
-            print('First question sample: ${_questions[0]}');
           }
         }
       }
 
       setState(() => _isLoading = false);
     } catch (e) {
-      print('Error loading result details: $e');
       setState(() {
         _errorMessage = 'Error loading result: $e';
         _isLoading = false;
@@ -464,19 +455,12 @@ class _TeacherStudentResultDetailScreenState
         (answer['isCorrect'] ?? false) == true ||
         _inferCorrectness(userAnswer, correctAnswer);
 
-    print('\n🔍 Q$questionNumber:');
-    print('   Raw answer data: $answer');
-    print('   User: $userAnswer (${userAnswer.runtimeType})');
-    print('   Correct: $correctAnswer (${correctAnswer.runtimeType})');
-    print('   isCorrect: $isCorrect');
 
     List<dynamic> rawOptions = questionData['options'] as List? ?? [];
     final questionType = (questionData['type'] ?? 'mcq')
         .toString()
         .toLowerCase();
-    print('   Options count: ${rawOptions.length}');
     if (rawOptions.isNotEmpty) {
-      print('   First option: ${rawOptions[0]}');
     }
 
     // For True/False style questions, create synthetic options if none exist
@@ -568,9 +552,6 @@ class _TeacherStudentResultDetailScreenState
             );
 
             if (questionNumber <= 3) {
-              print(
-                '   → $optionLabel ($optionText): user=$isUserAnswer, correct=$isCorrectOption',
-              );
             }
 
             Color? bgColor;
@@ -749,7 +730,6 @@ class _TeacherStudentResultDetailScreenState
     for (final k in keys) {
       if (answer.containsKey(k) && answer[k] != null) {
         val = answer[k];
-        print('   📝 Found userAnswer in field "$k": $val');
         break;
       }
     }
@@ -779,7 +759,6 @@ class _TeacherStudentResultDetailScreenState
     }
 
     if (val == null) {
-      print('   ⚠️ No correctAnswer found in question data!');
       return null;
     }
 
@@ -790,7 +769,6 @@ class _TeacherStudentResultDetailScreenState
       final opts = question['options'] as List?;
       if (opts != null && index >= 0 && index < opts.length) {
         final resolved = opts[index];
-        print('   🔄 Resolved letter "$letter" -> "$resolved"');
         return _coerceAnswerValue(resolved);
       }
     }

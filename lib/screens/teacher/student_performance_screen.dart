@@ -87,8 +87,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         _fetchAttendancePercentage(),
         _fetchBadgesAndPoints(),
       ]);
-    } catch (e) {
-      debugPrint('⚠️ extras load error: $e');
     } finally {
       if (mounted) setState(() => _loadingExtras = false);
     }
@@ -103,14 +101,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       if (studentDoc.exists) {
         _resolvedAuthUid =
             studentDoc.data()?['uid'] as String? ?? widget.studentId;
-        debugPrint(
-          '📊 Resolved auth UID: $_resolvedAuthUid from doc: ${widget.studentId}',
-        );
       } else {
         _resolvedAuthUid = widget.studentId;
       }
     } catch (e) {
-      debugPrint('⚠️ Auth UID resolution failed: $e');
       _resolvedAuthUid = widget.studentId;
     }
   }
@@ -122,9 +116,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           .doc(widget.studentId)
           .get();
       if (doc.exists) _studentDetails = doc.data();
-    } catch (e) {
-      debugPrint('⚠️ student details error: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _fetchAttendancePercentage() async {
@@ -151,9 +143,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           .where('section', isEqualTo: section)
           .limit(120)
           .get();
-      debugPrint(
-        '📊 Found ${q.docs.length} attendance docs for grade $grade section $section',
-      );
       int total = 0;
       int present = 0;
       for (final doc in q.docs) {
@@ -162,9 +151,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         // Direct lookup by auth UID (new schema)
         final info = students[authUid] as Map<String, dynamic>?;
         if (info == null) {
-          debugPrint(
-            '⚠️ Student $authUid not found in attendance doc ${doc.id}. Keys: ${students.keys.take(3).join(", ")}',
-          );
           continue;
         }
         total++;
@@ -173,11 +159,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           present++;
         }
       }
-      debugPrint('📊 Attendance: $present/$total present');
       if (total > 0) _attendancePct = (present / total * 100).clamp(0, 100);
-    } catch (e) {
-      debugPrint('⚠️ attendance error: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _fetchBadgesAndPoints() async {
@@ -196,15 +179,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           _totalPoints =
               (userData?['totalPoints'] ?? userData?['rewardPoints'] ?? 0)
                   as int;
-          debugPrint(
-            '📊 Total points from users collection: $_totalPoints (userData: ${userData?.keys.toList()})',
-          );
-        } else {
-          debugPrint('⚠️ User document not found: $authUid');
-        }
-      } catch (e) {
-        debugPrint('⚠️ Error fetching from users: $e');
-      }
+        } else {}
+      } catch (e) {}
 
       // If still 0, try students collection
       if (_totalPoints == 0) {
@@ -221,13 +197,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                         studentData?['rewardPoints'] ??
                         0)
                     as int;
-            debugPrint(
-              '📊 Total points from students collection: $_totalPoints',
-            );
           }
-        } catch (e) {
-          debugPrint('⚠️ Error fetching from students: $e');
-        }
+        } catch (e) {}
       }
 
       // Fetch badges using the same source as student dashboard
@@ -242,10 +213,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           final label = '${badge.emoji} ${badge.title}'.trim();
           badgeSet.add(label);
         }
-        debugPrint('🏅 BadgeService returned ${badgeSet.length} badges');
-      } catch (e) {
-        debugPrint('⚠️ BadgeService fetch error: $e');
-      }
+      } catch (e) {}
 
       // Fallback: derive from testResults (legacy behavior) to avoid missing badges
       try {
@@ -282,22 +250,14 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             badgeSet.add('Top Performer');
           }
         }
-      } catch (e) {
-        debugPrint('⚠️ testResults badge fallback error: $e');
-      }
+      } catch (e) {}
 
       _badges = badgeSet.toList()..sort();
       _badgesCount = _badges.length;
 
-      debugPrint(
-        '📊 Final: $_badgesCount badges ($_badges), $_totalPoints points',
-      );
-
       // Force UI update
       if (mounted) setState(() {});
-    } catch (e) {
-      debugPrint('⚠️ badges/points error: $e');
-    }
+    } catch (e) {}
   }
 
   @override
@@ -323,20 +283,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
 
                     // Debug logging
                     if (perf != null) {
-                      debugPrint('📊 Performance Data Loaded:');
-                      debugPrint('   Average Score: ${perf.averageScore}');
-                      debugPrint('   Total Tests: ${perf.totalTestsTaken}');
-                      debugPrint('   Submissions: ${perf.submissions.length}');
-                      if (perf.submissions.isNotEmpty) {
-                        debugPrint(
-                          '   Latest: ${perf.submissions.last.testTitle} - ${perf.submissions.last.percentage}%',
-                        );
-                      }
-                    } else {
-                      debugPrint(
-                        '⚠️ No performance data found for student: ${_resolvedAuthUid ?? widget.studentId}',
-                      );
-                    }
+                      if (perf.submissions.isNotEmpty) {}
+                    } else {}
 
                     // Compute real-time stats from performance data
                     final avgScore = perf?.averageScore ?? 0.0;
@@ -358,10 +306,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     final latestScore = perf?.submissions.isNotEmpty == true
                         ? perf!.submissions.last.percentage
                         : 0.0;
-
-                    debugPrint(
-                      '💰 Points calculation: _totalPoints=$_totalPoints, calculatedPoints=$calculatedPoints, using=$totalPoints',
-                    );
 
                     return SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
@@ -1513,11 +1457,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       final parentPhone = _studentDetails?['parentPhone']?.toString().trim();
       final studentEmail = _studentDetails?['email']?.toString().trim();
 
-      debugPrint('🔍 Starting parent chat for student: ${widget.studentName}');
-      debugPrint('   Student ID: $studentId');
-      debugPrint('   Parent Phone: ${parentPhone ?? "not available"}');
-      debugPrint('   Student Email: ${studentEmail ?? "not available"}');
-
       final messaging = MessagingService();
       final parentData = await messaging.fetchParentForStudent(
         studentId,
@@ -1528,7 +1467,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       if (!mounted) return;
 
       if (parentData == null) {
-        debugPrint('❌ No parent found for student $studentId');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('No parent found for ${widget.studentName}'),
@@ -1561,8 +1499,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         return;
       }
 
-      debugPrint('✅ Parent found: ${parentData['parentName']}');
-
       // Get schoolCode from student details (already loaded)
       final schoolCode = _studentDetails?['schoolCode']?.toString() ?? '';
       final className =
@@ -1570,7 +1506,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       final section = _studentDetails?['section']?.toString();
 
       if (schoolCode.isEmpty) {
-        debugPrint('❌ schoolCode is empty, cannot open chat');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1605,7 +1540,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         ),
       );
     } catch (e) {
-      debugPrint('❌ Error in _startParentChat: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

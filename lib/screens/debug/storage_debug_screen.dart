@@ -18,7 +18,6 @@ class _StorageDebugScreenState extends State<StorageDebugScreen> {
     setState(() {
       _log += '$message\n';
     });
-    print(message);
   }
 
   Future<void> _testStorage() async {

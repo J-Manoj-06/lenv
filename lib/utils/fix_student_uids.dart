@@ -25,8 +25,6 @@ class StudentUIDFixer {
     String? className,
     String? section,
   }) async {
-    print('🔧 Starting Student UID Fix Process...');
-    print('   SchoolCode: $schoolCode');
     if (className != null) print('   ClassName: $className');
     if (section != null) print('   Section: $section');
 
@@ -49,14 +47,12 @@ class StudentUIDFixer {
       }
 
       final studentsSnapshot = await query.get();
-      print('📋 Found ${studentsSnapshot.docs.length} students to fix');
 
       for (final studentDoc in studentsSnapshot.docs) {
         final studentData = studentDoc.data();
         final email = studentData['email'] as String?;
 
         if (email == null || email.isEmpty) {
-          print('   ⚠️ Student ${studentDoc.id} has no email, skipping');
           errorCount++;
           errors.add('No email for ${studentDoc.id}');
           continue;
@@ -64,7 +60,6 @@ class StudentUIDFixer {
 
         try {
           // Try to sign in to get the Auth UID
-          print('   🔐 Signing in as $email...');
           final userCredential = await _auth.signInWithEmailAndPassword(
             email: email,
             password: defaultPassword,
@@ -72,7 +67,6 @@ class StudentUIDFixer {
 
           if (userCredential.user != null) {
             final authUID = userCredential.user!.uid;
-            print('   ✅ Got Auth UID: $authUID');
 
             // Update users collection
             final userQuery = await _db
@@ -85,10 +79,8 @@ class StudentUIDFixer {
               await _db.collection('users').doc(userQuery.docs.first.id).update(
                 {'uid': authUID},
               );
-              print('   ✅ Updated users collection for $email');
               successCount++;
             } else {
-              print('   ⚠️ No users document found for $email');
               errorCount++;
               errors.add('No users doc for $email');
             }
@@ -97,7 +89,6 @@ class StudentUIDFixer {
             await _auth.signOut();
           }
         } catch (e) {
-          print('   ❌ Failed to process $email: $e');
           errorCount++;
           errors.add('$email: ${e.toString()}');
         }
@@ -105,14 +96,9 @@ class StudentUIDFixer {
 
       // Restore original user session if needed
       if (originalUser != null) {
-        print('🔄 Restoring original user session...');
         // You'll need to sign back in as the original user
         // This is tricky - might be better to do this as an admin script
       }
-
-      print('✅ Fix process complete!');
-      print('   Success: $successCount');
-      print('   Errors: $errorCount');
 
       return {
         'success': true,
@@ -120,9 +106,7 @@ class StudentUIDFixer {
         'errorCount': errorCount,
         'errors': errors,
       };
-    } catch (e, stackTrace) {
-      print('❌ Fix process failed: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
   }

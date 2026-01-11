@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/group_chat_message.dart';
 import '../models/group_subject.dart';
 import '../models/community.dart';
@@ -18,6 +19,10 @@ class GroupMessagingService {
     GroupChatMessage message,
   ) async {
     try {
+      debugPrint('📨 GroupMessagingService.sendGroupMessage:');
+      debugPrint('   messageId=${message.mediaMetadata?.messageId}');
+      debugPrint('   senderId=${message.senderId}');
+
       // 1. Add message to Firestore
       await _firestore
           .collection('classes')
@@ -26,6 +31,8 @@ class GroupMessagingService {
           .doc(subjectId)
           .collection('messages')
           .add(message.toFirestore());
+
+      debugPrint('✅ Message written to Firestore');
 
       // 2. ✅ OPTIMIZATION: Update teacher_groups index for this class-subject combo
       // This updates the teacher's unread count in real-time without scanning messages
@@ -90,11 +97,8 @@ class GroupMessagingService {
         },
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
-      print('✅ Updated teacher_groups for $teacherId, group $groupId');
     } catch (e) {
       // Don't throw - message was already sent successfully
-      print('⚠️ Failed to update teacher_groups: $e');
     }
   }
 
@@ -144,9 +148,7 @@ class GroupMessagingService {
           .set({
             'lastReadBy': {teacherId: now},
           }, SetOptions(merge: true));
-    } catch (e) {
-      print('Error marking group as read: $e');
-    }
+    } catch (e) {}
   }
 
   /// Get the last read timestamp for a teacher in a specific group
@@ -170,7 +172,6 @@ class GroupMessagingService {
 
       return lastReadBy[teacherId] as int?;
     } catch (e) {
-      print('Error getting last read timestamp: $e');
       return null;
     }
   }
@@ -222,7 +223,6 @@ class GroupMessagingService {
 
       return unreadCount;
     } catch (e) {
-      print('Error getting unread count: $e');
       return 0;
     }
   }
@@ -230,8 +230,6 @@ class GroupMessagingService {
   /// Get subjects for a specific class
   Future<List<GroupSubject>> getClassSubjects(String classId) async {
     try {
-      print('📚 getClassSubjects called for classId: $classId');
-
       // Get the class document with server read to avoid stale cache
       final classDoc = await _firestore
           .collection('classes')
@@ -239,17 +237,13 @@ class GroupMessagingService {
           .get(const GetOptions(source: Source.server));
 
       if (!classDoc.exists) {
-        print('❌ Class document not found: $classId');
         return [];
       }
 
       final classData = classDoc.data();
       if (classData == null) {
-        print('❌ Class data is null');
         return [];
       }
-
-      print('✅ Class data retrieved: ${classData.keys.toList()}');
 
       // Get subjects array and subjectTeachers map
       final subjectsList = classData['subjects'] as List?;
@@ -257,12 +251,8 @@ class GroupMessagingService {
           classData['subjectTeachers'] as Map<String, dynamic>?;
 
       if (subjectsList == null || subjectsList.isEmpty) {
-        print('❌ No subjects found in class document');
         return [];
       }
-
-      print('📖 Found ${subjectsList.length} subjects: $subjectsList');
-      print('👨‍🏫 Subject teachers map: ${subjectTeachers?.keys.toList()}');
 
       // Create GroupSubject objects from subjects array and subjectTeachers map
       final List<GroupSubject> groupSubjects = [];
@@ -277,8 +267,6 @@ class GroupMessagingService {
           final teacherName =
               teacherInfo?['teacherName'] as String? ?? 'Teacher';
 
-          print('  ➜ Subject: $subject, Teacher: $teacherName');
-
           groupSubjects.add(
             GroupSubject(
               id: subjectKey.replaceAll(' ', '_'),
@@ -290,11 +278,8 @@ class GroupMessagingService {
         }
       }
 
-      print('✅ Created ${groupSubjects.length} GroupSubject objects');
       return groupSubjects;
-    } catch (e, stackTrace) {
-      print('❌ Error in getClassSubjects: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       return [];
     }
   }
@@ -398,10 +383,6 @@ class GroupMessagingService {
     required bool isRetry,
   }) async {
     try {
-      print(
-        '🔍 getStudentClassId: Starting for student: $studentId (retry: $isRetry)',
-      );
-
       // ✅ FIX: Check students collection first (primary source for student data)
       // Force server read to avoid stale cache
       final studentDoc = await _firestore
@@ -419,15 +400,7 @@ class GroupMessagingService {
         fullClassName = studentData['className'] ?? '';
         sectionField = studentData['section'] ?? '';
         schoolCode = studentData['schoolCode'] ?? '';
-
-        print(
-          '📚 Found student in students collection: className=$fullClassName, section=$sectionField, schoolCode=$schoolCode',
-        );
-        print('📊 Full student data keys: ${studentData.keys.toList()}');
       } else {
-        print(
-          '⚠️ Student not found in students collection, trying users collection',
-        );
         // Fallback: Try users collection with server read
         final userDoc = await _firestore
             .collection('users')
@@ -435,9 +408,6 @@ class GroupMessagingService {
             .get(const GetOptions(source: Source.server));
 
         if (!userDoc.exists || userDoc.data() == null) {
-          print(
-            '❌ User document not found in both students and users for: $studentId',
-          );
           return null;
         }
 
@@ -445,22 +415,14 @@ class GroupMessagingService {
         fullClassName = userData['className'] ?? '';
         sectionField = userData['section'] ?? '';
         schoolCode = userData['schoolId'] ?? userData['schoolCode'] ?? '';
-
-        print('📊 User data keys: ${userData.keys.toList()}');
-        print(
-          '📚 Found student in users collection: className=$fullClassName, section=$sectionField',
-        );
       }
 
       if (fullClassName == null || fullClassName.isEmpty) {
-        print('❌ className is empty for user: $studentId');
         if (!isRetry) {
-          print('🔄 Attempting to sync student data from Firestore (retry)...');
           // Try one more time with a fresh fetch
           await Future.delayed(const Duration(milliseconds: 1000));
           return _getStudentClassIdInternal(studentId, isRetry: true);
         } else {
-          print('❌ Second attempt also failed, giving up');
           return null;
         }
       }
@@ -492,10 +454,6 @@ class GroupMessagingService {
         grade = fullClassName; // Fallback to full className
       }
 
-      print(
-        '🔍 Looking for class: grade=$grade, section=$section, schoolCode=$schoolCode',
-      );
-
       // Approach 1: Try with schoolCode if available (most specific)
       if (schoolCode != null && schoolCode.isNotEmpty && section.isNotEmpty) {
         final query1 = await _firestore
@@ -507,7 +465,6 @@ class GroupMessagingService {
             .get();
 
         if (query1.docs.isNotEmpty) {
-          print('✅ Found class via schoolCode: ${query1.docs.first.id}');
           return query1.docs.first.id;
         }
       }
@@ -522,7 +479,6 @@ class GroupMessagingService {
             .get();
 
         if (query2.docs.isNotEmpty) {
-          print('✅ Found class via className+section: ${query2.docs.first.id}');
           return query2.docs.first.id;
         }
       }
@@ -559,13 +515,8 @@ class GroupMessagingService {
         return query4.docs.first.id;
       }
 
-      print(
-        'No class found for: grade=$grade, section=$section, fullClassName=$fullClassName',
-      );
       return null;
-    } catch (e, stackTrace) {
-      print('Error getting student class ID: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       return null;
     }
   }
@@ -615,14 +566,12 @@ class GroupMessagingService {
             }
           }
         } catch (e) {
-          print('Error parsing message: $e');
           continue;
         }
       }
 
       return results;
     } catch (e) {
-      print('Error searching messages: $e');
       return [];
     }
   }

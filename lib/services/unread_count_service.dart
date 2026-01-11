@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import '../utils/chat_type_config.dart';
 
 /// Unified unread message count service for all chat types
@@ -36,17 +35,12 @@ class UnreadCountService {
     // Check cache first (unless force refresh)
     final cacheKey = '$chatId:$userId';
     if (!forceRefresh && _unreadCache.containsKey(cacheKey)) {
-      print('💾 Cache hit for $cacheKey: ${_unreadCache[cacheKey]}');
       return _unreadCache[cacheKey] ?? 0;
     }
 
-    print(
-      '🔍 Fetching unread count for chatId=$chatId, userId=$userId, type=$chatType',
-    );
     try {
       // Get last read timestamp
       final lastReadAt = await _getLastReadAt(userId, chatId);
-      print('📅 Last read at: ${lastReadAt.toDate()}');
 
       // Determine field and comparison value by chat type
       // Groups use integer 'timestamp' (ms since epoch)
@@ -57,10 +51,6 @@ class UnreadCountService {
           ? lastReadAt.toDate().millisecondsSinceEpoch
           : lastReadAt;
 
-      print(
-        '🔎 Querying collection: $messageCollection, field: $fieldName > $compareValue',
-      );
-
       // Count all unread messages
       final totalSnapshot = await _firestore
           .collection(messageCollection)
@@ -68,7 +58,6 @@ class UnreadCountService {
           .count()
           .get();
       final totalCount = totalSnapshot.count ?? 0;
-      print('📊 Total messages after lastRead: $totalCount');
 
       // Count messages sent by current user in the unread window, then subtract
       int selfCount = 0;
@@ -87,27 +76,20 @@ class UnreadCountService {
               .count()
               .get();
           selfCount = selfSnapshot.count ?? 0;
-          print('✅ Self messages found using field "$senderField": $selfCount');
           break; // stop after first successful field
         } catch (e) {
-          print('⚠️ Failed to query with field "$senderField": $e');
           continue;
         }
       }
 
       final count = totalCount - selfCount;
       final safeCount = count < 0 ? 0 : count;
-      debugPrint(
-        '[UnreadService] chatId=$chatId type=$chatType collection=$messageCollection lastRead=$compareValue total=$totalCount self=$selfCount final=$safeCount',
-      );
 
       // Cache the result (fresh)
       _unreadCache[cacheKey] = safeCount;
-      print('💾 Cached count for $cacheKey: $safeCount');
 
       return safeCount;
     } catch (e) {
-      print('⚠️ Error getting unread count for $chatId: $e');
       return 0; // Fail gracefully
     }
   }
@@ -142,9 +124,7 @@ class UnreadCountService {
 
         results[chatId] = count;
       }
-    } catch (e) {
-      print('⚠️ Batch unread count error: $e');
-    }
+    } catch (e) {}
 
     return results;
   }
@@ -170,10 +150,7 @@ class UnreadCountService {
       // Clear cache
       final cacheKey = '$chatId:$userId';
       _unreadCache.remove(cacheKey);
-
-      print('✅ Marked $chatId as read for user $userId');
     } catch (e) {
-      print('⚠️ Error marking chat as read: $e');
       // Fail silently - don't break UI
     }
   }
@@ -192,9 +169,7 @@ class UnreadCountService {
       if (doc.exists && doc['lastReadAt'] != null) {
         return doc['lastReadAt'] as Timestamp;
       }
-    } catch (e) {
-      print('⚠️ Error getting lastReadAt: $e');
-    }
+    } catch (e) {}
 
     // Default: 30 days ago (all messages considered new)
     return Timestamp.fromDate(

@@ -29,9 +29,7 @@ class CacheManager {
         _studentDataTimestampKey,
         DateTime.now().millisecondsSinceEpoch,
       );
-      print('✅ Student data cached successfully');
     } catch (e) {
-      print('❌ Error caching student data: $e');
     }
   }
 
@@ -43,7 +41,6 @@ class CacheManager {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString(_studentDataKey);
       if (jsonString == null) {
-        print('📝 No cached student data found');
         return null;
       }
 
@@ -78,10 +75,8 @@ class CacheManager {
         isActive: studentMap['isActive'] ?? true,
       );
 
-      print('✅ Restored student data from cache');
       return student;
     } catch (e) {
-      print('❌ Error restoring student data: $e');
       return null;
     }
   }
@@ -100,12 +95,8 @@ class CacheManager {
       final difference = now.difference(cacheTime).inHours;
 
       final isValid = difference < cacheDurationHours;
-      print(
-        '📊 Student cache age: ${difference}h, valid: $isValid (threshold: ${cacheDurationHours}h)',
-      );
       return isValid;
     } catch (e) {
-      print('❌ Error checking cache validity: $e');
       return false;
     }
   }
@@ -116,9 +107,7 @@ class CacheManager {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_studentDataKey);
       await prefs.remove(_studentDataTimestampKey);
-      print('✅ Student data cache cleared');
     } catch (e) {
-      print('❌ Error clearing student data cache: $e');
     }
   }
 
@@ -138,9 +127,7 @@ class CacheManager {
 
       await prefs.setInt(cacheKey, points);
       await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
-      print('✅ Topper points cached: $points for class $className');
     } catch (e) {
-      print('❌ Error caching topper points: $e');
     }
   }
 
@@ -164,18 +151,11 @@ class CacheManager {
 
         // Cache valid for 5 minutes (300000 milliseconds)
         if (age < 300000) {
-          print(
-            '✅ Using cached topper points: $cachedPoints (age: ${ageInMinutes.toStringAsFixed(1)}m)',
-          );
           return cachedPoints;
         } else {
-          print(
-            '⏰ Topper points cache expired (age: ${ageInMinutes.toStringAsFixed(1)}m)',
-          );
         }
       }
     } catch (e) {
-      print('❌ Error getting topper cache: $e');
     }
     return null;
   }
@@ -192,9 +172,7 @@ class CacheManager {
 
       await prefs.remove(cacheKey);
       await prefs.remove(timestampKey);
-      print('✅ Topper points cache cleared for class $className');
     } catch (e) {
-      print('❌ Error clearing topper cache: $e');
     }
   }
 
@@ -210,9 +188,7 @@ class CacheManager {
         '${key}_timestamp',
         DateTime.now().millisecondsSinceEpoch,
       );
-      print('✅ Data cached for key: $key');
     } catch (e) {
-      print('❌ Error caching data for key $key: $e');
     }
   }
 
@@ -222,15 +198,12 @@ class CacheManager {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString(key);
       if (jsonString == null) {
-        print('📝 No cached data found for key: $key');
         return null;
       }
 
       final data = jsonDecode(jsonString);
-      print('✅ Restored data from cache for key: $key');
       return data;
     } catch (e) {
-      print('❌ Error restoring data for key $key: $e');
       return null;
     }
   }
@@ -251,7 +224,6 @@ class CacheManager {
 
       return difference < cacheDurationHours;
     } catch (e) {
-      print('❌ Error checking cache validity for key $key: $e');
       return false;
     }
   }
@@ -262,9 +234,7 @@ class CacheManager {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(key);
       await prefs.remove('${key}_timestamp');
-      print('✅ Cache cleared for key: $key');
     } catch (e) {
-      print('❌ Error clearing cache for key $key: $e');
     }
   }
 
@@ -285,9 +255,7 @@ class CacheManager {
         }
       }
 
-      print('✅ All application caches cleared');
     } catch (e) {
-      print('❌ Error clearing all caches: $e');
     }
   }
 
@@ -305,7 +273,6 @@ class CacheManager {
 
       return stats;
     } catch (e) {
-      print('❌ Error getting cache stats: $e');
       return {};
     }
   }
@@ -334,11 +301,7 @@ class CacheManager {
       final leaderboardJson = jsonEncode(entries);
       await prefs.setString(cacheKey, leaderboardJson);
       await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
-      print(
-        '✅ Leaderboard cached: $schoolCode/$className (${entries.length} entries)',
-      );
     } catch (e) {
-      print('❌ Error caching leaderboard: $e');
     }
   }
 
@@ -353,16 +316,13 @@ class CacheManager {
       final jsonString = prefs.getString(cacheKey);
 
       if (jsonString == null) {
-        print('📝 No cached leaderboard for $schoolCode/$className');
         return null;
       }
 
       final List<dynamic> decoded = jsonDecode(jsonString);
       final entries = decoded.map((e) => e as Map<String, dynamic>).toList();
-      print('✅ Restored leaderboard from cache: ${entries.length} entries');
       return entries;
     } catch (e) {
-      print('❌ Error restoring leaderboard: $e');
       return null;
     }
   }

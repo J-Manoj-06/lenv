@@ -15,10 +15,8 @@ class MessagingService {
     String? studentEmail,
   }) async {
     try {
-      print('🔍 Looking for parent of student: $studentId');
 
       // ✅ OPTIMIZATION: Strategy 1 - Direct lookup via student.parentId
-      print('📋 Strategy 1: Reading parent from student document...');
       final studentDoc = await _firestore
           .collection('students')
           .doc(studentId)
@@ -33,11 +31,9 @@ class MessagingService {
         final parentPhone = studentData['parentPhone'] as String?;
 
         if (parentId != null && parentId.isNotEmpty) {
-          print('✅ Found parent via student.parentId: $parentId');
 
           // If we have parentAuthUid, return immediately (1 read total)
           if (parentAuthUid != null && parentAuthUid.isNotEmpty) {
-            print('✅ Using cached parentAuthUid from student doc');
             return {
               'parentId': parentId,
               'parentAuthUid': parentAuthUid,
@@ -56,7 +52,6 @@ class MessagingService {
 
           if (parentDoc.exists && parentDoc.data() != null) {
             final parentData = parentDoc.data()!;
-            print('✅ Fetched parent document for additional details');
 
             return {
               'parentId': parentId,
@@ -88,14 +83,8 @@ class MessagingService {
         }
       }
 
-      print(
-        '⚠️ Student document has no parentId field, falling back to legacy scan',
-      );
 
       // ✅ FALLBACK: Legacy method - scan parents (only if parentId not set)
-      print(
-        '📋 Strategy 2 (Fallback): Scanning parent linkedStudents arrays...',
-      );
       final allParents = await _firestore
           .collection('parents')
           .limit(100)
@@ -116,7 +105,6 @@ class MessagingService {
                 '';
 
             if (entryId == studentId) {
-              print('✅ Found parent via linkedStudents: ${doc.id}');
               final parentEmail = (data['email'] ?? '').toString();
               String? parentAuthUid;
               if (parentEmail.isNotEmpty) {
@@ -152,7 +140,6 @@ class MessagingService {
 
       // Strategy 3: Match by phone number if available
       if (parentPhone != null && parentPhone.isNotEmpty) {
-        print('📱 Strategy 3: Matching by phone: $parentPhone');
 
         for (final phoneField in ['phoneNumber', 'phone', 'parent_contact']) {
           final byPhone = await _firestore
@@ -164,7 +151,6 @@ class MessagingService {
           if (byPhone.docs.isNotEmpty) {
             final parentDoc = byPhone.docs.first;
             final parentData = parentDoc.data();
-            print('✅ Found parent via phone ($phoneField): ${parentDoc.id}');
             final parentEmail = (parentData['email'] ?? '').toString();
             String? parentAuthUid;
             if (parentEmail.isNotEmpty) {
@@ -201,7 +187,6 @@ class MessagingService {
 
       // Strategy 4: Match by email pattern (if student email suggests parent email)
       if (studentEmail != null && studentEmail.isNotEmpty) {
-        print('📧 Strategy 4: Attempting email pattern match...');
         final emailParts = studentEmail.split('@');
         if (emailParts.length == 2) {
           final possibleParentEmails = [
@@ -219,7 +204,6 @@ class MessagingService {
             if (byEmail.docs.isNotEmpty) {
               final parentDoc = byEmail.docs.first;
               final parentData = parentDoc.data();
-              print('✅ Found parent via email pattern: ${parentDoc.id}');
               // Resolve parent auth UID
               final parentEmail = (parentData['email'] ?? '').toString();
               String? parentAuthUid;
@@ -236,7 +220,6 @@ class MessagingService {
                       (uData['uid']?.toString().trim().isNotEmpty ?? false)
                       ? uData['uid']?.toString()
                       : u.id;
-                  print('✅ Resolved parent auth UID via users: $parentAuthUid');
                 }
               }
 
@@ -257,10 +240,8 @@ class MessagingService {
         }
       }
 
-      print('❌ No parent found for student $studentId after all strategies');
       return null;
     } catch (e) {
-      print('❌ Error fetching parent for student: $e');
       return null;
     }
   }
@@ -420,7 +401,6 @@ class MessagingService {
       if (!doc.exists) return null;
       return Conversation.fromFirestore(doc);
     } catch (e) {
-      print('Error getting conversation: $e');
       return null;
     }
   }

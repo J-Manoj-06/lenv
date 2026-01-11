@@ -166,9 +166,7 @@ class _ParentSectionGroupChatScreenState
           chatId: widget.groupId,
         );
       }
-    } catch (e) {
-      print('Error marking chat as read: $e');
-    }
+    } catch (e) {}
   }
 
   String _formatTime(DateTime dateTime) {
@@ -308,8 +306,6 @@ class _ParentSectionGroupChatScreenState
       } else {
         _hasMoreMessages = false;
       }
-    } catch (e) {
-      print('❌ Error loading more messages: $e');
     } finally {
       _isLoadingMore = false;
     }
@@ -2004,7 +2000,6 @@ class _ParentGroupMessageSearchScreenState
         _loading = false;
       });
     } catch (e) {
-      print('Search error: $e');
       setState(() => _loading = false);
     }
   }
@@ -2108,9 +2103,7 @@ class _ParentGroupMessageSearchScreenState
             }
           }
         }
-      } catch (e) {
-        print('Cache check failed: $e');
-      }
+      } catch (e) {}
 
       if (!mounted) return;
 
@@ -2153,7 +2146,6 @@ class _ParentGroupMessageSearchScreenState
         ),
       );
     } catch (e) {
-      print('Error showing image: $e');
       if (mounted) {
         showDialog(
           context: context,
@@ -2197,9 +2189,7 @@ class _ParentGroupMessageSearchScreenState
             }
           }
         }
-      } catch (e) {
-        print('Cache check failed: $e');
-      }
+      } catch (e) {}
 
       if (!mounted) return;
 
@@ -2211,7 +2201,6 @@ class _ParentGroupMessageSearchScreenState
         ),
       );
     } catch (e) {
-      print('Error showing audio player: $e');
       if (mounted) {
         showModalBottomSheet(
           context: context,

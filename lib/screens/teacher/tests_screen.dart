@@ -37,7 +37,6 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     final user = auth.currentUser;
     if (!_initialLoadDone && user != null) {
       _initialLoadDone = true;
-      print('🚀 Initial auth ready, loading tests for ${user.uid}');
       Provider.of<TestProvider>(
         context,
         listen: false,
@@ -57,7 +56,6 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     // Manual refresh path (pull-to-refresh)
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
-    print('🔁 Manual refresh - currentUser: ${user?.email}, uid: ${user?.uid}');
     if (user != null) {
       Provider.of<TestProvider>(
         context,
@@ -572,7 +570,6 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
           .get();
       return snapshot.docs.length;
     } catch (e) {
-      print('Error getting class student count: $e');
       return 0;
     }
   }

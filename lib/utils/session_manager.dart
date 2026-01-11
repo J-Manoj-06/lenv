@@ -15,7 +15,6 @@ class SessionManager {
     if (schoolId != null && schoolId.isNotEmpty) {
       await prefs.setString('schoolId', schoolId);
     }
-    print('✅ Session saved: $userRole ($userId) school=${schoolId ?? "-"}');
   }
 
   /// Check if user has an active session
@@ -27,9 +26,6 @@ class SessionManager {
     final schoolId = prefs.getString('schoolId');
     final user = FirebaseAuth.instance.currentUser;
     // ignore: avoid_print
-    print(
-      '[SessionManager] getLoginSession isLoggedIn=$isLoggedIn storedRole=$userRole storedUserId=$userId firebaseUser=${user?.email}',
-    );
     return {
       'isLoggedIn': isLoggedIn && user != null,
       'userId': userId,
@@ -45,14 +41,12 @@ class SessionManager {
     await prefs.remove('userId');
     await prefs.remove('userRole');
     await prefs.remove('schoolId');
-    print('✅ Session cleared');
   }
 
   /// Get initial screen route based on session
   static Future<String> getInitialScreen() async {
     final session = await getLoginSession();
     // ignore: avoid_print
-    print('[SessionManager] getInitialScreen session=$session');
     if (session['isLoggedIn'] == true) {
       if (session['userRole'] == 'teacher') {
         return '/teacher-dashboard';

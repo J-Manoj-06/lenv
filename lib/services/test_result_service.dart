@@ -29,15 +29,9 @@ class TestResultService {
           .limit(50) // fetch a reasonable number, then sort locally
           .get();
 
-      print(
-        '📊 Fetched ${snapshot.docs.length} test results for student $studentId',
-      );
 
       final results = snapshot.docs.map((doc) {
         final data = doc.data();
-        print(
-          '   Test: ${data['testTitle']} - Score: ${data['score']}/${data['totalQuestions']}, Status: ${data['status'] ?? 'completed'}',
-        );
         // Normalize numeric fields from Firestore (which may be int or double)
         final total = (data['totalQuestions'] is num)
             ? (data['totalQuestions'] as num).toInt()
@@ -71,7 +65,6 @@ class TestResultService {
       results.sort((a, b) => b.timestamp.compareTo(a.timestamp));
       return results.take(limit).toList();
     } catch (e) {
-      print('❌ Error fetching test results: $e');
       return [];
     }
   }
@@ -121,7 +114,6 @@ class TestResultService {
       results.sort((a, b) => b.timestamp.compareTo(a.timestamp));
       return results;
     } catch (e) {
-      print('Error fetching tests by subject: $e');
       return [];
     }
   }
@@ -190,7 +182,6 @@ class TestResultService {
 
       return averages;
     } catch (e) {
-      print('Error calculating averages: $e');
       return {};
     }
   }
@@ -274,7 +265,6 @@ class TestResultService {
 
       return trends;
     } catch (e) {
-      print('Error analyzing trends: $e');
       return {};
     }
   }

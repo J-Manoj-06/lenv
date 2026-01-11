@@ -13,7 +13,6 @@ class ParentService {
     String parentEmail,
   ) async {
     try {
-      print('🔍 ParentService: Fetching children for parent: $parentEmail');
 
       // First, get the parent document to find linked students
       final parentQuery = await _firestore
@@ -23,7 +22,6 @@ class ParentService {
           .get();
 
       if (parentQuery.docs.isEmpty) {
-        print('⚠️ ParentService: Parent document not found for $parentEmail');
         return [];
       }
 
@@ -32,25 +30,19 @@ class ParentService {
       final linkedStudents = parentData['linkedStudents'] as List<dynamic>?;
 
       if (linkedStudents == null || linkedStudents.isEmpty) {
-        print('⚠️ ParentService: No linked students found in parent document');
         return [];
       }
 
-      print(
-        '📋 ParentService: Found ${linkedStudents.length} linked student(s)',
-      );
 
       // ✅ OPTIMIZATION: Fetch all students in parallel instead of sequentially
       final studentFutures = linkedStudents.map((studentInfo) async {
         var studentId = studentInfo['id'] as String?;
         if (studentId == null) {
-          print('  ⚠️ Student info has no id field: $studentInfo');
           return null;
         }
 
         // Trim whitespace and ensure clean ID
         studentId = studentId.trim();
-        print('  🔍 Fetching student ID: "$studentId"');
 
         try {
           // Try to get student document
@@ -65,7 +57,6 @@ class ParentService {
             studentModel = StudentModel.fromFirestore(studentDoc);
           } else {
             // Fallback: try querying by uid field
-            print('  ℹ️ Trying uid field query for: $studentId');
             final querySnapshot = await _firestore
                 .collection('students')
                 .where('uid', isEqualTo: studentId)
@@ -76,7 +67,6 @@ class ParentService {
               studentModel = StudentModel.fromFirestore(
                 querySnapshot.docs.first,
               );
-              print('  ✅ Found via uid query');
             }
           }
 
@@ -119,13 +109,10 @@ class ParentService {
                   hydratedStudent = hydratedStudent.copyWith(
                     rewardPoints: totalPoints,
                   );
-                  print('  💰 Calculated rewardPoints: $totalPoints');
                 }
               } catch (e) {
-                print('  ⚠️ Aggregate query failed, using fallback: $e');
               }
             } catch (e) {
-              print('  ⚠️ Could not fetch rewardPoints: $e');
             }
 
             // Apply fallback data from linkedStudents
@@ -155,11 +142,9 @@ class ParentService {
               );
             }
 
-            print('  ✅ Loaded student: ${hydratedStudent.name}');
             return hydratedStudent;
           } else {
             // Create placeholder from linkedStudents data
-            print('  ℹ️ Creating placeholder for: ${studentInfo['name']}');
             return StudentModel(
               uid: studentId,
               name: (studentInfo['name'] as String?) ?? 'Unknown Student',
@@ -173,7 +158,6 @@ class ParentService {
             );
           }
         } catch (e) {
-          print('  ❌ Error fetching student $studentId: $e');
           return null;
         }
       }).toList();
@@ -182,10 +166,8 @@ class ParentService {
       final studentResults = await Future.wait(studentFutures);
       final children = studentResults.whereType<StudentModel>().toList();
 
-      print('✅ ParentService: Successfully loaded ${children.length} children');
       return children;
     } catch (e) {
-      print('❌ ParentService Error fetching children: $e');
       return [];
     }
   }
@@ -230,14 +212,12 @@ class ParentService {
               children.add(StudentModel.fromFirestore(studentDoc));
             }
           } catch (e) {
-            print('Error fetching student $studentId: $e');
           }
         }
       }
 
       yield children;
     } catch (e) {
-      print('Error in children stream: $e');
       yield [];
     }
   }
@@ -245,7 +225,6 @@ class ParentService {
   /// Get student's test results with detailed information
   Future<List<TestResultModel>> getStudentTestResults(String studentId) async {
     try {
-      print('🔍 Fetching test results for studentId: $studentId');
 
       final querySnapshot = await _firestore
           .collection('testResults')
@@ -253,18 +232,13 @@ class ParentService {
           .orderBy('completedAt', descending: true)
           .get();
 
-      print('📊 Found ${querySnapshot.docs.length} test result documents');
 
       final results = querySnapshot.docs.map((doc) {
-        print(
-          '  - Test: ${doc.data()['testTitle']}, Status: ${doc.data()['status']}, Score: ${doc.data()['score']}',
-        );
         return TestResultModel.fromFirestore(doc);
       }).toList();
 
       return results;
     } catch (e) {
-      print('❌ Error fetching test results: $e');
       return [];
     }
   }
@@ -291,12 +265,10 @@ class ParentService {
           .where('testId', isEqualTo: testId)
           .get();
       if (qs.docs.isEmpty) {
-        print('⚠️ No test results found for testId: $testId');
         return null;
       }
       double sum = 0;
       int count = 0;
-      print('📊 Computing class average for testId: $testId');
       for (final d in qs.docs) {
         final data = d.data();
         final totalQ = (data['totalQuestions'] ?? 0) as int;
@@ -307,19 +279,12 @@ class ParentService {
         } else {
           pct = (data['score'] ?? 0).toDouble();
         }
-        print(
-          '  Student: ${data['studentName']} - Score: ${pct.toStringAsFixed(1)}%',
-        );
         sum += pct;
         count++;
       }
       final average = count > 0 ? (sum / count) : null;
-      print(
-        '✅ Class average: ${average?.toStringAsFixed(1)}% (from $count students)',
-      );
       return average;
     } catch (e) {
-      print('❌ Error computing class average for $testId: $e');
       return null;
     }
   }
@@ -350,7 +315,6 @@ class ParentService {
       }
       return highest;
     } catch (e) {
-      print('❌ Error getting highest score for $testId: $e');
       return null;
     }
   }
@@ -364,7 +328,6 @@ class ParentService {
       final userDoc = await _firestore.collection('users').doc(studentId).get();
 
       if (!userDoc.exists) {
-        print('❌ User document not found: $studentId');
         return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
       }
 
@@ -373,7 +336,6 @@ class ParentService {
       final schoolCode = userData?['schoolCode'] as String?;
 
       if (className == null || schoolCode == null || schoolCode.isEmpty) {
-        print('❌ Missing className or schoolCode for student: $studentId');
         return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
       }
 
@@ -384,13 +346,9 @@ class ParentService {
       final section = sectionMatch?.group(1);
 
       if (grade == null) {
-        print('❌ Could not parse grade from className: $className');
         return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
       }
 
-      print(
-        '🔍 Fetching attendance breakdown for student $studentId, grade: $grade, section: $section, schoolCode: $schoolCode',
-      );
 
       // Query attendance records
       var query = _firestore
@@ -432,9 +390,6 @@ class ParentService {
       }
 
       final total = present + absent + late;
-      print(
-        '✅ Attendance breakdown: Present=$present, Absent=$absent, Late=$late, Total=$total',
-      );
 
       return {
         'present': present,
@@ -443,7 +398,6 @@ class ParentService {
         'total': total,
       };
     } catch (e) {
-      print('❌ Error fetching attendance breakdown: $e');
       return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
     }
   }
@@ -457,18 +411,13 @@ class ParentService {
       final total = breakdown['total'] ?? 0;
 
       if (total == 0) {
-        print('⚠️ No attendance records found for student $studentId');
         return 0.0;
       }
 
       final attendancePercentage = (present / total * 100).clamp(0.0, 100.0);
-      print(
-        '✅ Calculated attendance: $present/$total = ${attendancePercentage.toStringAsFixed(1)}%',
-      );
 
       return attendancePercentage;
     } catch (e) {
-      print('❌ Error fetching attendance: $e');
       return 0.0;
     }
   }
@@ -488,7 +437,6 @@ class ParentService {
           .map((doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id))
           .toList();
     } catch (e) {
-      print('❌ Error fetching reward requests: $e');
       return [];
     }
   }
@@ -581,7 +529,6 @@ class ParentService {
       // Limit to a reasonable number
       return results.take(20).toList();
     } catch (e) {
-      print('❌ Error fetching announcements: $e');
       return [];
     }
   }
@@ -651,7 +598,6 @@ class ParentService {
             allDocs[doc.id] = {'id': doc.id, ...data};
           }
         } catch (e) {
-          print('❌ Error fetching class announcements for $className: $e');
         }
 
         // Section-level announcements
@@ -671,9 +617,6 @@ class ParentService {
               allDocs[doc.id] = {'id': doc.id, ...data};
             }
           } catch (e) {
-            print(
-              '❌ Error fetching section announcements for $className-$section: $e',
-            );
           }
         }
       }
@@ -695,7 +638,6 @@ class ParentService {
 
       return results.take(50).toList();
     } catch (e) {
-      print('❌ Error fetching parent announcements: $e');
       return [];
     }
   }
@@ -823,13 +765,11 @@ class ParentService {
                     emitMerged();
                   },
                   onError: (e) {
-                    print('❌ Error in class announcements stream: $e');
                   },
                 );
 
                 subs.add(classSub);
               } catch (e) {
-                print('❌ Error subscribing to class announcements: $e');
               }
 
               if (section.isNotEmpty) {
@@ -855,19 +795,16 @@ class ParentService {
                       emitMerged();
                     },
                     onError: (e) {
-                      print('❌ Error in section announcements stream: $e');
                     },
                   );
 
                   subs.add(sectionSub);
                 } catch (e) {
-                  print('❌ Error subscribing to section announcements: $e');
                 }
               }
             }
           },
           onError: (e) {
-            print('❌ Error listening to parent doc: $e');
             controller.add([]);
           },
         );
@@ -932,10 +869,8 @@ class ParentService {
           .doc(requestId)
           .update(updateData);
 
-      print('✅ Reward request $status: $requestId');
       return true;
     } catch (e) {
-      print('❌ Error updating reward request: $e');
       return false;
     }
   }
@@ -957,7 +892,6 @@ class ParentService {
         return {'id': doc.id, ...data};
       }).toList();
     } catch (e) {
-      print('❌ Error fetching reward history: $e');
       return [];
     }
   }
@@ -1016,7 +950,6 @@ class ParentService {
         'pendingTests': pendingQuery.docs.length,
       };
     } catch (e) {
-      print('❌ Error calculating performance stats: $e');
       return {
         'totalTests': 0,
         'averageScore': 0.0,
@@ -1044,7 +977,6 @@ class ParentService {
         return {'id': doc.id, ...data};
       }).toList();
     } catch (e) {
-      print('❌ Error fetching conversations: $e');
       return [];
     }
   }
@@ -1138,7 +1070,6 @@ class ParentService {
 
       return upcomingTests;
     } catch (e) {
-      print('❌ Error fetching upcoming tests: $e');
       return [];
     }
   }

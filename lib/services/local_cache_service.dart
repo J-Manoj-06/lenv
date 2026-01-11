@@ -46,9 +46,7 @@ class LocalCacheService {
       _mediaMetadataBox = await Hive.openBox<Map>(_mediaMetadataBoxName);
 
       _initialized = true;
-      print('✅ LocalCacheService initialized');
     } catch (e) {
-      print('❌ Failed to initialize LocalCacheService: $e');
       rethrow;
     }
   }
@@ -78,7 +76,6 @@ class LocalCacheService {
         'schoolCode': _sessionBox.get('schoolCode') ?? '',
       };
     } catch (e) {
-      print('Error getting user session: $e');
       return null;
     }
   }
@@ -93,9 +90,7 @@ class LocalCacheService {
         _unreadCountsBox.clear(),
         _mediaMetadataBox.clear(),
       ]);
-      print('✅ User data cleared from cache');
     } catch (e) {
-      print('❌ Failed to clear user data: $e');
       rethrow;
     }
   }
@@ -114,7 +109,6 @@ class LocalCacheService {
         'count': messages.length,
       });
     } catch (e) {
-      print('Error caching messages: $e');
     }
   }
 
@@ -129,7 +123,6 @@ class LocalCacheService {
 
       return List<Map<String, dynamic>>.from(messages);
     } catch (e) {
-      print('Error getting cached messages: $e');
       return null;
     }
   }
@@ -162,7 +155,6 @@ class LocalCacheService {
       metadata['cachedAt'] = DateTime.now().toIso8601String();
       await _mediaMetadataBox.put(mediaId, metadata);
     } catch (e) {
-      print('Error caching media metadata: $e');
     }
   }
 
@@ -173,7 +165,6 @@ class LocalCacheService {
       if (cached == null) return null;
       return Map<String, dynamic>.from(cached);
     } catch (e) {
-      print('Error getting cached media metadata: $e');
       return null;
     }
   }
@@ -186,7 +177,6 @@ class LocalCacheService {
     try {
       await _unreadCountsBox.put(conversationId, count);
     } catch (e) {
-      print('Error updating unread count: $e');
     }
   }
 
@@ -212,7 +202,6 @@ class LocalCacheService {
       // Note: For large files, consider using CacheManager instead
       // This is for small files only (< 5MB)
       if (fileBytes.length > 5 * 1024 * 1024) {
-        print('⚠️ File too large for local cache: ${fileBytes.length} bytes');
         return;
       }
 
@@ -224,7 +213,6 @@ class LocalCacheService {
         // Don't store actual bytes in Hive - use CacheManager instead
       });
     } catch (e) {
-      print('Error caching media file: $e');
     }
   }
 
@@ -251,7 +239,6 @@ class LocalCacheService {
       await _messagesBox.delete(conversationId);
       await _unreadCountsBox.delete(conversationId);
     } catch (e) {
-      print('Error deleting conversation cache: $e');
     }
   }
 
@@ -261,7 +248,6 @@ class LocalCacheService {
       await _mediaBox.delete(mediaId);
       await _mediaMetadataBox.delete(mediaId);
     } catch (e) {
-      print('Error deleting media cache: $e');
     }
   }
 }

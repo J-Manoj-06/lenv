@@ -203,7 +203,6 @@ class TeacherService {
           .map((doc) => {'id': doc.id, ...doc.data()})
           .toList();
     } catch (e) {
-      print('Error fetching attendance records: $e');
       return [];
     }
   }
@@ -222,7 +221,6 @@ class TeacherService {
       final grade = gradeMatch?.group(1);
 
       if (grade == null) {
-        print('⚠️ Could not parse grade from className: $className');
         return 0;
       }
 
@@ -263,7 +261,6 @@ class TeacherService {
       final percentage = ((presentDays / totalDays) * 100).round();
       return percentage.clamp(0, 100);
     } catch (e) {
-      print('Error calculating attendance: $e');
       return 0;
     }
   }
@@ -282,7 +279,6 @@ class TeacherService {
         return await getStudentsByTeacher(schoolId, classesHandled, sections);
       }
 
-      print('📚 Fetching students for subjects: $subjectsHandled');
 
       final students = await getStudentsByTeacher(
         schoolId,
@@ -320,7 +316,6 @@ class TeacherService {
         'sections': sections ?? 'N/A',
       };
     } catch (e) {
-      print('❌ Error calculating class summary: $e');
       return {
         'totalStudents': 0,
         'activeStudents': 0,
@@ -408,7 +403,6 @@ class TeacherService {
     }
 
     final result = uniqueClasses.toList()..sort();
-    print('✅ Parsed classes: $result');
     return result;
   }
 
@@ -512,7 +506,6 @@ class TeacherService {
             return allStudents;
           });
     } catch (e) {
-      print('❌ Error in getStudentsStream: $e');
       return Stream.value([]);
     }
   }

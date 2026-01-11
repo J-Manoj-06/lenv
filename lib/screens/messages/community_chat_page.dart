@@ -154,7 +154,6 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         await unread.markChatAsRead(widget.communityId);
       }
     } catch (e) {
-      print('Error marking as read: $e');
     }
   }
 

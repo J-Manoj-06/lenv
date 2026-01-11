@@ -46,7 +46,6 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
 
       _teacherId = currentUser.uid;
 
-      print('🔍 Looking for classes where teacher $_teacherId is assigned');
 
       // Query all classes where this teacher teaches any subject
       final classesSnapshot = await _firestore.collection('classes').get();
@@ -74,9 +73,6 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
                 'teacherName': teacherData['teacherName'] ?? 'Teacher',
                 'schoolCode': classData['schoolCode'] ?? '',
               });
-              print(
-                '✅ Found group: ${classData['className']} - ${classData['section']} - $subject',
-              );
             }
           }
         });
@@ -91,14 +87,12 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
         return a['subject'].compareTo(b['subject']);
       });
 
-      print('📊 Total groups found: ${groups.length}');
 
       setState(() {
         _teacherGroups = groups;
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ Error loading teacher groups: $e');
       setState(() {
         _errorMessage = 'Error loading groups: $e';
         _isLoading = false;

@@ -30,11 +30,9 @@ class TeacherGroupsService {
     try {
       // Return cached data if valid
       if (_isCacheValid(teacherId)) {
-        print('📦 Using cached teacher_groups data');
         return _cachedTeacherGroups;
       }
 
-      print('🔍 Fetching teacher_groups for: $teacherId');
 
       final doc = await _firestore
           .collection('teacher_groups')
@@ -42,7 +40,6 @@ class TeacherGroupsService {
           .get();
 
       if (!doc.exists || doc.data() == null) {
-        print('⚠️ teacher_groups document not found for teacher: $teacherId');
         return null;
       }
 
@@ -53,10 +50,8 @@ class TeacherGroupsService {
       _cacheTimestamp = DateTime.now();
       _cachedTeacherId = teacherId;
 
-      print('✅ Fetched ${(data['groupIds'] as List?)?.length ?? 0} groups');
       return data;
     } catch (e) {
-      print('❌ Error fetching teacher_groups: $e');
       return null;
     }
   }
@@ -94,9 +89,7 @@ class TeacherGroupsService {
         _cachedTeacherGroups!['unreadCounts'] = unreadCounts;
       }
 
-      print('✅ Marked group as read: $groupId');
     } catch (e) {
-      print('❌ Error marking group as read: $e');
     }
   }
 
@@ -114,9 +107,7 @@ class TeacherGroupsService {
         clearCache();
       }
 
-      print('✅ Incremented unread count for group: $groupId');
     } catch (e) {
-      print('❌ Error incrementing unread count: $e');
     }
   }
 
@@ -176,7 +167,6 @@ class TeacherGroupsService {
   /// This should ideally be done server-side
   Future<bool> rebuildTeacherGroupsIndex(String teacherId) async {
     try {
-      print('🔄 Rebuilding teacher_groups index for: $teacherId');
 
       // Scan classes to find teacher's subjects
       final classesSnapshot = await _firestore.collection('classes').get();
@@ -228,10 +218,8 @@ class TeacherGroupsService {
       // Clear cache to force refresh
       clearCache();
 
-      print('✅ Rebuilt teacher_groups index: ${classes.length} groups');
       return true;
     } catch (e) {
-      print('❌ Error rebuilding teacher_groups index: $e');
       return false;
     }
   }

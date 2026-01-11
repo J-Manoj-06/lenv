@@ -566,7 +566,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
       return null;
     } catch (e) {
-      debugPrint('❌ Error loading announcement avatar: $e');
       return null;
     }
   }

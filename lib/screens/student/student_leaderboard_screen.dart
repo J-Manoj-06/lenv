@@ -60,7 +60,6 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   @override
   void initState() {
     super.initState();
-    print('🏁 StudentLeaderboardScreen.initState() called');
     // Wait for auth to initialize before loading leaderboard data
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -161,9 +160,6 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                     child: _buildTabButton(theme, 'Overall', !_isPerTest, () {
                       if (_isPerTest) {
                         // Switching from Per-Test to Overall - recreate stream
-                        print(
-                          '🔄 Switching to Overall tab - recreating stream',
-                        );
                         setState(() {
                           _isPerTest = false;
                           _overallStream = _buildOverallStream();
@@ -1051,20 +1047,16 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   }
 
   Future<void> _initContextAndOverall() async {
-    print('🔧 _initContextAndOverall() started');
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final uid = auth.currentUser?.uid;
     final email = auth.currentUser?.email;
-    print('👤 Current user: uid=$uid, email=$email');
     if (uid == null) {
-      print('⚠️ No uid found, returning early');
       return;
     }
 
     _currentUid = uid;
 
     // Find student's school/class/section from students collection
-    print('🔍 Fetching student document from students/$uid');
     final stDoc = await FirebaseFirestore.instance
         .collection('students')
         .doc(uid)
@@ -1072,9 +1064,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     Map<String, dynamic>? st;
     if (stDoc.exists) {
       st = stDoc.data();
-      print('✅ Found student doc by uid');
     } else if (email != null) {
-      print('⚠️ Student doc not found by uid, trying email query...');
       final q = await FirebaseFirestore.instance
           .collection('students')
           .where('email', isEqualTo: email)
@@ -1082,9 +1072,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           .get();
       if (q.docs.isNotEmpty) {
         st = q.docs.first.data();
-        print('✅ Found student doc by email');
       } else {
-        print('❌ Student doc not found by email either');
       }
     }
 
@@ -1097,18 +1085,12 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     if (_className != null && _className!.isEmpty) _className = null;
     if (_section != null && _section!.isEmpty) _section = null;
 
-    print(
-      '📍 Leaderboard context: school=$_schoolCode, class=$_className, section=$_section',
-    );
 
     if (_schoolCode != null && _className != null) {
       setState(() {
         _overallStream = _buildOverallStream();
       });
     } else {
-      print(
-        '⚠️ Missing required context for leaderboard: school=$_schoolCode, class=$_className',
-      );
     }
   }
 
@@ -1154,7 +1136,6 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
             _myTests.add(test);
           }
         } catch (e) {
-          print('❌ Error converting test ${doc.id}: $e');
         }
       }
     }
@@ -1168,9 +1149,6 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
 
     // ✅ OPTIMIZATION: Use cached stream with instant display + real-time updates
     // Emits cached data immediately (0s) then listens for real-time updates
-    print(
-      '🔄 Building overall leaderboard stream for school: $_schoolCode, class: $_className',
-    );
 
     return _leaderboardService.getOverallLeaderboardStreamForClass(
       schoolCode: _schoolCode!,

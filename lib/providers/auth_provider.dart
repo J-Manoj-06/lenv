@@ -36,12 +36,8 @@ class AuthProvider with ChangeNotifier {
       if (firebaseUser != null) {
         // User is already logged in, load their data
         _currentUser = await _authService.getUserData(firebaseUser.uid);
-        print(
-          '✅ Auth initialized: ${_currentUser?.name} (${_currentUser?.role})',
-        );
       }
     } catch (e) {
-      print('⚠️ Error initializing auth: $e');
       _errorMessage = e.toString();
     } finally {
       _initialized = true;
@@ -112,7 +108,6 @@ class AuthProvider with ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
-      print('✅ All local data cleared from SharedPreferences');
 
       // Sign out from Firebase
       await _authService.signOut();
@@ -125,9 +120,7 @@ class AuthProvider with ChangeNotifier {
 
       notifyListeners();
 
-      print('✅ User signed out successfully');
     } catch (e) {
-      print('❌ Error during sign out: $e');
       _errorMessage = e.toString();
       notifyListeners();
     }

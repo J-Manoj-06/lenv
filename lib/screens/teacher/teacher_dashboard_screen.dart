@@ -61,7 +61,6 @@ class TeacherDashboardScreen extends StatelessWidget {
     try {
       await FirestoreService().migrateLegacyTestResultsStudentIds();
     } catch (e) {
-      print('⚠️ Migration error: $e');
     }
   }
 
@@ -159,7 +158,6 @@ class TeacherDashboardScreen extends StatelessWidget {
         _isLoading = false;
       });
     } catch (e) {
-      print('� Error loading teacher data: $e');
       setState(() {
         _error = 'Failed to load data: $e';
         _isLoading = false;

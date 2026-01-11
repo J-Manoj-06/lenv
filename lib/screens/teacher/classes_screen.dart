@@ -79,7 +79,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
         _error = null;
       });
     } catch (e) {
-      print('❌ Error loading teacher data: $e');
       setState(() {
         _error = 'Failed to load teacher data: $e';
       });
@@ -220,8 +219,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
             .trim() ??
         '';
 
-    print('📚 Building class items from ${allStudents.length} total students');
-    print('📚 Class names to process: $_classNames');
 
     for (var className in _classNames) {
       // Extract section from className (e.g., "5 - A" -> "A")
@@ -229,9 +226,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
       // Extract grade from className (e.g., "7 - A" -> "7")
       final gradeNum = className.split(' - ').first.trim();
 
-      print(
-        '📚 Processing class: $className (Grade: $gradeNum, Section: $section)',
-      );
 
       // Filter students for THIS specific section
       final studentsInSection = allStudents.where((student) {
@@ -245,15 +239,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
         final matches = studentGrade == gradeNum && studentSection == section;
 
         if (matches) {
-          print(
-            '   ✅ Matched student: ${student['studentName']} (Grade: $studentGrade, Section: $studentSection)',
-          );
         }
 
         return matches;
       }).toList();
 
-      print('   📊 Found ${studentsInSection.length} students in $className');
 
       classes.add(
         ClassItem(

@@ -112,9 +112,6 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
         return;
       }
 
-      print(
-        '🔍 Looking for class: $className, section: $section, school: $schoolCode',
-      );
 
       // Query the classes collection to find the matching class
       final classQuery = await _firestore
@@ -137,9 +134,6 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
       final classData = classDoc.data();
       classData['id'] = classDoc.id; // Add document ID
 
-      print('✅ Found class: ${classDoc.id}');
-      print('📚 Subjects: ${classData['subjects']}');
-      print('👨‍🏫 Teachers: ${classData['subjectTeachers']}');
 
       // Prime unread badges for all subjects in one batch so list shows counts
       await _prefetchUnreadCountsForSubjects(
@@ -152,7 +146,6 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ Error loading class data: $e');
       setState(() {
         _errorMessage = 'Error loading class data: $e';
         _isLoading = false;
@@ -381,7 +374,6 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
     required List<dynamic>? subjects,
   }) async {
     if (subjects == null || subjects.isEmpty) {
-      print('⚠️ No subjects to prefetch unread counts for');
       return;
     }
 
@@ -399,11 +391,7 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
       chatTypes[chatId] = ChatTypeConfig.groupChat;
     }
 
-    print(
-      '🔢 Prefetching unread counts for ${chatIds.length} subjects: ${chatIds.join(", ")}',
-    );
     await unread.loadUnreadCountsBatch(chatIds: chatIds, chatTypes: chatTypes);
-    print('✅ Unread counts prefetched');
   }
 
   Widget _buildSubjectCard(
@@ -418,9 +406,6 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
     final chatId = '$classId|$subjectId';
     final unreadCount = unread.getUnreadCount(chatId);
 
-    print(
-      '🔔 Badge check - Subject: $subject, ChatId: $chatId, Count: $unreadCount',
-    );
 
     final icon = _getSubjectIcon(subject);
     final color = _getSubjectColor(subject);
@@ -460,7 +445,6 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
             );
 
             // Force refresh unread counts when returning from chat
-            print('🔄 Returned from chat, refreshing unread counts');
             if (mounted) {
               final unreadProvider = Provider.of<UnreadCountProvider>(
                 context,

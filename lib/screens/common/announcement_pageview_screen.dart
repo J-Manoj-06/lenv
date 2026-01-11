@@ -696,12 +696,10 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       // Check if already cached
       final localPath = await _mediaRepository.getLocalFilePath(r2Key);
       if (localPath != null) {
-        debugPrint('✅ Announcement image cached: $fileName');
         return localPath;
       }
 
       // Download and cache
-      debugPrint('📥 Downloading announcement image: $fileName');
       final result = await _mediaRepository.downloadMedia(
         r2Key: r2Key,
         fileName: fileName,
@@ -709,14 +707,11 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       );
 
       if (result.success && result.localPath != null) {
-        debugPrint('✅ Announcement image downloaded and cached: $fileName');
         return result.localPath;
       }
 
-      debugPrint('❌ Failed to download announcement image: ${result.message}');
       return null;
     } catch (e) {
-      debugPrint('❌ Error loading announcement image: $e');
       return null;
     }
   }

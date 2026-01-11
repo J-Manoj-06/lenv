@@ -251,9 +251,6 @@ class AITestService {
       final jitter = _random.nextInt(1000); // 0-1000ms jitter
       final totalDelay = delay.inMilliseconds + jitter;
 
-      print(
-        'Retry attempt ${attempt + 1}/${AITestConfig.maxRetries} after ${totalDelay}ms',
-      );
 
       await Future.delayed(Duration(milliseconds: totalDelay));
 
@@ -286,11 +283,6 @@ class AITestService {
         'max_tokens': AITestConfig.maxTokens,
       });
 
-      print('🤖 Calling AI: ${AITestConfig.apiEndpoint}');
-      print(
-        '📝 Mode: ${AITestConfig.useDirectAPI ? "Direct API (Testing)" : "Firebase Function (Production)"}',
-      );
-      print('📝 Using model: ${AITestConfig.model}');
 
       final response = await _client
           .post(

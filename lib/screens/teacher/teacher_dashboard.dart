@@ -89,17 +89,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 await r2Service.deleteFile(key: r2Key);
               }
             } catch (e) {
-              print('⚠️ Failed to delete expired image from R2: $e');
             }
           }
 
           batch.delete(doc.reference);
         }
         await batch.commit();
-        print('🗑️ Deleted ${expiredHighlights.length} expired announcements');
       }
     } catch (e) {
-      print('Error in _cleanupExpiredHighlights: $e');
       // silent best-effort
     }
   }
@@ -137,19 +134,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 await r2Service.deleteFile(key: r2Key);
               }
             } catch (e) {
-              print('⚠️ Failed to delete expired principal image from R2: $e');
             }
           }
 
           batch.delete(doc.reference);
         }
         await batch.commit();
-        print(
-          '🗑️ Deleted ${announcementsQs.docs.length} expired principal announcements',
-        );
       }
     } catch (e) {
-      print('Error in _cleanupExpiredPrincipalAnnouncements: $e');
       // silent best-effort
     }
   }
@@ -285,7 +277,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       // Fetch students in background after UI is shown
       _fetchStudentsInBackground(user, teacherData, sections, classes);
     } catch (e) {
-      print('Error loading teacher data: $e');
       setState(() {
         _error = 'Failed to load data';
         _isLoading = false;
@@ -383,7 +374,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         }
       });
     } catch (e) {
-      print('Error fetching students: $e');
       // Don't show error, just leave students empty
     }
   }
@@ -946,7 +936,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         );
       });
     } catch (e) {
-      print('Error loading section group unread count: $e');
       setState(() => _sectionGroupUnreadCount = 0);
     }
   }
@@ -1546,7 +1535,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
       return null;
     } catch (e) {
-      debugPrint('❌ Error loading announcement image: $e');
       return null;
     }
   }
@@ -1934,32 +1922,22 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           });
 
       // Debug log for visibility badge issues
-      print(
-        '👀 Marked principal announcement $announcementId as viewed by $userId',
-      );
     } catch (e) {
-      print('Error in _markPrincipalAnnouncementAsViewed: $e');
     }
   }
 
   /// Delete an announcement (including image from Cloudflare R2)
   Future<void> _deleteAnnouncement(_AnnouncementItem item) async {
     try {
-      print('🗑️ ========== DELETE PROCESS STARTED ==========');
-      print('🗑️ Announcement ID: ${item.id}');
-      print('🗑️ Announcement Type: ${item.type}');
 
       // Check if user is the creator
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
 
-      print('🔐 Permission Check - Current User: $currentUserId');
 
       if (item.type == 'teacher') {
         final status = item.data as StatusModel;
-        print('🔐 Creator (Teacher): ${status.teacherId}');
         if (status.teacherId != currentUserId) {
-          print('❌ Permission Denied - User is not the creator');
           showErrorSnackbar(
             context,
             'You can only delete your own announcements.',
@@ -1969,9 +1947,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         }
       } else if (item.type == 'principal') {
         final principal = item.data as InstituteAnnouncementModel;
-        print('🔐 Creator (Principal): ${principal.principalId}');
         if (principal.principalId != currentUserId) {
-          print('❌ Permission Denied - User is not the creator');
           showErrorSnackbar(
             context,
             'You can only delete your own announcements.',
@@ -1981,7 +1957,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         }
       }
 
-      print('✅ Permission Check Passed');
 
       // Show confirmation dialog
       final confirmed = await showDialog<bool>(
@@ -1994,14 +1969,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                print('❌ Delete cancelled by user');
                 Navigator.pop(ctx, false);
               },
               child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () {
-                print('✅ Delete confirmed by user');
                 Navigator.pop(ctx, true);
               },
               style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -2012,11 +1985,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       );
 
       if (confirmed != true) {
-        print('Delete was not confirmed');
         return;
       }
 
-      print('📝 ========== STARTING FIRESTORE & R2 DELETION ==========');
 
       try {
         String? imageUrl;
@@ -2030,47 +2001,35 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           imageUrl = status.imageUrl;
           role = 'teacher';
 
-          print('📌 Deleting Teacher Announcement');
-          print('   DocID: $docId');
-          print('   ImageURL: ${imageUrl ?? "(no image)"}');
 
           // Delete from Firestore
           await FirebaseFirestore.instance
               .collection('class_highlights')
               .doc(docId)
               .delete();
-          print('✅ Firestore document deleted successfully');
         } else if (item.type == 'principal') {
           final principal = item.data as InstituteAnnouncementModel;
           docId = principal.id;
           imageUrl = principal.imageUrl;
           role = 'principal';
 
-          print('📌 Deleting Principal Announcement');
-          print('   DocID: $docId');
-          print('   ImageURL: ${imageUrl ?? "(no image)"}');
 
           // Delete from Firestore
           await FirebaseFirestore.instance
               .collection('institute_announcements')
               .doc(docId)
               .delete();
-          print('✅ Firestore document deleted successfully');
         } else {
           throw Exception('Unknown announcement type: ${item.type}');
         }
 
         // Delete image from Cloudflare R2 if it exists
         if (imageUrl != null && imageUrl.isNotEmpty) {
-          print('🖼️ Processing image deletion from R2');
-          print('   Original URL: $imageUrl');
 
           try {
             final r2Key = _extractR2KeyFromUrl(imageUrl);
-            print('📝 Extracted R2 key: "$r2Key"');
 
             if (r2Key.isNotEmpty) {
-              print('🗑️ Attempting R2 deletion with key: $r2Key');
 
               final r2Service = CloudflareR2Service(
                 accountId: CloudflareConfig.accountId,
@@ -2081,22 +2040,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               );
 
               await r2Service.deleteFile(key: r2Key);
-              print('✅ Image deleted from R2 successfully');
             } else {
-              print(
-                '⚠️ R2 key extraction resulted in empty string, skipping R2 delete',
-              );
             }
           } catch (r2Error) {
-            print('❌ R2 Deletion Error: $r2Error');
-            print('⚠️ Continuing with process - Firestore already deleted');
             // Continue anyway - metadata is already deleted
           }
         } else {
-          print('ℹ️ No image URL provided, skipping R2 deletion');
         }
 
-        print('✅ ========== DELETE COMPLETED SUCCESSFULLY ==========');
 
         if (mounted) {
           showSuccessSnackbar(
@@ -2104,18 +2055,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             'Announcement deleted successfully.',
             role: role,
           );
-          print('📢 Success message shown to user');
 
           // Close the viewer
           if (Navigator.of(context).canPop()) {
-            print('🔙 Closing announcement viewer');
             Navigator.pop(context);
           }
         }
       } catch (e) {
-        print('❌ ========== ERROR DURING DELETION ==========');
-        print('Error: $e');
-        print('Stack trace: ${e.toString()}');
 
         if (mounted) {
           showErrorSnackbar(
@@ -2126,9 +2072,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         }
       }
     } catch (e) {
-      print('❌ ========== OUTER ERROR IN DELETE ANNOUNCEMENT ==========');
-      print('Unexpected Error: $e');
-      print('Stack trace: ${e.toString()}');
     }
   }
 
@@ -2139,23 +2082,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     try {
       // Validate input
       if (url == null || url.isEmpty) {
-        print('⚠️ Empty or null URL provided to _extractR2KeyFromUrl');
         return '';
       }
 
       // Remove any whitespace
       url = url.trim();
-      print('🔍 Extracting R2 key from URL: $url');
 
       // If URL doesn't start with http, it might already be a key
       if (!url.startsWith('http')) {
-        print('📝 URL is not HTTP format, treating as key: $url');
         return url;
       }
 
       // Handle full URLs with files.lenv1.tech domain
       if (url.contains('files.lenv1.tech')) {
-        print('📌 Detected full URL format');
         try {
           final uri = Uri.parse(url);
           var path = uri.path;
@@ -2166,20 +2105,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           }
 
           if (path.isNotEmpty) {
-            print('✅ Extracted key from full URL: $path');
             return path;
           }
         } catch (parseError) {
-          print(
-            '⚠️ URI parsing failed, using string manipulation: $parseError',
-          );
 
           // Fallback: extract using string split
           final parts = url.split('files.lenv1.tech/');
           if (parts.length > 1) {
             final key = parts[1];
             if (key.isNotEmpty) {
-              print('✅ Extracted key using string split: $key');
               return key;
             }
           }
@@ -2195,18 +2129,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           }
 
           if (path.isNotEmpty) {
-            print('✅ Extracted path from URL: $path');
             return path;
           }
         } catch (parseError) {
-          print('⚠️ Failed to parse URL: $parseError');
         }
       }
 
-      print('⚠️ Could not extract key from URL: $url');
       return '';
     } catch (e) {
-      print('❌ Exception in _extractR2KeyFromUrl: $e');
       return '';
     }
   }
@@ -3396,7 +3326,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         );
       } catch (e) {
         // ignore: avoid_print
-        print('❌ Storage upload error: $e');
         rethrow;
       }
     }
@@ -3426,12 +3355,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     };
 
     // Debug: Print what's being saved
-    print('📢 TEACHER DEBUG: Posting announcement with:');
-    print('   instituteId: "$instituteId"');
-    print('   audienceType: "$audienceType"');
-    print('   standards: $standards');
-    print('   sections: $sections');
-    print('   text: "${text ?? ''}"');
 
     await FirebaseFirestore.instance.collection('class_highlights').add(data);
   }
