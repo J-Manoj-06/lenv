@@ -256,10 +256,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
         if (_showUnreadDivider && showDivider && unreadDividerIndex == index) {}
 
-        final msgKey = _messageKeys.putIfAbsent(
-          message.id,
-          () => GlobalKey(),
-        );
+        final msgKey = _messageKeys.putIfAbsent(message.id, () => GlobalKey());
         final isHighlighted = _highlightMessageId == message.id;
         final highlightColor = isDark
             ? theme.colorScheme.primary.withOpacity(0.16)
@@ -275,10 +272,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
             if (showDayDivider) _buildDayDivider(currentDate),
             TweenAnimationBuilder<double>(
               key: msgKey,
-              tween: Tween<double>(
-                begin: 0,
-                end: isHighlighted ? 1 : 0,
-              ),
+              tween: Tween<double>(begin: 0, end: isHighlighted ? 1 : 0),
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeInOut,
               builder: (context, value, child) {
@@ -642,20 +636,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     Navigator.of(context)
         .push<GroupChatMessage?>(
-      MaterialPageRoute(
-        builder: (_) => GroupMessageSearchScreen(
-          classId: widget.classId,
-          subjectId: widget.subjectId,
-          messagingService: _messagingService,
-          currentUserId: currentUser.uid,
-        ),
-      ),
-    )
+          MaterialPageRoute(
+            builder: (_) => GroupMessageSearchScreen(
+              classId: widget.classId,
+              subjectId: widget.subjectId,
+              messagingService: _messagingService,
+              currentUserId: currentUser.uid,
+            ),
+          ),
+        )
         .then((selected) {
-      if (selected != null) {
-        _locateMessageInList(selected);
-      }
-    });
+          if (selected != null) {
+            _locateMessageInList(selected);
+          }
+        });
   }
 
   Future<void> _pickAndSendImage() async {

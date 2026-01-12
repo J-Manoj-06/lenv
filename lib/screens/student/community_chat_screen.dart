@@ -1643,19 +1643,19 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
     Navigator.of(context)
         .push<CommunityMessageModel?>(
-      MaterialPageRoute(
-        builder: (_) => StudentCommunityMessageSearchScreen(
-          communityId: widget.community.id,
-          communityService: _communityService,
-          currentUserId: student.uid,
-        ),
-      ),
-    )
+          MaterialPageRoute(
+            builder: (_) => StudentCommunityMessageSearchScreen(
+              communityId: widget.community.id,
+              communityService: _communityService,
+              currentUserId: student.uid,
+            ),
+          ),
+        )
         .then((selected) {
-      if (selected != null) {
-        _locateMessage(selected);
-      }
-    });
+          if (selected != null) {
+            _locateMessage(selected);
+          }
+        });
   }
 
   Widget _buildMessageInput() {
@@ -2066,8 +2066,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
 
                     final currentIds = combined.map((m) => m.messageId).toSet();
                     _visibleMessageIds = currentIds;
-                    _messageKeys
-                        .removeWhere((key, _) => !currentIds.contains(key));
+                    _messageKeys.removeWhere(
+                      (key, _) => !currentIds.contains(key),
+                    );
 
                     return ListView.builder(
                       controller: _scrollController,
@@ -2134,8 +2135,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                               curve: Curves.easeInOut,
                               builder: (context, value, child) {
                                 return AnimatedContainer(
-                                  duration:
-                                      const Duration(milliseconds: 180),
+                                  duration: const Duration(milliseconds: 180),
                                   curve: Curves.easeOut,
                                   decoration: BoxDecoration(
                                     color: Color.lerp(
