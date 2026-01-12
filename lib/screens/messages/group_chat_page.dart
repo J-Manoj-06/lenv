@@ -84,6 +84,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final Set<String> _uploadingMessageIds = {};
   // Local media paths for the sender (so they view from disk, no re-download)
   final Map<String, String> _localSenderMediaPaths = {};
+  // Map every rendered message to a GlobalKey for precise scrolling/highlight
+  final Map<String, GlobalKey> _messageKeys = {};
+  Set<String> _visibleMessageIds = {};
+  String? _highlightMessageId;
+  Timer? _highlightResetTimer;
   // Stream lastReadAt dynamically for real-time splitter updates
   late Stream<Timestamp?> _lastReadAtStream;
   bool _initializedFirstSnapshot = false;
@@ -168,6 +173,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
     String? currentUserId, {
     bool showDivider = true,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Track which messages are currently visible so we can scroll/highlight safely
+    final currentIds = messages.map((m) => m.id).toSet();
+    _visibleMessageIds = currentIds;
+    _messageKeys.removeWhere((key, _) => !currentIds.contains(key));
+
     // Pre-compute a single divider position: the first read message after unread ones
     // BUT: only show divider if there are unread messages from OTHER users (not self)
     int? unreadDividerIndex;
@@ -243,6 +256,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
         if (_showUnreadDivider && showDivider && unreadDividerIndex == index) {}
 
+        final msgKey = _messageKeys.putIfAbsent(
+          message.id,
+          () => GlobalKey(),
+        );
+        final isHighlighted = _highlightMessageId == message.id;
+        final highlightColor = isDark
+            ? theme.colorScheme.primary.withOpacity(0.16)
+            : theme.colorScheme.primary.withOpacity(0.12);
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -251,59 +273,83 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 unreadDividerIndex == index)
               _buildUnreadDivider(),
             if (showDayDivider) _buildDayDivider(currentDate),
-            GestureDetector(
-              key: ValueKey('msg-${message.id}'),
-              onLongPress: isMe
-                  ? () {
-                      setState(() {
-                        _isSelectionMode = true;
-                        _selectedMessages.add(message.id);
-                      });
-                    }
-                  : null,
-              onTap: _isSelectionMode && isMe
-                  ? () {
-                      setState(() {
-                        if (isSelected) {
-                          _selectedMessages.remove(message.id);
-                          if (_selectedMessages.isEmpty) {
-                            _isSelectionMode = false;
-                          }
-                        } else {
-                          _selectedMessages.add(message.id);
-                        }
-                      });
-                    }
-                  : null,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _MessageBubble(
-                      message: message,
-                      isMe: isMe,
-                      uploading: isPending,
-                      uploadProgress: uploadProgress,
-                      localSenderMediaPaths: _localSenderMediaPaths,
-                      selectionMode: _isSelectionMode,
-                      uploadingMessageIds: _uploadingMessageIds,
-                      pendingUploadProgress: _pendingUploadProgress,
-                      key: ValueKey('bubble-${message.id}'),
+            TweenAnimationBuilder<double>(
+              key: msgKey,
+              tween: Tween<double>(
+                begin: 0,
+                end: isHighlighted ? 1 : 0,
+              ),
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeInOut,
+              builder: (context, value, child) {
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  decoration: BoxDecoration(
+                    color: Color.lerp(
+                      Colors.transparent,
+                      highlightColor,
+                      value,
                     ),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  if (_isSelectionMode && isMe)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Icon(
-                        isSelected
-                            ? Icons.check_circle
-                            : Icons.radio_button_unchecked,
-                        color: isSelected
-                            ? const Color(0xFFFFA929)
-                            : Colors.grey,
-                        size: 24,
+                  child: child,
+                );
+              },
+              child: GestureDetector(
+                key: ValueKey('msg-${message.id}'),
+                onLongPress: isMe
+                    ? () {
+                        setState(() {
+                          _isSelectionMode = true;
+                          _selectedMessages.add(message.id);
+                        });
+                      }
+                    : null,
+                onTap: _isSelectionMode && isMe
+                    ? () {
+                        setState(() {
+                          if (isSelected) {
+                            _selectedMessages.remove(message.id);
+                            if (_selectedMessages.isEmpty) {
+                              _isSelectionMode = false;
+                            }
+                          } else {
+                            _selectedMessages.add(message.id);
+                          }
+                        });
+                      }
+                    : null,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _MessageBubble(
+                        message: message,
+                        isMe: isMe,
+                        uploading: isPending,
+                        uploadProgress: uploadProgress,
+                        localSenderMediaPaths: _localSenderMediaPaths,
+                        selectionMode: _isSelectionMode,
+                        uploadingMessageIds: _uploadingMessageIds,
+                        pendingUploadProgress: _pendingUploadProgress,
+                        key: ValueKey('bubble-${message.id}'),
                       ),
                     ),
-                ],
+                    if (_isSelectionMode && isMe)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Icon(
+                          isSelected
+                              ? Icons.check_circle
+                              : Icons.radio_button_unchecked,
+                          color: isSelected
+                              ? const Color(0xFFFFA929)
+                              : Colors.grey,
+                          size: 24,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -468,6 +514,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
+    _highlightResetTimer?.cancel();
+    _messageKeys.clear();
     super.dispose();
   }
 
@@ -545,12 +593,55 @@ class _GroupChatPageState extends State<GroupChatPage> {
     );
   }
 
+  Future<void> _locateMessageInList(GroupChatMessage message) async {
+    final targetId = message.id;
+    if (targetId.isEmpty) return;
+
+    // Only act if the message is already present in the current window
+    if (!_visibleMessageIds.contains(targetId)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message is outside the currently loaded window'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _highlightMessageId = targetId;
+    });
+
+    // Let the frame build before scrolling
+    await Future.delayed(const Duration(milliseconds: 30));
+
+    final contextForTarget = _messageKeys[targetId]?.currentContext;
+    if (contextForTarget != null && mounted) {
+      await Scrollable.ensureVisible(
+        contextForTarget,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeInOut,
+      );
+    }
+
+    _highlightResetTimer?.cancel();
+    _highlightResetTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted && _highlightMessageId == targetId) {
+        setState(() => _highlightMessageId = null);
+      }
+    });
+  }
+
   void _openSearch() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
     if (currentUser == null) return;
 
-    Navigator.of(context).push(
+    Navigator.of(context)
+        .push<GroupChatMessage?>(
       MaterialPageRoute(
         builder: (_) => GroupMessageSearchScreen(
           classId: widget.classId,
@@ -559,7 +650,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
           currentUserId: currentUser.uid,
         ),
       ),
-    );
+    )
+        .then((selected) {
+      if (selected != null) {
+        _locateMessageInList(selected);
+      }
+    });
   }
 
   Future<void> _pickAndSendImage() async {
@@ -2679,7 +2775,8 @@ class _GroupMessageSearchScreenState extends State<GroupMessageSearchScreen> {
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () => _openMedia(message),
+                        onTap: () => Navigator.pop(context, message),
+                        onLongPress: () => _openMedia(message),
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
                           padding: const EdgeInsets.symmetric(

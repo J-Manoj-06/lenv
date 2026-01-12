@@ -63,6 +63,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   // Optimistic pending messages and per-upload progress
   final List<CommunityMessageModel> _pendingMessages = [];
   final Map<String, double> _pendingUploadProgress = {};
+  // Tracking for message location and highlight
+  final Map<String, GlobalKey> _messageKeys = {};
+  Set<String> _visibleMessageIds = {};
+  String? _highlightMessageId;
+  Timer? _highlightResetTimer;
 
   // Theme helpers
   Color get _primary => const Color(0xFFF2800D);
@@ -136,6 +141,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     _scrollController.dispose();
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
+    _highlightResetTimer?.cancel();
+    _messageKeys.clear();
     super.dispose();
   }
 
@@ -157,6 +164,46 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         _scrollController.jumpTo(0);
       }
     }
+  }
+
+  Future<void> _locateMessage(CommunityMessageModel message) async {
+    final targetId = message.messageId;
+    if (targetId.isEmpty) return;
+
+    if (!_visibleMessageIds.contains(targetId)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message is outside the currently loaded window'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _highlightMessageId = targetId;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 30));
+
+    final contextForTarget = _messageKeys[targetId]?.currentContext;
+    if (contextForTarget != null && mounted) {
+      await Scrollable.ensureVisible(
+        contextForTarget,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeInOut,
+      );
+    }
+
+    _highlightResetTimer?.cancel();
+    _highlightResetTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted && _highlightMessageId == targetId) {
+        setState(() => _highlightMessageId = null);
+      }
+    });
   }
 
   void _showMediaOptions() {
@@ -1594,7 +1641,8 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     final student = studentProvider.currentStudent;
     if (student == null) return;
 
-    Navigator.of(context).push(
+    Navigator.of(context)
+        .push<CommunityMessageModel?>(
       MaterialPageRoute(
         builder: (_) => StudentCommunityMessageSearchScreen(
           communityId: widget.community.id,
@@ -1602,7 +1650,12 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           currentUserId: student.uid,
         ),
       ),
-    );
+    )
+        .then((selected) {
+      if (selected != null) {
+        _locateMessage(selected);
+      }
+    });
   }
 
   Widget _buildMessageInput() {
@@ -2008,6 +2061,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       );
                     }
 
+                    final theme = Theme.of(context);
+                    final isDark = theme.brightness == Brightness.dark;
+
+                    final currentIds = combined.map((m) => m.messageId).toSet();
+                    _visibleMessageIds = currentIds;
+                    _messageKeys
+                        .removeWhere((key, _) => !currentIds.contains(key));
+
                     return ListView.builder(
                       controller: _scrollController,
                       reverse: true,
@@ -2038,21 +2099,57 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                             _formatDate(message.createdAt) !=
                                 _formatDate(older!.createdAt);
 
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (showDateDivider)
-                              _buildDateDivider(message.createdAt),
-                            if (message.type == 'announcement')
-                              _buildAnnouncement(message)
-                            else
-                              _buildMessageBubble(
+                        final msgKey = _messageKeys.putIfAbsent(
+                          message.messageId,
+                          () => GlobalKey(),
+                        );
+                        final isHighlighted =
+                            _highlightMessageId == message.messageId;
+                        final highlightColor = isDark
+                            ? theme.colorScheme.primary.withOpacity(0.16)
+                            : theme.colorScheme.primary.withOpacity(0.12);
+
+                        final content = message.type == 'announcement'
+                            ? _buildAnnouncement(message)
+                            : _buildMessageBubble(
                                 message,
                                 isCurrentUser,
                                 student.name,
                                 isPending,
                                 uploadProgress,
+                              );
+
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (showDateDivider)
+                              _buildDateDivider(message.createdAt),
+                            TweenAnimationBuilder<double>(
+                              key: msgKey,
+                              tween: Tween<double>(
+                                begin: 0,
+                                end: isHighlighted ? 1 : 0,
                               ),
+                              duration: const Duration(milliseconds: 240),
+                              curve: Curves.easeInOut,
+                              builder: (context, value, child) {
+                                return AnimatedContainer(
+                                  duration:
+                                      const Duration(milliseconds: 180),
+                                  curve: Curves.easeOut,
+                                  decoration: BoxDecoration(
+                                    color: Color.lerp(
+                                      Colors.transparent,
+                                      highlightColor,
+                                      value,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: child,
+                                );
+                              },
+                              child: content,
+                            ),
                           ],
                         );
                       },
@@ -2668,7 +2765,8 @@ class _StudentCommunityMessageSearchScreenState
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () => _openMedia(message),
+                        onTap: () => Navigator.pop(context, message),
+                        onLongPress: () => _openMedia(message),
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
