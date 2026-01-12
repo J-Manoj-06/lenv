@@ -89,26 +89,60 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
       final resolvedUserId = userId;
 
-      try {
-        await FirestoreService().processEndedTests();
-      } catch (e) {
-        // Ignore test processing errors
+      // Load cached student data instantly (synchronous from SharedPreferences)
+      final cachedStudent = await CacheManager.getStudentDataCache(
+        studentId: resolvedUserId,
+      );
+
+      if (cachedStudent != null) {
+        // Has cache - show UI immediately with cached data
+        studentProvider.setCurrentStudentFromCache(cachedStudent);
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Refresh in background
+        _loadBackgroundData(
+          resolvedUserId,
+          studentProvider,
+          dailyChallengeProvider,
+        );
+      } else {
+        // No cache - load fresh data while showing skeleton
+        await studentProvider.loadDashboardData(resolvedUserId);
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Load other background data
+        _loadBackgroundData(
+          resolvedUserId,
+          studentProvider,
+          dailyChallengeProvider,
+        );
       }
-
-      // CRITICAL: Initialize daily challenge BEFORE loading student data
-      await dailyChallengeProvider.initialize(resolvedUserId);
-
-      // Load student data (with cache integration)
-      await studentProvider.loadDashboardData(resolvedUserId);
-
-      setState(() {
-        _isLoading = false;
-      });
     } catch (e) {
       setState(() {
         _error = 'Failed to load dashboard: ${e.toString()}';
         _isLoading = false;
       });
+    }
+  }
+
+  // Load other data in background after UI is shown
+  void _loadBackgroundData(
+    String userId,
+    StudentProvider studentProvider,
+    DailyChallengeProvider dailyChallengeProvider,
+  ) async {
+    try {
+      // Process ended tests in background
+      FirestoreService().processEndedTests().catchError((_) {});
+
+      // Initialize daily challenge in background
+      dailyChallengeProvider.initialize(userId).catchError((_) {});
+    } catch (e) {
+      // Ignore background loading errors
     }
   }
 
