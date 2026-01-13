@@ -73,10 +73,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
   }
 
   Future<void> _loadTeachers({bool force = false}) async {
-    final parentProvider = Provider.of<ParentProvider>(
-      context,
-      listen: false,
-    );
+    final parentProvider = Provider.of<ParentProvider>(context, listen: false);
 
     final child = parentProvider.selectedChild;
 
@@ -94,7 +91,6 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
     setState(() => _isLoading = true);
 
     try {
-
       if (!parentProvider.hasChildren) {
         setState(() {
           _isLoading = false;

@@ -76,8 +76,9 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
                 child: TabBar(
                   controller: _tabController,
                   labelColor: parentGreen,
-                  unselectedLabelColor:
-                      isDark ? Colors.grey[400] : Colors.grey[600],
+                  unselectedLabelColor: isDark
+                      ? Colors.grey[400]
+                      : Colors.grey[600],
                   indicatorColor: parentGreen,
                   tabs: const [
                     Tab(text: 'Completed'),
