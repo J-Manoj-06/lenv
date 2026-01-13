@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -83,31 +84,40 @@ class MediaUploadService {
         fileType: mimeType,
       );
 
-      onProgress?.call(20);
+      onProgress?.call(15);
 
-      // Upload to R2 using signed URL
+      // Upload to R2 using signed URL with smooth progress
       final r2Url = await _r2Service.uploadFileWithSignedUrl(
         fileBytes: uploadBytes,
         signedUrl: signedUrlResponse['url'],
         contentType: mimeType,
         onProgress: (progress) {
-          // Scale progress to 30-80 range
-          onProgress?.call(30 + ((progress / 100) * 50).toInt());
+          // Scale progress from 20-80 range and emit smoothly
+          // progress comes as 0-100, we scale to 20-80
+          final scaledProgress = 20 + ((progress / 100) * 60).toInt();
+          onProgress?.call(scaledProgress);
         },
       );
-
-      onProgress?.call(80);
 
       // Generate thumbnail URL if image (upload separately)
       String? thumbnailUrl;
       if (compressedThumbnail != null && mimeType.startsWith('image/')) {
+        // Smooth progress from 80 to 85 for thumbnail upload
+        for (int i = 80; i <= 85; i++) {
+          onProgress?.call(i);
+          await Future.delayed(Duration(milliseconds: 50));
+        }
         thumbnailUrl = await _uploadThumbnail(
           thumbnailBytes: compressedThumbnail,
           mediaId: DateTime.now().millisecondsSinceEpoch.toString(),
         );
       }
 
-      onProgress?.call(90);
+      // Smooth progress from 85 to 95 for metadata save
+      for (int i = 85; i <= 95; i++) {
+        onProgress?.call(i);
+        await Future.delayed(Duration(milliseconds: 30));
+      }
 
       // Create MediaMessage object
       final mediaMessage = MediaMessage(
@@ -129,10 +139,11 @@ class MediaUploadService {
       // Save metadata to Firestore
       await _saveMediaMetadataToFirestore(mediaMessage);
 
-      // Note: Hive caching removed - new WhatsApp media system handles local storage
-      // and Hive doesn't support Firestore Timestamp serialization
-
-      onProgress?.call(100);
+      // Smooth progress from 95 to 100 for completion
+      for (int i = 95; i <= 100; i++) {
+        onProgress?.call(i);
+        await Future.delayed(Duration(milliseconds: 20));
+      }
 
       return mediaMessage;
     } catch (e) {
