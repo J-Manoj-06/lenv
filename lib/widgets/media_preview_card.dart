@@ -144,19 +144,30 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
   /// Open PDF - checks if downloaded first, otherwise downloads
   Future<void> _openFromR2() async {
-    if (!_isPdf) return;
+    if (!_isPdf && !_isAudio) return;
 
     // Check if already downloaded locally
     if (_isDownloaded && _localPath != null) {
       // Open immediately without downloading
-      await OpenFilex.open(_localPath!, type: 'application/pdf');
+      if (_isPdf) {
+        await OpenFilex.open(_localPath!, type: 'application/pdf');
+      } else if (_isAudio) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AudioPlayerScreen(
+              audioUrl: _localPath!,
+              fileName: widget.fileName,
+            ),
+          ),
+        );
+      }
       return;
     }
 
     // Not downloaded yet - download first then open
     try {
-      // Show loading indicator
-      if (mounted) {
+      // Show loading indicator only for PDFs
+      if (mounted && _isPdf) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Preparing PDF...'),
@@ -173,7 +184,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         onProgress: (progress) {},
       );
 
-      if (mounted) {
+      if (mounted && _isPdf) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
       }
 
@@ -185,8 +196,19 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           _localPath = result.localPath;
         });
 
-        // Open with system app picker
-        await OpenFilex.open(result.localPath!, type: 'application/pdf');
+        // Open with appropriate viewer
+        if (_isPdf) {
+          await OpenFilex.open(result.localPath!, type: 'application/pdf');
+        } else if (_isAudio) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AudioPlayerScreen(
+                audioUrl: result.localPath!,
+                fileName: widget.fileName,
+              ),
+            ),
+          );
+        }
       } else {
         throw Exception(result.message);
       }
@@ -404,8 +426,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: widget.selectionMode ? null : () => _openFromR2(),
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('View PDF'),
+                  icon: Icon(_isPdf ? Icons.open_in_new : Icons.play_arrow),
+                  label: Text(_isPdf ? 'View PDF' : 'Play Audio'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _accentColor,
                     foregroundColor: Colors.white,

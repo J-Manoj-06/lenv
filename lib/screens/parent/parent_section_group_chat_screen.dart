@@ -677,6 +677,26 @@ class _ParentSectionGroupChatScreenState
                                             : CrossAxisAlignment.start,
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
+                                          // Show sender name outside the bubble
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              left: 12,
+                                              right: 12,
+                                              bottom: 4,
+                                            ),
+                                            child: Text(
+                                              isCurrentUser
+                                                  ? 'You'
+                                                  : msg.senderName,
+                                              style: TextStyle(
+                                                color: isDark
+                                                    ? Colors.grey[400]
+                                                    : Colors.grey[700],
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
                                           ConstrainedBox(
                                             constraints: BoxConstraints(
                                               maxWidth:
@@ -741,27 +761,6 @@ class _ParentSectionGroupChatScreenState
                                                   mainAxisSize:
                                                       MainAxisSize.min,
                                                   children: [
-                                                    if (!isCurrentUser)
-                                                      Padding(
-                                                        padding:
-                                                            const EdgeInsets.only(
-                                                              bottom: 3,
-                                                            ),
-                                                        child: Text(
-                                                          msg.senderName,
-                                                          style: TextStyle(
-                                                            color: isDark
-                                                                ? primaryColor
-                                                                : primaryColor
-                                                                      .withOpacity(
-                                                                        0.8,
-                                                                      ),
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            fontSize: 12,
-                                                          ),
-                                                        ),
-                                                      ),
                                                     if (msg.mediaMetadata !=
                                                         null) ...[
                                                       RepaintBoundary(
