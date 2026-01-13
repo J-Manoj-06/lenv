@@ -31,7 +31,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
     super.initState();
     _searchController.addListener(_onSearchChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadTeachers();
+      _loadTeachers(force: true);
     });
   }
 
@@ -45,7 +45,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
     if (currentChildId != _lastLoadedChildId && currentChildId != null) {
       _lastLoadedChildId = currentChildId;
       if (!_isLoading) {
-        _loadTeachers();
+        _loadTeachers(force: true);
       }
     }
   }
@@ -71,7 +71,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
     });
   }
 
-  Future<void> _loadTeachers() async {
+  Future<void> _loadTeachers({bool force = false}) async {
     setState(() => _isLoading = true);
 
     try {
@@ -99,6 +99,9 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         });
         return;
       }
+
+      // Track which child we are loading for (handles mid-load switches)
+      _lastLoadedChildId = child.uid;
 
       final Set<String> teacherIds = {};
       final List<Map<String, dynamic>> teachersList = [];

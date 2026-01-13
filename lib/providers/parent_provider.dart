@@ -153,8 +153,7 @@ class ParentProvider with ChangeNotifier {
           _selectedChildIndex = savedIndex;
         }
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// ✅ Persist child selection to SharedPreferences
@@ -165,8 +164,7 @@ class ParentProvider with ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_selectedChildKey, child.uid);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Switch to a different child
@@ -187,7 +185,6 @@ class ParentProvider with ChangeNotifier {
   Future<void> loadSelectedChildData() async {
     final child = selectedChild;
     if (child == null) return;
-
 
     // Load all data in parallel
     await Future.wait([
@@ -300,8 +297,7 @@ class ParentProvider with ChangeNotifier {
             for (final a in childAnnouncements) {
               merged[a['id'] as String? ?? UniqueKey().toString()] = a;
             }
-          } catch (e) {
-          }
+          } catch (e) {}
         }
         _announcements = merged.values.toList();
       }
@@ -378,17 +374,52 @@ class ParentProvider with ChangeNotifier {
     try {
       _upcomingTests = await _parentService.getUpcomingTests(studentId);
       notifyListeners();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Load reward history for a student
   Future<void> loadRewardHistory(String studentId) async {
     try {
       _rewardHistory = await _parentService.getStudentRewardHistory(studentId);
+
+      // Derive current reward points from history (handles missing field on student doc)
+      final computedPoints = _rewardHistory.fold<int>(0, (sum, entry) {
+        final candidates = [
+          entry['points'],
+          entry['pointsEarned'],
+          entry['rewardPoints'],
+          entry['delta'],
+          entry['amount'],
+        ];
+        int delta = 0;
+        for (final value in candidates) {
+          if (value is int) {
+            delta = value;
+            break;
+          }
+          if (value is num) {
+            delta = value.toInt();
+            break;
+          }
+          if (value is String) {
+            final parsed = int.tryParse(value);
+            if (parsed != null) {
+              delta = parsed;
+              break;
+            }
+          }
+        }
+        return sum + delta;
+      });
+
+      // Update selected child rewardPoints in memory so UI reflects actual total
+      if (selectedChild != null && selectedChild!.uid == studentId) {
+        final updated = selectedChild!.copyWith(rewardPoints: computedPoints);
+        _children[_selectedChildIndex] = updated;
+      }
+
       notifyListeners();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Load attendance for a student
@@ -399,8 +430,7 @@ class ParentProvider with ChangeNotifier {
         studentId,
       );
       notifyListeners();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Approve a reward request

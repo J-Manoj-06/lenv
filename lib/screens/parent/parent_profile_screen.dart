@@ -499,7 +499,7 @@ class ParentProfileScreen extends StatelessWidget {
               // ignore: use_build_context_synchronously
               Navigator.of(
                 context,
-              ).pushNamedAndRemoveUntil('/login', (route) => false);
+              ).pushNamedAndRemoveUntil('/parent-login', (route) => false);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red[400],

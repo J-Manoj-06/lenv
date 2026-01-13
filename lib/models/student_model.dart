@@ -69,7 +69,7 @@ class StudentModel {
       section: data['section'], // Added: Read section from Firestore
       phone: data['phone'],
       parentPhone: data['parentPhone'],
-      rewardPoints: data['rewardPoints'] ?? 0,
+      rewardPoints: _parseRewardPoints(data),
       classRank: data['classRank'] ?? 0,
       monthlyProgress: (data['monthlyProgress'] ?? 0.0).toDouble(),
       monthlyTarget: (data['monthlyTarget'] ?? 90.0).toDouble(),
@@ -82,6 +82,30 @@ class StudentModel {
       isActive: data['isActive'] ?? true,
     );
   }
+
+  static int _parseRewardPoints(Map<String, dynamic> data) {
+    final candidates = [
+      data['rewardPoints'],
+      data['totalPoints'],
+      data['points'],
+      data['reward_points'],
+    ];
+
+    for (final value in candidates) {
+      final parsed = _toInt(value);
+      if (parsed != null) return parsed;
+    }
+
+    return 0;
+  }
+
+  static int? _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
   // To Firestore
   Map<String, dynamic> toFirestore() {
     return {
