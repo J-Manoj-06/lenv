@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/parent_provider.dart';import '../../providers/theme_provider.dart';import '../../models/student_model.dart';
+import '../../providers/parent_provider.dart';
+import '../../providers/theme_provider.dart';
+import '../../models/student_model.dart';
 
 class ParentProfileScreen extends StatelessWidget {
   const ParentProfileScreen({super.key});
@@ -365,13 +367,14 @@ class ParentProfileScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: themeProvider.themeMode == ThemeMode.light
+                                color:
+                                    themeProvider.themeMode == ThemeMode.light
                                     ? parentGreen
                                     : Colors.grey[300]!,
                                 width:
                                     themeProvider.themeMode == ThemeMode.light
-                                        ? 2
-                                        : 1,
+                                    ? 2
+                                    : 1,
                               ),
                               color: themeProvider.themeMode == ThemeMode.light
                                   ? parentGreen.withOpacity(0.1)
@@ -381,14 +384,12 @@ class ParentProfileScreen extends StatelessWidget {
                               child: Text(
                                 'Light',
                                 style: TextStyle(
-                                  color: themeProvider.themeMode ==
-                                          ThemeMode.light
+                                  color:
+                                      themeProvider.themeMode == ThemeMode.light
                                       ? parentGreen
-                                      : (isDark
-                                          ? Colors.white
-                                          : Colors.black),
-                                  fontWeight: themeProvider.themeMode ==
-                                          ThemeMode.light
+                                      : (isDark ? Colors.white : Colors.black),
+                                  fontWeight:
+                                      themeProvider.themeMode == ThemeMode.light
                                       ? FontWeight.bold
                                       : FontWeight.normal,
                                 ),
@@ -411,10 +412,9 @@ class ParentProfileScreen extends StatelessWidget {
                                 color: themeProvider.themeMode == ThemeMode.dark
                                     ? parentGreen
                                     : Colors.grey[300]!,
-                                width:
-                                    themeProvider.themeMode == ThemeMode.dark
-                                        ? 2
-                                        : 1,
+                                width: themeProvider.themeMode == ThemeMode.dark
+                                    ? 2
+                                    : 1,
                               ),
                               color: themeProvider.themeMode == ThemeMode.dark
                                   ? parentGreen.withOpacity(0.1)
@@ -424,15 +424,14 @@ class ParentProfileScreen extends StatelessWidget {
                               child: Text(
                                 'Dark',
                                 style: TextStyle(
-                                  color: themeProvider.themeMode == ThemeMode.dark
+                                  color:
+                                      themeProvider.themeMode == ThemeMode.dark
                                       ? parentGreen
-                                      : (isDark
-                                          ? Colors.white
-                                          : Colors.black),
+                                      : (isDark ? Colors.white : Colors.black),
                                   fontWeight:
                                       themeProvider.themeMode == ThemeMode.dark
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                                 ),
                               ),
                             ),
@@ -450,13 +449,14 @@ class ParentProfileScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: themeProvider.themeMode == ThemeMode.system
+                                color:
+                                    themeProvider.themeMode == ThemeMode.system
                                     ? parentGreen
                                     : Colors.grey[300]!,
                                 width:
                                     themeProvider.themeMode == ThemeMode.system
-                                        ? 2
-                                        : 1,
+                                    ? 2
+                                    : 1,
                               ),
                               color: themeProvider.themeMode == ThemeMode.system
                                   ? parentGreen.withOpacity(0.1)
@@ -466,13 +466,13 @@ class ParentProfileScreen extends StatelessWidget {
                               child: Text(
                                 'System',
                                 style: TextStyle(
-                                  color: themeProvider.themeMode ==
+                                  color:
+                                      themeProvider.themeMode ==
                                           ThemeMode.system
                                       ? parentGreen
-                                      : (isDark
-                                          ? Colors.white
-                                          : Colors.black),
-                                  fontWeight: themeProvider.themeMode ==
+                                      : (isDark ? Colors.white : Colors.black),
+                                  fontWeight:
+                                      themeProvider.themeMode ==
                                           ThemeMode.system
                                       ? FontWeight.bold
                                       : FontWeight.normal,
