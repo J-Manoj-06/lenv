@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/parent_provider.dart';
-import '../../models/student_model.dart';
+import '../../providers/parent_provider.dart';import '../../providers/theme_provider.dart';import '../../models/student_model.dart';
 
 class ParentProfileScreen extends StatelessWidget {
   const ParentProfileScreen({super.key});
@@ -344,36 +343,150 @@ class ParentProfileScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.color_lens, color: parentGreen),
-                title: const Text('Theme'),
-                subtitle: Text(isDark ? 'Dark' : 'Light'),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Theme set to $value'),
-                        backgroundColor: parentGreen,
-                      ),
-                    );
-                  },
-                  itemBuilder: (BuildContext context) => const [
-                    PopupMenuItem(
-                      value: 'Light',
-                      child: Text('Light'),
-                    ),
-                    PopupMenuItem(
-                      value: 'Dark',
-                      child: Text('Dark'),
-                    ),
-                    PopupMenuItem(
-                      value: 'System Default',
-                      child: Text('System Default'),
-                    ),
-                  ],
+              Text(
+                'Theme',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
                 ),
               ),
+              const SizedBox(height: 8),
+              Consumer<ThemeProvider>(
+                builder: (context, themeProvider, _) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            themeProvider.setThemeMode(ThemeMode.light);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: themeProvider.themeMode == ThemeMode.light
+                                    ? parentGreen
+                                    : Colors.grey[300]!,
+                                width:
+                                    themeProvider.themeMode == ThemeMode.light
+                                        ? 2
+                                        : 1,
+                              ),
+                              color: themeProvider.themeMode == ThemeMode.light
+                                  ? parentGreen.withOpacity(0.1)
+                                  : Colors.transparent,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Light',
+                                style: TextStyle(
+                                  color: themeProvider.themeMode ==
+                                          ThemeMode.light
+                                      ? parentGreen
+                                      : (isDark
+                                          ? Colors.white
+                                          : Colors.black),
+                                  fontWeight: themeProvider.themeMode ==
+                                          ThemeMode.light
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            themeProvider.setThemeMode(ThemeMode.dark);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: themeProvider.themeMode == ThemeMode.dark
+                                    ? parentGreen
+                                    : Colors.grey[300]!,
+                                width:
+                                    themeProvider.themeMode == ThemeMode.dark
+                                        ? 2
+                                        : 1,
+                              ),
+                              color: themeProvider.themeMode == ThemeMode.dark
+                                  ? parentGreen.withOpacity(0.1)
+                                  : Colors.transparent,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Dark',
+                                style: TextStyle(
+                                  color: themeProvider.themeMode == ThemeMode.dark
+                                      ? parentGreen
+                                      : (isDark
+                                          ? Colors.white
+                                          : Colors.black),
+                                  fontWeight:
+                                      themeProvider.themeMode == ThemeMode.dark
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            themeProvider.setThemeMode(ThemeMode.system);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: themeProvider.themeMode == ThemeMode.system
+                                    ? parentGreen
+                                    : Colors.grey[300]!,
+                                width:
+                                    themeProvider.themeMode == ThemeMode.system
+                                        ? 2
+                                        : 1,
+                              ),
+                              color: themeProvider.themeMode == ThemeMode.system
+                                  ? parentGreen.withOpacity(0.1)
+                                  : Colors.transparent,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'System',
+                                style: TextStyle(
+                                  color: themeProvider.themeMode ==
+                                          ThemeMode.system
+                                      ? parentGreen
+                                      : (isDark
+                                          ? Colors.white
+                                          : Colors.black),
+                                  fontWeight: themeProvider.themeMode ==
+                                          ThemeMode.system
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
             ],
           ),
         ),
