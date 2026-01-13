@@ -154,9 +154,7 @@ class CommunitiesOfflineSupport {
       try {
         // Online: fetch fresh data
         final communities = await communityService.getMyComm(userId);
-        final communitiesMap = communities
-            .map((c) => c.toMap())
-            .toList();
+        final communitiesMap = communities.map((c) => c.toMap()).toList();
         await _cacheCommunities(userId, communitiesMap);
         return communitiesMap;
       } catch (e) {
