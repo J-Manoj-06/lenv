@@ -16,6 +16,8 @@ import 'providers/unread_count_provider.dart';
 import 'utils/navigation_debounce_observer.dart';
 import 'routes/app_router.dart';
 import 'services/local_cache_service.dart';
+import 'services/connectivity_service.dart';
+import 'services/offline_cache_manager.dart';
 
 // Initial route is always '/' (Splash) which will resolve and redirect.
 
@@ -31,6 +33,12 @@ void main() async {
     // Initialize Local Cache Service for media messaging
     await LocalCacheService().initialize();
 
+    // Initialize offline cache manager for app-wide offline support
+    await OfflineCacheManager().initialize();
+
+    // Initialize connectivity service for network state tracking
+    await ConnectivityService().initialize();
+
     // Enable offline persistence for Firestore
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
@@ -43,16 +51,13 @@ void main() async {
           .collection('schools')
           .limit(1)
           .get(const GetOptions(source: Source.server));
-      if (testQuery.docs.isNotEmpty) {
-      }
-    } catch (firestoreError) {
-    }
+      if (testQuery.docs.isNotEmpty) {}
+    } catch (firestoreError) {}
   } catch (e) {
     // If Firebase is already initialized (e.g., hot reload), ignore the error
     if (!e.toString().contains('duplicate-app')) {
       rethrow;
-    } else {
-    }
+    } else {}
   }
 
   // Note: Removed client-side auto-publish sweep on startup to avoid
