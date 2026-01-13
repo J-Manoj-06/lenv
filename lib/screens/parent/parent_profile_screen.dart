@@ -283,7 +283,7 @@ class ParentProfileScreen extends StatelessWidget {
                     ),
                     TextButton(
                       onPressed: () {
-                        // Switch current selection in provider
+                        // Select child and navigate to profile
                         final index = children.indexWhere(
                           (s) => s.uid == c.uid,
                         );
@@ -292,16 +292,16 @@ class ParentProfileScreen extends StatelessWidget {
                             context,
                             listen: false,
                           ).selectChild(index);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Switched to selected child'),
-                              backgroundColor: parentGreen,
-                            ),
-                          );
+                          Navigator.pushNamed(
+                            context,
+                            '/parent/child-profile',
+                          ).then((_) {
+                            // Return to parent profile
+                          });
                         }
                       },
                       child: const Text(
-                        'Switch',
+                        'View',
                         style: TextStyle(color: parentGreen),
                       ),
                     ),

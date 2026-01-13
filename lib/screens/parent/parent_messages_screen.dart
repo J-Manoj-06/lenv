@@ -224,7 +224,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
       appBar: AppBar(
-        title: const Text('Messages'),
+        title: const Text('Messages', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: isDark ? backgroundDark : Colors.white,
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,

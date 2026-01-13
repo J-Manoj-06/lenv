@@ -28,7 +28,8 @@ class ChildProfileScreen extends StatelessWidget {
           elevation: 0,
           leading: IconButton(
             icon: Icon(
-              Icons.arrow_back,
+              Icons.chevron_left,
+              size: 28,
               color: isDark ? Colors.white : textPrimary,
             ),
             onPressed: () => Navigator.pop(context),
@@ -57,7 +58,8 @@ class ChildProfileScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(
-            Icons.arrow_back,
+            Icons.chevron_left,
+            size: 28,
             color: isDark ? Colors.white : textPrimary,
           ),
           onPressed: () => Navigator.pop(context),
@@ -177,36 +179,6 @@ class ChildProfileScreen extends StatelessWidget {
               ),
             ],
           ),
-
-          const SizedBox(height: 16),
-
-          // Details Grid
-          Column(
-            children: [
-              _buildDetailRow(
-                isDark: isDark,
-                label1: 'Student ID',
-                value1: child.studentId?.isNotEmpty == true
-                    ? child.studentId!
-                    : 'N/A',
-                label2: 'School Code',
-                value2: child.schoolCode?.isNotEmpty == true
-                    ? child.schoolCode!
-                    : 'N/A',
-              ),
-              _buildDetailRow(
-                isDark: isDark,
-                label1: 'Phone Number',
-                value1: child.phone?.isNotEmpty == true
-                    ? child.phone!
-                    : (child.parentPhone?.isNotEmpty == true
-                          ? child.parentPhone!
-                          : 'N/A'),
-                label2: 'Email',
-                value2: child.email.isNotEmpty ? child.email : 'N/A',
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -255,32 +227,36 @@ class ChildProfileScreen extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label2,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+          if (label2.isNotEmpty)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 8,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label2,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value2,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? Colors.white : textPrimary,
+                    const SizedBox(height: 4),
+                    Text(
+                      value2,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white : textPrimary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

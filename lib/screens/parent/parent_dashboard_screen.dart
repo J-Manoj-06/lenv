@@ -41,12 +41,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final parentProvider = Provider.of<ParentProvider>(context, listen: false);
 
+    // Wait for auth to initialize first
+    await authProvider.ensureInitialized();
+
     if (authProvider.currentUser != null) {
       final parentEmail = authProvider.currentUser!.email;
       final parentId = authProvider.currentUser!.uid;
 
       await parentProvider.initialize(parentEmail, parentId: parentId);
-    } else {
     }
   }
 
@@ -62,15 +64,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
     return Consumer2<AuthProvider, ParentProvider>(
       builder: (context, authProvider, parentProvider, child) {
-        // Show loading if still loading children
-        if (parentProvider.isLoadingChildren) {
+        // Show loading skeleton while initializing or loading children
+        if (!authProvider.isInitialized || parentProvider.isLoadingChildren) {
           return Scaffold(
             backgroundColor: _scaffoldBg(context),
-            body: const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(parentGreen),
-              ),
-            ),
+            body: _buildLoadingSkeleton(isDark),
           );
         }
 
@@ -387,33 +385,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       color: _scaffoldBg(context),
       child: Row(
         children: [
-          // Profile Picture - Now clickable
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ParentProfileScreen(),
-                ),
-              );
-            },
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: parentGreen.withOpacity(0.2),
-              ),
-              child: authProvider.currentUser?.profileImage != null
-                  ? ClipOval(
-                      child: Image.network(
-                        authProvider.currentUser!.profileImage!,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : Icon(Icons.person, color: parentGreen, size: 24),
-            ),
-          ),
+          const SizedBox(width: 40),
 
           // Title
           Expanded(
@@ -428,16 +400,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             ),
           ),
 
-          // Notifications Button
-          IconButton(
-            onPressed: () {
-              // Handle notifications
-            },
-            icon: Icon(
-              Icons.notifications_outlined,
-              color: isDark ? Colors.white : _onBackground(context),
-            ),
-          ),
+          const SizedBox(width: 40),
         ],
       ),
     );
@@ -1380,6 +1343,109 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             }),
         ],
       ),
+    );
+  }
+
+  /// Loading skeleton placeholder - similar to teacher dashboard
+  Widget _buildLoadingSkeleton(bool isDark) {
+    final shimmerColor = isDark ? Colors.grey[800] : Colors.grey[300];
+
+    return Column(
+      children: [
+        // Header skeleton
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                parentGreen.withOpacity(0.3),
+                parentGreen.withOpacity(0.1),
+              ],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 200,
+                height: 24,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: shimmerColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: 150,
+                height: 16,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: shimmerColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Child card skeleton
+                Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: shimmerColor,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Stats cards skeleton
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 100,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: shimmerColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        height: 100,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: shimmerColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // More cards skeleton
+                ...List.generate(
+                  2,
+                  (index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: shimmerColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

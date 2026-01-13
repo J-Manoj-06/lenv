@@ -48,10 +48,15 @@ class SessionManager {
     final session = await getLoginSession();
     // ignore: avoid_print
     if (session['isLoggedIn'] == true) {
-      if (session['userRole'] == 'teacher') {
+      final userRole = session['userRole'] as String?;
+      if (userRole == 'teacher') {
         return '/teacher-dashboard';
-      } else if (session['userRole'] == 'student') {
+      } else if (userRole == 'student') {
         return '/student-dashboard';
+      } else if (userRole == 'parent') {
+        return '/parent-dashboard';
+      } else if (userRole == 'institute') {
+        return '/institute-dashboard';
       }
     }
     // When not logged in, send to role selection (we don't have a '/login' route)

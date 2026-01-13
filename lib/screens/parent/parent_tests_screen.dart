@@ -42,7 +42,7 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
       appBar: AppBar(
-        title: const Text('Tests'),
+        title: const Text('Tests', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: isDark ? backgroundDark : Colors.white,
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,

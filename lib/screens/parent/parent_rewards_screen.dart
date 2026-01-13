@@ -27,24 +27,10 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
       appBar: AppBar(
-        title: const Text('Rewards'),
+        title: const Text('Rewards', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: isDark ? backgroundDark : Colors.white,
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.filter_list),
-            initialValue: _filter,
-            onSelected: (v) => setState(() => _filter = v),
-            itemBuilder: (c) => const [
-              PopupMenuItem(value: 'all', child: Text('All')),
-              PopupMenuItem(value: 'pending', child: Text('Pending')),
-              PopupMenuItem(value: 'approved', child: Text('Approved')),
-              PopupMenuItem(value: 'orderPlaced', child: Text('Order Placed')),
-              PopupMenuItem(value: 'rejected', child: Text('Rejected')),
-            ],
-          ),
-        ],
       ),
       body: Consumer<ParentProvider>(
         builder: (context, parentProvider, _) {

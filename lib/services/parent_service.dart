@@ -13,6 +13,12 @@ class ParentService {
     String parentEmail,
   ) async {
     try {
+      // Helper to coerce any value (String/int) to a trimmed String
+      String? _toStr(dynamic v) {
+        if (v == null) return null;
+        final s = v.toString().trim();
+        return s.isEmpty ? null : s;
+      }
 
       // First, get the parent document to find linked students
       final parentQuery = await _firestore
@@ -32,7 +38,6 @@ class ParentService {
       if (linkedStudents == null || linkedStudents.isEmpty) {
         return [];
       }
-
 
       // ✅ OPTIMIZATION: Fetch all students in parallel instead of sequentially
       final studentFutures = linkedStudents.map((studentInfo) async {
@@ -55,71 +60,49 @@ class ParentService {
 
           if (studentDoc.exists) {
             studentModel = StudentModel.fromFirestore(studentDoc);
-          } else {
-            // Fallback: try querying by uid field
-            final querySnapshot = await _firestore
-                .collection('students')
-                .where('uid', isEqualTo: studentId)
-                .limit(1)
-                .get();
-
-            if (querySnapshot.docs.isNotEmpty) {
-              studentModel = StudentModel.fromFirestore(
-                querySnapshot.docs.first,
-              );
-            }
           }
+
+          // Cache linked-student fields for reuse (avoid recompute)
+          final linkedName = _toStr(studentInfo['name']);
+          final linkedClass = _toStr(studentInfo['class']);
+          final linkedSection = _toStr(studentInfo['section']);
+          final linkedSchoolCode = _toStr(studentInfo['schoolCode']);
+          final linkedEmail =
+              _toStr(studentInfo['email']) ??
+              _toStr(studentInfo['studentEmail']) ??
+              _toStr(studentInfo['emailId']) ??
+              _toStr(studentInfo['mail']) ??
+              _toStr(studentInfo['contactEmail']);
+          final linkedPhone =
+              _toStr(studentInfo['phone']) ??
+              _toStr(studentInfo['phoneNumber']) ??
+              _toStr(studentInfo['mobile']) ??
+              _toStr(studentInfo['mobileNumber']) ??
+              _toStr(studentInfo['contact']) ??
+              _toStr(studentInfo['contactNo']) ??
+              _toStr(studentInfo['contact_number']) ??
+              _toStr(studentInfo['whatsapp']) ??
+              _toStr(studentInfo['whatsApp']);
 
           if (studentModel != null) {
             var hydratedStudent = studentModel;
+            final sd = studentDoc.data();
 
-            // ✅ OPTIMIZATION: Try to use aggregate query for points (if available)
-            try {
-              final authUid = hydratedStudent.uid;
-
-              // Try aggregate query first (Firestore aggregate - more efficient)
-              try {
-                final aggregateResult = await _firestore
-                    .collection('student_rewards')
-                    .where('studentId', isEqualTo: authUid)
-                    .count()
-                    .get();
-
-                // If we have rewards, get the sum
-                if ((aggregateResult.count ?? 0) > 0) {
-                  // Note: Firestore doesn't support sum aggregation yet in all SDKs
-                  // Fall back to manual calculation
-                  final rewardsSnapshot = await _firestore
-                      .collection('student_rewards')
-                      .where('studentId', isEqualTo: authUid)
-                      .limit(100) // ✅ Limit to prevent excessive reads
-                      .get();
-
-                  int totalPoints = 0;
-                  for (final doc in rewardsSnapshot.docs) {
-                    final data = doc.data();
-                    final points = data['pointsEarned'];
-                    if (points is int) {
-                      totalPoints += points;
-                    } else if (points is num) {
-                      totalPoints += points.toInt();
-                    }
-                  }
-
-                  hydratedStudent = hydratedStudent.copyWith(
-                    rewardPoints: totalPoints,
-                  );
-                }
-              } catch (e) {
+            // Hydrate email: prioritize linkedEmail (parent's metadata), then student doc
+            if (hydratedStudent.email.isEmpty) {
+              final email =
+                  linkedEmail ??
+                  _toStr(sd?['email']) ??
+                  _toStr(sd?['studentEmail']) ??
+                  _toStr(sd?['emailId']) ??
+                  _toStr(sd?['mail']) ??
+                  _toStr(sd?['contactEmail']);
+              if (email != null && email.isNotEmpty) {
+                hydratedStudent = hydratedStudent.copyWith(email: email);
               }
-            } catch (e) {
             }
 
-            // Apply fallback data from linkedStudents
-            final linkedName = (studentInfo['name'] as String?)?.trim();
-            final linkedClass = (studentInfo['class'] as String?)?.trim();
-            final linkedSection = (studentInfo['section'] as String?)?.trim();
-
+            // Fill in missing name/class/section from linkedStudents data only
             if (hydratedStudent.name.isEmpty &&
                 linkedName != null &&
                 linkedName.isNotEmpty) {
@@ -147,11 +130,11 @@ class ParentService {
             // Create placeholder from linkedStudents data
             return StudentModel(
               uid: studentId,
-              name: (studentInfo['name'] as String?) ?? 'Unknown Student',
+              name: linkedName ?? 'Unknown Student',
               email: '',
               schoolCode: parentData['schoolCode'] as String? ?? '',
-              className: (studentInfo['class'] as String?) ?? '',
-              section: (studentInfo['section'] as String?) ?? '',
+              className: linkedClass ?? '',
+              section: linkedSection ?? '',
               rewardPoints: 0,
               monthlyProgress: 0.0,
               createdAt: DateTime.now(),
@@ -211,8 +194,7 @@ class ParentService {
             if (studentDoc.exists) {
               children.add(StudentModel.fromFirestore(studentDoc));
             }
-          } catch (e) {
-          }
+          } catch (e) {}
         }
       }
 
@@ -225,13 +207,11 @@ class ParentService {
   /// Get student's test results with detailed information
   Future<List<TestResultModel>> getStudentTestResults(String studentId) async {
     try {
-
       final querySnapshot = await _firestore
           .collection('testResults')
           .where('studentId', isEqualTo: studentId)
           .orderBy('completedAt', descending: true)
           .get();
-
 
       final results = querySnapshot.docs.map((doc) {
         return TestResultModel.fromFirestore(doc);
@@ -348,7 +328,6 @@ class ParentService {
       if (grade == null) {
         return {'present': 0, 'absent': 0, 'late': 0, 'total': 0};
       }
-
 
       // Query attendance records
       var query = _firestore
@@ -597,8 +576,7 @@ class ParentService {
             final data = doc.data();
             allDocs[doc.id] = {'id': doc.id, ...data};
           }
-        } catch (e) {
-        }
+        } catch (e) {}
 
         // Section-level announcements
         if (section.isNotEmpty) {
@@ -616,8 +594,7 @@ class ParentService {
               final data = doc.data();
               allDocs[doc.id] = {'id': doc.id, ...data};
             }
-          } catch (e) {
-          }
+          } catch (e) {}
         }
       }
 
@@ -756,21 +733,16 @@ class ParentService {
                       toFirestore: (m, _) => m,
                     );
 
-                final classSub = classQuery.snapshots().listen(
-                  (snap) {
-                    for (final doc in snap.docs) {
-                      final data = doc.data();
-                      allDocs[doc.id] = {'id': doc.id, ...data};
-                    }
-                    emitMerged();
-                  },
-                  onError: (e) {
-                  },
-                );
+                final classSub = classQuery.snapshots().listen((snap) {
+                  for (final doc in snap.docs) {
+                    final data = doc.data();
+                    allDocs[doc.id] = {'id': doc.id, ...data};
+                  }
+                  emitMerged();
+                }, onError: (e) {});
 
                 subs.add(classSub);
-              } catch (e) {
-              }
+              } catch (e) {}
 
               if (section.isNotEmpty) {
                 try {
@@ -786,21 +758,16 @@ class ParentService {
                         toFirestore: (m, _) => m,
                       );
 
-                  final sectionSub = sectionQuery.snapshots().listen(
-                    (snap) {
-                      for (final doc in snap.docs) {
-                        final data = doc.data();
-                        allDocs[doc.id] = {'id': doc.id, ...data};
-                      }
-                      emitMerged();
-                    },
-                    onError: (e) {
-                    },
-                  );
+                  final sectionSub = sectionQuery.snapshots().listen((snap) {
+                    for (final doc in snap.docs) {
+                      final data = doc.data();
+                      allDocs[doc.id] = {'id': doc.id, ...data};
+                    }
+                    emitMerged();
+                  }, onError: (e) {});
 
                   subs.add(sectionSub);
-                } catch (e) {
-                }
+                } catch (e) {}
               }
             }
           },

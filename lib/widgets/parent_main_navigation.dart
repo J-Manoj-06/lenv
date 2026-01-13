@@ -4,10 +4,10 @@ import '../screens/parent/parent_dashboard_screen.dart';
 import '../screens/parent/parent_rewards_screen.dart';
 import '../screens/parent/parent_messages_screen.dart';
 import '../screens/parent/parent_tests_screen.dart';
-import '../screens/parent/parent_reports_screen.dart';
+import '../screens/parent/parent_profile_screen.dart';
 
 /// Parent Main Navigation Wrapper
-/// Provides 5 tabs: Dashboard, Rewards, Messages, Tests, Reports
+/// Provides 5 tabs: Dashboard, Rewards, Messages, Tests, Profile
 /// Uses IndexedStack to preserve state while switching.
 class ParentMainNavigation extends StatefulWidget {
   final int initialIndex;
@@ -28,7 +28,7 @@ class _ParentMainNavigationState extends State<ParentMainNavigation> {
     ParentRewardsScreen(),
     ParentMessagesScreen(),
     ParentTestsScreen(),
-    ParentReportsScreen(),
+    ParentProfileScreen(),
   ];
 
   @override
@@ -112,9 +112,9 @@ class _ParentMainNavigationState extends State<ParentMainNavigation> {
                     color: parentGreen,
                   ),
                   _NavItem(
-                    icon: Icons.assessment_outlined,
-                    selectedIcon: Icons.assessment,
-                    label: 'Reports',
+                    icon: Icons.person_outlined,
+                    selectedIcon: Icons.person,
+                    label: 'Profile',
                     isSelected: _currentIndex == 4,
                     onTap: () => _onTap(4),
                     color: parentGreen,
