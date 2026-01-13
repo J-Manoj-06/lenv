@@ -349,21 +349,30 @@ class ParentProfileScreen extends StatelessWidget {
                 leading: const Icon(Icons.color_lens, color: parentGreen),
                 title: const Text('Theme'),
                 subtitle: Text(isDark ? 'Dark' : 'Light'),
-                onTap: () {
-                  // Placeholder for theme toggle
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Theme settings are not available yet'),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Theme set to $value'),
+                        backgroundColor: parentGreen,
+                      ),
+                    );
+                  },
+                  itemBuilder: (BuildContext context) => const [
+                    PopupMenuItem(
+                      value: 'Light',
+                      child: Text('Light'),
                     ),
-                  );
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.info_outline, color: parentGreen),
-                title: const Text('About'),
-                subtitle: const Text('Version 1.0.0'),
-                onTap: () {},
+                    PopupMenuItem(
+                      value: 'Dark',
+                      child: Text('Dark'),
+                    ),
+                    PopupMenuItem(
+                      value: 'System Default',
+                      child: Text('System Default'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

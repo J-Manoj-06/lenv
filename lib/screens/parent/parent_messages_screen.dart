@@ -114,7 +114,6 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
             ? '$studentClass|'
             : '$studentClass|$studentSection';
 
-
         // OPTIMIZED: Single query with arrayContains on indexed field
         final teachersSnapshot = await FirebaseFirestore.instance
             .collection('teachers')
@@ -132,8 +131,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
                   .docs;
 
         if (teachersSnapshot.docs.isEmpty) {
-        } else {
-        }
+        } else {}
 
         for (final doc in docsToScan) {
           final data = doc.data();
@@ -200,7 +198,6 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         }
       }
 
-
       // Sort by name
       teachersList.sort(
         (a, b) => (a['name'] as String).compareTo(b['name'] as String),
@@ -224,7 +221,10 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
       appBar: AppBar(
-        title: const Text('Messages', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Messages',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: isDark ? backgroundDark : Colors.white,
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,

@@ -27,7 +27,10 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
       appBar: AppBar(
-        title: const Text('Rewards', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Rewards',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: isDark ? backgroundDark : Colors.white,
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,
