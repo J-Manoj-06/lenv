@@ -658,7 +658,8 @@ class _ParentSectionGroupChatScreenState
                                                     // Deselecting the last message exits selection mode
                                                     setState(() {
                                                       _selectionMode = false;
-                                                      _selectedMessages.value = {};
+                                                      _selectedMessages.value =
+                                                          {};
                                                     });
                                                   }
                                                 } else {
