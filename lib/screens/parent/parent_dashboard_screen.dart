@@ -201,16 +201,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Container(
         decoration: BoxDecoration(
-          color: _cardColor(context),
+          color: parentGreen,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.08) : Colors.transparent,
-          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0 : 0.03),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+              color: parentGreen.withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -247,11 +244,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: parentGreen.withOpacity(0.15),
+                        color: Colors.white.withOpacity(0.2),
                       ),
                       child: const Icon(
                         Icons.forum_outlined,
-                        color: parentGreen,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -263,12 +260,10 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             group?.name.isNotEmpty == true
                                 ? group!.name
                                 : fallbackTitle,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: isDark
-                                  ? Colors.white
-                                  : _onBackground(context),
+                              color: Colors.white,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -278,15 +273,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             'Chat with teachers and parents of this section',
                             style: TextStyle(
                               fontSize: 13,
-                              color: isDark
-                                  ? Colors.grey[400]
-                                  : Colors.grey[700],
+                              color: Colors.white.withOpacity(0.9),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right, color: parentGreen),
+                    const Icon(Icons.chevron_right, color: Colors.white),
                   ],
                 ),
                 const SizedBox(height: 12),

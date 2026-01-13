@@ -419,11 +419,11 @@ class _ParentSectionGroupChatScreenState
                     return IconButton(
                       icon: const Icon(Icons.delete_outline),
                       color: Colors.redAccent,
-                      onPressed: selectedSet.length < 2
+                      onPressed: selectedSet.isEmpty
                           ? null
                           : _deleteSelectedMessages,
-                      tooltip: selectedSet.length < 2
-                          ? 'Select at least 2 messages'
+                      tooltip: selectedSet.isEmpty
+                          ? 'Select messages to delete'
                           : 'Delete for everyone',
                     );
                   },
@@ -630,10 +630,13 @@ class _ParentSectionGroupChatScreenState
                                         if (!_selectionMode &&
                                             !isPending &&
                                             isCurrentUser) {
+                                          // Batch state updates to prevent flickering
                                           _selectionMode = true;
-                                          _selectedMessages.value = {
-                                            msg.messageId,
-                                          };
+                                          setState(() {
+                                            _selectedMessages.value = {
+                                              msg.messageId,
+                                            };
+                                          });
                                         }
                                       },
                                       onTap: _selectionMode && isCurrentUser
@@ -642,7 +645,7 @@ class _ParentSectionGroupChatScreenState
                                                 final selectedSet =
                                                     _selectedMessages.value;
                                                 if (isSelected) {
-                                                  if (selectedSet.length > 2) {
+                                                  if (selectedSet.length > 1) {
                                                     final updated = {
                                                       ...selectedSet,
                                                     };
@@ -651,6 +654,12 @@ class _ParentSectionGroupChatScreenState
                                                     );
                                                     _selectedMessages.value =
                                                         updated;
+                                                  } else {
+                                                    // Deselecting the last message exits selection mode
+                                                    setState(() {
+                                                      _selectionMode = false;
+                                                      _selectedMessages.value = {};
+                                                    });
                                                   }
                                                 } else {
                                                   _selectedMessages.value = {
@@ -1034,8 +1043,8 @@ class _ParentSectionGroupChatScreenState
         ? const Color(0xFF6B6B6B) // Subdued gray
         : const Color(0xFF999999);
     final iconColor = isDark
-        ? const Color(0xFF9A95CC) // Soft muted violet
-        : const Color(0xFF6C63FF);
+        ? parentGreen.withOpacity(0.8) // Soft muted green
+        : parentGreen;
     final iconDisabledColor = isDark
         ? const Color(0xFF3A3A3C)
         : const Color(0xFFBBBBBB);
