@@ -495,6 +495,64 @@ class ParentProfileScreen extends StatelessWidget {
           width: double.infinity,
           child: ElevatedButton(
             onPressed: () async {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final confirmed = await showDialog<bool>(
+                context: context,
+                barrierDismissible: true,
+                builder: (ctx) {
+                  return AlertDialog(
+                    backgroundColor: isDark
+                        ? const Color(0xFF1E1A2F)
+                        : Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Row(
+                      children: const [
+                        Icon(Icons.exit_to_app, color: parentGreen),
+                        SizedBox(width: 8),
+                        Text('Logout'),
+                      ],
+                    ),
+                    content: Text(
+                      'Are you sure you want to logout?',
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : Colors.black87,
+                        height: 1.3,
+                      ),
+                    ),
+                    actionsPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: isDark ? Colors.grey[300] : Colors.grey[700],
+                          ),
+                        ),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: parentGreen,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Logout'),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              if (confirmed != true) return;
+
               await authProvider.signOut();
               // ignore: use_build_context_synchronously
               Navigator.of(
