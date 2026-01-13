@@ -49,17 +49,6 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
         backgroundColor: isDark ? backgroundDark : Colors.white,
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: parentGreen,
-          unselectedLabelColor: isDark ? Colors.grey[400] : Colors.grey[600],
-          indicatorColor: parentGreen,
-          tabs: const [
-            Tab(text: 'Completed'),
-            Tab(text: 'Pending'),
-            Tab(text: 'Upcoming'),
-          ],
-        ),
       ),
       body: Consumer<ParentProvider>(
         builder: (context, parentProvider, child) {
@@ -79,6 +68,24 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
             children: [
               // Student Selection Row
               const StudentAvatarRow(),
+
+              // Filters (Completed/Pending/Upcoming)
+              Container(
+                color: isDark ? backgroundDark : Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: parentGreen,
+                  unselectedLabelColor:
+                      isDark ? Colors.grey[400] : Colors.grey[600],
+                  indicatorColor: parentGreen,
+                  tabs: const [
+                    Tab(text: 'Completed'),
+                    Tab(text: 'Pending'),
+                    Tab(text: 'Upcoming'),
+                  ],
+                ),
+              ),
 
               // Tabs Content
               Expanded(

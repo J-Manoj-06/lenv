@@ -22,6 +22,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _teachers = [];
   List<Map<String, dynamic>> _filteredTeachers = [];
+  final Map<String, List<Map<String, dynamic>>> _teachersCache = {};
   bool _isLoading = true;
   bool _queuedReload = false;
   String? _lastLoadedChildId; // Track which child we loaded teachers for
@@ -45,7 +46,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
     if (currentChildId != _lastLoadedChildId && currentChildId != null) {
       _lastLoadedChildId = currentChildId;
       if (!_isLoading) {
-        _loadTeachers(force: true);
+        _loadTeachers();
       }
     }
   }
@@ -72,13 +73,27 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
   }
 
   Future<void> _loadTeachers({bool force = false}) async {
+    final parentProvider = Provider.of<ParentProvider>(
+      context,
+      listen: false,
+    );
+
+    final child = parentProvider.selectedChild;
+
+    // If we have cached teachers for this child and not forcing, show immediately
+    if (!force && child != null && _teachersCache.containsKey(child.uid)) {
+      setState(() {
+        _teachers = _teachersCache[child.uid]!;
+        _filteredTeachers = _teachers;
+        _isLoading = false;
+        _lastLoadedChildId = child.uid;
+      });
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final parentProvider = Provider.of<ParentProvider>(
-        context,
-        listen: false,
-      );
 
       if (!parentProvider.hasChildren) {
         setState(() {
@@ -209,6 +224,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
       setState(() {
         _teachers = teachersList;
         _filteredTeachers = teachersList;
+        _teachersCache[child.uid] = teachersList;
         _isLoading = false;
         _lastLoadedChildId = child.uid; // Track which child we loaded for
       });
@@ -220,6 +236,17 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Auto-reload teachers immediately when selected child changes
+    final parentProvider = Provider.of<ParentProvider>(context);
+    final currentChildId = parentProvider.selectedChild?.uid;
+    if (currentChildId != null &&
+        currentChildId != _lastLoadedChildId &&
+        !_isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadTeachers(force: true);
+      });
+    }
 
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
