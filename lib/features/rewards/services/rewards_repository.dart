@@ -436,4 +436,13 @@ class RewardsRepository {
   void clearCache() {
     _catalogCache = null;
   }
+
+  /// Delete reward request
+  Future<void> deleteRewardRequest(String requestId) async {
+    try {
+      await _firestore.collection(requestsCollection).doc(requestId).delete();
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

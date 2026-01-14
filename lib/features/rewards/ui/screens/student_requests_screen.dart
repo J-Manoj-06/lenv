@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../rewards_module.dart';
 import '../../models/reward_request_model.dart';
 import '../../providers/rewards_providers.dart';
+import '../../services/rewards_repository.dart';
 import '../widgets/request_card.dart';
 import '../widgets/rewards_top_switcher.dart';
 
@@ -24,7 +25,9 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
     final requestsAsync = ref.watch(studentRequestsProvider(widget.studentId));
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg = isDark ? const Color(0xFF121212) : const Color(0xFFFAF9F7);
+    final scaffoldBg = isDark
+        ? const Color(0xFF121212)
+        : const Color(0xFFFAF9F7);
     final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
 
     return Scaffold(
@@ -39,9 +42,9 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
           title: Text(
             'My Requests',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
           ),
         ),
       ),
@@ -177,6 +180,7 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                         },
                         actionLabel: _getActionLabel(request.status),
                         onActionPressed: () => _handleAction(context, request),
+                        onDeletePressed: () => _confirmDelete(context, request),
                       ),
                     );
                   },
@@ -253,6 +257,63 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
       requestId: request.requestId,
       request: request,
     );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    RewardRequestModel request,
+  ) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Reward Request?'),
+          content: Text(
+            'Are you sure you want to delete "${request.productSnapshot.title}"?\n\nThis action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true && mounted) {
+      await _deleteRequest(context, request);
+    }
+  }
+
+  Future<void> _deleteRequest(
+    BuildContext context,
+    RewardRequestModel request,
+  ) async {
+    try {
+      final repository = RewardsRepository();
+      await repository.deleteRewardRequest(request.requestId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reward request deleted successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }
 

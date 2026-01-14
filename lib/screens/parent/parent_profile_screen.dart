@@ -557,7 +557,7 @@ class ParentProfileScreen extends StatelessWidget {
               // ignore: use_build_context_synchronously
               Navigator.of(
                 context,
-              ).pushNamedAndRemoveUntil('/parent-login', (route) => false);
+              ).pushNamedAndRemoveUntil('/role-selection', (route) => false);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red[400],

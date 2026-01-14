@@ -9,6 +9,7 @@ class RequestCard extends StatelessWidget {
   final VoidCallback? onActionPressed;
   final String? actionLabel;
   final bool isLoading;
+  final VoidCallback? onDeletePressed;
 
   const RequestCard({
     super.key,
@@ -17,6 +18,7 @@ class RequestCard extends StatelessWidget {
     this.onActionPressed,
     this.actionLabel,
     this.isLoading = false,
+    this.onDeletePressed,
   });
 
   Color _getStatusColor(RewardRequestStatus status) {
@@ -147,6 +149,19 @@ class RequestCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  // Delete Button
+                  if (onDeletePressed != null)
+                    IconButton(
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: Colors.red.shade400,
+                        size: 24,
+                      ),
+                      onPressed: onDeletePressed,
+                      tooltip: 'Delete request',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
                 ],
               ),
               const SizedBox(height: 14),

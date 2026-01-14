@@ -4,9 +4,17 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/reward_request_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/reward_request_service.dart';
 
-class MyRewardRequestsScreen extends StatelessWidget {
+class MyRewardRequestsScreen extends StatefulWidget {
   const MyRewardRequestsScreen({super.key});
+
+  @override
+  State<MyRewardRequestsScreen> createState() => _MyRewardRequestsScreenState();
+}
+
+class _MyRewardRequestsScreenState extends State<MyRewardRequestsScreen> {
+  final RewardRequestService _rewardService = RewardRequestService();
 
   Color _statusColor(RewardRequestStatus s) {
     switch (s) {
@@ -69,20 +77,50 @@ class MyRewardRequestsScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: ListTile(
-                  title: Text(
-                    r.productName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Column(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 4),
+                      // Title with delete button
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              r.productName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: Colors.red.shade400,
+                              size: 24,
+                            ),
+                            onPressed: () => _confirmDeleteReward(r),
+                            tooltip: 'Delete',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Points and price
                       Text(
                         '${r.pointsRequired} pts • ₹${r.price.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                        ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
+                      // Status badge
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -101,9 +139,15 @@ class MyRewardRequestsScreen extends StatelessWidget {
                           ),
                         ),
                       ),
+                      // Action button if needed
+                      if (r.status == RewardRequestStatus.approved ||
+                          r.status == RewardRequestStatus.orderPlaced)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: _buildTrailing(context, r),
+                        ),
                     ],
                   ),
-                  trailing: _buildTrailing(context, r),
                 ),
               );
             },
@@ -127,5 +171,55 @@ class MyRewardRequestsScreen extends StatelessWidget {
       return const Icon(Icons.check_circle, color: Color(0xFF16A34A));
     }
     return const SizedBox.shrink();
+  }
+
+  Future<void> _confirmDeleteReward(RewardRequestModel request) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Reward Request?'),
+          content: Text(
+            'Are you sure you want to delete "${request.productName}"?\n\nThis action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true && mounted) {
+      await _deleteRewardRequest(request);
+    }
+  }
+
+  Future<void> _deleteRewardRequest(RewardRequestModel request) async {
+    try {
+      await _rewardService.deleteRewardRequest(request.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reward request deleted successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }
