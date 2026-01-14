@@ -462,9 +462,21 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     setState(() => _isRequestingProduct = true);
 
     try {
-      // Get parent ID from current user or use a default
-      // NOTE: In production, get actual parent ID from user/student relationship
-      final parentId = widget.studentId!.replaceFirst('student_', 'parent_');
+      // Get parent ID from student document
+      final repository = ref.read(rewardsRepositoryProvider);
+      String parentId;
+      try {
+        final studentDoc = await repository.getStudentDocument(widget.studentId!);
+        print('🟣 Student doc keys: ${studentDoc.keys.toList()}');
+        parentId = studentDoc['parentId'] as String? ?? 
+                  studentDoc['parent_id'] as String? ??
+                  studentDoc['userId'] as String? ??
+                  widget.studentId!;
+        print('🟣 Parent ID resolved: $parentId from student doc');
+      } catch (e) {
+        print('🟣 Error fetching student doc: $e, using student ID as fallback');
+        parentId = widget.studentId!;
+      }
 
       final notifier = ref.read(createRequestProvider.notifier);
       await notifier.createRequest(
@@ -472,6 +484,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         studentId: widget.studentId!,
         parentId: parentId,
       );
+
+      // Check if request actually succeeded
+      final requestState = ref.read(createRequestProvider);
+      if (requestState.hasError) {
+        throw requestState.error ?? Exception('Unknown error');
+      }
 
       if (!mounted) return;
 

@@ -37,31 +37,95 @@ class RewardRequestModel {
       switch (s) {
         case 'approved':
           return RewardRequestStatus.approved;
+        case 'approvedPurchaseInProgress':
         case 'order_placed':
         case 'orderPlaced':
           return RewardRequestStatus.orderPlaced;
         case 'rejected':
+        case 'cancelled':
           return RewardRequestStatus.rejected;
         default:
           return RewardRequestStatus.pending;
       }
     }
 
+    // Handle both old format (requestedOn) and new format (timestamps.requested_at)
+    DateTime extractRequestedOn() {
+      // Try new format first: timestamps.requested_at
+      if (json['timestamps'] is Map) {
+        final timestamps = json['timestamps'] as Map;
+        if (timestamps['requested_at'] is Timestamp) {
+          return (timestamps['requested_at'] as Timestamp).toDate();
+        }
+      }
+      
+      // Fall back to old format: requestedOn
+      if (json['requestedOn'] is Timestamp) {
+        return (json['requestedOn'] as Timestamp).toDate();
+      }
+      
+      return DateTime.tryParse(json['requestedOn']?.toString() ?? '') ??
+          DateTime.now();
+    }
+
+    // Extract product info from product_snapshot (new format) or direct fields (old format)
+    String extractProductName() {
+      if (json['product_snapshot'] is Map) {
+        final product = json['product_snapshot'] as Map;
+        return product['title'] as String? ?? 'Unknown Product';
+      }
+      return json['productName'] as String? ?? 'Unknown Product';
+    }
+
+    String extractAmazonLink() {
+      if (json['product_snapshot'] is Map) {
+        final product = json['product_snapshot'] as Map;
+        return product['affiliate_url'] as String? ?? product['description'] as String? ?? '';
+      }
+      return json['amazonLink'] as String? ?? '';
+    }
+
+    double extractPrice() {
+      if (json['product_snapshot'] is Map) {
+        final product = json['product_snapshot'] as Map;
+        final price = product['price'];
+        if (price is Map) {
+          return (price['estimated_price'] as num? ?? 0).toDouble();
+        }
+      }
+      return (json['price'] as num? ?? 0).toDouble();
+    }
+
+    int extractPointsRequired() {
+      // Try new format: points.required
+      if (json['points'] is Map) {
+        final points = json['points'] as Map;
+        return (points['required'] as num? ?? 0).toInt();
+      }
+      // Fall back to old format
+      return (json['pointsRequired'] as num? ?? 0).toInt();
+    }
+
+    String extractProductId() {
+      if (json['product_snapshot'] is Map) {
+        final product = json['product_snapshot'] as Map;
+        return product['product_id'] as String? ?? '';
+      }
+      return json['productId'] as String? ?? '';
+    }
+
     return RewardRequestModel(
-      id: id ?? (json['id'] as String? ?? ''),
-      studentId: (json['studentId'] as String? ?? ''),
+      id: id ?? (json['id'] as String? ?? json['request_id'] as String? ?? ''),
+      studentId: (json['studentId'] as String? ?? json['student_id'] as String? ?? ''),
       studentName: (json['studentName'] as String? ?? 'Unknown Student'),
-      productId: (json['productId'] as String? ?? ''),
-      productName: (json['productName'] as String? ?? ''),
-      amazonLink: (json['amazonLink'] as String? ?? ''),
-      price: (json['price'] as num? ?? 0).toDouble(),
-      pointsRequired: (json['pointsRequired'] as num? ?? 0).toInt(),
+      productId: extractProductId(),
+      productName: extractProductName(),
+      amazonLink: extractAmazonLink(),
+      price: extractPrice(),
+      pointsRequired: extractPointsRequired(),
       status: parseStatus(statusStr),
-      requestedOn: (json['requestedOn'] is Timestamp)
-          ? (json['requestedOn'] as Timestamp).toDate()
-          : DateTime.tryParse(json['requestedOn']?.toString() ?? '') ??
-                DateTime.now(),
-      parentId: json['parentId'] as String?,
+      requestedOn: extractRequestedOn(),
+      parentId: json['parentId'] as String? ?? json['parent_id'] as String?,
       approvedOn: (json['approvedOn'] is Timestamp)
           ? (json['approvedOn'] as Timestamp).toDate()
           : null,
@@ -70,7 +134,7 @@ class RewardRequestModel {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'studentId': studentId,
+    'student_id': studentId,
     'studentName': studentName,
     'productId': productId,
     'productName': productName,
@@ -78,7 +142,9 @@ class RewardRequestModel {
     'price': price,
     'pointsRequired': pointsRequired,
     'status': _statusString(status),
-    'requestedOn': Timestamp.fromDate(requestedOn),
+    'timestamps': {
+      'requested_at': Timestamp.fromDate(requestedOn),
+    },
     if (parentId != null) 'parentId': parentId,
     if (approvedOn != null) 'approvedOn': Timestamp.fromDate(approvedOn!),
   };

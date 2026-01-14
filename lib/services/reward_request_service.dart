@@ -16,8 +16,9 @@ class RewardRequestService {
     required int pointsRequired,
   }) async {
     try {
-      final docRef = await _firestore.collection(_collection).add({
-        'studentId': studentId,
+      print('🔴 Creating reward request for student: $studentId');
+      final docData = {
+        'student_id': studentId,
         'studentName': studentName,
         'productId': productId,
         'productName': productName,
@@ -25,28 +26,45 @@ class RewardRequestService {
         'price': price,
         'pointsRequired': pointsRequired,
         'status': 'pending',
-        'requestedOn': FieldValue.serverTimestamp(),
-      });
+        'timestamps': {
+          'requested_at': FieldValue.serverTimestamp(),
+        }
+      };
+      print('🔴 Document data to save: $docData');
+      
+      final docRef = await _firestore.collection(_collection).add(docData);
+      print('🔴 Document created with ID: ${docRef.id}');
+      
+      // Verify it was saved
+      final savedDoc = await docRef.get();
+      print('🔴 Saved document data: ${savedDoc.data()}');
+      
       return docRef.id;
     } catch (e) {
+      print('🔴 ERROR creating reward request: $e');
       throw Exception('Failed to create reward request: $e');
     }
   }
 
   // Get reward requests for a specific student
   Stream<List<RewardRequestModel>> getStudentRewardRequests(String studentId) {
-    // Avoid requiring a composite index by not ordering on the server;
-    // sort by requestedOn on the client side instead.
+    print('🔵 RewardRequestService: Querying for student: $studentId');
+    // Query using student_id (new field name) - new requests use this field
     return _firestore
         .collection(_collection)
-        .where('studentId', isEqualTo: studentId)
+        .where('student_id', isEqualTo: studentId)
         .snapshots()
         .map((snapshot) {
+          print('🔵 RewardRequestService: Got ${snapshot.docs.length} documents');
           final list = snapshot.docs
-              .map((doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id))
+              .map((doc) {
+                print('🔵 Document: ${doc.data()}');
+                return RewardRequestModel.fromJson(doc.data(), id: doc.id);
+              })
               .toList();
           // Sort descending by requestedOn locally
           list.sort((a, b) => b.requestedOn.compareTo(a.requestedOn));
+          print('🔵 RewardRequestService: Returning ${list.length} parsed requests');
           return list;
         });
   }
@@ -56,7 +74,7 @@ class RewardRequestService {
     return _firestore
         .collection(_collection)
         .where('status', isEqualTo: 'pending')
-        .orderBy('requestedOn', descending: true)
+        .orderBy('timestamps.requested_at', descending: true)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs

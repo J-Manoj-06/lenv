@@ -426,8 +426,7 @@ class ParentService {
   ) {
     return _firestore
         .collection('reward_requests')
-        .where('studentId', isEqualTo: studentId)
-        .orderBy('requestedOn', descending: true)
+        .where('student_id', isEqualTo: studentId)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
@@ -440,6 +439,7 @@ class ParentService {
   Stream<List<RewardRequestModel>> getParentRewardRequestsStream(
     List<String> studentIds,
   ) {
+    print('🔵 ParentService: getParentRewardRequestsStream for students: $studentIds');
     if (studentIds.isEmpty) {
       return Stream.value([]);
     }
@@ -448,15 +448,20 @@ class ParentService {
     if (studentIds.length <= 10) {
       return _firestore
           .collection('reward_requests')
-          .where('studentId', whereIn: studentIds)
-          .orderBy('requestedOn', descending: true)
+          .where('student_id', whereIn: studentIds)
           .snapshots()
           .map(
-            (snapshot) => snapshot.docs
+            (snapshot) {
+              print('🔵 ParentService: Got ${snapshot.docs.length} reward docs');
+              return snapshot.docs
                 .map(
-                  (doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id),
-                )
-                .toList(),
+                  (doc) {
+                    print('🔵 Doc ${doc.id} keys: ${doc.data().keys.toList()}');
+                    print('🔵 Doc student_id: ${doc.data()['student_id']}, parent_id: ${doc.data()['parent_id']}');
+                    return RewardRequestModel.fromJson(doc.data(), id: doc.id);
+                  },
+                ).toList();
+            },
           );
     }
 
@@ -474,8 +479,7 @@ class ParentService {
     final streams = chunks.map((chunk) {
       return _firestore
           .collection('reward_requests')
-          .where('studentId', whereIn: chunk)
-          .orderBy('requestedOn', descending: true)
+          .where('student_id', whereIn: chunk)
           .snapshots()
           .map(
             (snapshot) => snapshot.docs

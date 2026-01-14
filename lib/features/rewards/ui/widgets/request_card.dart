@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/reward_request_model.dart';
 import '../../utils/points_calculator.dart';
-import '..\\..\\utils\\date_utils.dart' as reward_date_utils;
+import '../../utils/date_utils.dart' as reward_date_utils;
 
 class RequestCard extends StatelessWidget {
   final RewardRequestModel request;
