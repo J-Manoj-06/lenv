@@ -432,13 +432,31 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    request.productName,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          request.productName,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => _confirmDeleteReward(request),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.delete_outline,
+                            size: 22,
+                            color: Colors.red.shade400,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -485,6 +503,49 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteReward(RewardRequestModel request) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete reward request?'),
+          content: Text(
+            'This will remove "${request.productName}" from your requests.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true) {
+      await _deleteRewardRequest(request);
+    }
+  }
+
+  Future<void> _deleteRewardRequest(RewardRequestModel request) async {
+    try {
+      await _rewardService.deleteRewardRequest(request.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Reward request deleted')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete request: $e')));
+    }
   }
 
   Widget _buildRequestStatusBadge(RewardRequestStatus status) {
@@ -1062,18 +1123,23 @@ class _StudentRewardsScreenState extends State<StudentRewardsScreen>
 
       // Show success
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🎉 Reward request sent to your parent!'),
-            backgroundColor: Color(0xFF16A34A),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-
-        // Switch to My Rewards tab
+        // Switch to My Rewards tab first
         setState(() {
           _isMyRewards = true;
         });
+
+        // Small delay to ensure stream updates
+        await Future.delayed(const Duration(milliseconds: 300));
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('🎉 Reward request sent to your parent!'),
+              backgroundColor: Color(0xFF16A34A),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } catch (e) {
       // Close loading

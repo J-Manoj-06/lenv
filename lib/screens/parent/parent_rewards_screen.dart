@@ -34,6 +34,7 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
         backgroundColor: isDark ? backgroundDark : Colors.white,
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,
+        automaticallyImplyLeading: false,
       ),
       body: Consumer<ParentProvider>(
         builder: (context, parentProvider, _) {
@@ -70,7 +71,11 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
   ) {
     final selectedChild = parentProvider.selectedChild;
     final points = selectedChild?.rewardPoints ?? 0;
-    final requests = _filtered(parentProvider.rewardRequests);
+    // Filter requests to show only those for current selected child
+    final childRequests = parentProvider.rewardRequests
+        .where((r) => r.studentId == selectedChild?.uid)
+        .toList();
+    final requests = _filtered(childRequests);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return RefreshIndicator(
@@ -309,24 +314,41 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: statusData.color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  statusData.label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: statusData.color,
-                    letterSpacing: 0.5,
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => _confirmDeleteRequest(r, provider),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: Colors.red.shade400,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusData.color.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      statusData.label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: statusData.color,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -512,6 +534,47 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
         );
       case RewardRequestStatus.rejected:
         return const _StatusVisual('REJECTED', Colors.red, Icons.cancel);
+    }
+  }
+
+  Future<void> _confirmDeleteRequest(
+    RewardRequestModel request,
+    ParentProvider provider,
+  ) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete reward request?'),
+          content: Text(
+            'This will permanently remove "${request.productName}" from the requests list.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true && mounted) {
+      final success = await provider.deleteRewardRequest(request.id);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success ? 'Reward request deleted' : 'Failed to delete request',
+          ),
+          backgroundColor: success ? parentGreen : Colors.red,
+        ),
+      );
     }
   }
 }

@@ -96,6 +96,8 @@ class ParentProvider with ChangeNotifier {
 
   // Real-time announcements subscription (aggregated across linked students)
   StreamSubscription<List<Map<String, dynamic>>>? _announcementsSub;
+  // Real-time reward requests subscription (aggregated across all children)
+  StreamSubscription<List<RewardRequestModel>>? _rewardRequestsSub;
   String? get conversationsError => _conversationsError;
   String? get performanceError => _performanceError;
   ParentTeacherGroup? get sectionGroup => _sectionGroup;
@@ -109,6 +111,8 @@ class ParentProvider with ChangeNotifier {
     await loadChildren();
     // Start real-time aggregated announcements for this parent
     startParentAnnouncementsStream();
+    // Start real-time reward requests stream for all children
+    startRewardRequestsStream();
   }
 
   /// Load all children linked to this parent
@@ -237,8 +241,9 @@ class ParentProvider with ChangeNotifier {
     }
   }
 
-  /// Load reward requests for a student
+  /// Load reward requests for a student (now handled by stream)
   Future<void> loadRewardRequests(String studentId) async {
+    // Stream handles this now, but keep for manual refresh
     _isLoadingRewards = true;
     _rewardsError = null;
     notifyListeners();
@@ -472,6 +477,16 @@ class ParentProvider with ChangeNotifier {
     }
   }
 
+  /// Delete a reward request (pending or rejected only)
+  Future<bool> deleteRewardRequest(String requestId) async {
+    try {
+      await _parentService.deleteRewardRequest(requestId);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// Refresh all data for current child
   Future<void> refresh() async {
     if (selectedChild != null) {
@@ -503,7 +518,44 @@ class ParentProvider with ChangeNotifier {
     _notificationsEnabled = true;
     // stop any active streams
     stopParentAnnouncementsStream();
+    stopRewardRequestsStream();
     notifyListeners();
+  }
+
+  /// Start real-time reward requests stream for all children
+  void startRewardRequestsStream() {
+    if (_children.isEmpty) return;
+
+    final studentIds = _children.map((c) => c.uid).toList();
+
+    _rewardRequestsSub?.cancel();
+    _rewardRequestsSub = _parentService
+        .getParentRewardRequestsStream(studentIds)
+        .listen(
+          (requests) {
+            _rewardRequests = requests;
+            _isLoadingRewards = false;
+            notifyListeners();
+          },
+          onError: (error) {
+            _rewardsError = 'Failed to load reward requests: $error';
+            _isLoadingRewards = false;
+            notifyListeners();
+          },
+        );
+  }
+
+  /// Stop reward requests stream
+  void stopRewardRequestsStream() {
+    _rewardRequestsSub?.cancel();
+    _rewardRequestsSub = null;
+  }
+
+  @override
+  void dispose() {
+    stopParentAnnouncementsStream();
+    stopRewardRequestsStream();
+    super.dispose();
   }
 
   /// Toggle notifications preference (local only for now)

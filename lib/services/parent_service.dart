@@ -436,6 +436,80 @@ class ParentService {
         );
   }
 
+  /// Get reward requests stream for ALL children of a parent (real-time)
+  Stream<List<RewardRequestModel>> getParentRewardRequestsStream(
+    List<String> studentIds,
+  ) {
+    if (studentIds.isEmpty) {
+      return Stream.value([]);
+    }
+
+    // Firestore 'in' query supports max 10 items
+    if (studentIds.length <= 10) {
+      return _firestore
+          .collection('reward_requests')
+          .where('studentId', whereIn: studentIds)
+          .orderBy('requestedOn', descending: true)
+          .snapshots()
+          .map(
+            (snapshot) => snapshot.docs
+                .map(
+                  (doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                )
+                .toList(),
+          );
+    }
+
+    // For >10 children, merge multiple streams
+    final chunks = <List<String>>[];
+    for (var i = 0; i < studentIds.length; i += 10) {
+      chunks.add(
+        studentIds.sublist(
+          i,
+          (i + 10 < studentIds.length) ? i + 10 : studentIds.length,
+        ),
+      );
+    }
+
+    final streams = chunks.map((chunk) {
+      return _firestore
+          .collection('reward_requests')
+          .where('studentId', whereIn: chunk)
+          .orderBy('requestedOn', descending: true)
+          .snapshots()
+          .map(
+            (snapshot) => snapshot.docs
+                .map(
+                  (doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                )
+                .toList(),
+          );
+    }).toList();
+
+    // Merge and deduplicate
+    return _mergeRewardStreams(streams);
+  }
+
+  Stream<List<RewardRequestModel>> _mergeRewardStreams(
+    List<Stream<List<RewardRequestModel>>> streams,
+  ) async* {
+    final combined = <String, RewardRequestModel>{};
+
+    await for (final _ in Stream.periodic(const Duration(milliseconds: 100))) {
+      for (final stream in streams) {
+        await for (final list in stream.take(1)) {
+          for (final req in list) {
+            combined[req.id] = req;
+          }
+        }
+      }
+
+      final sorted = combined.values.toList()
+        ..sort((a, b) => b.requestedOn.compareTo(a.requestedOn));
+      yield sorted;
+    }
+  }
+
   /// Get announcements for student's class
   Future<List<Map<String, dynamic>>> getAnnouncementsForStudent(
     String studentId,
@@ -839,6 +913,15 @@ class ParentService {
       return true;
     } catch (e) {
       return false;
+    }
+  }
+
+  /// Delete a reward request (for pending or rejected requests)
+  Future<void> deleteRewardRequest(String requestId) async {
+    try {
+      await _firestore.collection('reward_requests').doc(requestId).delete();
+    } catch (e) {
+      throw Exception('Failed to delete reward request: $e');
     }
   }
 

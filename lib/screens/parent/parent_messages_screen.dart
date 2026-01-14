@@ -254,6 +254,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         backgroundColor: isDark ? backgroundDark : Colors.white,
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,
+        automaticallyImplyLeading: false,
       ),
       body: Consumer<ParentProvider>(
         builder: (context, parentProvider, child) {
