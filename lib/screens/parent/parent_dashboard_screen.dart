@@ -5,7 +5,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
-import 'parent_profile_screen.dart';
 import '../common/announcement_pageview_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {

@@ -112,6 +112,49 @@ class CommunityService {
     }
   }
 
+  /// Get communities eligible for institute/principal users (shows all)
+  Future<List<CommunityModel>> getExploreCommunitiesForInstitute({
+    required String schoolCode,
+  }) async {
+    try {
+      // Fetch communities for both 'institute' and 'principal' roles
+      // (some communities might use 'principal' as the role name)
+      final instituteQuery = await _firestore
+          .collection('communities')
+          .where('isActive', isEqualTo: true)
+          .where('visibility', isEqualTo: 'public')
+          .where('audienceRoles', arrayContains: 'institute')
+          .get(const GetOptions(source: Source.server));
+
+      final principalQuery = await _firestore
+          .collection('communities')
+          .where('isActive', isEqualTo: true)
+          .where('visibility', isEqualTo: 'public')
+          .where('audienceRoles', arrayContains: 'principal')
+          .get(const GetOptions(source: Source.server));
+
+      // Merge and deduplicate by community ID
+      final communityMap = <String, CommunityModel>{};
+
+      for (final doc in [...instituteQuery.docs, ...principalQuery.docs]) {
+        final community = CommunityModel.fromFirestore(doc);
+        final schoolMatch =
+            community.scope == 'global' ||
+            (community.scope == 'school' && community.schoolCode == schoolCode);
+
+        if (schoolMatch && !communityMap.containsKey(community.id)) {
+          communityMap[community.id] = community;
+        }
+      }
+
+      final communities = communityMap.values.toList();
+      communities.sort((a, b) => b.memberCount.compareTo(a.memberCount));
+      return communities;
+    } catch (e) {
+      return [];
+    }
+  }
+
   /// Get communities user has joined
   /// ✅ OPTIMIZED: Uses user_communities collection (1 read instead of 3000+)
   Future<List<CommunityModel>> getMyComm(String userId) async {
@@ -425,6 +468,65 @@ class CommunityService {
 
       batch.set(userCommRef, {
         'userId': teacherId,
+        'communityIds': FieldValue.arrayUnion([communityId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await batch.commit();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Join a community (for institute/principal users)
+  Future<bool> joinCommunityAsInstitute({
+    required String communityId,
+    required String userId,
+    required String userName,
+    required String userEmail,
+    required String schoolCode,
+  }) async {
+    try {
+      final batch = _firestore.batch();
+
+      final memberRef = _firestore
+          .collection('communities')
+          .doc(communityId)
+          .collection('members')
+          .doc(userId);
+
+      batch.set(memberRef, {
+        'userId': userId,
+        'userName': userName,
+        'userEmail': userEmail,
+        'userRole': 'institute',
+        'userGrade': '',
+        'userSection': '',
+        'schoolCode': schoolCode,
+        'avatarUrl': '',
+        'joinedAt': FieldValue.serverTimestamp(),
+        'status': 'active',
+        'isModerator': false,
+        'lastReadAt': FieldValue.serverTimestamp(),
+        'unreadCount': 0,
+        'messageCount': 0,
+        'muteNotifications': false,
+        'favorited': false,
+      });
+
+      final communityRef = _firestore
+          .collection('communities')
+          .doc(communityId);
+      batch.update(communityRef, {
+        'memberCount': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final userCommRef = _firestore.collection('user_communities').doc(userId);
+
+      batch.set(userCommRef, {
+        'userId': userId,
         'communityIds': FieldValue.arrayUnion([communityId]),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

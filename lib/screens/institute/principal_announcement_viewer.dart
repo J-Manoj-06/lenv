@@ -8,12 +8,14 @@ class PrincipalAnnouncementViewer extends StatefulWidget {
   final List<InstituteAnnouncementModel> announcements;
   final int initialIndex;
   final String currentUserId;
+  final bool allowDelete;
 
   const PrincipalAnnouncementViewer({
     super.key,
     required this.announcements,
     this.initialIndex = 0,
     required this.currentUserId,
+    this.allowDelete = true,
   });
 
   @override
@@ -97,6 +99,7 @@ class _PrincipalAnnouncementViewerState
   }
 
   Future<void> _deleteAnnouncement() async {
+    if (!widget.allowDelete) return;
     final announcement = widget.announcements[_currentIndex];
 
     final confirmed = await showDialog<bool>(
@@ -369,27 +372,27 @@ class _PrincipalAnnouncementViewerState
                                           ],
                                         ),
                                       ),
-                                      // Delete button
-                                      IconButton(
-                                        onPressed: _isDeleting
-                                            ? null
-                                            : _deleteAnnouncement,
-                                        icon: _isDeleting
-                                            ? const SizedBox(
-                                                width: 20,
-                                                height: 20,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Colors.white,
-                                                    ),
-                                              )
-                                            : const Icon(
-                                                Icons.delete_outline,
-                                                color: Colors.red,
-                                                size: 24,
-                                              ),
-                                      ),
+                                      if (widget.allowDelete)
+                                        IconButton(
+                                          onPressed: _isDeleting
+                                              ? null
+                                              : _deleteAnnouncement,
+                                          icon: _isDeleting
+                                              ? const SizedBox(
+                                                  width: 20,
+                                                  height: 20,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.white,
+                                                      ),
+                                                )
+                                              : const Icon(
+                                                  Icons.delete_outline,
+                                                  color: Colors.red,
+                                                  size: 24,
+                                                ),
+                                        ),
                                       // Close button
                                       IconButton(
                                         onPressed: () =>

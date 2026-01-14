@@ -14,7 +14,7 @@ class ParentService {
   ) async {
     try {
       // Helper to coerce any value (String/int) to a trimmed String
-      String? _toStr(dynamic v) {
+      String? toStr(dynamic v) {
         if (v == null) return null;
         final s = v.toString().trim();
         return s.isEmpty ? null : s;
@@ -63,26 +63,26 @@ class ParentService {
           }
 
           // Cache linked-student fields for reuse (avoid recompute)
-          final linkedName = _toStr(studentInfo['name']);
-          final linkedClass = _toStr(studentInfo['class']);
-          final linkedSection = _toStr(studentInfo['section']);
-          final linkedSchoolCode = _toStr(studentInfo['schoolCode']);
+          final linkedName = toStr(studentInfo['name']);
+          final linkedClass = toStr(studentInfo['class']);
+          final linkedSection = toStr(studentInfo['section']);
+          final linkedSchoolCode = toStr(studentInfo['schoolCode']);
           final linkedEmail =
-              _toStr(studentInfo['email']) ??
-              _toStr(studentInfo['studentEmail']) ??
-              _toStr(studentInfo['emailId']) ??
-              _toStr(studentInfo['mail']) ??
-              _toStr(studentInfo['contactEmail']);
+              toStr(studentInfo['email']) ??
+              toStr(studentInfo['studentEmail']) ??
+              toStr(studentInfo['emailId']) ??
+              toStr(studentInfo['mail']) ??
+              toStr(studentInfo['contactEmail']);
           final linkedPhone =
-              _toStr(studentInfo['phone']) ??
-              _toStr(studentInfo['phoneNumber']) ??
-              _toStr(studentInfo['mobile']) ??
-              _toStr(studentInfo['mobileNumber']) ??
-              _toStr(studentInfo['contact']) ??
-              _toStr(studentInfo['contactNo']) ??
-              _toStr(studentInfo['contact_number']) ??
-              _toStr(studentInfo['whatsapp']) ??
-              _toStr(studentInfo['whatsApp']);
+              toStr(studentInfo['phone']) ??
+              toStr(studentInfo['phoneNumber']) ??
+              toStr(studentInfo['mobile']) ??
+              toStr(studentInfo['mobileNumber']) ??
+              toStr(studentInfo['contact']) ??
+              toStr(studentInfo['contactNo']) ??
+              toStr(studentInfo['contact_number']) ??
+              toStr(studentInfo['whatsapp']) ??
+              toStr(studentInfo['whatsApp']);
 
           if (studentModel != null) {
             var hydratedStudent = studentModel;
@@ -92,11 +92,11 @@ class ParentService {
             if (hydratedStudent.email.isEmpty) {
               final email =
                   linkedEmail ??
-                  _toStr(sd?['email']) ??
-                  _toStr(sd?['studentEmail']) ??
-                  _toStr(sd?['emailId']) ??
-                  _toStr(sd?['mail']) ??
-                  _toStr(sd?['contactEmail']);
+                  toStr(sd?['email']) ??
+                  toStr(sd?['studentEmail']) ??
+                  toStr(sd?['emailId']) ??
+                  toStr(sd?['mail']) ??
+                  toStr(sd?['contactEmail']);
               if (email != null && email.isNotEmpty) {
                 hydratedStudent = hydratedStudent.copyWith(email: email);
               }

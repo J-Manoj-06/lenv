@@ -144,55 +144,82 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                 }
 
                 if (filteredRequests.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.shopping_bag_outlined,
-                          size: 64,
-                          color: Colors.grey[400],
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(studentRequestsProvider(widget.studentId));
+                      await Future.delayed(const Duration(milliseconds: 500));
+                    },
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.5,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.shopping_bag_outlined,
+                                size: 64,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _selectedStatus == null
+                                    ? 'No requests yet'
+                                    : 'No ${_getStatusLabel(_selectedStatus!)} requests',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Start exploring rewards!',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.grey[600]),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Pull down to refresh',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.grey[500]),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _selectedStatus == null
-                              ? 'No requests yet'
-                              : 'No ${_getStatusLabel(_selectedStatus!)} requests',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Start exploring rewards!',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: Colors.grey[600]),
-                        ),
-                      ],
+                      ),
                     ),
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-                  itemCount: filteredRequests.length,
-                  itemBuilder: (context, index) {
-                    final request = filteredRequests[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: RequestCard(
-                        request: request,
-                        onTapped: () {
-                          RewardsModule.navigateToRequestDetail(
-                            context,
-                            requestId: request.requestId,
-                            request: request,
-                          );
-                        },
-                        actionLabel: _getActionLabel(request.status),
-                        onActionPressed: () => _handleAction(context, request),
-                        onDeletePressed: () => _confirmDelete(context, request),
-                      ),
-                    );
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(studentRequestsProvider(widget.studentId));
+                    await Future.delayed(const Duration(milliseconds: 500));
                   },
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                    itemCount: filteredRequests.length,
+                    itemBuilder: (context, index) {
+                      final request = filteredRequests[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: RequestCard(
+                          request: request,
+                          onTapped: () {
+                            RewardsModule.navigateToRequestDetail(
+                              context,
+                              requestId: request.requestId,
+                              request: request,
+                            );
+                          },
+                          actionLabel: _getActionLabel(request.status),
+                          onActionPressed: () =>
+                              _handleAction(context, request),
+                          onDeletePressed: () =>
+                              _confirmDelete(context, request),
+                        ),
+                      );
+                    },
+                  ),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),

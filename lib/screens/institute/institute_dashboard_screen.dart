@@ -7,6 +7,7 @@ import './principal_announcement_viewer.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/institute_announcement_model.dart';
 import '../../services/media_repository.dart';
+import '../../services/institute_announcement_service.dart';
 
 const Color _backgroundDark = Color(0xFF0F172A); // slate-900
 const Color _cardColor = Color(0xFF1E293B); // slate-800
@@ -23,10 +24,43 @@ class InstituteDashboardScreen extends StatefulWidget {
 
 class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   final MediaRepository _mediaRepository = MediaRepository();
+  final InstituteAnnouncementService _announcementService =
+      InstituteAnnouncementService();
+  Set<String> _viewedAnnouncementIds = <String>{};
+  bool _isLoadingViewed = false;
 
   @override
   void initState() {
     super.initState();
+    _loadViewedAnnouncements();
+  }
+
+  Future<void> _loadViewedAnnouncements() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.uid;
+    if (userId == null || userId.isEmpty) return;
+
+    setState(() => _isLoadingViewed = true);
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('views')
+          .where(FieldPath.documentId, isEqualTo: userId)
+          .get();
+
+      final viewedIds = snap.docs
+          .map((d) => d.reference.parent.parent?.id)
+          .whereType<String>()
+          .toSet();
+
+      if (mounted) {
+        setState(() {
+          _viewedAnnouncementIds = viewedIds;
+          _isLoadingViewed = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingViewed = false);
+    }
   }
 
   @override
@@ -377,9 +411,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     );
 
     return GestureDetector(
-      onTap: () {
-        // TODO: Open announcement viewer
-      },
+      onTap: () => _openOtherPrincipalAnnouncements(allAnnouncements),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -479,9 +511,49 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
   // Synchronous check for viewed status (simplified for now)
   bool _hasBeenViewedSync(String announcementId, String userId) {
-    // For simplicity, assume unviewed for now
-    // In production, you'd cache this data or use a different approach
-    return false;
+    if (userId.isEmpty) return false;
+    return _viewedAnnouncementIds.contains(announcementId);
+  }
+
+  Future<void> _markAnnouncementsViewed(
+    List<InstituteAnnouncementModel> announcements,
+    String userId,
+  ) async {
+    await Future.wait(
+      announcements.map(
+        (a) => _announcementService.markAnnouncementAsViewed(a.id, userId),
+      ),
+    );
+
+    if (mounted) {
+      setState(() {
+        _viewedAnnouncementIds.addAll(announcements.map((a) => a.id));
+      });
+    }
+  }
+
+  Future<void> _openOtherPrincipalAnnouncements(
+    List<InstituteAnnouncementModel> announcements,
+  ) async {
+    if (announcements.isEmpty) return;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.uid ?? '';
+    if (userId.isEmpty) return;
+
+    await _markAnnouncementsViewed(announcements, userId);
+
+    if (!mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PrincipalAnnouncementViewer(
+          announcements: announcements,
+          currentUserId: userId,
+          allowDelete: false,
+        ),
+      ),
+    );
   }
 
   void _openAnnouncementTargetSelection() {
