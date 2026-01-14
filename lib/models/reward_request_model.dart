@@ -131,6 +131,8 @@ class RewardRequestModel {
       parentId: json['parentId'] as String? ?? json['parent_id'] as String?,
       approvedOn: (json['approvedOn'] is Timestamp)
           ? (json['approvedOn'] as Timestamp).toDate()
+          : (json['approved_on'] is Timestamp)
+          ? (json['approved_on'] as Timestamp).toDate()
           : null,
     );
   }

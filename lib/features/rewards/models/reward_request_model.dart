@@ -48,9 +48,11 @@ class RewardRequestModel {
   final PointsData pointsData;
   final RewardRequestStatus status;
   final String? purchaseMode; // 'amazon', 'manual', null
+  final double? manualPrice; // Price for manual purchases
   final ConfirmationData? confirmation;
   final TimestampsData timestamps;
   final List<AuditEntry> audit;
+  final DateTime? lastReminderSentAt; // For 3-day reminder system
 
   RewardRequestModel({
     required this.requestId,
@@ -60,9 +62,11 @@ class RewardRequestModel {
     required this.pointsData,
     required this.status,
     this.purchaseMode,
+    this.manualPrice,
     this.confirmation,
     required this.timestamps,
     required this.audit,
+    this.lastReminderSentAt,
   });
 
   /// Check if request can transition to next status
@@ -106,9 +110,13 @@ class RewardRequestModel {
       'points': pointsData.toMap(),
       'status': status.value,
       'purchase_mode': purchaseMode,
+      'manual_price': manualPrice,
       'confirmation': confirmation?.toMap(),
       'timestamps': timestamps.toMap(),
       'audit': audit.map((e) => e.toMap()).toList(),
+      'last_reminder_sent_at': lastReminderSentAt != null
+          ? Timestamp.fromDate(lastReminderSentAt!)
+          : null,
     };
   }
 
@@ -159,6 +167,7 @@ class RewardRequestModel {
       pointsData: getPointsData(),
       status: RewardRequestStatus.fromString(map['status'] ?? ''),
       purchaseMode: map['purchase_mode'],
+      manualPrice: (map['manual_price'] as num?)?.toDouble(),
       confirmation: map['confirmation'] != null
           ? ConfirmationData.fromMap(map['confirmation'])
           : null,
@@ -166,6 +175,8 @@ class RewardRequestModel {
       audit:
           (map['audit'] as List?)?.map((e) => AuditEntry.fromMap(e)).toList() ??
           [],
+      lastReminderSentAt: (map['last_reminder_sent_at'] as Timestamp?)
+          ?.toDate(),
     );
   }
 
@@ -178,9 +189,11 @@ class RewardRequestModel {
     PointsData? pointsData,
     RewardRequestStatus? status,
     String? purchaseMode,
+    double? manualPrice,
     ConfirmationData? confirmation,
     TimestampsData? timestamps,
     List<AuditEntry>? audit,
+    DateTime? lastReminderSentAt,
   }) {
     return RewardRequestModel(
       requestId: requestId ?? this.requestId,
@@ -190,9 +203,11 @@ class RewardRequestModel {
       pointsData: pointsData ?? this.pointsData,
       status: status ?? this.status,
       purchaseMode: purchaseMode ?? this.purchaseMode,
+      manualPrice: manualPrice ?? this.manualPrice,
       confirmation: confirmation ?? this.confirmation,
       timestamps: timestamps ?? this.timestamps,
       audit: audit ?? this.audit,
+      lastReminderSentAt: lastReminderSentAt ?? this.lastReminderSentAt,
     );
   }
 }

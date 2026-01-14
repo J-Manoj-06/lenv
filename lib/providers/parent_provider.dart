@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
 import '../models/reward_request_model.dart';
@@ -11,6 +13,7 @@ import '../services/parent_teacher_group_service.dart';
 class ParentProvider with ChangeNotifier {
   final ParentService _parentService = ParentService();
   final ParentTeacherGroupService _ptGroupService = ParentTeacherGroupService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // SharedPreferences key for persisting selected child
   static const String _selectedChildKey = 'parent_selected_child_uid';
@@ -453,6 +456,44 @@ class ParentProvider with ChangeNotifier {
 
       return success;
     } catch (e) {
+      return false;
+    }
+  }
+
+  /// Approve reward request with specific method (Amazon or Manual)
+  Future<bool> approveRewardRequestWithMethod({
+    required String requestId,
+    required String approvalMethod, // 'amazon' or 'manual'
+    double? manualPrice,
+  }) async {
+    try {
+      final db = FirebaseFirestore.instance;
+
+      await db.collection('reward_requests').doc(requestId).update({
+        'status': 'approved',
+        'purchase_mode': approvalMethod,
+        if (manualPrice != null) 'manual_price': manualPrice,
+        'approved_on': FieldValue.serverTimestamp(),
+        'audit': FieldValue.arrayUnion([
+          {
+            'actor': _auth.currentUser?.uid,
+            'action': 'approved',
+            'timestamp': DateTime.now().toIso8601String(),
+            'metadata': {
+              'approval_method': approvalMethod,
+              if (manualPrice != null) 'manual_price': manualPrice,
+            },
+          },
+        ]),
+      });
+
+      if (selectedChild != null) {
+        await loadRewardRequests(selectedChild!.uid);
+      }
+
+      return true;
+    } catch (e) {
+      print('Error approving request: $e');
       return false;
     }
   }

@@ -594,4 +594,206 @@ class RewardsRepository {
       rethrow;
     }
   }
+
+  /// Get latest reward request for student
+  Future<RewardRequestModel?> getLatestRewardRequest(String studentId) async {
+    try {
+      final snapshot = await _firestore
+          .collection(requestsCollection)
+          .where('student_id', isEqualTo: studentId)
+          .orderBy('timestamps.requested_at', descending: true)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) return null;
+      return RewardRequestModel.fromMap(snapshot.docs.first.data());
+    } catch (e) {
+      print('Error getting latest reward request: $e');
+      return null;
+    }
+  }
+
+  /// Check if student has pending request
+  Future<bool> hasActivePendingRequest(String studentId) async {
+    final latest = await getLatestRewardRequest(studentId);
+    return latest != null &&
+        latest.status == RewardRequestStatus.pendingParentApproval;
+  }
+
+  /// Approve reward request
+  Future<void> approveRewardRequest({
+    required String requestId,
+    required String approverId,
+    required String approvalMethod, // 'amazon' or 'manual'
+    double? manualPrice,
+  }) async {
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final requestRef = _firestore
+            .collection(requestsCollection)
+            .doc(requestId);
+        final requestSnap = await transaction.get(requestRef);
+
+        if (!requestSnap.exists) {
+          throw Exception('Request not found');
+        }
+
+        final request = RewardRequestModel.fromMap(requestSnap.data()!);
+
+        // Check if already approved or cancelled
+        if (request.status != RewardRequestStatus.pendingParentApproval) {
+          throw Exception('Request is not pending');
+        }
+
+        // Check if expired
+        if (DateTime.now().isAfter(request.timestamps.lockExpiresAt)) {
+          throw Exception('Request has expired');
+        }
+
+        // Create audit entry
+        final auditEntry = AuditEntry(
+          actor: approverId,
+          action: 'approved',
+          timestamp: DateTime.now(),
+          metadata: {
+            'approval_method': approvalMethod,
+            if (manualPrice != null) 'manual_price': manualPrice,
+          },
+        );
+
+        // Update request
+        transaction.update(requestRef, {
+          'status': RewardRequestStatus.approvedPurchaseInProgress.value,
+          'purchase_mode': approvalMethod,
+          if (manualPrice != null) 'manual_price': manualPrice,
+          'audit': [...request.audit.map((e) => e.toMap()), auditEntry.toMap()],
+        });
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Cancel expired reward requests
+  Future<int> cancelExpiredRewardRequests() async {
+    try {
+      final now = DateTime.now();
+      final snapshot = await _firestore
+          .collection(requestsCollection)
+          .where(
+            'status',
+            isEqualTo: RewardRequestStatus.pendingParentApproval.value,
+          )
+          .get();
+
+      int cancelledCount = 0;
+
+      for (final doc in snapshot.docs) {
+        try {
+          final request = RewardRequestModel.fromMap(doc.data());
+
+          // Check if expired (21 days)
+          if (now.isAfter(request.timestamps.lockExpiresAt)) {
+            await _firestore.runTransaction((transaction) async {
+              final requestRef = _firestore
+                  .collection(requestsCollection)
+                  .doc(doc.id);
+
+              final auditEntry = AuditEntry(
+                actor: 'system',
+                action: 'cancelled',
+                timestamp: now,
+                metadata: {'reason': 'EXPIRED_21_DAYS'},
+              );
+
+              transaction.update(requestRef, {
+                'status': RewardRequestStatus.expiredOrAutoResolved.value,
+                'audit': [
+                  ...request.audit.map((e) => e.toMap()),
+                  auditEntry.toMap(),
+                ],
+              });
+
+              // Release locked points back to student
+              final studentRef = _firestore
+                  .collection(studentsCollection)
+                  .doc(request.studentId);
+              final studentSnap = await transaction.get(studentRef);
+
+              if (studentSnap.exists) {
+                final studentData = studentSnap.data() ?? {};
+                final availablePoints =
+                    (studentData['available_points'] as num?)?.toInt() ?? 0;
+                final lockedPoints =
+                    (studentData['locked_points'] as num?)?.toInt() ?? 0;
+
+                transaction.update(studentRef, {
+                  'available_points':
+                      availablePoints + request.pointsData.required,
+                  'locked_points': lockedPoints - request.pointsData.required,
+                });
+              }
+            });
+
+            cancelledCount++;
+            print('Cancelled expired request: ${doc.id}');
+          }
+        } catch (e) {
+          print('Error cancelling request ${doc.id}: $e');
+        }
+      }
+
+      return cancelledCount;
+    } catch (e) {
+      print('Error in cancelExpiredRewardRequests: $e');
+      return 0;
+    }
+  }
+
+  /// Check and send reminder if needed
+  Future<bool> checkAndSendReminder(String studentId) async {
+    try {
+      final latest = await getLatestRewardRequest(studentId);
+
+      if (latest == null ||
+          latest.status != RewardRequestStatus.pendingParentApproval) {
+        return false;
+      }
+
+      final now = DateTime.now();
+      final daysSinceRequest = now
+          .difference(latest.timestamps.requestedAt)
+          .inDays;
+
+      // Check if expired
+      if (now.isAfter(latest.timestamps.lockExpiresAt)) {
+        return false;
+      }
+
+      // Check if reminder needed (3 days since request or last reminder)
+      bool needsReminder = false;
+      if (latest.lastReminderSentAt == null) {
+        needsReminder = daysSinceRequest >= 3;
+      } else {
+        final daysSinceLastReminder = now
+            .difference(latest.lastReminderSentAt!)
+            .inDays;
+        needsReminder = daysSinceLastReminder >= 3;
+      }
+
+      if (needsReminder) {
+        // Update last reminder timestamp
+        await _firestore
+            .collection(requestsCollection)
+            .doc(latest.requestId)
+            .update({'last_reminder_sent_at': Timestamp.fromDate(now)});
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      print('Error in checkAndSendReminder: $e');
+      return false;
+    }
+  }
 }

@@ -19,6 +19,27 @@ class _ParentRequestApprovalScreenState
   RewardRequestStatus? _selectedStatus;
 
   @override
+  void initState() {
+    super.initState();
+    // Check and cancel expired requests when screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkExpiredRequests();
+    });
+  }
+
+  Future<void> _checkExpiredRequests() async {
+    try {
+      final repository = ref.read(rewardsRepositoryProvider);
+      final cancelledCount = await repository.cancelExpiredRewardRequests();
+      if (cancelledCount > 0) {
+        print('🔴 Auto-cancelled $cancelledCount expired requests');
+      }
+    } catch (e) {
+      print('Error checking expired requests: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final requestsAsync = ref.watch(parentRequestsProvider(widget.parentId));
@@ -175,6 +196,10 @@ class _RequestCard extends ConsumerWidget {
                     color: isDark ? Colors.grey[400] : Colors.grey[600],
                   ),
                 ),
+
+                // Time warning for pending requests
+                if (request.status == RewardRequestStatus.pendingParentApproval)
+                  _TimeWarning(request: request, isDark: isDark),
               ],
             ),
           ),
@@ -249,24 +274,101 @@ class _RequestCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Approve Request?'),
-        content: Text(
-          'Approve "${request.productSnapshot.title}" for ${request.pointsData.required} points?',
+        title: const Text('Choose Purchase Method'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'How would you like to fulfill "${request.productSnapshot.title}"?',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            // Amazon Option
+            InkWell(
+              onTap: () {
+                Navigator.pop(c);
+                _approveViaAmazon(context, ref);
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.orange),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.shopping_cart, color: Colors.orange[700]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Amazon Affiliate',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'Order via Amazon link',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, size: 16),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Manual Option
+            InkWell(
+              onTap: () {
+                Navigator.pop(c);
+                _showManualPriceDialog(context, ref);
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.blue),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.store, color: Colors.blue[700]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Manual Purchase',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'Buy locally or from other store',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
             child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(c);
-              await _approveRequest(context, ref);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF14A670),
-            ),
-            child: const Text('Approve'),
           ),
         ],
       ),
@@ -297,20 +399,147 @@ class _RequestCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _approveRequest(BuildContext context, WidgetRef ref) async {
+  Future<void> _approveViaAmazon(BuildContext context, WidgetRef ref) async {
     try {
       final repository = ref.read(rewardsRepositoryProvider);
-      await repository.updateRequestStatus(
+      await repository.approveRewardRequest(
         requestId: request.requestId,
-        newStatus: RewardRequestStatus.approvedPurchaseInProgress,
-        userId: parentId,
-        metadata: {'approvedAt': DateTime.now().toString()},
+        approverId: parentId,
+        approvalMethod: 'amazon',
+      );
+
+      if (!context.mounted) return;
+
+      // Show confirmation dialog with Amazon link
+      showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('✓ Approved via Amazon'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Request approved! Click below to complete the purchase:',
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(c);
+                  // TODO: Launch Amazon URL
+                  // final url = AffiliateService.buildUrl(...);
+                  // launchUrl(Uri.parse(url));
+                },
+                icon: const Icon(Icons.shopping_bag),
+                label: const Text('Open Amazon'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  minimumSize: const Size(double.infinity, 45),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+
+      onUpdated();
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _showManualPriceDialog(BuildContext context, WidgetRef ref) {
+    final priceController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Enter Purchase Price'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'How much did you pay for "${request.productSnapshot.title}"?',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: priceController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                prefixText: '₹ ',
+                labelText: 'Price',
+                border: OutlineInputBorder(),
+                hintText: 'Enter amount',
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              priceController.dispose();
+              Navigator.pop(c);
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final price = double.tryParse(priceController.text);
+              if (price == null || price <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid price'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(c);
+              priceController.dispose();
+              _approveManual(context, ref, price);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF14A670),
+            ),
+            child: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _approveManual(
+    BuildContext context,
+    WidgetRef ref,
+    double price,
+  ) async {
+    try {
+      final repository = ref.read(rewardsRepositoryProvider);
+      await repository.approveRewardRequest(
+        requestId: request.requestId,
+        approverId: parentId,
+        approvalMethod: 'manual',
+        manualPrice: price,
       );
 
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✓ Request approved!'),
+        SnackBar(
+          content: Text(
+            '✓ Approved! Manual purchase: ₹${price.toStringAsFixed(2)}',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -396,6 +625,66 @@ class _StatusBadge extends StatelessWidget {
           fontWeight: FontWeight.w600,
           color: textColor,
         ),
+      ),
+    );
+  }
+}
+
+class _TimeWarning extends StatelessWidget {
+  final RewardRequestModel request;
+  final bool isDark;
+
+  const _TimeWarning({required this.request, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final daysPending = now.difference(request.timestamps.requestedAt).inDays;
+    final daysUntilExpiry = request.timestamps.lockExpiresAt
+        .difference(now)
+        .inDays;
+
+    // Don't show if just requested
+    if (daysPending < 1) return const SizedBox.shrink();
+
+    Color color;
+    IconData icon;
+    String message;
+
+    if (daysUntilExpiry <= 3) {
+      // Urgent: Less than 3 days until expiry
+      color = Colors.red;
+      icon = Icons.warning;
+      message = '⚠️ Expires in $daysUntilExpiry days!';
+    } else if (daysPending >= 3) {
+      // Reminder: 3+ days pending
+      color = Colors.orange;
+      icon = Icons.schedule;
+      message = '⏰ Pending for $daysPending days';
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            message,
+            style: TextTheme.of(
+              context,
+            ).bodySmall?.copyWith(color: color, fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }

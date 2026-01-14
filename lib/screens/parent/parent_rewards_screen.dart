@@ -288,11 +288,16 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
                       children: [
                         const Icon(Icons.stars, size: 16, color: Colors.amber),
                         const SizedBox(width: 4),
-                        Text(
-                          '${r.pointsRequired} pts',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDark ? Colors.grey[300] : Colors.grey[700],
+                        Flexible(
+                          child: Text(
+                            '${r.pointsRequired} pts',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? Colors.grey[300]
+                                  : Colors.grey[700],
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -302,11 +307,16 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
                           color: isDark ? Colors.grey[400] : Colors.grey[600],
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          dateStr,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        Flexible(
+                          child: Text(
+                            dateStr,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -430,33 +440,260 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
   }
 
   Future<void> _confirmApprove(String id, ParentProvider provider) async {
-    final ok = await showDialog<bool>(
+    // Show method selection dialog
+    final method = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Approve Reward'),
-        content: const Text('Approve this reward request?'),
+        title: const Text('Choose Purchase Method'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('How would you like to fulfill this reward?'),
+              const SizedBox(height: 16),
+              // Amazon Option
+              InkWell(
+                onTap: () => Navigator.pop(c, 'amazon'),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.orange),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.shopping_cart, color: Colors.orange[700]),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Amazon Affiliate',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              'Order via Amazon link',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Manual Option
+              InkWell(
+                onTap: () => Navigator.pop(c, 'manual'),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blue),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.store, color: Colors.blue[700]),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Manual Purchase',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              'Buy locally or from other store',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (method == null) return;
+
+    if (method == 'amazon') {
+      await _approveViaAmazon(id, provider);
+    } else if (method == 'manual') {
+      await _showManualPriceDialog(id, provider);
+    }
+  }
+
+  Future<void> _approveViaAmazon(String id, ParentProvider provider) async {
+    final success = await provider.approveRewardRequestWithMethod(
+      requestId: id,
+      approvalMethod: 'amazon',
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      // Show confirmation dialog with Amazon link
+      showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('✓ Approved via Amazon'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Request approved! Click below to complete the purchase:',
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(c);
+                    // TODO: Launch Amazon URL
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Amazon link feature coming soon!'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.shopping_bag),
+                  label: const Text('Open Amazon'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    minimumSize: const Size(double.infinity, 45),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Approval failed'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _showManualPriceDialog(
+    String id,
+    ParentProvider provider,
+  ) async {
+    final priceController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Enter Purchase Price'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('How much did you pay for this reward?'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: priceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  prefixText: '₹ ',
+                  labelText: 'Price',
+                  border: OutlineInputBorder(),
+                  hintText: 'Enter amount',
+                ),
+                autofocus: true,
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(c, true),
+            onPressed: () {
+              final price = double.tryParse(priceController.text);
+              if (price == null || price <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid price'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(c, true);
+            },
             style: ElevatedButton.styleFrom(backgroundColor: parentGreen),
             child: const Text('Approve'),
           ),
         ],
       ),
     );
-    if (ok == true) {
-      final success = await provider.approveRewardRequest(id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Approved' : 'Approval failed'),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
+
+    if (confirmed == true) {
+      final price = double.tryParse(priceController.text);
+      priceController.dispose();
+
+      if (price != null && price > 0) {
+        final success = await provider.approveRewardRequestWithMethod(
+          requestId: id,
+          approvalMethod: 'manual',
+          manualPrice: price,
+        );
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? '✓ Approved! Manual purchase: ₹${price.toStringAsFixed(2)}'
+                  : 'Approval failed',
+            ),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    } else {
+      priceController.dispose();
     }
   }
 

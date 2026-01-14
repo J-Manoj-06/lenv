@@ -467,8 +467,28 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     setState(() => _isRequestingProduct = true);
 
     try {
-      // Get parent ID from student document
+      // Check if student has pending request
       final repository = ref.read(rewardsRepositoryProvider);
+      final hasPending = await repository.hasActivePendingRequest(
+        widget.studentId!,
+      );
+
+      if (hasPending) {
+        if (!mounted) return;
+        setState(() => _isRequestingProduct = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '⏳ You have a pending reward request. Please wait for parent approval before requesting another reward.',
+            ),
+            duration: Duration(seconds: 4),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Get parent ID from student document
       String parentId;
       try {
         final studentDoc = await repository.getStudentDocument(
