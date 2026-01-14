@@ -59,51 +59,62 @@ class _ProductCardState extends State<ProductCard>
     );
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final imageBg = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5);
+    final cardBg = isDark ? const Color(0xFF1A1A1F) : Colors.white;
+    final imageBg = isDark ? const Color(0xFF0F0F14) : const Color(0xFFF3F4F6);
 
     return MouseRegion(
       onEnter: (_) => _onHoverStart(),
       onExit: (_) => _onHoverEnd(),
       child: ScaleTransition(
-        scale: Tween<double>(begin: 1.0, end: 1.01).animate(
+        scale: Tween<double>(begin: 1.0, end: 1.02).animate(
           CurvedAnimation(parent: _scaleController, curve: Curves.easeOut),
         ),
         child: Card(
-          elevation: _isHovering ? 8 : 2,
+          elevation: 0,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           color: cardBg,
-          shadowColor: _primaryOrange.withOpacity(0.1),
-          child: InkWell(
-            onTap: () {},
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Product Image Section with Modern Design
-                  _buildImageSection(context, imageBg),
-                  const SizedBox(height: 14),
-                  // Product Title and Basic Info
-                  _buildTitleSection(context, isDark),
-                  const SizedBox(height: 12),
-                  // Rating Section
-                  if (widget.product.rating != null &&
-                      widget.product.rating! > 0)
-                    _buildRatingSection(context, isDark),
-                  if (widget.product.rating != null &&
-                      widget.product.rating! > 0)
-                    const SizedBox(height: 10),
-                  // Points Required Badge
-                  _buildPointsBadge(context, pointsRequired, isDark),
-                  const SizedBox(height: 12),
-                  // Action Button
-                  _buildActionButton(context, pointsRequired),
-                ],
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
+                  blurRadius: _isHovering ? 16 : 12,
+                  offset: Offset(0, _isHovering ? 6 : 4),
+                ),
+              ],
+            ),
+            child: InkWell(
+              onTap: () {},
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Product Image Section with Modern Design
+                    _buildImageSection(context, imageBg),
+                    const SizedBox(height: 14),
+                    // Product Title and Basic Info
+                    _buildTitleSection(context, isDark),
+                    const SizedBox(height: 12),
+                    // Rating Section
+                    if (widget.product.rating != null &&
+                        widget.product.rating! > 0)
+                      _buildRatingSection(context, isDark),
+                    if (widget.product.rating != null &&
+                        widget.product.rating! > 0)
+                      const SizedBox(height: 10),
+                    // Points Required Badge
+                    _buildPointsBadge(context, pointsRequired, isDark),
+                    const SizedBox(height: 12),
+                    // Action Button
+                    _buildActionButton(context, pointsRequired),
+                  ],
+                ),
               ),
             ),
           ),
@@ -115,17 +126,16 @@ class _ProductCardState extends State<ProductCard>
   Widget _buildImageSection(BuildContext context, Color imageBg) {
     return Container(
       width: double.infinity,
-      height: 140,
+      height: 160,
       decoration: BoxDecoration(
         color: imageBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _primaryOrange.withOpacity(0.15), width: 1),
       ),
       child: Center(
         child: Icon(
-          Icons.card_giftcard,
-          size: 56,
-          color: _primaryOrange.withOpacity(0.6),
+          Icons.card_giftcard_rounded,
+          size: 64,
+          color: _primaryOrange.withOpacity(0.4),
         ),
       ),
     );
@@ -235,32 +245,33 @@ class _ProductCardState extends State<ProductCard>
   ) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(11),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: _primaryOrange.withOpacity(0.08),
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFF97316).withOpacity(0.12),
+            const Color(0xFFFBBF24).withOpacity(0.12),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _primaryOrange.withOpacity(0.2), width: 1.2),
+        border: Border.all(
+          color: const Color(0xFFF97316).withOpacity(0.3),
+          width: 1.2,
+        ),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: _primaryOrange.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Icon(
-              Icons.card_giftcard,
-              size: 16,
-              color: _primaryOrange,
-            ),
-          ),
-          const SizedBox(width: 10),
+          const Icon(Icons.stars_rounded, size: 18, color: Color(0xFFFBBF24)),
+          const SizedBox(width: 8),
           Text(
-            '$pointsRequired points required',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            '$pointsRequired points',
+            style: TextStyle(
+              fontSize: 14,
               color: _primaryOrange,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               letterSpacing: 0.3,
             ),
           ),
@@ -270,36 +281,81 @@ class _ProductCardState extends State<ProductCard>
   }
 
   Widget _buildActionButton(BuildContext context, int pointsRequired) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
-      height: 44,
-      child: FilledButton.icon(
-        onPressed: widget.isRequesting ? null : widget.onRequestPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: _primaryOrange,
-          disabledBackgroundColor: Colors.grey[300],
-          disabledForegroundColor: Colors.grey[600],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: widget.isRequesting ? 0 : 2,
-        ),
-        icon: widget.isRequesting
-            ? SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[600]!),
+      height: 48,
+      decoration: BoxDecoration(
+        gradient: widget.isRequesting
+            ? null
+            : const LinearGradient(
+                colors: [Color(0xFFF97316), Color(0xFFFBBF24)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: widget.isRequesting ? Colors.grey[300] : null,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: widget.isRequesting
+            ? []
+            : [
+                BoxShadow(
+                  color: const Color(0xFFF97316).withOpacity(0.35),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-              )
-            : const Icon(Icons.shopping_cart, size: 18),
-        label: Text(
-          widget.isRequesting ? 'Requesting…' : 'Request Item',
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
+              ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.isRequesting ? null : widget.onRequestPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Center(
+            child: widget.isRequesting
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.grey[600]!,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Requesting…',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey[600],
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.add_shopping_cart_rounded,
+                        size: 20,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Request Item',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),

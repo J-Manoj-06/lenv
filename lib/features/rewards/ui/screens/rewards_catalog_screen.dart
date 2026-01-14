@@ -49,9 +49,9 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scaffoldBg = isDark
-        ? const Color(0xFF121212)
-        : const Color(0xFFFAF9F7);
-    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+        ? const Color(0xFF0F0F14)
+        : const Color(0xFFF8F9FA);
+    final cardBg = isDark ? const Color(0xFF1A1A1F) : Colors.white;
 
     return Scaffold(
       backgroundColor: scaffoldBg,
@@ -171,19 +171,45 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
     Color cardBg,
   ) {
     return PreferredSize(
-      preferredSize: const Size.fromHeight(56),
-      child: AppBar(
-        elevation: 0,
-        backgroundColor: cardBg,
-        surfaceTintColor: Colors.transparent,
-        title: Text(
-          'Rewards Store',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
+      preferredSize: const Size.fromHeight(110),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        decoration: BoxDecoration(
+          color: cardBg,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                'Rewards Store',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : const Color(0xFF1F2937),
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Browse and redeem amazing rewards',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
           ),
         ),
-        centerTitle: true,
       ),
     );
   }
@@ -193,57 +219,65 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
     bool isDark,
     Color cardBg,
   ) {
-    return TextField(
-      controller: _searchController,
-      onChanged: (_) {
-        setState(() {});
-      },
-      decoration: InputDecoration(
-        hintText: 'Search rewards…',
-        hintStyle: TextStyle(
-          color: isDark ? Colors.grey[500] : Colors.grey[600],
-          fontSize: 15,
-        ),
-        prefixIcon: Icon(
-          Icons.search,
-          color: isDark ? Colors.grey[500] : Colors.grey[600],
-        ),
-        suffixIcon: _searchController.text.isNotEmpty
-            ? GestureDetector(
-                onTap: () {
-                  _searchController.clear();
-                  setState(() {});
-                },
-                child: Icon(
-                  Icons.clear,
-                  color: isDark ? Colors.grey[500] : Colors.grey[600],
-                  size: 20,
-                ),
-              )
-            : null,
-        filled: true,
-        fillColor: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(
-            color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
-            width: 1,
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A1A1F) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.15 : 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(
-            color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
-            width: 1,
+        ],
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (_) {
+          setState(() {});
+        },
+        decoration: InputDecoration(
+          hintText: 'Search rewards…',
+          hintStyle: TextStyle(
+            color: isDark ? Colors.grey[500] : Colors.grey[500],
+            fontSize: 15,
+            fontWeight: FontWeight.w400,
           ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: _primaryOrange, width: 1.5),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: const Color(0xFFF97316),
+            size: 22,
+          ),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? GestureDetector(
+                  onTap: () {
+                    _searchController.clear();
+                    setState(() {});
+                  },
+                  child: Icon(
+                    Icons.close_rounded,
+                    color: isDark ? Colors.grey[500] : Colors.grey[500],
+                    size: 20,
+                  ),
+                )
+              : null,
+          filled: false,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _primaryOrange, width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
         ),
       ),
     );
@@ -252,34 +286,94 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
   Widget _buildFilterChips(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final chips = [
-      ('All', 'default'),
-      ('💰 Low to High', 'price_asc'),
-      ('💰 High to Low', 'price_desc'),
-      ('⭐ Top Rated', 'rating'),
+      ('All', 'default', Icons.apps_rounded),
+      ('Low to High', 'price_asc', Icons.arrow_upward_rounded),
+      ('High to Low', 'price_desc', Icons.arrow_downward_rounded),
+      ('Top Rated', 'rating', Icons.star_rounded),
     ];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: List.generate(chips.length, (index) {
-          final (label, value) = chips[index];
+          final (label, value, icon) = chips[index];
           final isSelected = _sortBy == value;
 
           return Padding(
-            padding: EdgeInsets.only(right: index < chips.length - 1 ? 8 : 0),
-            child: AnimatedBuilder(
-              animation: _animationController,
-              builder: (context, child) {
-                return _ModernFilterChip(
-                  label: label,
-                  isSelected: isSelected,
-                  isDark: isDark,
-                  onSelected: () {
-                    setState(() => _sortBy = value);
-                    _animationController.forward(from: 0);
-                  },
-                );
-              },
+            padding: EdgeInsets.only(right: index < chips.length - 1 ? 10 : 0),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  setState(() => _sortBy = value);
+                  _animationController.forward(from: 0);
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: isSelected
+                        ? const LinearGradient(
+                            colors: [Color(0xFFF97316), Color(0xFFFBBF24)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: isSelected
+                        ? null
+                        : (isDark
+                              ? const Color(0xFF1A1A1F)
+                              : const Color(0xFFF3F4F6)),
+                    borderRadius: BorderRadius.circular(12),
+                    border: isSelected
+                        ? null
+                        : Border.all(
+                            color: isDark
+                                ? Colors.grey[700]!
+                                : Colors.grey[300]!,
+                            width: 1,
+                          ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFFF97316).withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ]
+                        : [],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 16,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark ? Colors.grey[300] : Colors.grey[700]),
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           );
         }),
