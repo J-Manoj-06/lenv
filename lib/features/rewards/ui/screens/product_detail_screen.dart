@@ -83,16 +83,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         child: Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                              ),
                               onPressed: () => Navigator.of(context).pop(),
                             ),
                             Expanded(
                               child: Center(
                                 child: Text(
                                   'Reward',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
+                                  style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                               ),
@@ -147,7 +147,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                   children: [
                                     Text(
                                       'Store Price',
-                                      style: Theme.of(context).textTheme.bodySmall
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
                                           ?.copyWith(
                                             color: isDark
                                                 ? Colors.grey[400]
@@ -170,7 +172,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 ),
 
                                 // Rating
-                                if (product.rating != null && product.rating! > 0)
+                                if (product.rating != null &&
+                                    product.rating! > 0)
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
@@ -214,160 +217,162 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         ),
                       ),
 
-                    const SizedBox(height: 28),
+                      const SizedBox(height: 28),
 
-                    // ===== REWARD ELIGIBILITY SECTION =====
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.grey[900] : Colors.grey[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isDark
-                                ? Colors.grey[800]!
-                                : Colors.grey[200]!,
+                      // ===== REWARD ELIGIBILITY SECTION =====
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.grey[900] : Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.grey[800]!
+                                  : Colors.grey[200]!,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Section Title
+                              Text(
+                                'Your Eligibility',
+                                style: Theme.of(context).textTheme.labelLarge
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                      letterSpacing: 0.5,
+                                    ),
+                              ),
+                              const SizedBox(height: 14),
+
+                              // Points Required (Primary)
+                              _ModernInfoRow(
+                                label: 'Points Needed',
+                                value: '$requiredInt points',
+                                icon: Icons.card_giftcard,
+                                isPrimary: true,
+                                isDark: isDark,
+                              ),
+                              const SizedBox(height: 10),
+
+                              // Your Points (Secondary - with color indicator)
+                              _ModernInfoRow(
+                                label: 'Your Points',
+                                value: '$availableInt points',
+                                icon: Icons.account_balance_wallet,
+                                valueColor: isEligible
+                                    ? Colors.green
+                                    : Colors.orange,
+                                isDark: isDark,
+                              ),
+
+                              // Eligibility message if needed
+                              if (!isEligible) ...[
+                                const SizedBox(height: 12),
+                                _EligibilityMessage(
+                                  neededPoints: neededPoints,
+                                  isDark: isDark,
+                                ),
+                              ],
+
+                              // Eligible badge
+                              if (isEligible) ...[
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: Colors.green.withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '✓ You can request this reward',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: Colors.green[700],
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
+                      ),
+
+                      const SizedBox(height: 28),
+
+                      // ===== PRODUCT DETAILS SECTION =====
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Section Title
                             Text(
-                              'Your Eligibility',
-                              style: Theme.of(context).textTheme.labelLarge
+                              'Product Info',
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                    letterSpacing: 0.5,
+                                    color: isDark
+                                        ? Colors.grey[200]
+                                        : Colors.grey[800],
                                   ),
                             ),
-                            const SizedBox(height: 14),
-
-                            // Points Required (Primary)
-                            _ModernInfoRow(
-                              label: 'Points Needed',
-                              value: '$requiredInt points',
-                              icon: Icons.card_giftcard,
-                              isPrimary: true,
+                            const SizedBox(height: 12),
+                            _DetailRow(
+                              label: 'Product ID',
+                              value: product.asin ?? 'N/A',
                               isDark: isDark,
                             ),
-                            const SizedBox(height: 10),
-
-                            // Your Points (Secondary - with color indicator)
-                            _ModernInfoRow(
-                              label: 'Your Points',
-                              value: '$availableInt points',
-                              icon: Icons.account_balance_wallet,
-                              valueColor: isEligible
-                                  ? Colors.green
-                                  : Colors.orange,
+                            _DetailDivider(isDark: isDark),
+                            _DetailRow(
+                              label: 'Status',
+                              value: product.status,
                               isDark: isDark,
                             ),
-
-                            // Eligibility message if needed
-                            if (!isEligible) ...[
-                              const SizedBox(height: 12),
-                              _EligibilityMessage(
-                                neededPoints: neededPoints,
-                                isDark: isDark,
-                              ),
-                            ],
-
-                            // Eligible badge
-                            if (isEligible) ...[
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: Colors.green.withOpacity(0.3),
-                                  ),
-                                ),
-                                child: Text(
-                                  '✓ You can request this reward',
-                                  style: Theme.of(context).textTheme.labelSmall
-                                      ?.copyWith(
-                                        color: Colors.green[700],
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
-                              ),
-                            ],
+                            _DetailDivider(isDark: isDark),
+                            _DetailRow(
+                              label: 'Currency',
+                              value: product.price.currency,
+                              isDark: isDark,
+                            ),
                           ],
                         ),
                       ),
-                    ),
 
-                    const SizedBox(height: 28),
+                      const SizedBox(height: 28),
 
-                    // ===== PRODUCT DETAILS SECTION =====
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Product Info',
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark
-                                      ? Colors.grey[200]
-                                      : Colors.grey[800],
-                                ),
-                          ),
-                          const SizedBox(height: 12),
-                          _DetailRow(
-                            label: 'Product ID',
-                            value: product.asin ?? 'N/A',
-                            isDark: isDark,
-                          ),
-                          _DetailDivider(isDark: isDark),
-                          _DetailRow(
-                            label: 'Status',
-                            value: product.status,
-                            isDark: isDark,
-                          ),
-                          _DetailDivider(isDark: isDark),
-                          _DetailRow(
-                            label: 'Currency',
-                            value: product.price.currency,
-                            isDark: isDark,
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // ===== SECONDARY ACTION (View on Store) =====
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Opening: $affiliateUrl')),
-                          );
-                        },
-                        icon: const Icon(Icons.open_in_new, size: 18),
-                        label: const Text('View on Store'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 44),
-                          side: BorderSide(
-                            color: isDark
-                                ? Colors.grey[700]!
-                                : Colors.grey[300]!,
+                      // ===== SECONDARY ACTION (View on Store) =====
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Opening: $affiliateUrl')),
+                            );
+                          },
+                          icon: const Icon(Icons.open_in_new, size: 18),
+                          label: const Text('View on Store'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 44),
+                            side: BorderSide(
+                              color: isDark
+                                  ? Colors.grey[700]!
+                                  : Colors.grey[300]!,
+                            ),
                           ),
                         ),
                       ),
-                    ),
 
                       const SizedBox(height: 24),
 
@@ -466,15 +471,20 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       final repository = ref.read(rewardsRepositoryProvider);
       String parentId;
       try {
-        final studentDoc = await repository.getStudentDocument(widget.studentId!);
+        final studentDoc = await repository.getStudentDocument(
+          widget.studentId!,
+        );
         print('🟣 Student doc keys: ${studentDoc.keys.toList()}');
-        parentId = studentDoc['parentId'] as String? ?? 
-                  studentDoc['parent_id'] as String? ??
-                  studentDoc['userId'] as String? ??
-                  widget.studentId!;
+        parentId =
+            studentDoc['parentId'] as String? ??
+            studentDoc['parent_id'] as String? ??
+            studentDoc['userId'] as String? ??
+            widget.studentId!;
         print('🟣 Parent ID resolved: $parentId from student doc');
       } catch (e) {
-        print('🟣 Error fetching student doc: $e, using student ID as fallback');
+        print(
+          '🟣 Error fetching student doc: $e, using student ID as fallback',
+        );
         parentId = widget.studentId!;
       }
 

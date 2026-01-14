@@ -58,12 +58,12 @@ class RewardRequestModel {
           return (timestamps['requested_at'] as Timestamp).toDate();
         }
       }
-      
+
       // Fall back to old format: requestedOn
       if (json['requestedOn'] is Timestamp) {
         return (json['requestedOn'] as Timestamp).toDate();
       }
-      
+
       return DateTime.tryParse(json['requestedOn']?.toString() ?? '') ??
           DateTime.now();
     }
@@ -80,7 +80,9 @@ class RewardRequestModel {
     String extractAmazonLink() {
       if (json['product_snapshot'] is Map) {
         final product = json['product_snapshot'] as Map;
-        return product['affiliate_url'] as String? ?? product['description'] as String? ?? '';
+        return product['affiliate_url'] as String? ??
+            product['description'] as String? ??
+            '';
       }
       return json['amazonLink'] as String? ?? '';
     }
@@ -116,7 +118,8 @@ class RewardRequestModel {
 
     return RewardRequestModel(
       id: id ?? (json['id'] as String? ?? json['request_id'] as String? ?? ''),
-      studentId: (json['studentId'] as String? ?? json['student_id'] as String? ?? ''),
+      studentId:
+          (json['studentId'] as String? ?? json['student_id'] as String? ?? ''),
       studentName: (json['studentName'] as String? ?? 'Unknown Student'),
       productId: extractProductId(),
       productName: extractProductName(),
@@ -142,9 +145,7 @@ class RewardRequestModel {
     'price': price,
     'pointsRequired': pointsRequired,
     'status': _statusString(status),
-    'timestamps': {
-      'requested_at': Timestamp.fromDate(requestedOn),
-    },
+    'timestamps': {'requested_at': Timestamp.fromDate(requestedOn)},
     if (parentId != null) 'parentId': parentId,
     if (approvedOn != null) 'approvedOn': Timestamp.fromDate(approvedOn!),
   };

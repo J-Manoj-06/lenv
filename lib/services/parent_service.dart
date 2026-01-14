@@ -439,7 +439,9 @@ class ParentService {
   Stream<List<RewardRequestModel>> getParentRewardRequestsStream(
     List<String> studentIds,
   ) {
-    print('🔵 ParentService: getParentRewardRequestsStream for students: $studentIds');
+    print(
+      '🔵 ParentService: getParentRewardRequestsStream for students: $studentIds',
+    );
     if (studentIds.isEmpty) {
       return Stream.value([]);
     }
@@ -450,19 +452,16 @@ class ParentService {
           .collection('reward_requests')
           .where('student_id', whereIn: studentIds)
           .snapshots()
-          .map(
-            (snapshot) {
-              print('🔵 ParentService: Got ${snapshot.docs.length} reward docs');
-              return snapshot.docs
-                .map(
-                  (doc) {
-                    print('🔵 Doc ${doc.id} keys: ${doc.data().keys.toList()}');
-                    print('🔵 Doc student_id: ${doc.data()['student_id']}, parent_id: ${doc.data()['parent_id']}');
-                    return RewardRequestModel.fromJson(doc.data(), id: doc.id);
-                  },
-                ).toList();
-            },
-          );
+          .map((snapshot) {
+            print('🔵 ParentService: Got ${snapshot.docs.length} reward docs');
+            return snapshot.docs.map((doc) {
+              print('🔵 Doc ${doc.id} keys: ${doc.data().keys.toList()}');
+              print(
+                '🔵 Doc student_id: ${doc.data()['student_id']}, parent_id: ${doc.data()['parent_id']}',
+              );
+              return RewardRequestModel.fromJson(doc.data(), id: doc.id);
+            }).toList();
+          });
     }
 
     // For >10 children, merge multiple streams

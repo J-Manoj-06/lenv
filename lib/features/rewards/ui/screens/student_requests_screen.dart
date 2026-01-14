@@ -22,9 +22,13 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('🟢 StudentRequestsScreen: Building with studentId: ${widget.studentId}');
+    print(
+      '🟢 StudentRequestsScreen: Building with studentId: ${widget.studentId}',
+    );
     final requestsAsync = ref.watch(studentRequestsProvider(widget.studentId));
-    print('🟢 StudentRequestsScreen: requestsAsync state: ${requestsAsync.runtimeType}');
+    print(
+      '🟢 StudentRequestsScreen: requestsAsync state: ${requestsAsync.runtimeType}',
+    );
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scaffoldBg = isDark
@@ -128,7 +132,9 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
           Expanded(
             child: requestsAsync.when(
               data: (requests) {
-                print('🟢 StudentRequestsScreen: Got ${requests.length} requests from provider');
+                print(
+                  '🟢 StudentRequestsScreen: Got ${requests.length} requests from provider',
+                );
                 // Filter by selected status
                 var filteredRequests = requests;
                 if (_selectedStatus != null) {

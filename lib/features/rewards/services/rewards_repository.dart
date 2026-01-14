@@ -107,7 +107,9 @@ class RewardsRepository {
     required int pointsRequired,
     required DateTime lockExpiresAt,
   }) async {
-    print('🔴 RewardsRepository.createRequest: Starting for student $studentId');
+    print(
+      '🔴 RewardsRepository.createRequest: Starting for student $studentId',
+    );
     try {
       final requestRef = _firestore.collection(requestsCollection).doc();
       print('🔴 Request ref created: ${requestRef.id}');
@@ -115,7 +117,7 @@ class RewardsRepository {
       final studentRef = _firestore
           .collection(studentsCollection)
           .doc(studentId);
-      
+
       // Ensure student document exists with points structure
       await _ensureStudentPointsStructure(studentId);
 
@@ -133,12 +135,13 @@ class RewardsRepository {
 
         final studentData = studentSnap.data() ?? {};
         print('🔴 Student document keys: ${studentData.keys.toList()}');
-        
-        final availablePointsRaw = studentData['available_points'] ??
+
+        final availablePointsRaw =
+            studentData['available_points'] ??
             studentData['pointsEarned'] ??
             studentData['points'];
-        final lockedPointsRaw = studentData['locked_points'] ??
-            studentData['lockedPoints'] ?? 0;
+        final lockedPointsRaw =
+            studentData['locked_points'] ?? studentData['lockedPoints'] ?? 0;
         final availablePoints = (availablePointsRaw is num)
             ? availablePointsRaw.toInt()
             : 0;
@@ -146,12 +149,16 @@ class RewardsRepository {
             ? lockedPointsRaw.toInt()
             : 0;
 
-        print('🔴 Student points snapshot → available: $availablePoints, locked: $lockedPoints');
+        print(
+          '🔴 Student points snapshot → available: $availablePoints, locked: $lockedPoints',
+        );
         print('🔴 Points required for request: $pointsRequired');
 
         // Check if student has enough points
         if (availablePoints < pointsRequired) {
-          print('🔴 Insufficient points to create request. Needed: $pointsRequired, Available: $availablePoints');
+          print(
+            '🔴 Insufficient points to create request. Needed: $pointsRequired, Available: $availablePoints',
+          );
           throw Exception(
             'Insufficient points: You have $availablePoints points but need $pointsRequired points',
           );
@@ -194,17 +201,19 @@ class RewardsRepository {
         });
 
         // Create request document
-        print('🔴 Writing request document with keys: ${requestMap.keys.toList()}');
+        print(
+          '🔴 Writing request document with keys: ${requestMap.keys.toList()}',
+        );
         transaction.set(requestRef, requestMap);
         print('🔴 Transaction set complete for request ${requestRef.id}');
       });
 
       // Fetch and return created request
       print('🔴 Transaction completed, fetching document...');
-      
+
       // Wait a moment for Firestore to propagate
       await Future.delayed(const Duration(milliseconds: 100));
-      
+
       final doc = await requestRef.get();
 
       if (!doc.exists) {
@@ -218,7 +227,9 @@ class RewardsRepository {
         throw Exception('Document data is null');
       }
 
-      print('🔴 Document created successfully with keys: ${docData.keys.toList()}');
+      print(
+        '🔴 Document created successfully with keys: ${docData.keys.toList()}',
+      );
       print('🔴 Document student_id field: ${docData['student_id']}');
       try {
         final result = RewardRequestModel.fromMap(docData);
@@ -331,7 +342,9 @@ class RewardsRepository {
 
   /// Listen to requests for parent (real-time)
   Stream<List<RewardRequestModel>> streamParentRequests(String parentId) {
-    print('🟣 RewardsRepository: streamParentRequests called for parent: $parentId');
+    print(
+      '🟣 RewardsRepository: streamParentRequests called for parent: $parentId',
+    );
     try {
       return _firestore
           .collection(requestsCollection)
@@ -342,13 +355,17 @@ class RewardsRepository {
             return Stream.value(<QuerySnapshot<Map<String, dynamic>>>[]);
           })
           .map((snapshot) {
-            print('🟣 RewardsRepository: Got ${snapshot.docs.length} parent documents from Firestore');
+            print(
+              '🟣 RewardsRepository: Got ${snapshot.docs.length} parent documents from Firestore',
+            );
             try {
               final requests = snapshot.docs
                   .map((doc) {
                     try {
                       final data = doc.data();
-                      print('🟣 Parent Document ID: ${doc.id}, Data keys: ${data.keys.toList()}');
+                      print(
+                        '🟣 Parent Document ID: ${doc.id}, Data keys: ${data.keys.toList()}',
+                      );
                       print('🟣 Parent ID in doc: ${data['parent_id']}');
                       return RewardRequestModel.fromMap(data);
                     } catch (e) {
@@ -366,7 +383,9 @@ class RewardsRepository {
                 ),
               );
 
-              print('🟣 RewardsRepository: Returning ${requests.length} parsed parent requests');
+              print(
+                '🟣 RewardsRepository: Returning ${requests.length} parsed parent requests',
+              );
               return requests;
             } catch (e) {
               print('🟣 ERROR in streamParentRequests map: $e');
@@ -381,7 +400,9 @@ class RewardsRepository {
 
   /// Listen to requests for student (real-time)
   Stream<List<RewardRequestModel>> streamStudentRequests(String studentId) {
-    print('🟠 RewardsRepository: streamStudentRequests called for student: $studentId');
+    print(
+      '🟠 RewardsRepository: streamStudentRequests called for student: $studentId',
+    );
     try {
       // Query using student_id - this matches what createRequest() saves
       return _firestore
@@ -393,13 +414,17 @@ class RewardsRepository {
             return Stream.value(<QuerySnapshot<Map<String, dynamic>>>[]);
           })
           .map((snapshot) {
-            print('🟠 RewardsRepository: Got ${snapshot.docs.length} documents from Firestore');
+            print(
+              '🟠 RewardsRepository: Got ${snapshot.docs.length} documents from Firestore',
+            );
             try {
               final requests = snapshot.docs
                   .map((doc) {
                     try {
                       final data = doc.data();
-                      print('🟠 Document ID: ${doc.id}, Data keys: ${data.keys.toList()}');
+                      print(
+                        '🟠 Document ID: ${doc.id}, Data keys: ${data.keys.toList()}',
+                      );
                       return RewardRequestModel.fromMap(data);
                     } catch (e) {
                       print('🟠 ERROR parsing reward request: $e');
@@ -417,7 +442,9 @@ class RewardsRepository {
                 ),
               );
 
-              print('🟠 RewardsRepository: Returning ${requests.length} parsed requests');
+              print(
+                '🟠 RewardsRepository: Returning ${requests.length} parsed requests',
+              );
               return requests;
             } catch (e) {
               print('🟠 ERROR in streamStudentRequests map: $e');
@@ -510,13 +537,12 @@ class RewardsRepository {
           .collection(studentsCollection)
           .doc(studentId)
           .get();
-      
+
       if (!studentDoc.exists) {
-        print('⚠️ Student document does not exist, creating with default points');
-        await _firestore
-            .collection(studentsCollection)
-            .doc(studentId)
-            .set({
+        print(
+          '⚠️ Student document does not exist, creating with default points',
+        );
+        await _firestore.collection(studentsCollection).doc(studentId).set({
           'available_points': 1000, // Default points for testing
           'locked_points': 0,
           'deducted_points': 0,
@@ -524,37 +550,32 @@ class RewardsRepository {
         }, SetOptions(merge: true));
         return;
       }
-      
+
       final data = studentDoc.data() ?? {};
-      
+
       // Get current points with fallbacks
-      final availablePointsRaw = data['available_points'] ??
-          data['pointsEarned'] ??
-          data['points'];
+      final availablePointsRaw =
+          data['available_points'] ?? data['pointsEarned'] ?? data['points'];
       final availablePoints = (availablePointsRaw is num)
           ? availablePointsRaw.toInt()
           : 0;
-      
+
       // Check if points fields exist OR if balance is negative
       if (data['available_points'] == null &&
           data['pointsEarned'] == null &&
           data['points'] == null) {
         print('⚠️ Student missing points fields, adding default structure');
-        await _firestore
-            .collection(studentsCollection)
-            .doc(studentId)
-            .update({
+        await _firestore.collection(studentsCollection).doc(studentId).update({
           'available_points': 1000,
           'locked_points': 0,
           'deducted_points': 0,
         });
       } else if (availablePoints < 0) {
         // Fix negative balance by resetting points
-        print('⚠️ Student has negative balance ($availablePoints), resetting to 1000');
-        await _firestore
-            .collection(studentsCollection)
-            .doc(studentId)
-            .update({
+        print(
+          '⚠️ Student has negative balance ($availablePoints), resetting to 1000',
+        );
+        await _firestore.collection(studentsCollection).doc(studentId).update({
           'available_points': 1000,
           'locked_points': 0,
           'deducted_points': 0,

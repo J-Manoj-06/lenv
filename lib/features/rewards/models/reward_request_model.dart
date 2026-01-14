@@ -115,7 +115,7 @@ class RewardRequestModel {
   /// Create from Firestore document
   factory RewardRequestModel.fromMap(Map<String, dynamic> map) {
     // Handle both complex structure (from RewardsRepository) and simple structure (from RewardRequestService)
-    
+
     // Create a minimal ProductModel from simple structure if needed
     ProductModel getProductModel() {
       if (map['product_snapshot'] != null) {
@@ -130,17 +130,14 @@ class RewardRequestModel {
           currency: 'INR',
           estimatedPrice: (map['price'] as num?)?.toDouble() ?? 0.0,
         ),
-        pointsRule: PointsRuleModel(
-          pointsPerRupee: 2.0,
-          maxPoints: 5000,
-        ),
+        pointsRule: PointsRuleModel(pointsPerRupee: 2.0, maxPoints: 5000),
         status: 'active',
         createdAt: DateTime.now(),
         description: map['amazonLink'],
         affiliateUrl: map['amazonLink'],
       );
     }
-    
+
     // Get or create PointsData
     PointsData getPointsData() {
       if (map['points'] != null) {
