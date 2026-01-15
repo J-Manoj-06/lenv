@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class InstituteStaffScreen extends StatefulWidget {
   const InstituteStaffScreen({super.key});
@@ -15,9 +17,123 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
   static const Color _accent = Color(0xFF6A5AE0);
   static const Color _slate400 = Color(0xFF94A3B8);
 
-  final List<_StaffMember> _staff = _sampleStaff;
+  List<_StaffMember> _staff = [];
+  bool _isLoading = true;
   String _query = '';
   String _filter = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStaff();
+  }
+
+  Future<void> _loadStaff() async {
+    // Get current Firebase Auth user
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+
+    if (firebaseUser == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      // Get the principal's schoolCode from principals collection using Firebase UID
+      String? schoolCode;
+
+      final principalDoc = await FirebaseFirestore.instance
+          .collection('principals')
+          .doc(firebaseUser.uid)
+          .get();
+
+      if (principalDoc.exists) {
+        schoolCode = principalDoc.data()?['schoolCode']?.toString();
+      }
+
+      // If not found by UID, try by email
+      if ((schoolCode == null || schoolCode.isEmpty) &&
+          firebaseUser.email != null) {
+        final principalQuery = await FirebaseFirestore.instance
+            .collection('principals')
+            .where('email', isEqualTo: firebaseUser.email)
+            .limit(1)
+            .get();
+
+        if (principalQuery.docs.isNotEmpty) {
+          schoolCode = principalQuery.docs.first
+              .data()['schoolCode']
+              ?.toString();
+        }
+      }
+
+      if (schoolCode == null || schoolCode.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Now query the users collection for teachers with matching schoolCode
+      final teachersSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'teacher')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .get();
+
+      final staffList = <_StaffMember>[];
+
+      for (final doc in teachersSnap.docs) {
+        final data = doc.data();
+        final name =
+            data['name']?.toString() ??
+            data['teacherName']?.toString() ??
+            'Unknown';
+        final email = data['email']?.toString() ?? '';
+        final phone = data['phone']?.toString() ?? '';
+        final photoUrl =
+            data['photoUrl']?.toString() ??
+            data['profileImage']?.toString() ??
+            '';
+
+        // Get class assignments from the users collection format
+        final classAssignments =
+            (data['classAssignments'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [];
+
+        staffList.add(
+          _StaffMember(
+            id: doc.id,
+            name: name,
+            email: email,
+            phone: phone,
+            status: 'Active',
+            role: 'Teaching',
+            roleKey: 'teaching',
+            imageUrl: photoUrl,
+            subjects: classAssignments.isNotEmpty
+                ? classAssignments
+                : ['Not assigned'],
+            classes: classAssignments.isNotEmpty
+                ? classAssignments
+                : ['Not assigned'],
+            tests: [],
+            stats: const _StaffStats(
+              totalTests: 0,
+              avgScore: 0,
+              studentsImpacted: 0,
+            ),
+          ),
+        );
+      }
+
+      setState(() {
+        _staff = staffList;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +157,7 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
               accent: _accent,
               bg: _bg,
               slate: _slate400,
+              totalStaff: _staff.length,
             ),
             _SearchFilters(
               primary: _primary,
@@ -52,38 +169,44 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
               activeFilter: _filter,
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    ...filtered.map(
-                      (s) => _StaffCard(
-                        staff: s,
-                        panel: _panel,
-                        slate: _slate400,
-                        onTap: () => _openDetails(s),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: _primary),
+                    )
+                  : _staff.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No staff found in this school',
+                        style: TextStyle(color: Colors.grey[400]),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          ...filtered.map(
+                            (s) => _StaffCard(
+                              staff: s,
+                              panel: _panel,
+                              slate: _slate400,
+                              onTap: () => _openDetails(s),
+                            ),
+                          ),
+                          if (filtered.isEmpty && !_isLoading)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 40),
+                              child: Text(
+                                'No staff match your search.',
+                                style: TextStyle(color: Colors.grey[400]),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    if (filtered.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 40),
-                        child: Text(
-                          'No staff match your search.',
-                          style: TextStyle(color: Colors.grey[400]),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: _primary,
-        onPressed: () {},
-        child: const Icon(Icons.person_add, color: Colors.white, size: 28),
       ),
     );
   }
@@ -123,12 +246,14 @@ class _Header extends StatelessWidget {
     required this.accent,
     required this.bg,
     required this.slate,
+    required this.totalStaff,
   });
 
   final Color primary;
   final Color accent;
   final Color bg;
   final Color slate;
+  final int totalStaff;
 
   @override
   Widget build(BuildContext context) {
@@ -162,14 +287,7 @@ class _Header extends StatelessWidget {
               ],
             ),
             child: const Center(
-              child: Text(
-                'L',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: Icon(Icons.people, color: Colors.white, size: 24),
             ),
           ),
           const SizedBox(width: 12),
@@ -178,7 +296,7 @@ class _Header extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Institute — Staff Directory',
+                  'Staff Directory',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -187,21 +305,10 @@ class _Header extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Principal view — read-only',
+                  '$totalStaff staff members',
                   style: TextStyle(color: slate, fontSize: 13),
                 ),
               ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F2937),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Text(
-              'Settings',
-              style: TextStyle(color: Colors.white, fontSize: 13),
             ),
           ),
         ],
@@ -384,17 +491,39 @@ class _StaffCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
-                child: Image.network(
-                  staff.imageUrl,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                ),
+                child: staff.imageUrl.isNotEmpty
+                    ? Image.network(
+                        staff.imageUrl,
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 56,
+                          height: 56,
+                          color: const Color(0xFF1E3A5F),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white70,
+                            size: 32,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 56,
+                        height: 56,
+                        color: const Color(0xFF1E3A5F),
+                        child: const Icon(
+                          Icons.person,
+                          color: Colors.white70,
+                          size: 32,
+                        ),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       staff.name,
@@ -403,9 +532,12 @@ class _StaffCard extends StatelessWidget {
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                     const SizedBox(height: 4),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
                           width: 8,
@@ -416,36 +548,18 @@ class _StaffCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Expanded(
+                        Flexible(
                           child: Text(
                             '${staff.status} • ${staff.subjects.join(', ')}',
                             style: TextStyle(color: slate, fontSize: 13),
                             overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    staff.classes.join(', '),
-                    style: TextStyle(color: slate, fontSize: 13),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Tests: ${staff.stats.totalTests}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -482,12 +596,25 @@ class _StaffDetailsSheet extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
-                child: Image.network(
-                  staff.imageUrl,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                ),
+                child: staff.imageUrl.isNotEmpty
+                    ? Image.network(
+                        staff.imageUrl,
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 56,
+                          height: 56,
+                          color: primary.withOpacity(0.2),
+                          child: Icon(Icons.person, color: primary, size: 32),
+                        ),
+                      )
+                    : Container(
+                        width: 56,
+                        height: 56,
+                        color: primary.withOpacity(0.2),
+                        child: Icon(Icons.person, color: primary, size: 32),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -502,21 +629,85 @@ class _StaffDetailsSheet extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      '${staff.role} • ${staff.status}',
+                      staff.role,
                       style: TextStyle(color: slate, fontSize: 13),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close, color: Colors.white),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: staff.statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                staff.status,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+          // Contact Information
+          if (staff.email.isNotEmpty || staff.phone.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: panel,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Contact Information',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (staff.email.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(Icons.email, color: slate, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            staff.email,
+                            style: TextStyle(color: slate, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (staff.phone.isNotEmpty)
+                    Row(
+                      children: [
+                        Icon(Icons.phone, color: slate, size: 18),
+                        const SizedBox(width: 10),
+                        Text(
+                          staff.phone,
+                          style: TextStyle(color: slate, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          if (staff.email.isNotEmpty || staff.phone.isNotEmpty)
+            const SizedBox(height: 16),
           Row(
             children: [
               _StatTile(
@@ -824,6 +1015,8 @@ class _StaffMember {
   const _StaffMember({
     required this.id,
     required this.name,
+    required this.email,
+    required this.phone,
     required this.status,
     required this.role,
     required this.roleKey,
@@ -836,6 +1029,8 @@ class _StaffMember {
 
   final String id;
   final String name;
+  final String email;
+  final String phone;
   final String status;
   final String role;
   final String roleKey; // all | teaching | non-teaching | on-leave
@@ -856,7 +1051,7 @@ class _StaffMember {
       case 'on leave':
         return Colors.orange;
       default:
-        return Colors.blueGrey;
+        return Colors.blue;
     }
   }
 }
@@ -880,63 +1075,3 @@ class _StaffStats {
   final int avgScore;
   final int studentsImpacted;
 }
-
-const List<_StaffMember> _sampleStaff = [
-  _StaffMember(
-    id: 't1',
-    name: 'Dr. Evelyn Reed',
-    status: 'In Class',
-    role: 'Teaching',
-    roleKey: 'teaching',
-    imageUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuCnpmTw_w7LHywfRsGObzxL1E8SgXBJZOex7whDPocViAOVh8b_05d3p0bq68MJLwERXOph5U8l48-F2VSwAf9wsI8_qFrGfWNzQbHlhBtIgjoTp1l3wFWmOMgzFtTxrRsxTD2J_S5eTduwDWLNdwYe-d6T0Tz68CXfZrI55-bKNCmoVMM_IwTfN__3Nj9vVC7VD_-sd_lxeZhlhDoif8DsakW18AFGU81o-770Ntzm_upN5aW0a0M9DlkRvzrqtdjFk6kFxsWvS43g',
-    subjects: ['Mathematics', 'Physics'],
-    classes: ['10-A', '11-B'],
-    tests: [
-      _TestInfo(title: 'Algebra Unit Test', date: '2025-11-01', avg: 78),
-      _TestInfo(title: 'Newton Laws Quiz', date: '2025-10-10', avg: 74),
-    ],
-    stats: _StaffStats(totalTests: 12, avgScore: 76, studentsImpacted: 120),
-  ),
-  _StaffMember(
-    id: 't2',
-    name: 'Mr. Samuel Chen',
-    status: 'Free Period',
-    role: 'Teaching',
-    roleKey: 'teaching',
-    imageUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuCB-QAXoWBzwUeP6UXdYjm9_H_ZiA0aZuZNgoHsKQdr2P14uH2Buh-cozvqsF0irNPBfDz2zJCShKLFvl_Nbeb3vxTU97A7tIi9M5GaHZ3nlzx79HJUiy0KqxGFBj_lFPGvUVBKVvauomkVAYaTRRiC9e6ZMCO0byMaINXNlHBIoygDjoKDSPAoySV664yqtmoddekjpnSej3CPksg-f7X53DiD8TTLaZ4S2-aPJcxICbLiFmWWJOMJ2i-bPlShp2jVGnS6PfaQhWZU',
-    subjects: ['English', 'Computer Science'],
-    classes: ['9-C'],
-    tests: [
-      _TestInfo(title: 'Comprehension Quiz', date: '2025-10-25', avg: 81),
-    ],
-    stats: _StaffStats(totalTests: 5, avgScore: 80, studentsImpacted: 30),
-  ),
-  _StaffMember(
-    id: 't3',
-    name: 'Ms. Anika Patel',
-    status: 'Absent',
-    role: 'Teaching',
-    roleKey: 'on-leave',
-    imageUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuCo47qOnpla-Qmgvn_hYN1TPZNL9gB5Ugq5-Ji9KFSnyB1eIQtNG56CztBhBOGhsyARlsDA6m1-cM6cjYw4Tsp9xk7LRktqXqyKC0WP6zAR5SXQozpA1C2GoPXq7yOLLcKILu70RxFdS2paipTd15PMAe0Ebw89sj-FH5mNwSTPODnqQTtRP-SDXvGT4_QorUEPCl8ChiPNRxGsynyYuvf-IiN6vlAkkMJbGPNgSAldDBGyKNwIuwtVf-_cGqcwVqMBItciPUVt-u3J',
-    subjects: ['Biology'],
-    classes: ['10-A'],
-    tests: [],
-    stats: _StaffStats(totalTests: 0, avgScore: 0, studentsImpacted: 0),
-  ),
-  _StaffMember(
-    id: 't4',
-    name: 'Mr. David Lee',
-    status: 'In Class',
-    role: 'Non-Teaching',
-    roleKey: 'non-teaching',
-    imageUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuAJVobfsfvRPh1HKbUTe-ntjPG-X5mOj6WiRvu4tn3xi6FW96RxBgzoKJWetALHp4DsVQZ8RznlCunugAObFWh7lRrJJfHPDSroZeme7Kg4D1dMtnUl46gQpyA1iYbbH6Li1V-a7HHA9XdHtadNK36CdSATGRw6G9_4E5plNmCm3zZ0hXvSdrBHc_gAnCvirWs0P5EuDL62xZYgoXs-Hnxs-ADxKHMdnSvf6Xkd9mxDBx1oO8P7kE2ZxUomA-PrSeZ4vJKkOFHOo9CG',
-    subjects: [],
-    classes: ['Support'],
-    tests: [],
-    stats: _StaffStats(totalTests: 0, avgScore: 0, studentsImpacted: 0),
-  ),
-];
