@@ -36,9 +36,10 @@ class _InstituteProfileScreenState extends State<InstituteProfileScreen> {
 
       if (doc.exists) {
         final data = doc.data();
-        final name = data?['principalName']?.toString() ?? 
-                     data?['name']?.toString() ?? 
-                     data?['fullName']?.toString();
+        final name =
+            data?['principalName']?.toString() ??
+            data?['name']?.toString() ??
+            data?['fullName']?.toString();
         if (name != null && name.isNotEmpty) {
           setState(() => _principalName = name);
           return;
@@ -53,10 +54,11 @@ class _InstituteProfileScreenState extends State<InstituteProfileScreen> {
 
       if (doc.exists) {
         final data = doc.data();
-        final name = data?['principalName']?.toString() ?? 
-                     data?['name']?.toString() ?? 
-                     data?['displayName']?.toString() ?? 
-                     data?['fullName']?.toString();
+        final name =
+            data?['principalName']?.toString() ??
+            data?['name']?.toString() ??
+            data?['displayName']?.toString() ??
+            data?['fullName']?.toString();
         if (name != null && name.isNotEmpty) {
           setState(() => _principalName = name);
           return;
@@ -74,10 +76,11 @@ class _InstituteProfileScreenState extends State<InstituteProfileScreen> {
 
         if (querySnapshot.docs.isNotEmpty) {
           final data = querySnapshot.docs.first.data();
-          final name = data['principalName']?.toString() ?? 
-                       data['name']?.toString() ?? 
-                       data['displayName']?.toString() ?? 
-                       data['fullName']?.toString();
+          final name =
+              data['principalName']?.toString() ??
+              data['name']?.toString() ??
+              data['displayName']?.toString() ??
+              data['fullName']?.toString();
           if (name != null && name.isNotEmpty) {
             setState(() => _principalName = name);
           }
@@ -106,13 +109,21 @@ class _InstituteProfileScreenState extends State<InstituteProfileScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   children: [
-                    _ProfileHeader(user: user, isDark: isDark, principalName: _principalName),
+                    _ProfileHeader(
+                      user: user,
+                      isDark: isDark,
+                      principalName: _principalName,
+                    ),
                     const SizedBox(height: 24),
                     _AppSettingsCard(isDark: isDark, cardColor: cardColor),
                     const SizedBox(height: 24),
                     _QuickStats(isDark: isDark, cardColor: cardColor),
                     const SizedBox(height: 24),
-                    _InfoCards(user: user, isDark: isDark, cardColor: cardColor),
+                    _InfoCards(
+                      user: user,
+                      isDark: isDark,
+                      cardColor: cardColor,
+                    ),
                     const SizedBox(height: 32),
                     _LogoutButton(
                       isLoading: _isLoading,
@@ -169,10 +180,7 @@ class _InstituteProfileScreenState extends State<InstituteProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: subtitleColor),
-            ),
+            child: Text('Cancel', style: TextStyle(color: subtitleColor)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -219,7 +227,11 @@ class _InstituteProfileScreenState extends State<InstituteProfileScreen> {
 }
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.user, required this.isDark, this.principalName});
+  const _ProfileHeader({
+    required this.user,
+    required this.isDark,
+    this.principalName,
+  });
 
   final User? user;
   final bool isDark;
@@ -266,10 +278,7 @@ class _ProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          'Principal',
-          style: TextStyle(color: subtitleColor, fontSize: 14),
-        ),
+        Text('Principal', style: TextStyle(color: subtitleColor, fontSize: 14)),
       ],
     );
   }
@@ -396,7 +405,9 @@ class _ThemeButton extends StatelessWidget {
           border: isSelected
               ? null
               : Border.all(
-                  color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  color: isDark
+                      ? const Color(0xFF334155)
+                      : const Color(0xFFE2E8F0),
                 ),
         ),
         child: Column(
@@ -428,7 +439,9 @@ class _QuickStats extends StatelessWidget {
   Widget build(BuildContext context) {
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final subtitleColor = isDark ? Colors.white54 : const Color(0xFF64748B);
-    final dividerColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final dividerColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFE2E8F0);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -458,11 +471,7 @@ class _QuickStats extends StatelessWidget {
                 ],
               ),
             ),
-            VerticalDivider(
-              color: dividerColor,
-              thickness: 1,
-              width: 1,
-            ),
+            VerticalDivider(color: dividerColor, thickness: 1, width: 1),
             Expanded(
               child: Column(
                 children: [
@@ -490,7 +499,11 @@ class _QuickStats extends StatelessWidget {
 }
 
 class _InfoCards extends StatelessWidget {
-  const _InfoCards({required this.user, required this.isDark, required this.cardColor});
+  const _InfoCards({
+    required this.user,
+    required this.isDark,
+    required this.cardColor,
+  });
 
   final User? user;
   final bool isDark;
@@ -562,10 +575,7 @@ class _InfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(color: subtitleColor, fontSize: 13),
-          ),
+          Text(label, style: TextStyle(color: subtitleColor, fontSize: 13)),
           const SizedBox(height: 6),
           Text(
             value,
