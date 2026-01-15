@@ -35,25 +35,13 @@ class _InstituteInsightsScreenState extends State<InstituteInsightsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 3 KPI Cards only
                     _KPIGrid(),
-                    const SizedBox(height: 32),
-                    
-                    // One Main Chart
-                    _MainChart(),
-                    const SizedBox(height: 32),
-                    
-                    // Subject Performance (simplified chips)
-                    _SubjectPerformanceSection(),
-                    const SizedBox(height: 32),
-                    
-                    // Recent Tests (only 2)
+                    const SizedBox(height: 24),
+                    _ChartsRow(),
+                    const SizedBox(height: 24),
                     _RecentTests(),
-                    const SizedBox(height: 32),
-                    
-                    // Standards (collapsible)
+                    const SizedBox(height: 24),
                     _StandardsList(),
-                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -65,9 +53,6 @@ class _InstituteInsightsScreenState extends State<InstituteInsightsScreen> {
   }
 }
 
-// ============================================
-// HEADER / TOP BAR (Simplified)
-// ============================================
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.selectedRange, required this.onRangeChanged});
 
@@ -77,52 +62,68 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: _bgDark,
-        border: Border(
-          bottom: BorderSide(color: Colors.white10, width: 0.5),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _bgDark.withOpacity(0.95),
+        border: const Border(
+          bottom: BorderSide(color: Colors.white12, width: 0.5),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Institute Insights',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'School overview & trends',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              gradient: const LinearGradient(
+                colors: [_primary, _accent],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: const Center(
+              child: Text(
+                'L',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.download_outlined, color: Colors.white70, size: 22),
-                style: IconButton.styleFrom(
-                  backgroundColor: _cardDark,
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Institute Insights — School',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Overview of standards, class averages, and student improvement',
+                  style: TextStyle(color: Colors.white54, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
           _RangeToggle(selected: selectedRange, onTap: onRangeChanged),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.download, color: Colors.white70),
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFF1F2937),
+            ),
+          ),
         ],
       ),
     );
@@ -138,38 +139,32 @@ class _RangeToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: _cardDark,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: ['7d', '30d', 'Monthly']
+        children: ['7d', '30d', 'monthly']
             .map(
               (r) => GestureDetector(
-                onTap: () => onTap(r.toLowerCase()),
+                onTap: () => onTap(r),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
+                    horizontal: 10,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: selected == r.toLowerCase()
-                        ? _primary
+                    color: selected == r
+                        ? _primary.withOpacity(0.8)
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     r,
                     style: TextStyle(
-                      color: selected == r.toLowerCase() 
-                          ? Colors.white 
-                          : Colors.white54,
-                      fontSize: 13,
-                      fontWeight: selected == r.toLowerCase()
-                          ? FontWeight.w600
-                          : FontWeight.w400,
+                      color: selected == r ? Colors.white : Colors.white54,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -181,19 +176,16 @@ class _RangeToggle extends StatelessWidget {
   }
 }
 
-// ============================================
-// KPI GRID (3 cards only, bigger spacing)
-// ============================================
 class _KPIGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.count(
-      crossAxisCount: 3,
+      crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 0.95,
+      childAspectRatio: 1.8,
       children: const [
         _KPICard(
           label: 'Total Students',
@@ -202,13 +194,19 @@ class _KPIGrid extends StatelessWidget {
           isPositive: true,
         ),
         _KPICard(
-          label: 'Attendance',
+          label: 'Total Teachers',
+          value: '68',
+          change: 'Stable',
+          isPositive: null,
+        ),
+        _KPICard(
+          label: "Today's Attendance",
           value: '91%',
           change: '+2%',
           isPositive: true,
         ),
         _KPICard(
-          label: 'Avg Score',
+          label: 'Avg Test Score',
           value: '78%',
           change: '-1%',
           isPositive: false,
@@ -241,129 +239,33 @@ class _KPICard extends StatelessWidget {
         : (isPositive! ? Icons.arrow_upward : Icons.arrow_downward);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _cardDark,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
+            style: const TextStyle(color: Colors.white54, fontSize: 13),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
             style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 12,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 8),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 12),
-              const SizedBox(width: 4),
-              Text(
-                change,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================
-// MAIN CHART (One clean chart with mini stats)
-// ============================================
-class _MainChart extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _cardDark,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Class Average Trend',
-            style: TextStyle(
               color: Colors.white,
-              fontSize: 16,
+              fontSize: 22,
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Last 30 days performance',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
-          ),
-          const SizedBox(height: 20),
-          // Chart placeholder (shorter)
-          Container(
-            height: 100,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  _primary.withOpacity(0.2),
-                  _primary.withOpacity(0.05),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              'Chart Placeholder',
-              style: TextStyle(color: Colors.white30, fontSize: 12),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Mini stats row
+          const Spacer(),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _MiniStat(label: 'Min', value: '56%'),
-              Container(
-                width: 1,
-                height: 24,
-                color: Colors.white10,
-              ),
-              _MiniStat(label: 'Max', value: '92%'),
-              Container(
-                width: 1,
-                height: 24,
-                color: Colors.white10,
-              ),
-              _MiniStat(label: 'Avg', value: '78%'),
+              Icon(icon, color: color, size: 14),
+              const SizedBox(width: 4),
+              Text(change, style: TextStyle(color: color, fontSize: 12)),
             ],
           ),
         ],
@@ -372,30 +274,133 @@ class _MainChart extends StatelessWidget {
   }
 }
 
-class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
+class _ChartsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 11,
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _cardDark,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Class Average — Last 30 days',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Weighted average across all classes',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _primary.withOpacity(0.3),
+                      _primary.withOpacity(0.05),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  'Chart Placeholder',
+                  style: TextStyle(color: Colors.white38, fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: const [
+                  Text(
+                    'Min: 56%',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  Text(
+                    'Max: 92%',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  Text(
+                    'Avg: 78%',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _cardDark,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Subject Performance',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Share of average scores by subject',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _SubjectTag(color: _primary, label: 'Math', value: '25%'),
+                  const SizedBox(width: 12),
+                  _SubjectTag(color: _accent, label: 'Science', value: '22%'),
+                  const SizedBox(width: 12),
+                  _SubjectTag(color: _positive, label: 'English', value: '18%'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Average by class (sample)',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _ClassBar(className: '10-A', value: 82),
+              const SizedBox(height: 8),
+              _ClassBar(className: '10-B', value: 75),
+            ],
           ),
         ),
       ],
@@ -403,157 +408,122 @@ class _MiniStat extends StatelessWidget {
   }
 }
 
-// ============================================
-// SUBJECT PERFORMANCE (Horizontal chips)
-// ============================================
-class _SubjectPerformanceSection extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _cardDark,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Subject Performance',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Score distribution by subject',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: const [
-              _SubjectChip(label: 'Math', percentage: '25%', color: _primary),
-              _SubjectChip(label: 'Science', percentage: '22%', color: _accent),
-              _SubjectChip(label: 'English', percentage: '18%', color: _positive),
-              _SubjectChip(label: 'Social', percentage: '15%', color: Color(0xFF8B5CF6)),
-              _SubjectChip(label: 'Hindi', percentage: '12%', color: Color(0xFFEC4899)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SubjectChip extends StatelessWidget {
-  const _SubjectChip({
-    required this.label,
-    required this.percentage,
+class _SubjectTag extends StatelessWidget {
+  const _SubjectTag({
     required this.color,
+    required this.label,
+    required this.value,
   });
 
-  final String label;
-  final String percentage;
   final Color color;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
           ),
-          const SizedBox(width: 6),
-          Text(
-            '•',
-            style: TextStyle(color: color.withOpacity(0.5)),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            percentage,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        const SizedBox(width: 4),
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 12)),
+      ],
     );
   }
 }
 
-// ============================================
-// RECENT TESTS (Only 2 tests + View All button)
-// ============================================
+class _ClassBar extends StatelessWidget {
+  const _ClassBar({required this.className, required this.value});
+
+  final String className;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 50,
+          child: Text(
+            className,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            height: 12,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F2937),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: FractionallySizedBox(
+              widthFactor: value / 100,
+              alignment: Alignment.centerLeft,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_primary, _accent.withOpacity(0.8)],
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 40,
+          child: Text(
+            '$value%',
+            textAlign: TextAlign.right,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _RecentTests extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Recent Tests',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            TextButton(
-              onPressed: () {},
-              child: Row(
-                children: const [
-                  Text(
-                    'View all',
-                    style: TextStyle(
-                      color: _primary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Icon(Icons.arrow_forward, color: _primary, size: 16),
-                ],
-              ),
-            ),
-          ],
+        const Text(
+          'Recent Tests',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: 12),
         _TestCard(
-          icon: Icons.calculate_outlined,
+          icon: Icons.science,
           iconColor: _primary,
-          title: 'Math Weekly Test',
-          subtitle: 'Standard 10 • Nov 18, 2025',
+          title: 'Math Weekly Test — Std 10',
+          subtitle: 'Nov 18, 2025 — Algebra & Geometry',
           avgScore: '78%',
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         _TestCard(
-          icon: Icons.science_outlined,
+          icon: Icons.menu_book,
           iconColor: _accent,
-          title: 'Science Quiz',
-          subtitle: 'Standard 9 • Nov 16, 2025',
+          title: 'Science Quiz — Std 9',
+          subtitle: 'Nov 16, 2025 — Physics',
           avgScore: '84%',
         ),
       ],
@@ -579,7 +549,7 @@ class _TestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _cardDark,
         borderRadius: BorderRadius.circular(16),
@@ -590,12 +560,12 @@ class _TestCard extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.15),
+              color: iconColor.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: iconColor, size: 24),
+            child: Icon(icon, color: iconColor),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -607,23 +577,15 @@ class _TestCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -631,16 +593,14 @@ class _TestCard extends StatelessWidget {
                 avgScore,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              const SizedBox(height: 2),
               const Text(
-                'Avg',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 11,
-                ),
+                'Avg Score',
+                style: TextStyle(color: Colors.white54, fontSize: 11),
               ),
             ],
           ),
@@ -650,9 +610,6 @@ class _TestCard extends StatelessWidget {
   }
 }
 
-// ============================================
-// STANDARDS LIST (Collapsible/Expandable)
-// ============================================
 class _StandardsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -663,16 +620,16 @@ class _StandardsList extends StatelessWidget {
           'Standards & Sections',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: 4),
         const Text(
-          'Tap to view sections and performance',
+          'Tap a standard to expand sections and view quick KPIs per section',
           style: TextStyle(color: Colors.white54, fontSize: 12),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _StandardCard(
           standardNum: '10',
           title: 'Standard 10',
@@ -718,98 +675,93 @@ class _StandardCardState extends State<_StandardCard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _cardDark,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    gradient: const LinearGradient(
-                      colors: [_primary, _accent],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+          Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: const LinearGradient(
+                    colors: [_primary, _accent],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  child: Center(
-                    child: Text(
-                      widget.standardNum,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                ),
+                child: Center(
+                  child: Text(
+                    widget.standardNum,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        widget.subjects,
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${widget.avgScore}%',
+                      widget.title,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const Text(
-                      'Avg',
-                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.subjects,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(width: 8),
-                Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
-                  color: Colors.white54,
-                  size: 24,
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Avg Score',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${widget.avgScore}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(
+                  _expanded ? Icons.expand_less : Icons.chevron_right,
+                  color: Colors.white70,
                 ),
-              ],
-            ),
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF1F2937),
+                ),
+              ),
+            ],
           ),
           if (_expanded) ...[
-            const SizedBox(height: 12),
-            Container(
-              height: 1,
-              color: Colors.white10,
-            ),
             const SizedBox(height: 12),
             ...widget.sections.map((s) => _SectionRow(section: s)),
           ],
@@ -836,10 +788,10 @@ class _SectionRow extends StatelessWidget {
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1F2937),
+          color: const Color(0xFF0B1113),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -856,32 +808,25 @@ class _SectionRow extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     'Teacher: ${section.teacher}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 11),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '${section.avg}%',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  'Avg: ${section.avg}%',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Att: ${section.attendance}%',
-                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                  'Attendance: ${section.attendance}%',
+                  style: const TextStyle(color: Colors.white54, fontSize: 11),
                 ),
               ],
             ),
@@ -894,9 +839,6 @@ class _SectionRow extends StatelessWidget {
   }
 }
 
-// ============================================
-// SECTION DETAIL SCREEN (unchanged backend)
-// ============================================
 class _SectionDetailScreen extends StatefulWidget {
   const _SectionDetailScreen({required this.section});
 
@@ -1073,9 +1015,6 @@ class _SubjectPerformanceRow extends StatelessWidget {
   }
 }
 
-// ============================================
-// DATA MODELS (unchanged)
-// ============================================
 class _SectionData {
   const _SectionData({
     required this.name,
