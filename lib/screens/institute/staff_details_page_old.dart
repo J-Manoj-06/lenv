@@ -116,6 +116,12 @@ class StaffDetailsPage extends StatelessWidget {
   }
 
   Widget _buildProfileHeader(BuildContext context) {
+    final cardBg = _getCardBg(context);
+    final border = _getBorder(context);
+    final primary = _getPrimary();
+    final textPrimary = _getTextPrimary(context);
+    final textSecondary = _getTextSecondary(context);
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -138,9 +144,9 @@ class StaffDetailsPage extends StatelessWidget {
                   ? Image.network(
                       staff.imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(),
+                      errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(context),
                     )
-                  : _buildAvatarPlaceholder(),
+                  : _buildAvatarPlaceholder(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -148,7 +154,7 @@ class StaffDetailsPage extends StatelessWidget {
           // Name
           Text(
             staff.name,
-            style: const TextStyle(
+            style: TextStyle(
               color: textPrimary,
               fontSize: 22,
               fontWeight: FontWeight.w700,
@@ -160,7 +166,7 @@ class StaffDetailsPage extends StatelessWidget {
           // Role
           Text(
             staff.role,
-            style: const TextStyle(
+            style: TextStyle(
               color: textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
@@ -204,14 +210,19 @@ class StaffDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatarPlaceholder() {
+  Widget _buildAvatarPlaceholder(BuildContext context) {
+    final primary = _getPrimary();
     return Container(
       color: primary.withOpacity(0.2),
-      child: const Icon(Icons.person, color: primary, size: 40),
+      child: Icon(Icons.person, color: primary, size: 40),
     );
   }
 
-  Widget _buildContactCard() {
+  Widget _buildContactCard(BuildContext context) {
+    final cardBg = _getCardBg(context);
+    final border = _getBorder(context);
+    final textPrimary = _getTextPrimary(context);
+    
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -222,7 +233,7 @@ class StaffDetailsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Contact Information',
             style: TextStyle(
               color: textPrimary,
@@ -233,6 +244,7 @@ class StaffDetailsPage extends StatelessWidget {
           const SizedBox(height: 16),
           if (staff.email.isNotEmpty) ...[
             _buildContactRow(
+              context: context,
               icon: Icons.email_outlined,
               label: 'Email',
               value: staff.email,
@@ -242,6 +254,7 @@ class StaffDetailsPage extends StatelessWidget {
           ],
           if (staff.phone.isNotEmpty)
             _buildContactRow(
+              context: context,
               icon: Icons.phone_outlined,
               label: 'Phone',
               value: staff.phone,
@@ -253,11 +266,16 @@ class StaffDetailsPage extends StatelessWidget {
   }
 
   Widget _buildContactRow({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required String value,
     required VoidCallback onCopy,
   }) {
+    final primary = _getPrimary();
+    final textSecondary = _getTextSecondary(context);
+    final iconColor = _getIconColor(context);
+    
     return Row(
       children: [
         Container(
@@ -275,12 +293,12 @@ class StaffDetailsPage extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(color: textSecondary, fontSize: 12),
+                style: TextStyle(color: textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   color: iconColor,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -290,18 +308,20 @@ class StaffDetailsPage extends StatelessWidget {
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.copy, color: textSecondary, size: 18),
+          icon: Icon(Icons.copy, color: textSecondary, size: 18),
           onPressed: onCopy,
         ),
       ],
     );
   }
 
-  Widget _buildAssignmentsSection() {
+  Widget _buildAssignmentsSection(BuildContext context) {
+    final textPrimary = _getTextPrimary(context);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Assignments',
           style: TextStyle(
             color: textPrimary,
@@ -316,6 +336,7 @@ class StaffDetailsPage extends StatelessWidget {
             if (_hasSubjects())
               Expanded(
                 child: _buildAssignmentCard(
+                  context: context,
                   title: 'Subjects Handled',
                   items: staff.subjects.map(_parseSubject).toSet().toList(),
                   icon: Icons.menu_book,
@@ -325,6 +346,7 @@ class StaffDetailsPage extends StatelessWidget {
             if (_hasClasses())
               Expanded(
                 child: _buildAssignmentCard(
+                  context: context,
                   title: 'Classes',
                   items: staff.classes.map(_parseClass).toSet().toList(),
                   icon: Icons.class_,
@@ -337,10 +359,18 @@ class StaffDetailsPage extends StatelessWidget {
   }
 
   Widget _buildAssignmentCard({
+    required BuildContext context,
     required String title,
     required List<String> items,
     required IconData icon,
   }) {
+    final cardBg = _getCardBg(context);
+    final border = _getBorder(context);
+    final primary = _getPrimary();
+    final textSecondary = _getTextSecondary(context);
+    final panel = _getPanel(context);
+    final iconColor = _getIconColor(context);
+    
     // Filter out "Not assigned" entries
     final validItems = items
         .where(
@@ -370,7 +400,7 @@ class StaffDetailsPage extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: textSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -397,7 +427,7 @@ class StaffDetailsPage extends StatelessWidget {
                     ),
                     child: Text(
                       item,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: iconColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -412,7 +442,13 @@ class StaffDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPerformanceSection() {
+  Widget _buildPerformanceSection(BuildContext context) {
+    final cardBg = _getCardBg(context);
+    final border = _getBorder(context);
+    final primary = _getPrimary();
+    final textPrimary = _getTextPrimary(context);
+    final textSecondary = _getTextSecondary(context);
+    
     final stats = <Map<String, dynamic>>[];
 
     if (staff.stats.totalTests > 0) {
@@ -444,7 +480,7 @@ class StaffDetailsPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Performance Snapshot',
           style: TextStyle(
             color: textPrimary,
@@ -476,7 +512,7 @@ class StaffDetailsPage extends StatelessWidget {
                         const SizedBox(height: 12),
                         Text(
                           stat['value'] as String,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: textPrimary,
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
@@ -485,7 +521,7 @@ class StaffDetailsPage extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           stat['label'] as String,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: textSecondary,
                             fontSize: 12,
                           ),
@@ -503,7 +539,14 @@ class StaffDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildNotesSection() {
+  Widget _buildNotesSection(BuildContext context) {
+    final cardBg = _getCardBg(context);
+    final border = _getBorder(context);
+    final primary = _getPrimary();
+    final textPrimary = _getTextPrimary(context);
+    final textSecondary = _getTextSecondary(context);
+    final panel = _getPanel(context);
+    
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -516,9 +559,9 @@ class StaffDetailsPage extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.note_outlined, color: primary, size: 20),
+              Icon(Icons.note_outlined, color: primary, size: 20),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Notes',
                 style: TextStyle(
                   color: textPrimary,
@@ -536,7 +579,7 @@ class StaffDetailsPage extends StatelessWidget {
               color: panel,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text(
+            child: Text(
               'No notes available',
               style: TextStyle(
                 color: textSecondary,

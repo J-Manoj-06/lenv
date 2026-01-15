@@ -8,11 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/institute_announcement_model.dart';
 import '../../services/media_repository.dart';
 import '../../services/institute_announcement_service.dart';
-
-const Color _backgroundDark = Color(0xFF0F172A); // slate-900
-const Color _cardColor = Color(0xFF1E293B); // slate-800
-const Color _teal = Color(0xFF146D7A); // custom teal
-const Color _slate400 = Color(0xFF94A3B8);
+import '../../widgets/attendance_speedometer_gauge.dart';
 
 class InstituteDashboardScreen extends StatefulWidget {
   const InstituteDashboardScreen({super.key});
@@ -27,7 +23,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   final InstituteAnnouncementService _announcementService =
       InstituteAnnouncementService();
   Set<String> _viewedAnnouncementIds = <String>{};
-  bool _isLoadingViewed = false;
 
   @override
   void initState() {
@@ -40,7 +35,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     final userId = authProvider.currentUser?.uid;
     if (userId == null || userId.isEmpty) return;
 
-    setState(() => _isLoadingViewed = true);
     try {
       final snap = await FirebaseFirestore.instance
           .collectionGroup('views')
@@ -55,58 +49,183 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
       if (mounted) {
         setState(() {
           _viewedAnnouncementIds = viewedIds;
-          _isLoadingViewed = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoadingViewed = false);
+      // Silently fail
     }
+  }
+
+  // Get real-time student count stream
+  Stream<int> _getStudentCountStream(String schoolCode) {
+    if (schoolCode.isEmpty) return Stream.value(0);
+    
+    return FirebaseFirestore.instance
+        .collection('students')
+        .where('schoolCode', isEqualTo: schoolCode)
+        .snapshots()
+        .map((snapshot) => snapshot.size);
+  }
+
+  // Get real-time staff count stream
+  Stream<int> _getStaffCountStream(String schoolCode) {
+    if (schoolCode.isEmpty) return Stream.value(0);
+    
+    return FirebaseFirestore.instance
+        .collection('users')
+        .where('role', isEqualTo: 'teacher')
+        .where('schoolCode', isEqualTo: schoolCode)
+        .snapshots()
+        .map((snapshot) => snapshot.size);
+  }
+
+  // Get school code for current principal
+  Future<String> _getSchoolCode() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    return currentUser?.instituteId ?? '';
+  }
+
+  // Format count with commas for readability
+  String _formatCount(int count) {
+    if (count == 0) return '0';
+    final str = count.toString();
+    final buffer = StringBuffer();
+    var counter = 0;
+    for (var i = str.length - 1; i >= 0; i--) {
+      if (counter > 0 && counter % 3 == 0) {
+        buffer.write(',');
+      }
+      buffer.write(str[i]);
+      counter++;
+    }
+    return buffer.toString().split('').reversed.join();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Theme detection
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtitleColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
+    final tealColor = const Color(0xFF146D7A);
+    final progressBgColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFE2E8F0);
+    final borderColor = isDark ? Colors.transparent : const Color(0xFFE2E8F0);
+
     return Scaffold(
-      backgroundColor: _backgroundDark,
+      backgroundColor: bgColor,
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _TopBar(teal: _teal),
-              const _SectionHeader(title: 'Announcements'),
+              _TopBar(teal: tealColor, textColor: textColor, bgColor: bgColor),
+              _SectionHeader(title: 'Announcements', textColor: textColor),
               _buildAnnouncementsSection(),
+              FutureBuilder<String>(
+                future: _getSchoolCode(),
+                builder: (context, schoolCodeSnapshot) {
+                  final schoolCode = schoolCodeSnapshot.data ?? '';
+                  
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: StreamBuilder<int>(
+                            stream: _getStudentCountStream(schoolCode),
+                            builder: (context, snapshot) {
+                              final count = snapshot.data ?? 0;
+                              return _StatCard(
+                                icon: Icons.school,
+                                label: 'Total Students',
+                                value: snapshot.connectionState == ConnectionState.waiting
+                                    ? '...'
+                                    : _formatCount(count),
+                                cardColor: cardColor,
+                                textColor: textColor,
+                                subtitleColor: subtitleColor,
+                                iconColor: tealColor,
+                                borderColor: borderColor,
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: StreamBuilder<int>(
+                            stream: _getStaffCountStream(schoolCode),
+                            builder: (context, snapshot) {
+                              final count = snapshot.data ?? 0;
+                              return _StatCard(
+                                icon: Icons.group,
+                                label: 'Total Staff',
+                                value: snapshot.connectionState == ConnectionState.waiting
+                                    ? '...'
+                                    : _formatCount(count),
+                                cardColor: cardColor,
+                                textColor: textColor,
+                                subtitleColor: subtitleColor,
+                                iconColor: tealColor,
+                                borderColor: borderColor,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              // Student Attendance Card
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: const [
-                    Expanded(
-                      child: _StatCard(
-                        icon: Icons.school,
-                        label: 'Total Students',
-                        value: '1,240',
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: _StatCard(
-                        icon: Icons.group,
-                        label: 'Total Staff',
-                        value: '85',
-                      ),
-                    ),
-                  ],
+                child: AttendanceSpeedometerGauge(
+                  attendancePercent: 91,
+                  presentCount: 1130,
+                  totalCount: 1240,
+                  cardColor: cardColor,
+                  textColor: textColor,
+                  subtitleColor: subtitleColor,
+                  title: 'Student Attendance',
                 ),
               ),
               const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: _AttendanceCard(percentage: 0.92),
+              // Staff Attendance Card
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: AttendanceSpeedometerGauge(
+                  attendancePercent: 92,
+                  presentCount: 78,
+                  totalCount: 85,
+                  cardColor: cardColor,
+                  textColor: textColor,
+                  subtitleColor: subtitleColor,
+                  title: 'Staff Attendance',
+                ),
               ),
               const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: _QuickActionCard(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: _QuickActionCard(
+                  cardColor: cardColor,
+                  textColor: textColor,
+                  subtitleColor: subtitleColor,
+                  tealColor: tealColor,
+                  iconBgColor: progressBgColor,
+                  borderColor: borderColor,
+                ),
               ),
               const SizedBox(height: 16),
             ],
@@ -123,12 +242,18 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     final currentUserId = currentUser?.uid;
     final instituteId = currentUser?.instituteId ?? '';
 
+    // Get theme colors
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subtitleColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
+
     if (instituteId.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Text(
           'Unable to load announcements. Please check your connection.',
-          style: TextStyle(color: _slate400),
+          style: TextStyle(color: subtitleColor),
         ),
       );
     }
@@ -159,7 +284,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
                   'Error loading announcements',
-                  style: TextStyle(color: _slate400),
+                  style: TextStyle(color: subtitleColor),
                 ),
               ),
             );
@@ -233,6 +358,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
   // Shimmer loading circle
   Widget _buildShimmerCircle() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+
     return Column(
       children: [
         Container(
@@ -240,7 +368,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
           height: 64,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: _cardColor.withOpacity(0.5),
+            color: cardColor.withOpacity(0.5),
           ),
         ),
         const SizedBox(height: 6),
@@ -248,7 +376,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
           width: 40,
           height: 10,
           decoration: BoxDecoration(
-            color: _cardColor.withOpacity(0.5),
+            color: cardColor.withOpacity(0.5),
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -263,6 +391,15 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   ) {
     final hasAnnouncement = myAnnouncements.isNotEmpty;
     final latestAnnouncement = hasAnnouncement ? myAnnouncements.first : null;
+
+    // Get theme colors
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final subtitleColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
+    const tealColor = Color(0xFF146D7A);
 
     return GestureDetector(
       onTap: () {
@@ -307,9 +444,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                         )
                       : null,
                   border: !hasAnnouncement
-                      ? Border.all(color: _teal, width: 2)
+                      ? Border.all(color: tealColor, width: 2)
                       : null,
-                  color: !hasAnnouncement ? _cardColor : null,
+                  color: !hasAnnouncement ? cardColor : null,
                 ),
                 padding: const EdgeInsets.all(3),
                 child: Container(
@@ -318,8 +455,8 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                     color: hasAnnouncement
                         ? (latestAnnouncement!.hasImage
                               ? Colors.transparent
-                              : _teal)
-                        : _cardColor,
+                              : tealColor)
+                        : cardColor,
                   ),
                   child: ClipOval(
                     child: hasAnnouncement && latestAnnouncement!.hasImage
@@ -349,10 +486,10 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      border: Border.all(color: _backgroundDark, width: 2.5),
+                      border: Border.all(color: bgColor, width: 2.5),
                       boxShadow: [
                         BoxShadow(
-                          color: _teal.withOpacity(0.4),
+                          color: tealColor.withOpacity(0.4),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -375,7 +512,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: _slate400,
+                color: subtitleColor,
               ),
             ),
           ),
@@ -409,6 +546,13 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     final hasUnviewed = allAnnouncements.any(
       (a) => !_hasBeenViewedSync(a.id, currentUserId),
     );
+
+    // Get theme colors
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subtitleColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
+    const tealColor = Color(0xFF146D7A);
 
     return GestureDetector(
       onTap: () => _openOtherPrincipalAnnouncements(allAnnouncements),
@@ -449,7 +593,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: latestAnnouncement.hasImage ? Colors.transparent : _teal,
+                color: latestAnnouncement.hasImage
+                    ? Colors.transparent
+                    : tealColor,
               ),
               child: ClipOval(
                 child: latestAnnouncement.hasImage
@@ -487,7 +633,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: _slate400,
+                color: subtitleColor,
               ),
             ),
           ),
@@ -571,17 +717,19 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     String fileName,
     String fallbackName,
   ) {
+    const tealColor = Color(0xFF146D7A);
+
     return FutureBuilder<String?>(
       future: _getAnnouncementImagePath(imageUrl, fileName),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           // Show loading shimmer while checking cache/downloading
           return Container(
-            color: _teal.withOpacity(0.3),
-            child: Center(
+            color: tealColor.withOpacity(0.3),
+            child: const Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(_teal),
+                valueColor: AlwaysStoppedAnimation<Color>(tealColor),
               ),
             ),
           );
@@ -644,9 +792,10 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
+  const _SectionHeader({required this.title, required this.textColor});
 
   final String title;
+  final Color textColor;
 
   @override
   Widget build(BuildContext context) {
@@ -654,8 +803,8 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: textColor,
           fontSize: 18,
           fontWeight: FontWeight.w700,
         ),
@@ -665,9 +814,15 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.teal});
+  const _TopBar({
+    required this.teal,
+    required this.textColor,
+    required this.bgColor,
+  });
 
   final Color teal;
+  final Color textColor;
+  final Color bgColor;
 
   @override
   Widget build(BuildContext context) {
@@ -690,11 +845,11 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Text(
               'Good Morning, Principal',
               style: TextStyle(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
@@ -703,11 +858,7 @@ class _TopBar extends StatelessWidget {
           ),
           IconButton(
             onPressed: () {},
-            icon: const Icon(
-              Icons.account_circle,
-              color: Colors.white,
-              size: 32,
-            ),
+            icon: Icon(Icons.account_circle, color: textColor, size: 32),
           ),
         ],
       ),
@@ -720,29 +871,40 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    required this.cardColor,
+    required this.textColor,
+    required this.subtitleColor,
+    required this.iconColor,
+    required this.borderColor,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final Color cardColor;
+  final Color textColor;
+  final Color subtitleColor;
+  final Color iconColor;
+  final Color borderColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: _teal),
+          Icon(icon, color: iconColor),
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(
-              color: _slate400,
+            style: TextStyle(
+              color: subtitleColor,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -750,8 +912,8 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: textColor,
               fontSize: 24,
               fontWeight: FontWeight.w700,
               height: 1.2,
@@ -763,83 +925,31 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _AttendanceCard extends StatelessWidget {
-  const _AttendanceCard({required this.percentage});
-
-  final double percentage;
-
-  @override
-  Widget build(BuildContext context) {
-    final percentText = '${(percentage * 100).round()}%';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                "Today's Attendance",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                percentText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Stack(
-            children: [
-              Container(
-                height: 8,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF334155),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: percentage.clamp(0, 1),
-                child: Container(
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _teal,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _QuickActionCard extends StatelessWidget {
-  const _QuickActionCard();
+  const _QuickActionCard({
+    required this.cardColor,
+    required this.textColor,
+    required this.subtitleColor,
+    required this.tealColor,
+    required this.iconBgColor,
+    required this.borderColor,
+  });
+
+  final Color cardColor;
+  final Color textColor;
+  final Color subtitleColor;
+  final Color tealColor;
+  final Color iconBgColor;
+  final Color borderColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1),
       ),
       child: Row(
         children: [
@@ -847,27 +957,27 @@ class _QuickActionCard extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFF334155),
+              color: iconBgColor,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.campaign, color: _teal),
+            child: Icon(Icons.campaign, color: tealColor),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Broadcast Message',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: textColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'Send a message to all staff',
-                  style: TextStyle(color: _slate400, fontSize: 13),
+                  style: TextStyle(color: subtitleColor, fontSize: 13),
                 ),
               ],
             ),
@@ -875,10 +985,7 @@ class _QuickActionCard extends StatelessWidget {
           Container(
             width: 40,
             height: 40,
-            decoration: const BoxDecoration(
-              color: _teal,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: tealColor, shape: BoxShape.circle),
             child: const Icon(Icons.arrow_forward, color: Colors.white),
           ),
         ],

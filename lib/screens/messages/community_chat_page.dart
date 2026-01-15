@@ -153,8 +153,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         final unread = Provider.of<UnreadCountProvider>(context, listen: false);
         await unread.markChatAsRead(widget.communityId);
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   @override
@@ -280,13 +279,33 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final currentUserId = authProvider.currentUser?.uid;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF8FAFC);
+    final appBarColor = isDark ? const Color(0xFF141414) : Colors.white;
+    final cardColor = isDark
+        ? const Color(0xFF222222)
+        : const Color(0xFFFFFFFF);
+    final inputBgColor = isDark
+        ? const Color(0xFF1F2C34)
+        : const Color(0xFFF1F5F9);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? Colors.white60 : const Color(0xFF64748B);
+    final hintColor = isDark
+        ? const Color(0xFF8696A0)
+        : const Color(0xFF94A3B8);
+    final primaryColor = const Color(0xFF00A884);
+    final accentColor = const Color(0xFFFF8800);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF141414),
+        backgroundColor: appBarColor,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? Colors.white70 : const Color(0xFF475569),
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -299,15 +318,15 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                 children: [
                   Text(
                     widget.communityName,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: textColor,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const Text(
+                  Text(
                     'Open Community',
-                    style: TextStyle(color: Colors.white60, fontSize: 12),
+                    style: TextStyle(color: subtitleColor, fontSize: 12),
                   ),
                 ],
               ),
@@ -328,25 +347,25 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   return Center(
                     child: Text(
                       'Error loading messages',
-                      style: TextStyle(color: Colors.white70),
+                      style: TextStyle(color: subtitleColor),
                     ),
                   );
                 }
 
                 if (!snapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFF8800)),
+                  return Center(
+                    child: CircularProgressIndicator(color: accentColor),
                   );
                 }
 
                 final messages = snapshot.data!;
 
                 if (messages.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text(
                       'No messages yet.\nBe the first to say hello! 👋',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white54),
+                      style: TextStyle(color: hintColor),
                     ),
                   );
                 }
@@ -424,7 +443,14 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
           ),
 
           // Input Bar
-          _buildInputBar(),
+          _buildInputBar(
+            cardColor: cardColor,
+            inputBgColor: inputBgColor,
+            textColor: textColor,
+            hintColor: hintColor,
+            primaryColor: primaryColor,
+            isDark: isDark,
+          ),
           if (_showEmojiPicker)
             EmojiPicker(
               onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
@@ -433,17 +459,17 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                 height: 250,
                 checkPlatformCompatibility: false,
                 emojiViewConfig: EmojiViewConfig(
-                  backgroundColor: const Color(0xFF222222),
+                  backgroundColor: cardColor,
                   columns: 7,
                   emojiSizeMax: 28,
                 ),
                 categoryViewConfig: CategoryViewConfig(
-                  backgroundColor: const Color(0xFF222222),
-                  iconColorSelected: const Color(0xFF00A884),
-                  indicatorColor: const Color(0xFF00A884),
+                  backgroundColor: cardColor,
+                  iconColorSelected: primaryColor,
+                  indicatorColor: primaryColor,
                 ),
                 bottomActionBarConfig: BottomActionBarConfig(
-                  backgroundColor: const Color(0xFF222222),
+                  backgroundColor: cardColor,
                 ),
               ),
             ),
@@ -452,18 +478,32 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     );
   }
 
-  Widget _buildInputBar() {
+  Widget _buildInputBar({
+    required Color cardColor,
+    required Color inputBgColor,
+    required Color textColor,
+    required Color hintColor,
+    required Color primaryColor,
+    required bool isDark,
+  }) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF222222),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 8,
-            offset: const Offset(0, -4),
-          ),
-        ],
+        color: cardColor,
+        border: isDark
+            ? null
+            : const Border(
+                top: BorderSide(color: Color(0xFFE2E8F0), width: 0.5),
+              ),
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, -4),
+                ),
+              ]
+            : null,
       ),
       child: SafeArea(
         top: false,
@@ -475,7 +515,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1F2C34),
+                  color: inputBgColor,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Row(
@@ -485,7 +525,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                         _showEmojiPicker
                             ? Icons.keyboard
                             : Icons.sentiment_satisfied_outlined,
-                        color: const Color(0xFF8696A0),
+                        color: hintColor,
                         size: 26,
                       ),
                       padding: const EdgeInsets.all(8),
@@ -504,13 +544,10 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                       child: TextField(
                         controller: _messageController,
                         focusNode: _messageFocusNode,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                        decoration: const InputDecoration(
+                        style: TextStyle(color: textColor, fontSize: 16),
+                        decoration: InputDecoration(
                           hintText: 'Message',
-                          hintStyle: TextStyle(color: Color(0xFF8696A0)),
+                          hintStyle: TextStyle(color: hintColor),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
@@ -531,11 +568,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
             ),
             const SizedBox(width: 6),
             IconButton(
-              icon: const Icon(
-                Icons.attach_file,
-                color: Color(0xFF8696A0),
-                size: 26,
-              ),
+              icon: Icon(Icons.attach_file, color: hintColor, size: 26),
               padding: const EdgeInsets.all(8),
               onPressed: _pickAndSendImage,
             ),
@@ -544,8 +577,8 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
             Container(
               width: 48,
               height: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFF00A884),
+              decoration: BoxDecoration(
+                color: primaryColor,
                 shape: BoxShape.circle,
               ),
               child: IconButton(

@@ -16,33 +16,53 @@ class InstituteMessagesScreen extends StatefulWidget {
 
 class _InstituteMessagesScreenState extends State<InstituteMessagesScreen> {
   final CommunityService _communityService = CommunityService();
-  bool _isLoading = true;
+  bool _isLoading = false;
   List<CommunityModel> _joined = [];
+  bool _hasLoadedOnce = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadData();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasLoadedOnce) {
+      _hasLoadedOnce = true;
+      _loadData();
+    }
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
+
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
     final schoolCode = user?.instituteId ?? '';
     if (user == null || schoolCode.isEmpty) {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
 
-    final joinedRaw = await _communityService.getMyComm(user.uid);
-    final joined = joinedRaw.where((c) => _isEligible(c, schoolCode)).toList();
+    try {
+      final joinedRaw = await _communityService.getMyComm(user.uid);
+      final joined = joinedRaw
+          .where((c) => _isEligible(c, schoolCode))
+          .toList();
 
-    setState(() {
-      _joined = joined;
-      _isLoading = false;
-    });
+      if (mounted) {
+        setState(() {
+          _joined = joined;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   bool _isEligible(CommunityModel c, String schoolCode) {
@@ -107,7 +127,6 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen> {
           child: Column(
             children: [
               _TopBar(
-                onRefresh: _loadData,
                 bgColor: bgColor,
                 textColor: textColor,
                 subtitleColor: subtitleColor,
@@ -164,13 +183,11 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen> {
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
-    required this.onRefresh,
     required this.bgColor,
     required this.textColor,
     required this.subtitleColor,
   });
 
-  final VoidCallback onRefresh;
   final Color bgColor;
   final Color textColor;
   final Color subtitleColor;
@@ -200,10 +217,6 @@ class _TopBar extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-          ),
-          IconButton(
-            onPressed: onRefresh,
-            icon: Icon(Icons.refresh, color: subtitleColor),
           ),
         ],
       ),
