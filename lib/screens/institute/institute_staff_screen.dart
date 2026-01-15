@@ -11,13 +11,6 @@ class InstituteStaffScreen extends StatefulWidget {
 }
 
 class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
-  static const Color _bg = Color(0xFF0F1416);
-  static const Color _panel = Color(0xFF1E293B);
-  static const Color _chip = Color(0xFF334155);
-  static const Color _primary = Color(0xFF146D7B);
-  static const Color _accent = Color(0xFF6A5AE0);
-  static const Color _slate400 = Color(0xFF94A3B8);
-
   List<_StaffMember> _staff = [];
   bool _isLoading = true;
   String _query = '';
@@ -138,6 +131,20 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0F1416) : const Color(0xFFF8FAFC);
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final chipColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFE2E8F0);
+    final primaryColor = const Color(0xFF146D7B);
+    final accentColor = const Color(0xFF6A5AE0);
+    final slateColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+
     final filtered = _staff.where((s) {
       final matchesQuery =
           _query.isEmpty ||
@@ -149,36 +156,41 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
     }).toList();
 
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: bgColor,
       body: SafeArea(
         child: Column(
           children: [
             _Header(
-              primary: _primary,
-              accent: _accent,
-              bg: _bg,
-              slate: _slate400,
+              primary: primaryColor,
+              accent: accentColor,
+              bg: bgColor,
+              slate: slateColor,
               totalStaff: _staff.length,
+              isDark: isDark,
+              textColor: textColor,
+              subtitleColor: subtitleColor,
             ),
             _SearchFilters(
-              primary: _primary,
-              chip: _chip,
-              slate: _slate400,
+              primary: primaryColor,
+              chip: chipColor,
+              slate: slateColor,
               onQueryChanged: (value) =>
                   setState(() => _query = value.trim().toLowerCase()),
               onFilterChanged: (value) => setState(() => _filter = value),
               activeFilter: _filter,
+              isDark: isDark,
+              textColor: textColor,
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _primary),
+                  ? Center(
+                      child: CircularProgressIndicator(color: primaryColor),
                     )
                   : _staff.isEmpty
                   ? Center(
                       child: Text(
                         'No staff found in this school',
-                        style: TextStyle(color: Colors.grey[400]),
+                        style: TextStyle(color: subtitleColor),
                       ),
                     )
                   : SingleChildScrollView(
@@ -189,9 +201,12 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
                           ...filtered.map(
                             (s) => _StaffCard(
                               staff: s,
-                              panel: _panel,
-                              slate: _slate400,
+                              panel: cardColor,
+                              slate: slateColor,
                               onTap: () => _openDetails(s),
+                              isDark: isDark,
+                              textColor: textColor,
+                              subtitleColor: subtitleColor,
                             ),
                           ),
                           if (filtered.isEmpty && !_isLoading)
@@ -199,7 +214,7 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
                               padding: const EdgeInsets.only(top: 40),
                               child: Text(
                                 'No staff match your search.',
-                                style: TextStyle(color: Colors.grey[400]),
+                                style: TextStyle(color: subtitleColor),
                               ),
                             ),
                         ],
@@ -247,6 +262,9 @@ class _Header extends StatelessWidget {
     required this.bg,
     required this.slate,
     required this.totalStaff,
+    required this.isDark,
+    required this.textColor,
+    required this.subtitleColor,
   });
 
   final Color primary;
@@ -254,6 +272,9 @@ class _Header extends StatelessWidget {
   final Color bg;
   final Color slate;
   final int totalStaff;
+  final bool isDark;
+  final Color textColor;
+  final Color subtitleColor;
 
   @override
   Widget build(BuildContext context) {
@@ -295,10 +316,10 @@ class _Header extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Staff Directory',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: textColor,
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                   ),
@@ -306,7 +327,7 @@ class _Header extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '$totalStaff staff members',
-                  style: TextStyle(color: slate, fontSize: 13),
+                  style: TextStyle(color: subtitleColor, fontSize: 13),
                 ),
               ],
             ),
@@ -325,6 +346,8 @@ class _SearchFilters extends StatelessWidget {
     required this.onQueryChanged,
     required this.onFilterChanged,
     required this.activeFilter,
+    required this.isDark,
+    required this.textColor,
   });
 
   final Color primary;
@@ -333,33 +356,58 @@ class _SearchFilters extends StatelessWidget {
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<String> onFilterChanged;
   final String activeFilter;
+  final bool isDark;
+  final Color textColor;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFF1F2937),
-              borderRadius: BorderRadius.circular(999),
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF334155)
+                    : const Color(0xFFE2E8F0),
+                width: 1,
+              ),
+              boxShadow: isDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
             ),
             child: Row(
               children: [
-                Icon(Icons.search, color: slate, size: 20),
-                const SizedBox(width: 8),
+                Icon(Icons.search_rounded, color: slate, size: 24),
+                const SizedBox(width: 14),
                 Expanded(
                   child: TextField(
                     onChanged: onQueryChanged,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                      height: 1.4,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Search by name, subject or class...',
-                      hintStyle: TextStyle(color: slate),
+                      hintStyle: TextStyle(
+                        color: slate.withOpacity(0.7),
+                        fontSize: 15,
+                      ),
                       border: InputBorder.none,
-                      isCollapsed: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 4),
                     ),
                   ),
                 ),
@@ -465,12 +513,18 @@ class _StaffCard extends StatelessWidget {
     required this.panel,
     required this.slate,
     required this.onTap,
+    required this.isDark,
+    required this.textColor,
+    required this.subtitleColor,
   });
 
   final _StaffMember staff;
   final Color panel;
   final Color slate;
   final VoidCallback onTap;
+  final bool isDark;
+  final Color textColor;
+  final Color subtitleColor;
 
   @override
   Widget build(BuildContext context) {
@@ -527,8 +581,8 @@ class _StaffCard extends StatelessWidget {
                   children: [
                     Text(
                       staff.name,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: textColor,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -551,7 +605,10 @@ class _StaffCard extends StatelessWidget {
                         Flexible(
                           child: Text(
                             '${staff.status} • ${staff.subjects.join(', ')}',
-                            style: TextStyle(color: slate, fontSize: 13),
+                            style: TextStyle(
+                              color: subtitleColor,
+                              fontSize: 13,
+                            ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
                           ),

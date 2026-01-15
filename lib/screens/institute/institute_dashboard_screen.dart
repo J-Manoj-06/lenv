@@ -295,8 +295,8 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
             children: [
               // Main Avatar Circle
               Container(
-                width: 68,
-                height: 68,
+                width: 64,
+                height: 64,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: hasAnnouncement
@@ -364,7 +364,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
           // Label
           SizedBox(
             width: 70,
@@ -373,7 +373,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               textAlign: TextAlign.center,
               maxLines: 1,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: _slate400,
               ),
@@ -417,8 +417,8 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         children: [
           // Avatar with gradient border
           Container(
-            width: 68,
-            height: 68,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: hasUnviewed
@@ -475,7 +475,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
           // Principal Name
           SizedBox(
             width: 70,
@@ -485,7 +485,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: _slate400,
               ),

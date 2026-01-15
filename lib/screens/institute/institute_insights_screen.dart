@@ -38,19 +38,19 @@ class _InstituteInsightsScreenState extends State<InstituteInsightsScreen> {
                     // 3 KPI Cards only
                     _KPIGrid(),
                     const SizedBox(height: 32),
-                    
+
                     // One Main Chart
                     _MainChart(),
                     const SizedBox(height: 32),
-                    
+
                     // Subject Performance (simplified chips)
                     _SubjectPerformanceSection(),
                     const SizedBox(height: 32),
-                    
+
                     // Recent Tests (only 2)
                     _RecentTests(),
                     const SizedBox(height: 32),
-                    
+
                     // Standards (collapsible)
                     _StandardsList(),
                     const SizedBox(height: 16),
@@ -80,9 +80,7 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
         color: _bgDark,
-        border: Border(
-          bottom: BorderSide(color: Colors.white10, width: 0.5),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.white10, width: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,20 +102,19 @@ class _TopBar extends StatelessWidget {
                     SizedBox(height: 4),
                     Text(
                       'School overview & trends',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
                     ),
                   ],
                 ),
               ),
               IconButton(
                 onPressed: () {},
-                icon: const Icon(Icons.download_outlined, color: Colors.white70, size: 22),
-                style: IconButton.styleFrom(
-                  backgroundColor: _cardDark,
+                icon: const Icon(
+                  Icons.download_outlined,
+                  color: Colors.white70,
+                  size: 22,
                 ),
+                style: IconButton.styleFrom(backgroundColor: _cardDark),
               ),
             ],
           ),
@@ -163,8 +160,8 @@ class _RangeToggle extends StatelessWidget {
                   child: Text(
                     r,
                     style: TextStyle(
-                      color: selected == r.toLowerCase() 
-                          ? Colors.white 
+                      color: selected == r.toLowerCase()
+                          ? Colors.white
                           : Colors.white54,
                       fontSize: 13,
                       fontWeight: selected == r.toLowerCase()
@@ -252,10 +249,7 @@ class _KPICard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -331,10 +325,7 @@ class _MainChart extends StatelessWidget {
             height: 100,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  _primary.withOpacity(0.2),
-                  _primary.withOpacity(0.05),
-                ],
+                colors: [_primary.withOpacity(0.2), _primary.withOpacity(0.05)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
@@ -352,17 +343,9 @@ class _MainChart extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _MiniStat(label: 'Min', value: '56%'),
-              Container(
-                width: 1,
-                height: 24,
-                color: Colors.white10,
-              ),
+              Container(width: 1, height: 24, color: Colors.white10),
               _MiniStat(label: 'Max', value: '92%'),
-              Container(
-                width: 1,
-                height: 24,
-                color: Colors.white10,
-              ),
+              Container(width: 1, height: 24, color: Colors.white10),
               _MiniStat(label: 'Avg', value: '78%'),
             ],
           ),
@@ -384,10 +367,7 @@ class _MiniStat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 11,
-          ),
+          style: const TextStyle(color: Colors.white54, fontSize: 11),
         ),
         const SizedBox(height: 4),
         Text(
@@ -439,9 +419,21 @@ class _SubjectPerformanceSection extends StatelessWidget {
             children: const [
               _SubjectChip(label: 'Math', percentage: '25%', color: _primary),
               _SubjectChip(label: 'Science', percentage: '22%', color: _accent),
-              _SubjectChip(label: 'English', percentage: '18%', color: _positive),
-              _SubjectChip(label: 'Social', percentage: '15%', color: Color(0xFF8B5CF6)),
-              _SubjectChip(label: 'Hindi', percentage: '12%', color: Color(0xFFEC4899)),
+              _SubjectChip(
+                label: 'English',
+                percentage: '18%',
+                color: _positive,
+              ),
+              _SubjectChip(
+                label: 'Social',
+                percentage: '15%',
+                color: Color(0xFF8B5CF6),
+              ),
+              _SubjectChip(
+                label: 'Hindi',
+                percentage: '12%',
+                color: Color(0xFFEC4899),
+              ),
             ],
           ),
         ],
@@ -482,10 +474,7 @@ class _SubjectChip extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
-            '•',
-            style: TextStyle(color: color.withOpacity(0.5)),
-          ),
+          Text('•', style: TextStyle(color: color.withOpacity(0.5))),
           const SizedBox(width: 6),
           Text(
             percentage,
@@ -613,10 +602,7 @@ class _TestCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -637,10 +623,7 @@ class _TestCard extends StatelessWidget {
               ),
               const Text(
                 'Avg',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: Colors.white54, fontSize: 11),
               ),
             ],
           ),
@@ -806,10 +789,7 @@ class _StandardCardState extends State<_StandardCard> {
           ),
           if (_expanded) ...[
             const SizedBox(height: 12),
-            Container(
-              height: 1,
-              color: Colors.white10,
-            ),
+            Container(height: 1, color: Colors.white10),
             const SizedBox(height: 12),
             ...widget.sections.map((s) => _SectionRow(section: s)),
           ],
