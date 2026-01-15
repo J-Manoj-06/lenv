@@ -7,24 +7,27 @@ class StaffDetailsPage extends StatelessWidget {
 
   final StaffMember staff;
 
-  // Colors
-  static const _bg = Color(0xFF0B1113);
-  static const _primary = Color(0xFF1E88E5);
-  static const _panel = Color(0xFF1A1F2E);
-  static const _slate400 = Color(0xFF94A3B8);
-  static const _cardBg = Color(0xFF151E28);
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF0B1113) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF151E28) : const Color(0xFFFFFFFF);
+    final panel = isDark ? const Color(0xFF1A1F2E) : const Color(0xFFFFFFFF);
+    final primary = const Color(0xFF146D7A);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final border = isDark ? Colors.white10 : border;
+    final iconColor = isDark ? Colors.white : const Color(0xFF1E293B);
+
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: bg,
       appBar: AppBar(
-        backgroundColor: _bg,
+        backgroundColor: bg,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new,
-            color: Colors.white,
+            color: iconColor,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context),
@@ -32,7 +35,7 @@ class StaffDetailsPage extends StatelessWidget {
         title: const Text(
           'Staff Details',
           style: TextStyle(
-            color: Colors.white,
+            color: iconColor,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -40,7 +43,7 @@ class StaffDetailsPage extends StatelessWidget {
         actions: [
           if (staff.phone.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.call, color: _primary),
+              icon: const Icon(Icons.call, color: primary),
               onPressed: () => _makeCall(staff.phone),
             ),
         ],
@@ -85,9 +88,9 @@ class StaffDetailsPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _cardBg,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10, width: 0.5),
+        border: Border.all(color: border, width: 0.5),
       ),
       child: Column(
         children: [
@@ -97,7 +100,7 @@ class StaffDetailsPage extends StatelessWidget {
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: _primary, width: 2),
+              border: Border.all(color: primary, width: 2),
             ),
             child: ClipOval(
               child: staff.imageUrl.isNotEmpty
@@ -115,7 +118,7 @@ class StaffDetailsPage extends StatelessWidget {
           Text(
             staff.name,
             style: const TextStyle(
-              color: Colors.white,
+              color: textPrimary,
               fontSize: 22,
               fontWeight: FontWeight.w700,
             ),
@@ -127,7 +130,7 @@ class StaffDetailsPage extends StatelessWidget {
           Text(
             staff.role,
             style: const TextStyle(
-              color: _slate400,
+              color: textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -172,8 +175,8 @@ class StaffDetailsPage extends StatelessWidget {
 
   Widget _buildAvatarPlaceholder() {
     return Container(
-      color: _primary.withOpacity(0.2),
-      child: const Icon(Icons.person, color: _primary, size: 40),
+      color: primary.withOpacity(0.2),
+      child: const Icon(Icons.person, color: primary, size: 40),
     );
   }
 
@@ -181,9 +184,9 @@ class StaffDetailsPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _cardBg,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10, width: 0.5),
+        border: Border.all(color: border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,7 +194,7 @@ class StaffDetailsPage extends StatelessWidget {
           const Text(
             'Contact Information',
             style: TextStyle(
-              color: Colors.white,
+              color: textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -229,10 +232,10 @@ class StaffDetailsPage extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: _primary.withOpacity(0.1),
+            color: primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: _primary, size: 20),
+          child: Icon(icon, color: primary, size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -241,13 +244,13 @@ class StaffDetailsPage extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(color: _slate400, fontSize: 12),
+                style: const TextStyle(color: textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: iconColor,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -256,7 +259,7 @@ class StaffDetailsPage extends StatelessWidget {
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.copy, color: _slate400, size: 18),
+          icon: const Icon(Icons.copy, color: textSecondary, size: 18),
           onPressed: onCopy,
         ),
       ],
@@ -270,7 +273,7 @@ class StaffDetailsPage extends StatelessWidget {
         const Text(
           'Assignments',
           style: TextStyle(
-            color: Colors.white,
+            color: textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -322,22 +325,22 @@ class StaffDetailsPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardBg,
+        color: cardBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white10, width: 0.5),
+        border: Border.all(color: border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: _primary, size: 18),
+              Icon(icon, color: primary, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
                   style: const TextStyle(
-                    color: _slate400,
+                    color: textSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -357,14 +360,14 @@ class StaffDetailsPage extends StatelessWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: _panel,
+                      color: panel,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _primary.withOpacity(0.3)),
+                      border: Border.all(color: primary.withOpacity(0.3)),
                     ),
                     child: Text(
                       item,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: iconColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -413,7 +416,7 @@ class StaffDetailsPage extends StatelessWidget {
         const Text(
           'Performance Snapshot',
           style: TextStyle(
-            color: Colors.white,
+            color: textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -427,23 +430,23 @@ class StaffDetailsPage extends StatelessWidget {
                     margin: EdgeInsets.only(right: stat == stats.last ? 0 : 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: _cardBg,
+                      color: cardBg,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white10, width: 0.5),
+                      border: Border.all(color: border, width: 0.5),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
                           stat['icon'] as IconData,
-                          color: _primary,
+                          color: primary,
                           size: 24,
                         ),
                         const SizedBox(height: 12),
                         Text(
                           stat['value'] as String,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: textPrimary,
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
                           ),
@@ -452,7 +455,7 @@ class StaffDetailsPage extends StatelessWidget {
                         Text(
                           stat['label'] as String,
                           style: const TextStyle(
-                            color: _slate400,
+                            color: textSecondary,
                             fontSize: 12,
                           ),
                           maxLines: 2,
@@ -473,21 +476,21 @@ class StaffDetailsPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _cardBg,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10, width: 0.5),
+        border: Border.all(color: border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.note_outlined, color: _primary, size: 20),
+              const Icon(Icons.note_outlined, color: primary, size: 20),
               const SizedBox(width: 8),
               const Text(
                 'Notes',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -499,13 +502,13 @@ class StaffDetailsPage extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: _panel,
+              color: panel,
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Text(
               'No notes available',
               style: TextStyle(
-                color: _slate400,
+                color: textSecondary,
                 fontSize: 13,
                 fontStyle: FontStyle.italic,
               ),
