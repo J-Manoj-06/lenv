@@ -3,10 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class StaffDetailsPage extends StatelessWidget {
-  const StaffDetailsPage({
-    super.key,
-    required this.staff,
-  });
+  const StaffDetailsPage({super.key, required this.staff});
 
   final StaffMember staff;
 
@@ -177,11 +174,7 @@ class StaffDetailsPage extends StatelessWidget {
   Widget _buildAvatarPlaceholder() {
     return Container(
       color: _primary.withOpacity(0.2),
-      child: const Icon(
-        Icons.person,
-        color: _primary,
-        size: 40,
-      ),
+      child: const Icon(Icons.person, color: _primary, size: 40),
     );
   }
 
@@ -249,10 +242,7 @@ class StaffDetailsPage extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: _slate400,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: _slate400, fontSize: 12),
               ),
               const SizedBox(height: 2),
               Text(
@@ -320,10 +310,12 @@ class StaffDetailsPage extends StatelessWidget {
   }) {
     // Filter out "Not assigned" entries
     final validItems = items
-        .where((item) =>
-            item.isNotEmpty &&
-            !item.toLowerCase().contains('not assigned') &&
-            !item.toLowerCase().contains('none'))
+        .where(
+          (item) =>
+              item.isNotEmpty &&
+              !item.toLowerCase().contains('not assigned') &&
+              !item.toLowerCase().contains('none'),
+        )
         .toList();
 
     if (validItems.isEmpty) return const SizedBox.shrink();
@@ -361,8 +353,10 @@ class StaffDetailsPage extends StatelessWidget {
             children: validItems
                 .map(
                   (item) => Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: _panel,
                       borderRadius: BorderRadius.circular(8),
@@ -431,9 +425,7 @@ class StaffDetailsPage extends StatelessWidget {
               .map(
                 (stat) => Expanded(
                   child: Container(
-                    margin: EdgeInsets.only(
-                      right: stat == stats.last ? 0 : 12,
-                    ),
+                    margin: EdgeInsets.only(right: stat == stats.last ? 0 : 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: _cardBg,
@@ -530,18 +522,22 @@ class StaffDetailsPage extends StatelessWidget {
 
   bool _hasSubjects() {
     return staff.subjects.isNotEmpty &&
-        staff.subjects.any((s) =>
-            s.isNotEmpty &&
-            !s.toLowerCase().contains('not assigned') &&
-            !s.toLowerCase().contains('none'));
+        staff.subjects.any(
+          (s) =>
+              s.isNotEmpty &&
+              !s.toLowerCase().contains('not assigned') &&
+              !s.toLowerCase().contains('none'),
+        );
   }
 
   bool _hasClasses() {
     return staff.classes.isNotEmpty &&
-        staff.classes.any((c) =>
-            c.isNotEmpty &&
-            !c.toLowerCase().contains('not assigned') &&
-            !c.toLowerCase().contains('none'));
+        staff.classes.any(
+          (c) =>
+              c.isNotEmpty &&
+              !c.toLowerCase().contains('not assigned') &&
+              !c.toLowerCase().contains('none'),
+        );
   }
 
   bool _hasPerformanceData() {

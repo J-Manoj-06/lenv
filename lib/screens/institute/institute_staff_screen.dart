@@ -568,6 +568,7 @@ class _StaffCard extends StatelessWidget {
     );
   }
 }
+
 class _StaffMember {
   const _StaffMember({
     required this.id,
