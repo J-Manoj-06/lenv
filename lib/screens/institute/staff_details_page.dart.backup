@@ -35,6 +35,11 @@ class StaffDetailsPage extends StatelessWidget {
             if (_hasPerformanceData()) _buildPerformanceSection(context),
             if (_hasPerformanceData()) const SizedBox(height: 16),
 
+            // Recent Activity (if available)
+            // TODO: Implement when backend provides recent activity data
+            // _buildRecentActivity(),
+            // const SizedBox(height: 16),
+
             // Notes Section
             _buildNotesSection(context),
           ],
@@ -43,7 +48,6 @@ class StaffDetailsPage extends StatelessWidget {
     );
   }
 
-  // Theme helper methods
   Color _getBg(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return isDark ? const Color(0xFF0B1113) : const Color(0xFFF8FAFC);
@@ -51,12 +55,12 @@ class StaffDetailsPage extends StatelessWidget {
 
   Color _getCardBg(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark ? const Color(0xFF151E28) : Colors.white;
+    return isDark ? const Color(0xFF151E28) : const Color(0xFFFFFFFF);
   }
 
   Color _getPanel(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark ? const Color(0xFF1A1F2E) : Colors.white;
+    return isDark ? const Color(0xFF1A1F2E) : const Color(0xFFFFFFFF);
   }
 
   Color _getPrimary() => const Color(0xFF146D7A);
@@ -115,9 +119,9 @@ class StaffDetailsPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _getCardBg(context),
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _getBorder(context), width: 0.5),
+        border: Border.all(color: border, width: 0.5),
       ),
       child: Column(
         children: [
@@ -127,7 +131,7 @@ class StaffDetailsPage extends StatelessWidget {
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: _getPrimary(), width: 2),
+              border: Border.all(color: primary, width: 2),
             ),
             child: ClipOval(
               child: staff.imageUrl.isNotEmpty
@@ -144,8 +148,8 @@ class StaffDetailsPage extends StatelessWidget {
           // Name
           Text(
             staff.name,
-            style: TextStyle(
-              color: _getTextPrimary(context),
+            style: const TextStyle(
+              color: textPrimary,
               fontSize: 22,
               fontWeight: FontWeight.w700,
             ),
@@ -156,8 +160,8 @@ class StaffDetailsPage extends StatelessWidget {
           // Role
           Text(
             staff.role,
-            style: TextStyle(
-              color: _getTextSecondary(context),
+            style: const TextStyle(
+              color: textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -202,26 +206,26 @@ class StaffDetailsPage extends StatelessWidget {
 
   Widget _buildAvatarPlaceholder() {
     return Container(
-      color: _getPrimary().withOpacity(0.2),
-      child: Icon(Icons.person, color: _getPrimary(), size: 40),
+      color: primary.withOpacity(0.2),
+      child: const Icon(Icons.person, color: primary, size: 40),
     );
   }
 
-  Widget _buildContactCard(BuildContext context) {
+  Widget _buildContactCard() {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _getCardBg(context),
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _getBorder(context), width: 0.5),
+        border: Border.all(color: border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Contact Information',
             style: TextStyle(
-              color: _getTextPrimary(context),
+              color: textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -229,7 +233,6 @@ class StaffDetailsPage extends StatelessWidget {
           const SizedBox(height: 16),
           if (staff.email.isNotEmpty) ...[
             _buildContactRow(
-              context,
               icon: Icons.email_outlined,
               label: 'Email',
               value: staff.email,
@@ -239,7 +242,6 @@ class StaffDetailsPage extends StatelessWidget {
           ],
           if (staff.phone.isNotEmpty)
             _buildContactRow(
-              context,
               icon: Icons.phone_outlined,
               label: 'Phone',
               value: staff.phone,
@@ -250,8 +252,7 @@ class StaffDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildContactRow(
-    BuildContext context, {
+  Widget _buildContactRow({
     required IconData icon,
     required String label,
     required String value,
@@ -262,10 +263,10 @@ class StaffDetailsPage extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: _getPrimary().withOpacity(0.1),
+            color: primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: _getPrimary(), size: 20),
+          child: Icon(icon, color: primary, size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -274,13 +275,13 @@ class StaffDetailsPage extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(color: _getTextSecondary(context), fontSize: 12),
+                style: const TextStyle(color: textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: TextStyle(
-                  color: _getIconColor(context),
+                style: const TextStyle(
+                  color: iconColor,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -289,21 +290,21 @@ class StaffDetailsPage extends StatelessWidget {
           ),
         ),
         IconButton(
-          icon: Icon(Icons.copy, color: _getTextSecondary(context), size: 18),
+          icon: const Icon(Icons.copy, color: textSecondary, size: 18),
           onPressed: onCopy,
         ),
       ],
     );
   }
 
-  Widget _buildAssignmentsSection(BuildContext context) {
+  Widget _buildAssignmentsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Assignments',
           style: TextStyle(
-            color: _getTextPrimary(context),
+            color: textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -315,7 +316,6 @@ class StaffDetailsPage extends StatelessWidget {
             if (_hasSubjects())
               Expanded(
                 child: _buildAssignmentCard(
-                  context,
                   title: 'Subjects Handled',
                   items: staff.subjects.map(_parseSubject).toSet().toList(),
                   icon: Icons.menu_book,
@@ -325,7 +325,6 @@ class StaffDetailsPage extends StatelessWidget {
             if (_hasClasses())
               Expanded(
                 child: _buildAssignmentCard(
-                  context,
                   title: 'Classes',
                   items: staff.classes.map(_parseClass).toSet().toList(),
                   icon: Icons.class_,
@@ -337,8 +336,7 @@ class StaffDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildAssignmentCard(
-    BuildContext context, {
+  Widget _buildAssignmentCard({
     required String title,
     required List<String> items,
     required IconData icon,
@@ -358,22 +356,22 @@ class StaffDetailsPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _getCardBg(context),
+        color: cardBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _getBorder(context), width: 0.5),
+        border: Border.all(color: border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: _getPrimary(), size: 18),
+              Icon(icon, color: primary, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
-                    color: _getTextSecondary(context),
+                  style: const TextStyle(
+                    color: textSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -393,14 +391,14 @@ class StaffDetailsPage extends StatelessWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: _getPanel(context),
+                      color: panel,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _getPrimary().withOpacity(0.3)),
+                      border: Border.all(color: primary.withOpacity(0.3)),
                     ),
                     child: Text(
                       item,
-                      style: TextStyle(
-                        color: _getIconColor(context),
+                      style: const TextStyle(
+                        color: iconColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -414,7 +412,7 @@ class StaffDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPerformanceSection(BuildContext context) {
+  Widget _buildPerformanceSection() {
     final stats = <Map<String, dynamic>>[];
 
     if (staff.stats.totalTests > 0) {
@@ -446,10 +444,10 @@ class StaffDetailsPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Performance Snapshot',
           style: TextStyle(
-            color: _getTextPrimary(context),
+            color: textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -463,23 +461,23 @@ class StaffDetailsPage extends StatelessWidget {
                     margin: EdgeInsets.only(right: stat == stats.last ? 0 : 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: _getCardBg(context),
+                      color: cardBg,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _getBorder(context), width: 0.5),
+                      border: Border.all(color: border, width: 0.5),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
                           stat['icon'] as IconData,
-                          color: _getPrimary(),
+                          color: primary,
                           size: 24,
                         ),
                         const SizedBox(height: 12),
                         Text(
                           stat['value'] as String,
-                          style: TextStyle(
-                            color: _getTextPrimary(context),
+                          style: const TextStyle(
+                            color: textPrimary,
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
                           ),
@@ -487,8 +485,8 @@ class StaffDetailsPage extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           stat['label'] as String,
-                          style: TextStyle(
-                            color: _getTextSecondary(context),
+                          style: const TextStyle(
+                            color: textSecondary,
                             fontSize: 12,
                           ),
                           maxLines: 2,
@@ -505,25 +503,25 @@ class StaffDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildNotesSection(BuildContext context) {
+  Widget _buildNotesSection() {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _getCardBg(context),
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _getBorder(context), width: 0.5),
+        border: Border.all(color: border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.note_outlined, color: _getPrimary(), size: 20),
+              const Icon(Icons.note_outlined, color: primary, size: 20),
               const SizedBox(width: 8),
-              Text(
+              const Text(
                 'Notes',
                 style: TextStyle(
-                  color: _getTextPrimary(context),
+                  color: textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -535,13 +533,13 @@ class StaffDetailsPage extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: _getPanel(context),
+              color: panel,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Text(
+            child: const Text(
               'No notes available',
               style: TextStyle(
-                color: _getTextSecondary(context),
+                color: textSecondary,
                 fontSize: 13,
                 fontStyle: FontStyle.italic,
               ),
