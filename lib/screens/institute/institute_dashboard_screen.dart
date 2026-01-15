@@ -59,7 +59,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   // Get real-time student count stream
   Stream<int> _getStudentCountStream(String schoolCode) {
     if (schoolCode.isEmpty) return Stream.value(0);
-    
+
     return FirebaseFirestore.instance
         .collection('students')
         .where('schoolCode', isEqualTo: schoolCode)
@@ -70,7 +70,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   // Get real-time staff count stream
   Stream<int> _getStaffCountStream(String schoolCode) {
     if (schoolCode.isEmpty) return Stream.value(0);
-    
+
     return FirebaseFirestore.instance
         .collection('users')
         .where('role', isEqualTo: 'teacher')
@@ -133,7 +133,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                 future: _getSchoolCode(),
                 builder: (context, schoolCodeSnapshot) {
                   final schoolCode = schoolCodeSnapshot.data ?? '';
-                  
+
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
@@ -146,7 +146,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                               return _StatCard(
                                 icon: Icons.school,
                                 label: 'Total Students',
-                                value: snapshot.connectionState == ConnectionState.waiting
+                                value:
+                                    snapshot.connectionState ==
+                                        ConnectionState.waiting
                                     ? '...'
                                     : _formatCount(count),
                                 cardColor: cardColor,
@@ -167,7 +169,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                               return _StatCard(
                                 icon: Icons.group,
                                 label: 'Total Staff',
-                                value: snapshot.connectionState == ConnectionState.waiting
+                                value:
+                                    snapshot.connectionState ==
+                                        ConnectionState.waiting
                                     ? '...'
                                     : _formatCount(count),
                                 cardColor: cardColor,

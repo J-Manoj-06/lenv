@@ -121,7 +121,7 @@ class StaffDetailsPage extends StatelessWidget {
     final primary = _getPrimary();
     final textPrimary = _getTextPrimary(context);
     final textSecondary = _getTextSecondary(context);
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -144,7 +144,8 @@ class StaffDetailsPage extends StatelessWidget {
                   ? Image.network(
                       staff.imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(context),
+                      errorBuilder: (_, __, ___) =>
+                          _buildAvatarPlaceholder(context),
                     )
                   : _buildAvatarPlaceholder(context),
             ),
@@ -222,7 +223,7 @@ class StaffDetailsPage extends StatelessWidget {
     final cardBg = _getCardBg(context);
     final border = _getBorder(context);
     final textPrimary = _getTextPrimary(context);
-    
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -275,7 +276,7 @@ class StaffDetailsPage extends StatelessWidget {
     final primary = _getPrimary();
     final textSecondary = _getTextSecondary(context);
     final iconColor = _getIconColor(context);
-    
+
     return Row(
       children: [
         Container(
@@ -291,10 +292,7 @@ class StaffDetailsPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: TextStyle(color: textSecondary, fontSize: 12),
-              ),
+              Text(label, style: TextStyle(color: textSecondary, fontSize: 12)),
               const SizedBox(height: 2),
               Text(
                 value,
@@ -317,7 +315,7 @@ class StaffDetailsPage extends StatelessWidget {
 
   Widget _buildAssignmentsSection(BuildContext context) {
     final textPrimary = _getTextPrimary(context);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -370,7 +368,7 @@ class StaffDetailsPage extends StatelessWidget {
     final textSecondary = _getTextSecondary(context);
     final panel = _getPanel(context);
     final iconColor = _getIconColor(context);
-    
+
     // Filter out "Not assigned" entries
     final validItems = items
         .where(
@@ -448,7 +446,7 @@ class StaffDetailsPage extends StatelessWidget {
     final primary = _getPrimary();
     final textPrimary = _getTextPrimary(context);
     final textSecondary = _getTextSecondary(context);
-    
+
     final stats = <Map<String, dynamic>>[];
 
     if (staff.stats.totalTests > 0) {
@@ -521,10 +519,7 @@ class StaffDetailsPage extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           stat['label'] as String,
-                          style: TextStyle(
-                            color: textSecondary,
-                            fontSize: 12,
-                          ),
+                          style: TextStyle(color: textSecondary, fontSize: 12),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -546,7 +541,7 @@ class StaffDetailsPage extends StatelessWidget {
     final textPrimary = _getTextPrimary(context);
     final textSecondary = _getTextSecondary(context);
     final panel = _getPanel(context);
-    
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
