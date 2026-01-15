@@ -22,7 +22,7 @@ class StaffDetailsPage extends StatelessWidget {
         backgroundColor: _bg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -39,11 +39,6 @@ class StaffDetailsPage extends StatelessWidget {
               icon: const Icon(Icons.call, color: _primary),
               onPressed: () => _makeCall(staff.phone),
             ),
-          if (staff.email.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.email, color: _primary),
-              onPressed: () => _sendEmail(staff.email),
-            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -52,7 +47,7 @@ class StaffDetailsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Profile Header Card
-            _buildProfileHeader(),
+            Center(child: _buildProfileHeader()),
             const SizedBox(height: 16),
 
             // Contact Information
@@ -284,7 +279,7 @@ class StaffDetailsPage extends StatelessWidget {
               Expanded(
                 child: _buildAssignmentCard(
                   title: 'Subjects Handled',
-                  items: staff.subjects,
+                  items: staff.subjects.map(_parseSubject).toSet().toList(),
                   icon: Icons.menu_book,
                 ),
               ),
@@ -293,7 +288,7 @@ class StaffDetailsPage extends StatelessWidget {
               Expanded(
                 child: _buildAssignmentCard(
                   title: 'Classes',
-                  items: staff.classes,
+                  items: staff.classes.map(_parseClass).toSet().toList(),
                   icon: Icons.class_,
                 ),
               ),
@@ -540,6 +535,26 @@ class StaffDetailsPage extends StatelessWidget {
         );
   }
 
+  // Parse subject name from "Grade 11: A, physics" -> "Physics"
+  String _parseSubject(String item) {
+    if (item.contains(',')) {
+      final parts = item.split(',');
+      if (parts.length > 1) {
+        return parts[1].trim();
+      }
+    }
+    return item;
+  }
+
+  // Parse class from "Grade 11: A, physics" -> "Grade 11: A"
+  String _parseClass(String item) {
+    if (item.contains(',')) {
+      final parts = item.split(',');
+      return parts[0].trim();
+    }
+    return item;
+  }
+
   bool _hasPerformanceData() {
     return staff.stats.totalTests > 0 ||
         staff.stats.studentsImpacted > 0 ||
@@ -554,13 +569,6 @@ class StaffDetailsPage extends StatelessWidget {
 
   void _makeCall(String phone) async {
     final uri = Uri.parse('tel:$phone');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
-
-  void _sendEmail(String email) async {
-    final uri = Uri.parse('mailto:$email');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     }
