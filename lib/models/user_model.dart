@@ -58,7 +58,7 @@ class UserModel {
       ),
       phone: json['phone'],
       profileImage: json['profileImage'],
-      instituteId: json['instituteId'],
+      instituteId: json['schoolCode'] ?? json['instituteId'],
       childrenIds: json['childrenIds'] != null
           ? List<String>.from(json['childrenIds'])
           : null,

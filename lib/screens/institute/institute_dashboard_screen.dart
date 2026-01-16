@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import './institute_announcement_target_screen.dart';
 import './principal_announcement_viewer.dart';
+import './attendance_history_screen.dart';
 import '../attendance_details_page.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/institute_announcement_model.dart';
@@ -34,12 +35,28 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     _initSchoolCode();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Re-init school code when auth state changes
+    if (_schoolCode.isEmpty) {
+      _initSchoolCode();
+    }
+  }
+
   Future<void> _initSchoolCode() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
-    setState(() {
-      _schoolCode = currentUser?.instituteId ?? '';
-    });
+    print('🔍 DEBUG: Current User = ${currentUser?.name}');
+    print('🔍 DEBUG: User Role = ${currentUser?.role}');
+    print('🔍 DEBUG: User instituteId = ${currentUser?.instituteId}');
+    final code = currentUser?.instituteId ?? '';
+    print('🔍 DEBUG: School Code set to: "$code" (isEmpty: ${code.isEmpty})');
+    if (mounted && code.isNotEmpty) {
+      setState(() {
+        _schoolCode = code;
+      });
+    }
   }
 
   Future<void> _loadViewedAnnouncements() async {
@@ -70,30 +87,56 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
   // Get real-time student count stream
   Stream<int> _getStudentCountStream(String schoolCode) {
-    if (schoolCode.isEmpty) return Stream.value(0);
+    print('📊 DEBUG: Getting students for schoolCode="$schoolCode"');
+    if (schoolCode.isEmpty) {
+      print('⚠️ DEBUG: schoolCode is EMPTY, returning 0');
+      return Stream.value(0);
+    }
 
     return FirebaseFirestore.instance
         .collection('students')
         .where('schoolCode', isEqualTo: schoolCode)
         .snapshots()
-        .map((snapshot) => snapshot.size);
+        .map((snapshot) {
+          print('📊 DEBUG: Students query returned ${snapshot.size} documents');
+          if (snapshot.docs.isNotEmpty) {
+            print(
+              '📊 DEBUG: First student schoolCode: ${snapshot.docs.first.data()['schoolCode']}',
+            );
+          }
+          return snapshot.size;
+        });
   }
 
   // Get real-time staff count stream
   Stream<int> _getStaffCountStream(String schoolCode) {
-    if (schoolCode.isEmpty) return Stream.value(0);
+    print('👥 DEBUG: Getting staff for schoolCode="$schoolCode"');
+    if (schoolCode.isEmpty) {
+      print('⚠️ DEBUG: schoolCode is EMPTY, returning 0');
+      return Stream.value(0);
+    }
 
     return FirebaseFirestore.instance
         .collection('users')
         .where('role', isEqualTo: 'teacher')
         .where('schoolCode', isEqualTo: schoolCode)
         .snapshots()
-        .map((snapshot) => snapshot.size);
+        .map((snapshot) {
+          print('👥 DEBUG: Staff query returned ${snapshot.size} documents');
+          if (snapshot.docs.isNotEmpty) {
+            print(
+              '👥 DEBUG: First staff schoolCode: ${snapshot.docs.first.data()['schoolCode']}',
+            );
+          }
+          return snapshot.size;
+        });
   }
 
   // Get real-time student attendance stream for today
   Stream<Map<String, dynamic>> _getStudentAttendanceStream(String schoolCode) {
+    print('📅 DEBUG: Getting attendance for schoolCode="$schoolCode"');
     if (schoolCode.isEmpty) {
+      print('⚠️ DEBUG: schoolCode is EMPTY for attendance');
       return Stream.value({'present': 0, 'total': 0, 'percent': 0.0});
     }
 
@@ -101,25 +144,47 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     final today = DateTime.now();
     final dateStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    print('📅 DEBUG: Looking for attendance date: $dateStr');
 
+    // Combine attendance stream with total student count
     return FirebaseFirestore.instance
-        .collection('attendance')
+        .collection('students')
         .where('schoolCode', isEqualTo: schoolCode)
-        .where('date', isEqualTo: dateStr)
         .snapshots()
-        .map((snapshot) {
+        .asyncMap((studentSnapshot) async {
+          final totalStudents = studentSnapshot.size;
+          print('📅 DEBUG: Total students in school: $totalStudents');
+
+          // Get attendance records for today
+          final attendanceSnapshot = await FirebaseFirestore.instance
+              .collection('attendance')
+              .where('schoolCode', isEqualTo: schoolCode)
+              .where('date', isEqualTo: dateStr)
+              .get();
+
+          print(
+            '📅 DEBUG: Attendance docs found: ${attendanceSnapshot.docs.length}',
+          );
           int presentCount = 0;
-          int totalCount = 0;
 
-          for (final doc in snapshot.docs) {
-            final students = doc.data()['students'] as Map<String, dynamic>?;
-            if (students == null) continue;
+          for (final doc in attendanceSnapshot.docs) {
+            final data = doc.data();
+            print(
+              '📅 DEBUG: Doc ID: ${doc.id}, section: ${data['section']}, standard: ${data['standard']}',
+            );
+            final students = data['students'] as Map<String, dynamic>?;
+            if (students == null) {
+              print('⚠️ DEBUG: No students field in doc ${doc.id}');
+              continue;
+            }
 
+            print(
+              '📅 DEBUG: Processing ${students.length} students in doc ${doc.id}',
+            );
             for (final studentEntry in students.entries) {
               final studentData = studentEntry.value as Map<String, dynamic>?;
               if (studentData == null) continue;
 
-              totalCount++;
               final status =
                   studentData['status']?.toString().toLowerCase() ?? 'present';
               if (status == 'present') {
@@ -128,13 +193,16 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
             }
           }
 
-          final percent = totalCount > 0
-              ? (presentCount / totalCount * 100)
+          final percent = totalStudents > 0
+              ? (presentCount / totalStudents * 100)
               : 0.0;
 
+          print(
+            '📅 DEBUG: Final attendance - Present: $presentCount, Total: $totalStudents, Percent: ${percent.toStringAsFixed(1)}%',
+          );
           return {
             'present': presentCount,
-            'total': totalCount,
+            'total': totalStudents,
             'percent': percent,
           };
         });
@@ -161,238 +229,229 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     print('====================================');
     print('DEBUG: InstituteDashboardScreen build method called');
     print('====================================');
-    // Theme detection
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subtitleColor = isDark
-        ? const Color(0xFF94A3B8)
-        : const Color(0xFF64748B);
-    final tealColor = const Color(0xFF146D7A);
-    final progressBgColor = isDark
-        ? const Color(0xFF334155)
-        : const Color(0xFFE2E8F0);
-    final borderColor = isDark ? Colors.transparent : const Color(0xFFE2E8F0);
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _TopBar(teal: tealColor, textColor: textColor, bgColor: bgColor),
-              _SectionHeader(title: 'Announcements', textColor: textColor),
-              _buildAnnouncementsSection(),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: StreamBuilder<int>(
-                        stream: _getStudentCountStream(_schoolCode),
-                        builder: (context, snapshot) {
-                          final count = snapshot.data ?? 0;
-                          return _StatCard(
-                            icon: Icons.school,
-                            label: 'Total Students',
-                            value:
-                                snapshot.connectionState ==
-                                    ConnectionState.waiting
-                                ? '...'
-                                : _formatCount(count),
-                            cardColor: cardColor,
-                            textColor: textColor,
-                            subtitleColor: subtitleColor,
-                            iconColor: tealColor,
-                            borderColor: borderColor,
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: StreamBuilder<int>(
-                        stream: _getStaffCountStream(_schoolCode),
-                        builder: (context, snapshot) {
-                          final count = snapshot.data ?? 0;
-                          return _StatCard(
-                            icon: Icons.group,
-                            label: 'Total Staff',
-                            value:
-                                snapshot.connectionState ==
-                                    ConnectionState.waiting
-                                ? '...'
-                                : _formatCount(count),
-                            cardColor: cardColor,
-                            textColor: textColor,
-                            subtitleColor: subtitleColor,
-                            iconColor: tealColor,
-                            borderColor: borderColor,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Student Attendance Card with Real Data
-              StreamBuilder<Map<String, dynamic>>(
-                stream: _getStudentAttendanceStream(_schoolCode),
-                builder: (context, snapshot) {
-                  final data =
-                      snapshot.data ??
-                      {'present': 0, 'total': 0, 'percent': 0.0};
-                  final presentCount = data['present'] as int;
-                  final totalCount = data['total'] as int;
-                  final attendancePercent = data['percent'] as double;
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        // Update school code when auth provider has user data
+        if (_schoolCode.isEmpty && authProvider.currentUser != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _schoolCode = authProvider.currentUser?.instituteId ?? '';
+                print(
+                  '🔄 DEBUG: School code updated from Consumer: $_schoolCode',
+                );
+              });
+            }
+          });
+        }
 
-                  return Padding(
+        // Theme detection
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final bgColor = isDark
+            ? const Color(0xFF0F172A)
+            : const Color(0xFFF8FAFC);
+        final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+        final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+        final subtitleColor = isDark
+            ? const Color(0xFF94A3B8)
+            : const Color(0xFF64748B);
+        final tealColor = const Color(0xFF146D7A);
+        final progressBgColor = isDark
+            ? const Color(0xFF334155)
+            : const Color(0xFFE2E8F0);
+        final borderColor = isDark
+            ? Colors.transparent
+            : const Color(0xFFE2E8F0);
+
+        return Scaffold(
+          backgroundColor: bgColor,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _TopBar(
+                    teal: tealColor,
+                    textColor: textColor,
+                    bgColor: bgColor,
+                  ),
+                  _SectionHeader(title: 'Announcements', textColor: textColor),
+                  _buildAnnouncementsSection(),
+                  Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: AttendanceSpeedometerGauge(
-                      attendancePercent: attendancePercent,
-                      presentCount: presentCount,
-                      totalCount: totalCount,
-                      cardColor: cardColor,
-                      textColor: textColor,
-                      subtitleColor: subtitleColor,
-                      title: 'Student Attendance (Today)',
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              // ============ YESTERDAY ATTENDANCE CARD ============
-              Builder(
-                builder: (context) {
-                  print('🔵 DEBUG: Building Yesterday Attendance Card section');
-                  return Column(
-                    children: [
-                      // TEST: Visible marker
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                        padding: const EdgeInsets.all(8),
-                        color: Colors.red.withOpacity(0.5),
-                        child: Text(
-                          '🟥 YESTERDAY ATTENDANCE SHOULD BE HERE 🟥',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _YesterdayAttendanceCard(
-                          cardColor: cardColor,
-                          textColor: textColor,
-                          subtitleColor: subtitleColor,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              // Yesterday Attendance Card
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AttendanceDetailsPage(
-                          date: DateTime.now().subtract(
-                            const Duration(days: 1),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFF146D7A).withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
                     child: Row(
                       children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF146D7A).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_today,
-                            color: Color(0xFF146D7A),
-                            size: 28,
+                        Expanded(
+                          child: StreamBuilder<int>(
+                            stream: _getStudentCountStream(_schoolCode),
+                            builder: (context, snapshot) {
+                              final count = snapshot.data ?? 0;
+                              return _StatCard(
+                                icon: Icons.school,
+                                label: 'Total Students',
+                                value:
+                                    snapshot.connectionState ==
+                                        ConnectionState.waiting
+                                    ? '...'
+                                    : _formatCount(count),
+                                cardColor: cardColor,
+                                textColor: textColor,
+                                subtitleColor: subtitleColor,
+                                iconColor: tealColor,
+                                borderColor: borderColor,
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Yesterday Attendance',
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'View previous day records',
-                                style: TextStyle(
-                                  color: subtitleColor,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
+                          child: StreamBuilder<int>(
+                            stream: _getStaffCountStream(_schoolCode),
+                            builder: (context, snapshot) {
+                              final count = snapshot.data ?? 0;
+                              return _StatCard(
+                                icon: Icons.group,
+                                label: 'Total Staff',
+                                value:
+                                    snapshot.connectionState ==
+                                        ConnectionState.waiting
+                                    ? '...'
+                                    : _formatCount(count),
+                                cardColor: cardColor,
+                                textColor: textColor,
+                                subtitleColor: subtitleColor,
+                                iconColor: tealColor,
+                                borderColor: borderColor,
+                              );
+                            },
                           ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: subtitleColor,
                         ),
                       ],
                     ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  // Student Attendance Card with Real Data
+                  StreamBuilder<Map<String, dynamic>>(
+                    stream: _getStudentAttendanceStream(_schoolCode),
+                    builder: (context, snapshot) {
+                      final data =
+                          snapshot.data ??
+                          {'present': 0, 'total': 0, 'percent': 0.0};
+                      final presentCount = data['present'] as int;
+                      final totalCount = data['total'] as int;
+                      final attendancePercent = data['percent'] as double;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: AttendanceSpeedometerGauge(
+                          attendancePercent: attendancePercent,
+                          presentCount: presentCount,
+                          totalCount: totalCount,
+                          cardColor: cardColor,
+                          textColor: textColor,
+                          subtitleColor: subtitleColor,
+                          title: 'Student Attendance (Today)',
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // Attendance History Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const AttendanceHistoryScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFF146D7A).withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF146D7A).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.event_note,
+                                color: Color(0xFF146D7A),
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Attendance History',
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Select date to view attendance',
+                                    style: TextStyle(
+                                      color: subtitleColor,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                              color: subtitleColor,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: _QuickActionCard(
+                      cardColor: cardColor,
+                      textColor: textColor,
+                      subtitleColor: subtitleColor,
+                      tealColor: tealColor,
+                      iconBgColor: progressBgColor,
+                      borderColor: borderColor,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: _QuickActionCard(
-                  cardColor: cardColor,
-                  textColor: textColor,
-                  subtitleColor: subtitleColor,
-                  tealColor: tealColor,
-                  iconBgColor: progressBgColor,
-                  borderColor: borderColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
