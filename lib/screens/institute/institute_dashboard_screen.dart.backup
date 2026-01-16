@@ -79,61 +79,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         .map((snapshot) => snapshot.size);
   }
 
-  // Get real-time student attendance stream for today
-  Stream<Map<String, dynamic>> _getStudentAttendanceStream(
-      String schoolCode) async* {
-    if (schoolCode.isEmpty) {
-      yield {'present': 0, 'total': 0, 'percent': 0.0};
-      return;
-    }
-
-    // Get total student count first
-    final totalStudentsSnapshot = await FirebaseFirestore.instance
-        .collection('students')
-        .where('schoolCode', isEqualTo: schoolCode)
-        .get();
-    final totalStudents = totalStudentsSnapshot.size;
-
-    // Get today's date in format: yyyy-MM-dd
-    final today = DateTime.now();
-    final dateStr =
-        '${ today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-
-    // Stream today's attendance records
-    await for (final snapshot in FirebaseFirestore.instance
-        .collection('attendance')
-        .where('schoolCode', isEqualTo: schoolCode)
-        .where('date', isEqualTo: dateStr)
-        .snapshots()) {
-      int presentCount = 0;
-
-      for (final doc in snapshot.docs) {
-        final students = doc.data()['students'] as Map<String, dynamic>?;
-        if (students == null) continue;
-
-        for (final studentEntry in students.entries) {
-          final studentData = studentEntry.value as Map<String, dynamic>?;
-          if (studentData == null) continue;
-
-          final status =
-              studentData['status']?.toString().toLowerCase() ?? 'present';
-          if (status == 'present') {
-            presentCount++;
-          }
-        }
-      }
-
-      final percent =
-          totalStudents > 0 ? (presentCount / totalStudents * 100) : 0.0;
-
-      yield {
-        'present': presentCount,
-        'total': totalStudents,
-        'percent': percent,
-      };
-    }
-  }
-
   // Get school code for current principal
   Future<String> _getSchoolCode() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -244,188 +189,33 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              // Student Attendance Card with Real Data
-              FutureBuilder<String>(
-                future: _getSchoolCode(),
-                builder: (context, schoolCodeSnapshot) {
-                  final schoolCode = schoolCodeSnapshot.data ?? '';
-
-                  return StreamBuilder<Map<String, dynamic>>(
-                    stream: _getStudentAttendanceStream(schoolCode),
-                    builder: (context, snapshot) {
-                      final data = snapshot.data ?? {
-                        'present': 0,
-                        'total': 0,
-                        'percent': 0.0
-                      };
-                      final presentCount = data['present'] as int;
-                      final totalCount = data['total'] as int;
-                      final attendancePercent = data['percent'] as double;
-
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: AttendanceSpeedometerGauge(
-                          attendancePercent: attendancePercent,
-                          presentCount: presentCount,
-                          totalCount: totalCount,
-                          cardColor: cardColor,
-                          textColor: textColor,
-                          subtitleColor: subtitleColor,
-                          title: 'Student Attendance (Today)',
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-              // Yesterday Attendance Card
+              // Student Attendance Card
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AttendanceDetailsPage(
-                          date: DateTime.now().subtract(const Duration(days: 1)),
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFF146D7A).withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF146D7A).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_today,
-                            color: Color(0xFF146D7A),
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Yesterday Attendance',
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'View previous day records',
-                                style: TextStyle(
-                                  color: subtitleColor,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: subtitleColor,
-                        ),
-                      ],
-                    ),
-                  ),
+                child: AttendanceSpeedometerGauge(
+                  attendancePercent: 91,
+                  presentCount: 1130,
+                  totalCount: 1240,
+                  cardColor: cardColor,
+                  textColor: textColor,
+                  subtitleColor: subtitleColor,
+                  title: 'Student Attendance',
                 ),
               ),
               const SizedBox(height: 16),
-              // Yesterday Attendance Card
+              // Staff Attendance Card
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AttendanceDetailsPage(
-                          date: DateTime.now().subtract(const Duration(days: 1)),
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFF146D7A).withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF146D7A).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_today,
-                            color: Color(0xFF146D7A),
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Yesterday Attendance',
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'View previous day records',
-                                style: TextStyle(
-                                  color: subtitleColor,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: subtitleColor,
-                        ),
-                      ],
-                    ),
-                  ),
+                child: AttendanceSpeedometerGauge(
+                  attendancePercent: 92,
+                  presentCount: 78,
+                  totalCount: 85,
+                  cardColor: cardColor,
+                  textColor: textColor,
+                  subtitleColor: subtitleColor,
+                  title: 'Staff Attendance',
                 ),
               ),
-              const SizedBox(height: 16),
               const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.symmetric(
