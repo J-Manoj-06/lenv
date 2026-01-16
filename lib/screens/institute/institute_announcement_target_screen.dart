@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 import 'institute_announcement_compose_screen.dart';
 
 const _bg = Color(0xFF0F1416);
@@ -17,17 +20,52 @@ class InstituteAnnouncementTargetScreen extends StatefulWidget {
 class _InstituteAnnouncementTargetScreenState
     extends State<InstituteAnnouncementTargetScreen> {
   String _target = 'specific';
-  final Set<String> _selectedStandards = {'6th', '7th', '11th'};
+  final Set<String> _selectedStandards = {};
+  List<String> _availableStandards = [];
+  bool _isLoading = true;
 
-  static const List<String> _standards = [
-    '6th',
-    '7th',
-    '8th',
-    '9th',
-    '10th',
-    '11th',
-    '12th',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchAvailableStandards();
+  }
+
+  Future<void> _fetchAvailableStandards() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final schoolCode = authProvider.currentUser?.instituteId ?? '';
+
+    if (schoolCode.isEmpty) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .get();
+
+      // Extract unique standards from students
+      final standards = <String>{};
+      for (final doc in snapshot.docs) {
+        final className = doc.data()['className'] as String?;
+        if (className != null && className.isNotEmpty) {
+          standards.add(className);
+        }
+      }
+
+      // Sort standards
+      final sortedStandards = standards.toList()..sort();
+
+      setState(() {
+        _availableStandards = sortedStandards;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error fetching standards: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   void _toggleStandard(String s) {
     setState(() {
@@ -75,44 +113,63 @@ class _InstituteAnnouncementTargetScreenState
               ),
             ),
             const SizedBox(height: 16),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _TargetCard(
-                    title: 'Whole School',
-                    subtitle: 'Send announcement to all standards and staff.',
-                    icon: Icons.school,
-                    selected: _target == 'whole',
-                    onTap: () => setState(() => _target = 'whole'),
-                  ),
-                  const SizedBox(height: 12),
-                  _TargetCard(
-                    title: 'Specific Standards',
-                    subtitle: 'Choose individual standards to notify.',
-                    icon: Icons.class_,
-                    selected: _target == 'specific',
-                    onTap: () => setState(() => _target = 'specific'),
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: _standards
-                            .map(
-                              (s) => _StandardChip(
-                                label: s,
-                                selected: _selectedStandards.contains(s),
-                                onTap: () => _toggleStandard(s),
-                              ),
-                            )
-                            .toList(),
-                      ),
+            _isLoading
+                ? const Expanded(
+                    child: Center(
+                      child: CircularProgressIndicator(color: _teal),
+                    ),
+                  )
+                : Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        _TargetCard(
+                          title: 'Whole School',
+                          subtitle:
+                              'Send announcement to all standards and staff.',
+                          icon: Icons.school,
+                          selected: _target == 'whole',
+                          onTap: () => setState(() => _target = 'whole'),
+                        ),
+                        const SizedBox(height: 12),
+                        _TargetCard(
+                          title: 'Specific Standards',
+                          subtitle: 'Choose individual standards to notify.',
+                          icon: Icons.class_,
+                          selected: _target == 'specific',
+                          onTap: () => setState(() => _target = 'specific'),
+                          child: _availableStandards.isEmpty
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Text(
+                                    'No standards found in school',
+                                    style: TextStyle(
+                                      color: _muted,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                )
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: _availableStandards
+                                        .map(
+                                          (s) => _StandardChip(
+                                            label: s,
+                                            selected: _selectedStandards
+                                                .contains(s),
+                                            onTap: () => _toggleStandard(s),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
             Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               decoration: const BoxDecoration(
