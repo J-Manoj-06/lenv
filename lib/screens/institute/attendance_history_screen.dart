@@ -166,7 +166,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         backgroundColor: bgColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
+          icon: Icon(Icons.chevron_left, color: textColor, size: 32),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -231,10 +231,17 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                           ],
                         ),
                       ),
-                      Icon(
-                        Icons.edit_calendar,
-                        color: const Color(0xFF146D7A),
-                        size: 24,
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF146D7A).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Color(0xFF146D7A),
+                          size: 24,
+                        ),
                       ),
                     ],
                   ),
