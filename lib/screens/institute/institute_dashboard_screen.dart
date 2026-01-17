@@ -381,57 +381,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Student Attendance Card with Real Data
-                  _schoolCode.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: _SkeletonAttendanceCard(
-                            cardColor: cardColor,
-                            subtitleColor: subtitleColor,
-                          ),
-                        )
-                      : StreamBuilder<Map<String, dynamic>>(
-                          stream: _getStudentAttendanceStream(_schoolCode),
-                          builder: (context, snapshot) {
-                            // Show skeleton while loading
-                            if (snapshot.connectionState ==
-                                    ConnectionState.waiting ||
-                                !snapshot.hasData) {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: _SkeletonAttendanceCard(
-                                  cardColor: cardColor,
-                                  subtitleColor: subtitleColor,
-                                ),
-                              );
-                            }
-
-                            final data =
-                                snapshot.data ??
-                                {'present': 0, 'total': 0, 'percent': 0.0};
-                            final presentCount = data['present'] as int;
-                            final totalCount = data['total'] as int;
-                            final attendancePercent = data['percent'] as double;
-
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: AttendanceSpeedometerGauge(
-                                attendancePercent: attendancePercent,
-                                presentCount: presentCount,
-                                totalCount: totalCount,
-                                cardColor: cardColor,
-                                textColor: textColor,
-                                subtitleColor: subtitleColor,
-                                title: 'Student Attendance (Today)',
-                              ),
-                            );
-                          },
-                        ),
-                  const SizedBox(height: 16),
                   // Attendance History Card
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -504,6 +453,57 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  // Student Attendance Card with Real Data
+                  _schoolCode.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: _SkeletonAttendanceCard(
+                            cardColor: cardColor,
+                            subtitleColor: subtitleColor,
+                          ),
+                        )
+                      : StreamBuilder<Map<String, dynamic>>(
+                          stream: _getStudentAttendanceStream(_schoolCode),
+                          builder: (context, snapshot) {
+                            // Show skeleton while loading
+                            if (snapshot.connectionState ==
+                                    ConnectionState.waiting ||
+                                !snapshot.hasData) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: _SkeletonAttendanceCard(
+                                  cardColor: cardColor,
+                                  subtitleColor: subtitleColor,
+                                ),
+                              );
+                            }
+
+                            final data =
+                                snapshot.data ??
+                                {'present': 0, 'total': 0, 'percent': 0.0};
+                            final presentCount = data['present'] as int;
+                            final totalCount = data['total'] as int;
+                            final attendancePercent = data['percent'] as double;
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: AttendanceSpeedometerGauge(
+                                attendancePercent: attendancePercent,
+                                presentCount: presentCount,
+                                totalCount: totalCount,
+                                cardColor: cardColor,
+                                textColor: textColor,
+                                subtitleColor: subtitleColor,
+                                title: 'Student Attendance (Today)',
+                              ),
+                            );
+                          },
+                        ),
                   const SizedBox(height: 16),
                   Padding(
                     padding: const EdgeInsets.symmetric(
