@@ -32,7 +32,7 @@ class _InstituteAnnouncementComposeScreenState
     extends State<InstituteAnnouncementComposeScreen> {
   final TextEditingController _controller = TextEditingController();
   bool _posting = false;
-  
+
   // Multiple images with captions
   final List<Map<String, dynamic>> _imageItems = [];
   // _imageItems structure: [{imageBytes: Uint8List, captionController: TextEditingController}]
@@ -50,10 +50,8 @@ class _InstituteAnnouncementComposeScreenState
   Future<void> _pickImages() async {
     try {
       final picker = ImagePicker();
-      final xFiles = await picker.pickMultiImage(
-        imageQuality: 85,
-      );
-      
+      final xFiles = await picker.pickMultiImage(imageQuality: 85);
+
       if (xFiles.isNotEmpty) {
         for (var xFile in xFiles) {
           final bytes = await xFile.readAsBytes();
@@ -67,16 +65,17 @@ class _InstituteAnnouncementComposeScreenState
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking images: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error picking images: $e')));
       }
     }
   }
 
   void _removeImage(int index) {
     setState(() {
-      (_imageItems[index]['captionController'] as TextEditingController).dispose();
+      (_imageItems[index]['captionController'] as TextEditingController)
+          .dispose();
       _imageItems.removeAt(index);
     });
   }
@@ -113,11 +112,12 @@ class _InstituteAnnouncementComposeScreenState
 
       // Upload all images and collect their URLs with captions
       List<Map<String, String>> imageCaptions = [];
-      
+
       for (int i = 0; i < _imageItems.length; i++) {
         final item = _imageItems[i];
         final imageBytes = item['imageBytes'] as Uint8List;
-        final captionController = item['captionController'] as TextEditingController;
+        final captionController =
+            item['captionController'] as TextEditingController;
         final caption = captionController.text.trim();
 
         final fileName =
@@ -136,10 +136,7 @@ class _InstituteAnnouncementComposeScreenState
           contentType: 'image/jpeg',
         );
 
-        imageCaptions.add({
-          'url': imageUrl,
-          'caption': caption,
-        });
+        imageCaptions.add({'url': imageUrl, 'caption': caption});
       }
 
       final now = DateTime.now();
@@ -237,13 +234,13 @@ class _InstituteAnnouncementComposeScreenState
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _imageItems.isEmpty 
-                        ? 'Write a clear message and optionally attach images.'
-                        : 'Add captions to your images below.',
+                      _imageItems.isEmpty
+                          ? 'Write a clear message and optionally attach images.'
+                          : 'Add captions to your images below.',
                       style: TextStyle(color: _muted, fontSize: 14),
                     ),
                     const SizedBox(height: 12),
-                    
+
                     // Show message field only if no images
                     if (_imageItems.isEmpty) ...[
                       _MessageField(controller: _controller),
@@ -261,7 +258,9 @@ class _InstituteAnnouncementComposeScreenState
                             padding: const EdgeInsets.only(bottom: 16),
                             child: _ImageWithCaptionEditor(
                               imageBytes: item['imageBytes'] as Uint8List,
-                              captionController: item['captionController'] as TextEditingController,
+                              captionController:
+                                  item['captionController']
+                                      as TextEditingController,
                               onRemove: () => _removeImage(index),
                               imageNumber: index + 1,
                             ),
@@ -501,7 +500,10 @@ class _ImageWithCaptionEditor extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: _teal.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),

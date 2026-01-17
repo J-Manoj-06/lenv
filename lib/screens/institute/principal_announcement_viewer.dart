@@ -406,9 +406,11 @@ class _PrincipalAnnouncementViewerState
                                         announcement.imageCaptions!.isNotEmpty)
                                       // Horizontal PageView for multiple images
                                       PageView.builder(
-                                        itemCount: announcement.imageCaptions!.length,
+                                        itemCount:
+                                            announcement.imageCaptions!.length,
                                         itemBuilder: (context, imageIndex) {
-                                          final imageCaption = announcement.imageCaptions![imageIndex];
+                                          final imageCaption = announcement
+                                              .imageCaptions![imageIndex];
                                           return Stack(
                                             fit: StackFit.expand,
                                             children: [
@@ -416,21 +418,29 @@ class _PrincipalAnnouncementViewerState
                                               Image.network(
                                                 imageCaption['url']!,
                                                 fit: BoxFit.contain,
-                                                errorBuilder: (context, error, stackTrace) {
-                                                  return Container(
-                                                    color: Colors.black,
-                                                    child: const Center(
-                                                      child: Icon(
-                                                        Icons.broken_image,
-                                                        size: 64,
-                                                        color: Colors.white54,
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) {
+                                                      return Container(
+                                                        color: Colors.black,
+                                                        child: const Center(
+                                                          child: Icon(
+                                                            Icons.broken_image,
+                                                            size: 64,
+                                                            color:
+                                                                Colors.white54,
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
                                               ),
                                               // Caption overlay at bottom
-                                              if (imageCaption['caption']?.isNotEmpty == true)
+                                              if (imageCaption['caption']
+                                                      ?.isNotEmpty ==
+                                                  true)
                                                 Positioned(
                                                   bottom: 0,
                                                   left: 0,
@@ -438,28 +448,35 @@ class _PrincipalAnnouncementViewerState
                                                   child: Container(
                                                     decoration: BoxDecoration(
                                                       gradient: LinearGradient(
-                                                        begin: Alignment.topCenter,
-                                                        end: Alignment.bottomCenter,
+                                                        begin:
+                                                            Alignment.topCenter,
+                                                        end: Alignment
+                                                            .bottomCenter,
                                                         colors: [
                                                           Colors.transparent,
-                                                          Colors.black.withOpacity(0.3),
-                                                          Colors.black.withOpacity(0.7),
+                                                          Colors.black
+                                                              .withOpacity(0.3),
+                                                          Colors.black
+                                                              .withOpacity(0.7),
                                                         ],
                                                       ),
                                                     ),
-                                                    padding: const EdgeInsets.fromLTRB(
-                                                      24,
-                                                      80,
-                                                      24,
-                                                      24,
-                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.fromLTRB(
+                                                          24,
+                                                          80,
+                                                          24,
+                                                          24,
+                                                        ),
                                                     child: Text(
                                                       imageCaption['caption']!,
-                                                      textAlign: TextAlign.center,
+                                                      textAlign:
+                                                          TextAlign.center,
                                                       style: const TextStyle(
                                                         color: Colors.white,
                                                         fontSize: 20,
-                                                        fontWeight: FontWeight.w600,
+                                                        fontWeight:
+                                                            FontWeight.w600,
                                                         height: 1.4,
                                                       ),
                                                     ),
