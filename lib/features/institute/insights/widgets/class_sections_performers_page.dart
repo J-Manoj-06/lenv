@@ -167,6 +167,10 @@ class _ClassSectionsPerformersPageState
       appBar: AppBar(
         title: Text('Class ${widget.className} Sections'),
         backgroundColor: cardColor,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

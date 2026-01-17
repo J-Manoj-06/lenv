@@ -30,6 +30,10 @@ class SectionAllStudentsPage extends StatelessWidget {
       appBar: AppBar(
         title: Text('Class $className - Section $section'),
         backgroundColor: cardColor,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
