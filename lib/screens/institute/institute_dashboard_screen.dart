@@ -454,6 +454,22 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // Broadcast Message Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 0,
+                    ),
+                    child: _QuickActionCard(
+                      cardColor: cardColor,
+                      textColor: textColor,
+                      subtitleColor: subtitleColor,
+                      tealColor: tealColor,
+                      iconBgColor: progressBgColor,
+                      borderColor: borderColor,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   // Student Attendance Card with Real Data
                   _schoolCode.isEmpty
                       ? Padding(
@@ -504,21 +520,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                             );
                           },
                         ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: _QuickActionCard(
-                      cardColor: cardColor,
-                      textColor: textColor,
-                      subtitleColor: subtitleColor,
-                      tealColor: tealColor,
-                      iconBgColor: progressBgColor,
-                      borderColor: borderColor,
-                    ),
-                  ),
                   const SizedBox(height: 16),
                 ],
               ),
