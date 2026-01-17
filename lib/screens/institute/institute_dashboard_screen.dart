@@ -28,20 +28,13 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
       InstituteAnnouncementService();
   Set<String> _viewedAnnouncementIds = <String>{};
   String _schoolCode = '';
+  bool _cleanupScheduled = false;
 
   @override
   void initState() {
     super.initState();
     _loadViewedAnnouncements();
     _initSchoolCode();
-    // Auto-cleanup expired announcements on dashboard load
-    _cleanupExpiredAnnouncements();
-  }
-
-  /// Cleanup expired announcements (24h+)
-  Future<void> _cleanupExpiredAnnouncements() async {
-    // Run in background without blocking UI
-    InstituteAnnouncementCleanupService.cleanupExpiredAnnouncements();
   }
 
   @override
@@ -50,6 +43,15 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     // Re-init school code when auth state changes
     if (_schoolCode.isEmpty) {
       _initSchoolCode();
+    }
+    
+    // Run cleanup ONCE after first successful load (in background)
+    if (_schoolCode.isNotEmpty && !_cleanupScheduled) {
+      _cleanupScheduled = true;
+      // Delay cleanup by 5 seconds to not interfere with initial load
+      Future.delayed(const Duration(seconds: 5), () {
+        InstituteAnnouncementCleanupService.cleanupExpiredAnnouncements();
+      });
     }
   }
 
@@ -293,79 +295,132 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: StreamBuilder<int>(
-                            stream: _getStudentCountStream(_schoolCode),
-                            builder: (context, snapshot) {
-                              final count = snapshot.data ?? 0;
-                              return _StatCard(
-                                icon: Icons.school,
-                                label: 'Total Students',
-                                value:
-                                    snapshot.connectionState ==
-                                        ConnectionState.waiting
-                                    ? '...'
-                                    : _formatCount(count),
-                                cardColor: cardColor,
-                                textColor: textColor,
-                                subtitleColor: subtitleColor,
-                                iconColor: tealColor,
-                                borderColor: borderColor,
-                              );
-                            },
-                          ),
+                          child: _schoolCode.isEmpty
+                              ? _SkeletonStatCard(
+                                  icon: Icons.school,
+                                  label: 'Total Students',
+                                  cardColor: cardColor,
+                                  subtitleColor: subtitleColor,
+                                  iconColor: tealColor,
+                                  borderColor: borderColor,
+                                )
+                              : StreamBuilder<int>(
+                                  stream: _getStudentCountStream(_schoolCode),
+                                  builder: (context, snapshot) {
+                                    // Show skeleton while loading
+                                    if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                                      return _SkeletonStatCard(
+                                        icon: Icons.school,
+                                        label: 'Total Students',
+                                        cardColor: cardColor,
+                                        subtitleColor: subtitleColor,
+                                        iconColor: tealColor,
+                                        borderColor: borderColor,
+                                      );
+                                    }
+                                    
+                                    final count = snapshot.data ?? 0;
+                                    return _StatCard(
+                                      icon: Icons.school,
+                                      label: 'Total Students',
+                                      value: _formatCount(count),
+                                      cardColor: cardColor,
+                                      textColor: textColor,
+                                      subtitleColor: subtitleColor,
+                                      iconColor: tealColor,
+                                      borderColor: borderColor,
+                                    );
+                                  },
+                                ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: StreamBuilder<int>(
-                            stream: _getStaffCountStream(_schoolCode),
-                            builder: (context, snapshot) {
-                              final count = snapshot.data ?? 0;
-                              return _StatCard(
-                                icon: Icons.group,
-                                label: 'Total Staff',
-                                value:
-                                    snapshot.connectionState ==
-                                        ConnectionState.waiting
-                                    ? '...'
-                                    : _formatCount(count),
-                                cardColor: cardColor,
-                                textColor: textColor,
-                                subtitleColor: subtitleColor,
-                                iconColor: tealColor,
-                                borderColor: borderColor,
-                              );
-                            },
-                          ),
+                          child: _schoolCode.isEmpty
+                              ? _SkeletonStatCard(
+                                  icon: Icons.group,
+                                  label: 'Total Staff',
+                                  cardColor: cardColor,
+                                  subtitleColor: subtitleColor,
+                                  iconColor: tealColor,
+                                  borderColor: borderColor,
+                                )
+                              : StreamBuilder<int>(
+                                  stream: _getStaffCountStream(_schoolCode),
+                                  builder: (context, snapshot) {
+                                    // Show skeleton while loading
+                                    if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                                      return _SkeletonStatCard(
+                                        icon: Icons.group,
+                                        label: 'Total Staff',
+                                        cardColor: cardColor,
+                                        subtitleColor: subtitleColor,
+                                        iconColor: tealColor,
+                                        borderColor: borderColor,
+                                      );
+                                    }
+                                    
+                                    final count = snapshot.data ?? 0;
+                                    return _StatCard(
+                                      icon: Icons.group,
+                                      label: 'Total Staff',
+                                      value: _formatCount(count),
+                                      cardColor: cardColor,
+                                      textColor: textColor,
+                                      subtitleColor: subtitleColor,
+                                      iconColor: tealColor,
+                                      borderColor: borderColor,
+                                    );
+                                  },
+                                ),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
                   // Student Attendance Card with Real Data
-                  StreamBuilder<Map<String, dynamic>>(
-                    stream: _getStudentAttendanceStream(_schoolCode),
-                    builder: (context, snapshot) {
-                      final data =
-                          snapshot.data ??
-                          {'present': 0, 'total': 0, 'percent': 0.0};
-                      final presentCount = data['present'] as int;
-                      final totalCount = data['total'] as int;
-                      final attendancePercent = data['percent'] as double;
+                  _schoolCode.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: _SkeletonAttendanceCard(
+                            cardColor: cardColor,
+                            subtitleColor: subtitleColor,
+                          ),
+                        )
+                      : StreamBuilder<Map<String, dynamic>>(
+                          stream: _getStudentAttendanceStream(_schoolCode),
+                          builder: (context, snapshot) {
+                            // Show skeleton while loading
+                            if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                child: _SkeletonAttendanceCard(
+                                  cardColor: cardColor,
+                                  subtitleColor: subtitleColor,
+                                ),
+                              );
+                            }
+                            
+                            final data =
+                                snapshot.data ??
+                                {'present': 0, 'total': 0, 'percent': 0.0};
+                            final presentCount = data['present'] as int;
+                            final totalCount = data['total'] as int;
+                            final attendancePercent = data['percent'] as double;
 
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: AttendanceSpeedometerGauge(
-                          attendancePercent: attendancePercent,
-                          presentCount: presentCount,
-                          totalCount: totalCount,
-                          cardColor: cardColor,
-                          textColor: textColor,
-                          subtitleColor: subtitleColor,
-                          title: 'Student Attendance (Today)',
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: AttendanceSpeedometerGauge(
+                                attendancePercent: attendancePercent,
+                                presentCount: presentCount,
+                                totalCount: totalCount,
+                                cardColor: cardColor,
+                                textColor: textColor,
+                                subtitleColor: subtitleColor,
+                                title: 'Student Attendance (Today)',
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
                   const SizedBox(height: 16),
                   // Attendance History Card
                   Padding(
@@ -477,12 +532,16 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         ? const Color(0xFF94A3B8)
         : const Color(0xFF64748B);
 
+    // Show skeleton if no instituteId yet
     if (instituteId.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Text(
-          'Unable to load announcements. Please check your connection.',
-          style: TextStyle(color: subtitleColor),
+      return SizedBox(
+        height: 110,
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          scrollDirection: Axis.horizontal,
+          itemCount: 5,
+          itemBuilder: (_, __) => _buildShimmerCircle(),
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
         ),
       );
     }
@@ -1439,6 +1498,229 @@ class _QuickActionCard extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(color: tealColor, shape: BoxShape.circle),
             child: const Icon(Icons.arrow_forward, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton loader for stat cards
+class _SkeletonStatCard extends StatefulWidget {
+  const _SkeletonStatCard({
+    required this.icon,
+    required this.label,
+    required this.cardColor,
+    required this.subtitleColor,
+    required this.iconColor,
+    required this.borderColor,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color cardColor;
+  final Color subtitleColor;
+  final Color iconColor;
+  final Color borderColor;
+
+  @override
+  State<_SkeletonStatCard> createState() => _SkeletonStatCardState();
+}
+
+class _SkeletonStatCardState extends State<_SkeletonStatCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.3, end: 0.7).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: widget.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: widget.borderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(widget.icon, color: widget.iconColor),
+          const SizedBox(height: 8),
+          Text(
+            widget.label,
+            style: TextStyle(
+              color: widget.subtitleColor,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              return Container(
+                width: 80,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: widget.subtitleColor.withOpacity(_animation.value),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton loader for attendance card
+class _SkeletonAttendanceCard extends StatefulWidget {
+  const _SkeletonAttendanceCard({
+    required this.cardColor,
+    required this.subtitleColor,
+  });
+
+  final Color cardColor;
+  final Color subtitleColor;
+
+  @override
+  State<_SkeletonAttendanceCard> createState() =>
+      _SkeletonAttendanceCardState();
+}
+
+class _SkeletonAttendanceCardState extends State<_SkeletonAttendanceCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.3, end: 0.7).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFE2E8F0);
+        
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: widget.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: Column(
+        children: [
+          // Title skeleton
+          AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              return Container(
+                width: 160,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: widget.subtitleColor.withOpacity(_animation.value),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Gauge skeleton (circular)
+          AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              return Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  color: widget.subtitleColor.withOpacity(_animation.value * 0.4),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      color: widget.cardColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 80,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: widget.subtitleColor.withOpacity(_animation.value),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Count text skeleton
+          AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              return Container(
+                width: 60,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: widget.subtitleColor.withOpacity(_animation.value),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          // Status badge skeleton
+          AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              return Container(
+                width: 100,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: widget.subtitleColor.withOpacity(_animation.value * 0.3),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              );
+            },
           ),
         ],
       ),

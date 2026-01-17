@@ -13,7 +13,7 @@ class AttendanceHistoryScreen extends StatefulWidget {
 }
 
 class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
-  DateTime _selectedDate = DateTime.now().subtract(const Duration(days: 1));
+  DateTime _selectedDate = DateTime.now();
   Map<String, dynamic>? _attendanceData;
   bool _isLoading = false;
 
