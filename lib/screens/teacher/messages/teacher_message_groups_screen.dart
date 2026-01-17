@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../messages/group_chat_page.dart';
 import '../../../services/group_messaging_service.dart';
+import '../../messages/staff_room_chat_page.dart';
 
 /// Models
 class TeachingContext {
@@ -578,12 +579,18 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       color: const Color(0xFF6A4FF7),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: displayGroups.length,
+        itemCount: displayGroups.length + 1, // +1 for Staff Room card
         itemBuilder: (context, index) {
+          // Show Staff Room card as first item
+          if (index == 0) {
+            return _buildStaffRoomCard(isDark);
+          }
+
+          // Show regular groups after Staff Room
           return MessageGroupTile(
-            group: displayGroups[index],
+            group: displayGroups[index - 1],
             isDark: isDark,
-            onTap: () => _openGroupChat(displayGroups[index]),
+            onTap: () => _openGroupChat(displayGroups[index - 1]),
           );
         },
       ),
@@ -648,6 +655,130 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStaffRoomCard(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1A2F) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
+              final instituteId = authProvider.currentUser?.instituteId ?? '';
+              final instituteName = 'Institute'; // Generic name for teachers
+
+              if (instituteId.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => StaffRoomChatPage(
+                      instituteId: instituteId,
+                      instituteName: instituteName,
+                      isTeacher: true, // Different color for teachers
+                    ),
+                  ),
+                );
+              }
+            },
+            borderRadius: BorderRadius.circular(16),
+            splashColor: isDark
+                ? Colors.white.withOpacity(0.05)
+                : Colors.grey.withOpacity(0.05),
+            highlightColor: isDark
+                ? Colors.white.withOpacity(0.03)
+                : Colors.grey.withOpacity(0.03),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              child: Row(
+                children: [
+                  // Orange left accent bar (teacher theme)
+                  Container(
+                    width: 4,
+                    height: 70,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF97316), // Orange for teachers
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        bottomLeft: Radius.circular(16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Icon with letter
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF97316).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.business,
+                        size: 28,
+                        color: Color(0xFFF97316),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Group Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Staff Room',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Chat with all principals & teachers',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? Colors.white60 : Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -730,9 +861,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
               },
             },
           }, SetOptions(merge: true));
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // ✅ Helper method to get subject icon

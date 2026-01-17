@@ -6,6 +6,7 @@ import './institute_announcement_target_screen.dart';
 import './principal_announcement_viewer.dart';
 import './attendance_history_screen.dart';
 import '../attendance_details_page.dart';
+import '../messages/staff_room_chat_page.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/institute_announcement_model.dart';
 import '../../services/media_repository.dart';
@@ -1466,51 +1467,74 @@ class _QuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              shape: BoxShape.circle,
+    return GestureDetector(
+      onTap: () {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final instituteId = authProvider.currentUser?.instituteId ?? '';
+        final instituteName = authProvider.currentUser?.name ?? 'Institute';
+
+        if (instituteId.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => StaffRoomChatPage(
+                instituteId: instituteId,
+                instituteName: instituteName,
+                isTeacher: false, // Principal uses teal color
+              ),
             ),
-            child: Icon(Icons.campaign, color: tealColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Broadcast Message',
-                  style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.w600,
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor, width: 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.business, color: tealColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Staff Room',
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Send a message to all staff',
-                  style: TextStyle(color: subtitleColor, fontSize: 13),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    'Chat with all principals & teachers',
+                    style: TextStyle(color: subtitleColor, fontSize: 13),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: tealColor, shape: BoxShape.circle),
-            child: const Icon(Icons.arrow_forward, color: Colors.white),
-          ),
-        ],
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: tealColor,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.arrow_forward, color: Colors.white),
+            ),
+          ],
+        ),
       ),
     );
   }
