@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../services/insights/insights_repository.dart';
 import '../../../../models/insights/top_performer_model.dart';
-import './standard_top_performers_page.dart';
+import './class_sections_performers_page.dart';
 
 class AllStandardsPerformersPage extends StatefulWidget {
   const AllStandardsPerformersPage({
@@ -90,38 +90,53 @@ class _AllStandardsPerformersPageState
                 return Card(
                   color: cardColor,
                   margin: const EdgeInsets.only(bottom: 16),
+                  elevation: 2,
                   child: InkWell(
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => StandardTopPerformersPage(
-                            standard: standard.standard,
+                          builder: (context) => ClassSectionsPerformersPage(
+                            className: standard.standard,
                             schoolCode: widget.schoolCode,
                             range: widget.range,
                           ),
                         ),
                       );
                     },
+                    borderRadius: BorderRadius.circular(12),
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       child: Row(
                         children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF146D7A).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.class_,
+                              color: Color(0xFF146D7A),
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Standard ${standard.standard}',
+                                  'Class ${standard.standard}',
                                   style: TextStyle(
                                     color: textColor,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${standard.top3.length} top performers',
+                                  'View all sections',
                                   style: TextStyle(
                                     color: subtitleColor,
                                     fontSize: 14,
@@ -130,7 +145,11 @@ class _AllStandardsPerformersPageState
                               ],
                             ),
                           ),
-                          Icon(Icons.chevron_right, color: subtitleColor),
+                          Icon(
+                            Icons.chevron_right,
+                            color: subtitleColor,
+                            size: 28,
+                          ),
                         ],
                       ),
                     ),
