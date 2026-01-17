@@ -198,7 +198,7 @@ class _PrincipalAnnouncementViewerState
             itemBuilder: (context, index) {
               final announcement = widget.announcements[index];
               const theme = Color(0xFF146D7A); // Teal for principal
-              const bgColor = Color(0xFFE0F2F1);
+              const bgColor = Colors.black; // Changed to black background
 
               return Scaffold(
                 backgroundColor: bgColor,
@@ -227,22 +227,8 @@ class _PrincipalAnnouncementViewerState
                   },
                   child: Stack(
                     children: [
-                      // Background
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withOpacity(0.2),
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.4),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                      // Black background (removed gradient)
+                      Positioned.fill(child: Container(color: Colors.black)),
 
                       // Content
                       SafeArea(
@@ -412,36 +398,108 @@ class _PrincipalAnnouncementViewerState
                             // Center content
                             Expanded(
                               child: Center(
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    24,
-                                    16,
-                                    24,
-                                    16,
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.campaign,
-                                        size: 64,
-                                        color: theme,
-                                      ),
-                                      const SizedBox(height: 20),
-                                      Text(
-                                        announcement.hasText
-                                            ? announcement.text
-                                            : 'Principal Announcement',
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w800,
-                                          height: 1.3,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    // Show images with captions if available
+                                    if (announcement.imageCaptions != null &&
+                                        announcement.imageCaptions!.isNotEmpty)
+                                      // Horizontal PageView for multiple images
+                                      PageView.builder(
+                                        itemCount: announcement.imageCaptions!.length,
+                                        itemBuilder: (context, imageIndex) {
+                                          final imageCaption = announcement.imageCaptions![imageIndex];
+                                          return Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              // Image
+                                              Image.network(
+                                                imageCaption['url']!,
+                                                fit: BoxFit.contain,
+                                                errorBuilder: (context, error, stackTrace) {
+                                                  return Container(
+                                                    color: Colors.black,
+                                                    child: const Center(
+                                                      child: Icon(
+                                                        Icons.broken_image,
+                                                        size: 64,
+                                                        color: Colors.white54,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                              // Caption overlay at bottom
+                                              if (imageCaption['caption']?.isNotEmpty == true)
+                                                Positioned(
+                                                  bottom: 0,
+                                                  left: 0,
+                                                  right: 0,
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      gradient: LinearGradient(
+                                                        begin: Alignment.topCenter,
+                                                        end: Alignment.bottomCenter,
+                                                        colors: [
+                                                          Colors.transparent,
+                                                          Colors.black.withOpacity(0.3),
+                                                          Colors.black.withOpacity(0.7),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    padding: const EdgeInsets.fromLTRB(
+                                                      24,
+                                                      80,
+                                                      24,
+                                                      24,
+                                                    ),
+                                                    child: Text(
+                                                      imageCaption['caption']!,
+                                                      textAlign: TextAlign.center,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 20,
+                                                        fontWeight: FontWeight.w600,
+                                                        height: 1.4,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          );
+                                        },
+                                      )
+                                    else
+                                      // Text-only announcement (centered)
+                                      Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(32),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.campaign,
+                                                size: 64,
+                                                color: theme,
+                                              ),
+                                              const SizedBox(height: 20),
+                                              Text(
+                                                announcement.hasText
+                                                    ? announcement.text
+                                                    : 'Principal Announcement',
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 28,
+                                                  fontWeight: FontWeight.w800,
+                                                  height: 1.3,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),

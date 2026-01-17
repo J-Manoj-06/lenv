@@ -32,41 +32,62 @@ class _InstituteAnnouncementComposeScreenState
     extends State<InstituteAnnouncementComposeScreen> {
   final TextEditingController _controller = TextEditingController();
   bool _posting = false;
-  Uint8List? _imageBytes;
+  
+  // Multiple images with captions
+  final List<Map<String, dynamic>> _imageItems = [];
+  // _imageItems structure: [{imageBytes: Uint8List, captionController: TextEditingController}]
 
   @override
   void dispose() {
     _controller.dispose();
+    // Dispose all caption controllers
+    for (var item in _imageItems) {
+      (item['captionController'] as TextEditingController).dispose();
+    }
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImages() async {
     try {
       final picker = ImagePicker();
-      final xFile = await picker.pickImage(
-        source: ImageSource.gallery,
+      final xFiles = await picker.pickMultiImage(
         imageQuality: 85,
       );
-      if (xFile != null) {
-        final bytes = await xFile.readAsBytes();
-        setState(() => _imageBytes = bytes);
+      
+      if (xFiles.isNotEmpty) {
+        for (var xFile in xFiles) {
+          final bytes = await xFile.readAsBytes();
+          setState(() {
+            _imageItems.add({
+              'imageBytes': bytes,
+              'captionController': TextEditingController(),
+            });
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error picking image: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking images: $e')),
+        );
       }
     }
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      (_imageItems[index]['captionController'] as TextEditingController).dispose();
+      _imageItems.removeAt(index);
+    });
   }
 
   Future<void> _postAnnouncement() async {
     if (_posting) return;
 
     final messageText = _controller.text.trim();
-    if (messageText.isEmpty && _imageBytes == null) {
+    if (messageText.isEmpty && _imageItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a message or add an image')),
+        const SnackBar(content: Text('Please enter a message or add images')),
       );
       return;
     }
@@ -81,19 +102,26 @@ class _InstituteAnnouncementComposeScreenState
       final currentUser = authProvider.currentUser;
       if (currentUser == null) throw 'User not logged in';
 
-      String? imageUrl;
-      if (_imageBytes != null) {
-        // Initialize Cloudflare R2 Service with working credentials
-        final r2Service = CloudflareR2Service(
-          accountId: CloudflareConfig.accountId,
-          bucketName: CloudflareConfig.bucketName,
-          accessKeyId: CloudflareConfig.accessKeyId,
-          secretAccessKey: CloudflareConfig.secretAccessKey,
-          r2Domain: CloudflareConfig.r2Domain,
-        );
+      // Initialize Cloudflare R2 Service
+      final r2Service = CloudflareR2Service(
+        accountId: CloudflareConfig.accountId,
+        bucketName: CloudflareConfig.bucketName,
+        accessKeyId: CloudflareConfig.accessKeyId,
+        secretAccessKey: CloudflareConfig.secretAccessKey,
+        r2Domain: CloudflareConfig.r2Domain,
+      );
+
+      // Upload all images and collect their URLs with captions
+      List<Map<String, String>> imageCaptions = [];
+      
+      for (int i = 0; i < _imageItems.length; i++) {
+        final item = _imageItems[i];
+        final imageBytes = item['imageBytes'] as Uint8List;
+        final captionController = item['captionController'] as TextEditingController;
+        final caption = captionController.text.trim();
 
         final fileName =
-            'announcement_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            'announcement_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
 
         // Generate signed URL
         final signedData = await r2Service.generateSignedUploadUrl(
@@ -102,11 +130,16 @@ class _InstituteAnnouncementComposeScreenState
         );
 
         // Upload file
-        imageUrl = await r2Service.uploadFileWithSignedUrl(
-          fileBytes: _imageBytes!,
+        final imageUrl = await r2Service.uploadFileWithSignedUrl(
+          fileBytes: imageBytes,
           signedUrl: signedData['url'],
           contentType: 'image/jpeg',
         );
+
+        imageCaptions.add({
+          'url': imageUrl,
+          'caption': caption,
+        });
       }
 
       final now = DateTime.now();
@@ -119,7 +152,7 @@ class _InstituteAnnouncementComposeScreenState
         principalEmail: currentUser.email,
         instituteId: currentUser.instituteId ?? '',
         text: messageText,
-        imageUrl: imageUrl,
+        imageCaptions: imageCaptions.isNotEmpty ? imageCaptions : null,
         createdAt: now,
         expiresAt: expiresAt,
         audienceType: widget.audienceType,
@@ -204,19 +237,40 @@ class _InstituteAnnouncementComposeScreenState
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Write a clear message and optionally attach an image.',
+                      _imageItems.isEmpty 
+                        ? 'Write a clear message and optionally attach images.'
+                        : 'Add captions to your images below.',
                       style: TextStyle(color: _muted, fontSize: 14),
                     ),
                     const SizedBox(height: 12),
-                    _MessageField(controller: _controller),
-                    const SizedBox(height: 20),
-                    if (_imageBytes != null)
-                      _ImagePreview(
-                        imageBytes: _imageBytes!,
-                        onRemove: () => setState(() => _imageBytes = null),
-                      )
-                    else
-                      _AddImageButton(onTap: _pickImage),
+                    
+                    // Show message field only if no images
+                    if (_imageItems.isEmpty) ...[
+                      _MessageField(controller: _controller),
+                      const SizedBox(height: 20),
+                      _AddImageButton(onTap: _pickImages),
+                    ] else ...[
+                      // Show all images with caption fields
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _imageItems.length,
+                        itemBuilder: (context, index) {
+                          final item = _imageItems[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _ImageWithCaptionEditor(
+                              imageBytes: item['imageBytes'] as Uint8List,
+                              captionController: item['captionController'] as TextEditingController,
+                              onRemove: () => _removeImage(index),
+                              imageNumber: index + 1,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      _AddMoreImagesButton(onTap: _pickImages),
+                    ],
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -406,6 +460,133 @@ class _AddImageButton extends StatelessWidget {
               'Add Image',
               style: TextStyle(
                 color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// New widget for editing image with caption
+class _ImageWithCaptionEditor extends StatelessWidget {
+  const _ImageWithCaptionEditor({
+    required this.imageBytes,
+    required this.captionController,
+    required this.onRemove,
+    required this.imageNumber,
+  });
+
+  final Uint8List imageBytes;
+  final TextEditingController captionController;
+  final VoidCallback onRemove;
+  final int imageNumber;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _teal.withOpacity(0.3)),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with image number and remove button
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _teal.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Image $imageNumber',
+                  style: const TextStyle(
+                    color: _teal,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                onPressed: onRemove,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Image preview
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.memory(
+              imageBytes,
+              height: 200,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Caption input field
+          TextField(
+            controller: captionController,
+            maxLines: 3,
+            maxLength: 200,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Add caption for this image...',
+              hintStyle: TextStyle(color: _muted, fontSize: 14),
+              filled: true,
+              fillColor: _bg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.all(12),
+              counterStyle: TextStyle(color: _muted, fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Button to add more images
+class _AddMoreImagesButton extends StatelessWidget {
+  const _AddMoreImagesButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _teal.withOpacity(0.4), width: 1.5),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_photo_alternate, color: _teal, size: 20),
+            const SizedBox(width: 8),
+            const Text(
+              'Add More Images',
+              style: TextStyle(
+                color: _teal,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),

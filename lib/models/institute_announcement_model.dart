@@ -8,7 +8,8 @@ class InstituteAnnouncementModel {
   final String? principalEmail;
   final String instituteId;
   final String text;
-  final String? imageUrl;
+  final String? imageUrl; // Deprecated: use imageCaptions instead
+  final List<Map<String, String>>? imageCaptions; // New: [{url: '...', caption: '...'}]
   final DateTime createdAt;
   final DateTime expiresAt;
   final bool hasImage;
@@ -29,16 +30,26 @@ class InstituteAnnouncementModel {
     required this.instituteId,
     required this.text,
     this.imageUrl,
+    this.imageCaptions,
     required this.createdAt,
     required this.expiresAt,
     this.audienceType = 'school',
     this.standards = const [],
-  }) : hasImage = imageUrl != null && imageUrl.isNotEmpty,
+  }) : hasImage = (imageCaptions != null && imageCaptions.isNotEmpty) || 
+                    (imageUrl != null && imageUrl.isNotEmpty),
        hasText = text.isNotEmpty;
 
   /// Create from Firestore document
   factory InstituteAnnouncementModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    
+    List<Map<String, String>>? imageCaptions;
+    if (data['imageCaptions'] != null) {
+      imageCaptions = (data['imageCaptions'] as List)
+          .map((item) => Map<String, String>.from(item as Map))
+          .toList();
+    }
+    
     return InstituteAnnouncementModel(
       id: doc.id,
       principalId: data['principalId'] ?? '',
@@ -47,6 +58,7 @@ class InstituteAnnouncementModel {
       instituteId: data['instituteId'] ?? '',
       text: data['text'] ?? '',
       imageUrl: data['imageUrl'],
+      imageCaptions: imageCaptions,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       expiresAt:
           (data['expiresAt'] as Timestamp?)?.toDate() ??
@@ -67,6 +79,10 @@ class InstituteAnnouncementModel {
       'instituteId': instituteId,
       'text': text,
       'imageUrl': imageUrl ?? '',
+      'imageCaptions': imageCaptions?.map((item) => {
+        'url': item['url'],
+        'caption': item['caption'],
+      }).toList() ?? [],
       'createdAt': FieldValue.serverTimestamp(),
       'expiresAt': Timestamp.fromDate(expiresAt),
       'audienceType': audienceType,
