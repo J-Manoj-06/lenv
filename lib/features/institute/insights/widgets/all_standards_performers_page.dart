@@ -46,11 +46,12 @@ class _AllStandardsPerformersPageState
       }
 
       // Sort classes numerically
-      final sortedClasses = uniqueClasses.toList()..sort((a, b) {
-        final numA = int.tryParse(a.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-        final numB = int.tryParse(b.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-        return numA.compareTo(numB);
-      });
+      final sortedClasses = uniqueClasses.toList()
+        ..sort((a, b) {
+          final numA = int.tryParse(a.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+          final numB = int.tryParse(b.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+          return numA.compareTo(numB);
+        });
 
       if (mounted) {
         setState(() {
