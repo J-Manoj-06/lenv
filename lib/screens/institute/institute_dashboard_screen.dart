@@ -11,6 +11,7 @@ import '../../models/institute_announcement_model.dart';
 import '../../services/media_repository.dart';
 import '../../services/institute_announcement_service.dart';
 import '../../services/attendance_service.dart';
+import '../../services/institute_announcement_cleanup_service.dart';
 import '../../widgets/attendance_speedometer_gauge.dart';
 
 class InstituteDashboardScreen extends StatefulWidget {
@@ -33,6 +34,14 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     super.initState();
     _loadViewedAnnouncements();
     _initSchoolCode();
+    // Auto-cleanup expired announcements on dashboard load
+    _cleanupExpiredAnnouncements();
+  }
+
+  /// Cleanup expired announcements (24h+)
+  Future<void> _cleanupExpiredAnnouncements() async {
+    // Run in background without blocking UI
+    InstituteAnnouncementCleanupService.cleanupExpiredAnnouncements();
   }
 
   @override

@@ -1,0 +1,30 @@
+{
+	"name": "institute-announcement-cleanup",
+	"main": "src/institute-announcement-cleanup.ts",
+	"compatibility_date": "2024-12-10",
+	
+	// Cron trigger: Run every 1 hour for 24h cleanup
+	"triggers": {
+		"crons": ["0 * * * *"]
+	},
+	
+	// R2 bucket binding for image deletion
+	"r2_buckets": [
+		{
+			"binding": "R2_BUCKET",
+			"bucket_name": "lenv-storage",
+			"preview_bucket_name": "lenv-storage"
+		}
+	],
+	
+	// Environment variables
+	"vars": {
+		"FIREBASE_PROJECT_ID": "lenv-cb08e"
+	}
+	
+	// Required secrets (set via command):
+	// wrangler secret put FIREBASE_API_KEY --config wrangler-institute-cleanup.jsonc
+	// 
+	// Get Firebase API Key from:
+	// Firebase Console > Project Settings > General > Web API Key
+}
