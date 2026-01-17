@@ -212,6 +212,7 @@ class _InstituteAnnouncementComposeScreenState
                     const SizedBox(height: 20),
                     if (_imageBytes != null)
                       _ImagePreview(
+                        imageBytes: _imageBytes!,
                         onRemove: () => setState(() => _imageBytes = null),
                       )
                     else
@@ -417,8 +418,9 @@ class _AddImageButton extends StatelessWidget {
 }
 
 class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.onRemove});
+  const _ImagePreview({required this.imageBytes, required this.onRemove});
 
+  final Uint8List imageBytes;
   final VoidCallback onRemove;
 
   @override
@@ -445,7 +447,15 @@ class _ImagePreview extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             alignment: Alignment.center,
-            child: const Icon(Icons.image, color: _teal, size: 48),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.memory(
+                imageBytes,
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
         ],
       ),
