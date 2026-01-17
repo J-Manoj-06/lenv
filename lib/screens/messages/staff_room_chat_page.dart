@@ -558,6 +558,8 @@ class _MessageBubble extends StatelessWidget {
     final attachmentType = message['attachmentType'] as String?;
     final attachmentName = message['attachmentName'] as String?;
     final thumbnailUrl = message['thumbnailUrl'] as String?;
+    final isForwarded = message['isForwarded'] == true;
+    final forwardedFrom = message['forwardedFrom'] as String?;
 
     String timeStr = '';
     if (timestamp != null) {
@@ -594,6 +596,27 @@ class _MessageBubble extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (isForwarded) ...[
+                Row(
+                  children: [
+                    Icon(
+                      Icons.forward,
+                      size: 14,
+                      color: isMe ? Colors.white70 : Colors.black54,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Forwarded',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: isMe ? Colors.white70 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+              ],
               if (!isMe) ...[
                 Row(
                   children: [

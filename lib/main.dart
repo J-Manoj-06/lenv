@@ -18,6 +18,8 @@ import 'routes/app_router.dart';
 import 'services/local_cache_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/offline_cache_manager.dart';
+import 'share/share_controller.dart';
+import 'share/share_receiver_service.dart';
 
 // Initial route is always '/' (Splash) which will resolve and redirect.
 
@@ -38,6 +40,9 @@ void main() async {
 
     // Initialize connectivity service for network state tracking
     await ConnectivityService().initialize();
+
+    // Initialize share receiver service for Android sharing
+    await ShareReceiverService().initialize();
 
     // Enable offline persistence for Firestore
     FirebaseFirestore.instance.settings = const Settings(
@@ -80,6 +85,13 @@ class MyApp extends StatelessWidget {
             // Initialize auth state from Firebase
             authProvider.initializeAuth();
             return authProvider;
+          },
+        ),
+        ChangeNotifierProvider(
+          create: (_) {
+            final shareController = ShareController();
+            shareController.initialize();
+            return shareController;
           },
         ),
         ChangeNotifierProvider(create: (_) => RoleProvider()),

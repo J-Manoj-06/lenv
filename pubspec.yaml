@@ -41,6 +41,7 @@ dependencies:
   cloud_firestore: ^6.1.0
   firebase_storage: ^13.0.4
   image_picker: ^1.1.2
+  receive_sharing_intent: ^1.8.0
 
   # State Management
   provider: ^6.1.2

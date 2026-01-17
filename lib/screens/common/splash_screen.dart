@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../../utils/session_manager.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import '../../share/share_controller.dart';
+import '../../share/select_forward_chat_page.dart';
+import '../../providers/auth_provider.dart' as local_auth;
+import '../../models/user_model.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -180,6 +185,58 @@ class _SplashScreenState extends State<SplashScreen>
       // Keep the splash visible for a short, smooth animation
       await Future.delayed(const Duration(milliseconds: 1200));
 
+      if (!mounted) return;
+
+      // Check for share intent
+      final shareController = Provider.of<ShareController>(
+        context,
+        listen: false,
+      );
+      if (shareController.hasShareData) {
+        // Get current user to check role
+        final authProvider = Provider.of<local_auth.AuthProvider>(
+          context,
+          listen: false,
+        );
+        final currentUser = authProvider.currentUser;
+
+        if (currentUser == null) {
+          // User not logged in - go to login, share data will be handled after login
+          Navigator.pushReplacementNamed(context, '/role-selection');
+          return;
+        }
+
+        // Check if user is principal
+        if (currentUser.role == UserRole.institute) {
+          // Navigate to forward page
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  SelectForwardChatPage(shareData: shareController.shareData!),
+            ),
+          );
+          return;
+        } else {
+          // Not principal - show message and clear share data
+          shareController.clearShareData();
+
+          // Show message after a brief delay
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('⚠️ Forwarding allowed only for Principal'),
+                  duration: Duration(seconds: 3),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+          });
+        }
+      }
+
+      // Normal navigation
       final route = await SessionManager.getInitialScreen();
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, route);

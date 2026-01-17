@@ -39,8 +39,6 @@ class _InstituteInsightsScreenState extends State<InstituteInsightsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _KPIGrid(),
-                    const SizedBox(height: 24),
                     _ChartsRow(),
                     const SizedBox(height: 24),
                     _RecentTests(),
@@ -98,24 +96,14 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Institute Insights — School',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Overview of standards, class averages, and student improvement',
-                  style: TextStyle(color: Colors.white54, fontSize: 11),
-                ),
-              ],
+          const Expanded(
+            child: Text(
+              'School Insights',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(width: 8),
