@@ -27,17 +27,21 @@ class _PrincipalAnnouncementViewerState
     extends State<PrincipalAnnouncementViewer>
     with SingleTickerProviderStateMixin {
   late PageController _pageController;
+  late PageController _imagePageController; // For horizontal image scrolling
   late int _currentIndex;
+  int _currentImageIndex = 0; // Track current image within announcement
   late AnimationController _progressController;
   late Animation<double> _progress;
   final _announcementService = InstituteAnnouncementService();
   bool _isDeleting = false;
+  bool _isLongPressing = false; // Track if user is holding
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    _imagePageController = PageController();
     _progressController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
@@ -48,14 +52,7 @@ class _PrincipalAnnouncementViewerState
     );
     _progressController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        if (_currentIndex < widget.announcements.length - 1) {
-          _pageController.nextPage(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-          );
-        } else {
-          if (mounted) Navigator.of(context).maybePop();
-        }
+        _nextContent();
       }
     });
     _progressController.forward();
@@ -64,13 +61,82 @@ class _PrincipalAnnouncementViewerState
   @override
   void dispose() {
     _pageController.dispose();
+    _imagePageController.dispose();
     _progressController.dispose();
     super.dispose();
+  }
+
+  void _nextContent() {
+    final announcement = widget.announcements[_currentIndex];
+    final hasMultipleImages =
+        announcement.imageCaptions != null &&
+        announcement.imageCaptions!.length > 1;
+
+    if (hasMultipleImages &&
+        _currentImageIndex < announcement.imageCaptions!.length - 1) {
+      // Go to next image in current announcement
+      setState(() {
+        _currentImageIndex++;
+      });
+      _imagePageController.animateToPage(
+        _currentImageIndex,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+      _progressController.reset();
+      _progressController.forward();
+    } else if (_currentIndex < widget.announcements.length - 1) {
+      // Go to next announcement
+      setState(() {
+        _currentImageIndex = 0;
+      });
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    } else {
+      // Close viewer
+      if (mounted) Navigator.of(context).maybePop();
+    }
+  }
+
+  void _previousContent() {
+    if (_currentImageIndex > 0) {
+      // Go to previous image in current announcement
+      setState(() {
+        _currentImageIndex--;
+      });
+      _imagePageController.animateToPage(
+        _currentImageIndex,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+      _progressController.reset();
+      _progressController.forward();
+    } else if (_currentIndex > 0) {
+      // Go to previous announcement
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   void _onPageChanged(int index) {
     setState(() {
       _currentIndex = index;
+      _currentImageIndex = 0;
+    });
+    if (_imagePageController.hasClients) {
+      _imagePageController.jumpToPage(0);
+    }
+    _progressController.reset();
+    _progressController.forward();
+  }
+
+  void _onImagePageChanged(int index) {
+    setState(() {
+      _currentImageIndex = index;
     });
     _progressController.reset();
     _progressController.forward();
@@ -204,37 +270,41 @@ class _PrincipalAnnouncementViewerState
                 backgroundColor: bgColor,
                 body: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTapDown: (details) {
+                  onLongPressStart: (_) {
+                    // Pause progress when holding
+                    setState(() {
+                      _isLongPressing = true;
+                    });
+                    _progressController.stop();
+                  },
+                  onLongPressEnd: (_) {
+                    // Resume progress when released
+                    setState(() {
+                      _isLongPressing = false;
+                    });
+                    _progressController.forward();
+                  },
+                  onTapUp: (details) {
                     final width = MediaQuery.of(context).size.width;
                     final dx = details.globalPosition.dx;
                     if (dx < width * 0.33) {
-                      if (_currentIndex > 0) {
-                        _pageController.previousPage(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOut,
-                        );
-                      }
+                      // Tap left: go to previous
+                      _previousContent();
                     } else if (dx > width * 0.67) {
-                      if (_currentIndex < widget.announcements.length - 1) {
-                        _pageController.nextPage(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOut,
-                        );
-                      } else {
-                        Navigator.of(context).maybePop();
-                      }
+                      // Tap right: go to next
+                      _nextContent();
                     }
                   },
                   child: Stack(
                     children: [
-                      // Black background (removed gradient)
+                      // Black background
                       Positioned.fill(child: Container(color: Colors.black)),
 
                       // Content
                       SafeArea(
                         child: Column(
                           children: [
-                            // Header with progress and delete button
+                            // Header with progress bars
                             Padding(
                               padding: const EdgeInsets.fromLTRB(
                                 16,
@@ -244,15 +314,16 @@ class _PrincipalAnnouncementViewerState
                               ),
                               child: Column(
                                 children: [
-                                  // Progress bars
-                                  if (widget.announcements.length > 1)
+                                  // Progress bars for images within announcement
+                                  if (announcement.imageCaptions != null &&
+                                      announcement.imageCaptions!.length > 1)
                                     Padding(
                                       padding: const EdgeInsets.only(
                                         bottom: 12,
                                       ),
                                       child: Row(
                                         children: List.generate(
-                                          widget.announcements.length,
+                                          announcement.imageCaptions!.length,
                                           (i) => Expanded(
                                             child: Container(
                                               height: 3,
@@ -262,7 +333,7 @@ class _PrincipalAnnouncementViewerState
                                                   ),
                                               decoration: BoxDecoration(
                                                 color: Colors.white.withOpacity(
-                                                  i == _currentIndex
+                                                  i == _currentImageIndex
                                                       ? 0.8
                                                       : 0.2,
                                                 ),
@@ -270,7 +341,7 @@ class _PrincipalAnnouncementViewerState
                                                     BorderRadius.circular(9999),
                                               ),
                                               clipBehavior: Clip.antiAlias,
-                                              child: i == _currentIndex
+                                              child: i == _currentImageIndex
                                                   ? AnimatedBuilder(
                                                       animation: _progress,
                                                       builder: (context, _) {
@@ -282,22 +353,21 @@ class _PrincipalAnnouncementViewerState
                                                                 widthFactor:
                                                                     _progress
                                                                         .value,
-                                                                child:
-                                                                    Container(
-                                                                      color:
-                                                                          theme,
-                                                                    ),
+                                                                child: Container(
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
                                                               ),
                                                         );
                                                       },
                                                     )
-                                                  : null,
+                                                  : const SizedBox(),
                                             ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  // Top row with metadata and delete button
+                                  // User info and actions row
                                   Row(
                                     children: [
                                       Container(
@@ -406,6 +476,8 @@ class _PrincipalAnnouncementViewerState
                                         announcement.imageCaptions!.isNotEmpty)
                                       // Horizontal PageView for multiple images
                                       PageView.builder(
+                                        controller: _imagePageController,
+                                        onPageChanged: _onImagePageChanged,
                                         itemCount:
                                             announcement.imageCaptions!.length,
                                         itemBuilder: (context, imageIndex) {
