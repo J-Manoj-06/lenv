@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../services/insights/insights_repository.dart';
-import '../../../../models/insights/top_performer_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import './class_sections_performers_page.dart';
 
 class AllStandardsPerformersPage extends StatefulWidget {
@@ -20,9 +19,8 @@ class AllStandardsPerformersPage extends StatefulWidget {
 
 class _AllStandardsPerformersPageState
     extends State<AllStandardsPerformersPage> {
-  final InsightsRepository _repository = InsightsRepository();
   bool _isLoading = true;
-  TopPerformersSummary? _topPerformers;
+  List<String> _standards = [];
 
   @override
   void initState() {
@@ -33,17 +31,35 @@ class _AllStandardsPerformersPageState
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final data = await _repository.getTopPerformersSummary(
-        schoolCode: widget.schoolCode,
-        range: widget.range,
-      );
+      // Get all unique classes from students collection
+      final snapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .where('schoolCode', isEqualTo: widget.schoolCode)
+          .get();
+
+      final Set<String> uniqueClasses = {};
+      for (var doc in snapshot.docs) {
+        final className = doc.data()['className'] as String?;
+        if (className != null && className.isNotEmpty) {
+          uniqueClasses.add(className);
+        }
+      }
+
+      // Sort classes numerically
+      final sortedClasses = uniqueClasses.toList()..sort((a, b) {
+        final numA = int.tryParse(a.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        final numB = int.tryParse(b.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        return numA.compareTo(numB);
+      });
+
       if (mounted) {
         setState(() {
-          _topPerformers = data;
+          _standards = sortedClasses;
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('Error loading standards: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -68,7 +84,7 @@ class _AllStandardsPerformersPageState
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _topPerformers == null || _topPerformers!.standards.isEmpty
+          : _standards.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -76,7 +92,7 @@ class _AllStandardsPerformersPageState
                   Icon(Icons.inbox_outlined, size: 64, color: subtitleColor),
                   const SizedBox(height: 16),
                   Text(
-                    'No performance data available',
+                    'No classes found',
                     style: TextStyle(color: subtitleColor, fontSize: 16),
                   ),
                 ],
@@ -84,9 +100,9 @@ class _AllStandardsPerformersPageState
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: _topPerformers!.standards.length,
+              itemCount: _standards.length,
               itemBuilder: (context, index) {
-                final standard = _topPerformers!.standards[index];
+                final standard = _standards[index];
                 return Card(
                   color: cardColor,
                   margin: const EdgeInsets.only(bottom: 16),
@@ -97,7 +113,7 @@ class _AllStandardsPerformersPageState
                         context,
                         MaterialPageRoute(
                           builder: (context) => ClassSectionsPerformersPage(
-                            className: standard.standard,
+                            className: standard,
                             schoolCode: widget.schoolCode,
                             range: widget.range,
                           ),
@@ -127,7 +143,7 @@ class _AllStandardsPerformersPageState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Class ${standard.standard}',
+                                  'Class $standard',
                                   style: TextStyle(
                                     color: textColor,
                                     fontSize: 20,
