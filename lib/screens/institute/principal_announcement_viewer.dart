@@ -332,11 +332,13 @@ class _PrincipalAnnouncementViewerState
                                                     horizontal: 3,
                                                   ),
                                               decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(
-                                                  i == _currentImageIndex
-                                                      ? 0.8
-                                                      : 0.2,
-                                                ),
+                                                color: i == _currentImageIndex
+                                                    ? Colors.grey.withOpacity(
+                                                        0.4,
+                                                      )
+                                                    : Colors.grey.withOpacity(
+                                                        0.3,
+                                                      ),
                                                 borderRadius:
                                                     BorderRadius.circular(9999),
                                               ),
