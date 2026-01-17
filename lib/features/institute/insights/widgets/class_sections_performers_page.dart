@@ -52,13 +52,13 @@ class _ClassSectionsPerformersPageState
       final List<StudentModel> matchingStudents = [];
       final Set<String> seenUids = {};
       final List<String> uidsToFetch = [];
-      
+
       for (var doc in snapshot.docs) {
         final student = StudentModel.fromFirestore(doc);
-        
+
         // Skip duplicates
         if (seenUids.contains(student.uid)) continue;
-        
+
         final studentClassNumber = (student.className ?? '').replaceAll(
           RegExp(r'[^0-9]'),
           '',
@@ -76,7 +76,7 @@ class _ClassSectionsPerformersPageState
 
       // Batch fetch user data (Firestore supports up to 10 items in whereIn)
       final Map<String, Map<String, dynamic>> userDataMap = {};
-      
+
       for (int i = 0; i < uidsToFetch.length; i += 10) {
         final batch = uidsToFetch.skip(i).take(10).toList();
         try {
@@ -84,7 +84,7 @@ class _ClassSectionsPerformersPageState
               .collection('users')
               .where(FieldPath.documentId, whereIn: batch)
               .get();
-          
+
           for (var doc in userDocs.docs) {
             if (doc.exists) {
               userDataMap[doc.id] = doc.data();
@@ -97,36 +97,39 @@ class _ClassSectionsPerformersPageState
 
       // Enrich students with user data and group by section
       final Map<String, List<StudentModel>> grouped = {};
-      
+
       for (var student in matchingStudents) {
         final userData = userDataMap[student.uid];
-        
+
         if (userData != null) {
-          final rewardPoints = (userData['rewardPoints'] ?? 
-                               userData['totalPoints'] ?? 
-                               0) as int;
+          final rewardPoints =
+              (userData['rewardPoints'] ?? userData['totalPoints'] ?? 0) as int;
           final completedTests = (userData['completedTests'] ?? 0) as int;
           final studentId = userData['studentId'] as String?;
           final userName = userData['name'] as String?;
-          
+
           student = student.copyWith(
-            name: (userName != null && userName.isNotEmpty) ? userName : student.name,
+            name: (userName != null && userName.isNotEmpty)
+                ? userName
+                : student.name,
             rewardPoints: rewardPoints,
             completedTests: completedTests,
             studentId: studentId ?? student.studentId,
           );
         }
-        
+
         final section = student.section ?? 'Unknown';
         if (!grouped.containsKey(section)) {
           grouped[section] = [];
         }
         grouped[section]!.add(student);
       }
-      
+
       // Sort students by reward points (descending - highest first) within each section
       for (var section in grouped.keys) {
-        grouped[section]!.sort((a, b) => b.rewardPoints.compareTo(a.rewardPoints));
+        grouped[section]!.sort(
+          (a, b) => b.rewardPoints.compareTo(a.rewardPoints),
+        );
       }
 
       print('DEBUG: Grouped sections: ${grouped.keys.toList()}');
