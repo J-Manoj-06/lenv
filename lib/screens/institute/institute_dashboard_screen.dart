@@ -44,7 +44,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     if (_schoolCode.isEmpty) {
       _initSchoolCode();
     }
-    
+
     // Run cleanup ONCE after first successful load (in background)
     if (_schoolCode.isNotEmpty && !_cleanupScheduled) {
       _cleanupScheduled = true;
@@ -308,7 +308,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                                   stream: _getStudentCountStream(_schoolCode),
                                   builder: (context, snapshot) {
                                     // Show skeleton while loading
-                                    if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                                    if (snapshot.connectionState ==
+                                            ConnectionState.waiting ||
+                                        !snapshot.hasData) {
                                       return _SkeletonStatCard(
                                         icon: Icons.school,
                                         label: 'Total Students',
@@ -318,7 +320,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                                         borderColor: borderColor,
                                       );
                                     }
-                                    
+
                                     final count = snapshot.data ?? 0;
                                     return _StatCard(
                                       icon: Icons.school,
@@ -348,7 +350,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                                   stream: _getStaffCountStream(_schoolCode),
                                   builder: (context, snapshot) {
                                     // Show skeleton while loading
-                                    if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                                    if (snapshot.connectionState ==
+                                            ConnectionState.waiting ||
+                                        !snapshot.hasData) {
                                       return _SkeletonStatCard(
                                         icon: Icons.group,
                                         label: 'Total Staff',
@@ -358,7 +362,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                                         borderColor: borderColor,
                                       );
                                     }
-                                    
+
                                     final count = snapshot.data ?? 0;
                                     return _StatCard(
                                       icon: Icons.group,
@@ -390,16 +394,20 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                           stream: _getStudentAttendanceStream(_schoolCode),
                           builder: (context, snapshot) {
                             // Show skeleton while loading
-                            if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                            if (snapshot.connectionState ==
+                                    ConnectionState.waiting ||
+                                !snapshot.hasData) {
                               return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 child: _SkeletonAttendanceCard(
                                   cardColor: cardColor,
                                   subtitleColor: subtitleColor,
                                 ),
                               );
                             }
-                            
+
                             final data =
                                 snapshot.data ??
                                 {'present': 0, 'total': 0, 'percent': 0.0};
@@ -408,7 +416,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                             final attendancePercent = data['percent'] as double;
 
                             return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               child: AttendanceSpeedometerGauge(
                                 attendancePercent: attendancePercent,
                                 presentCount: presentCount,
@@ -1632,7 +1642,7 @@ class _SkeletonAttendanceCardState extends State<_SkeletonAttendanceCard>
     final borderColor = isDark
         ? const Color(0xFF1E293B)
         : const Color(0xFFE2E8F0);
-        
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -1666,7 +1676,9 @@ class _SkeletonAttendanceCardState extends State<_SkeletonAttendanceCard>
                 width: 200,
                 height: 200,
                 decoration: BoxDecoration(
-                  color: widget.subtitleColor.withOpacity(_animation.value * 0.4),
+                  color: widget.subtitleColor.withOpacity(
+                    _animation.value * 0.4,
+                  ),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -1682,7 +1694,9 @@ class _SkeletonAttendanceCardState extends State<_SkeletonAttendanceCard>
                         width: 80,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: widget.subtitleColor.withOpacity(_animation.value),
+                          color: widget.subtitleColor.withOpacity(
+                            _animation.value,
+                          ),
                           borderRadius: BorderRadius.circular(20),
                         ),
                       ),
@@ -1716,7 +1730,9 @@ class _SkeletonAttendanceCardState extends State<_SkeletonAttendanceCard>
                 width: 100,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: widget.subtitleColor.withOpacity(_animation.value * 0.3),
+                  color: widget.subtitleColor.withOpacity(
+                    _animation.value * 0.3,
+                  ),
                   borderRadius: BorderRadius.circular(18),
                 ),
               );
