@@ -1,0 +1,17 @@
+=== STEP 1: Get Firebase Service Account Key ===
+
+1. Go to: https://console.firebase.google.com/project/_/settings/serviceaccounts/adminsdk
+2. Click "Generate New Private Key"
+3. Save the JSON file
+
+=== STEP 2: Add Secret to Worker ===
+
+Run this command and paste the ENTIRE JSON content when prompted:
+
+  wrangler secret put FIREBASE_SERVICE_ACCOUNT
+
+=== STEP 3: Test ===
+
+  curl https://insights-aggregator.giridharannj.workers.dev/aggregate-all
+
+This will populate your Firestore collections with cached data!

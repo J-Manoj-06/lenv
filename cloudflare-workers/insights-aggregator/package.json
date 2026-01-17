@@ -1,0 +1,17 @@
+{
+  "name": "insights-aggregator",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for Institute Insights Data Aggregation",
+  "main": "src/index.js",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.59.2"
+  },
+  "dependencies": {
+    "jose": "^6.1.3"
+  }
+}

@@ -1,0 +1,16 @@
+name = "insights-aggregator"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cron Triggers - Run daily at 2 AM IST (8:30 PM UTC previous day)
+[triggers]
+crons = ["30 20 * * *"]
+
+# Environment variables (set these using wrangler secret put)
+# FIREBASE_SERVICE_ACCOUNT = "your-firebase-service-account-json"
+
+# Worker routes (optional - for manual triggers)
+# routes = [
+#   { pattern = "insights-aggregator.yourworker.workers.dev/*", zone_name = "yourworker.workers.dev" }
+# ]
