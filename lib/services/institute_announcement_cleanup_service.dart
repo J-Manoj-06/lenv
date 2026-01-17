@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 
 /// Service to handle auto-deletion of expired institute announcements
-/// 
+///
 /// This runs CLIENT-SIDE in the Flutter app, no external workers needed!
 /// When the app loads announcements, it automatically cleans up expired ones.
 class InstituteAnnouncementCleanupService {
@@ -13,7 +13,7 @@ class InstituteAnnouncementCleanupService {
   static Future<void> cleanupExpiredAnnouncements() async {
     try {
       final now = DateTime.now();
-      
+
       // Query announcements that have expired
       final expiredQuery = await _firestore
           .collection('institute_announcements')
@@ -26,7 +26,9 @@ class InstituteAnnouncementCleanupService {
         return;
       }
 
-      print('🗑️ Found ${expiredQuery.docs.length} expired announcements to delete');
+      print(
+        '🗑️ Found ${expiredQuery.docs.length} expired announcements to delete',
+      );
 
       // Delete each expired announcement
       for (final doc in expiredQuery.docs) {
@@ -101,8 +103,9 @@ class InstituteAnnouncementCleanupService {
       final key = uri.path.substring(1); // Remove leading /
 
       // Call your existing Cloudflare Worker delete endpoint
-      final workerUrl = 'https://files.lenv1.tech/delete'; // Adjust to your worker URL
-      
+      final workerUrl =
+          'https://files.lenv1.tech/delete'; // Adjust to your worker URL
+
       final response = await http.post(
         Uri.parse(workerUrl),
         headers: {'Content-Type': 'application/json'},
