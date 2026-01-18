@@ -159,9 +159,7 @@ class InsightsRepository {
       }
 
       // If not found, compute from testResults collection (where actual test data is)
-      print(
-        '⚠️ No pre-computed data for $docId, fetching from testResults...',
-      );
+      print('⚠️ No pre-computed data for $docId, fetching from testResults...');
 
       // Calculate date range for the query
       final now = DateTime.now();
@@ -207,9 +205,9 @@ class InsightsRepository {
         final data = doc.data();
         final testId = data['testId'] as String?;
         final completedAt = (data['completedAt'] as Timestamp?)?.toDate();
-        
+
         if (testId == null || completedAt == null) continue;
-        
+
         // Filter by date range
         if (completedAt.isBefore(cutoffDate)) continue;
 
@@ -242,8 +240,8 @@ class InsightsRepository {
       final tests = uniqueTests.values.map((testData) {
         final testId = testData['testId'] as String;
         final scores = testScores[testId] ?? [];
-        final avgScore = scores.isEmpty 
-            ? 0.0 
+        final avgScore = scores.isEmpty
+            ? 0.0
             : scores.reduce((a, b) => a + b) / scores.length;
 
         return TestSummary(

@@ -82,7 +82,9 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
       // Debug: Print first few teachers with their UIDs
       print('DEBUG: First 3 teachers with UIDs:');
       for (var teacher in teachers.take(3)) {
-        print('  - Name: "${teacher['name']}", UID: "${teacher['uid']}", Email: "${teacher['email']}"');
+        print(
+          '  - Name: "${teacher['name']}", UID: "${teacher['uid']}", Email: "${teacher['email']}"',
+        );
       }
 
       // Fetch unique classes from students collection
@@ -156,8 +158,12 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         final sampleData = testResultsSnapshot.docs.first.data();
         print('DEBUG: Sample testResult fields: ${sampleData.keys.toList()}');
         print('DEBUG: Sample teacherId value: "${sampleData['teacherId']}"');
-        print('DEBUG: Sample teacherEmail value: "${sampleData['teacherEmail']}"');
-        print('DEBUG: Sample teacherName value: "${sampleData['teacherName']}"');
+        print(
+          'DEBUG: Sample teacherEmail value: "${sampleData['teacherEmail']}"',
+        );
+        print(
+          'DEBUG: Sample teacherName value: "${sampleData['teacherName']}"',
+        );
       }
 
       // Debug: Print teacher UIDs we're looking for
@@ -189,7 +195,9 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         }
       }
 
-      print('DEBUG: Unique teacherIds in testResults: ${uniqueTeacherIds.toList()}');
+      print(
+        'DEBUG: Unique teacherIds in testResults: ${uniqueTeacherIds.toList()}',
+      );
 
       // Update teacher test counts based on unique test IDs
       // Try multiple matching strategies: UID, docId, email
@@ -198,36 +206,42 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         final teacherUid = teacher['uid'] as String;
         final teacherDocId = teacher['docId'] as String?;
         final teacherEmail = teacher['email'] as String?;
-        
+
         int uniqueTests = 0;
-        
+
         // Strategy 1: Match by UID (Firebase Auth UID)
         uniqueTests = teacherTestsMap[teacherUid]?.length ?? 0;
-        
+
         // Strategy 2: If no match, try by document ID
-        if (uniqueTests == 0 && teacherDocId != null && teacherDocId != teacherUid) {
+        if (uniqueTests == 0 &&
+            teacherDocId != null &&
+            teacherDocId != teacherUid) {
           uniqueTests = teacherTestsMap[teacherDocId]?.length ?? 0;
           if (uniqueTests > 0) {
-            print('DEBUG: Matched teacher "${teacher['name']}" by docId: $teacherDocId');
+            print(
+              'DEBUG: Matched teacher "${teacher['name']}" by docId: $teacherDocId',
+            );
           }
         }
-        
+
         // Strategy 3: If still no match, try by email
         if (uniqueTests == 0 && teacherEmail != null) {
           for (var entry in teacherTestsMap.entries) {
             // Check if this teacherId matches the email
             if (entry.key == teacherEmail) {
               uniqueTests = entry.value.length;
-              print('DEBUG: Matched teacher "${teacher['name']}" by email: $teacherEmail');
+              print(
+                'DEBUG: Matched teacher "${teacher['name']}" by email: $teacherEmail',
+              );
               break;
             }
           }
         }
-        
+
         teacher['totalTests'] = uniqueTests;
         if (uniqueTests > 0) matchedCount++;
       }
-      
+
       print('DEBUG: Matched $matchedCount teachers with tests');
       print('DEBUG: Teacher test count summary:');
       for (var teacher in teachers.where((t) => (t['totalTests'] as int) > 0)) {
@@ -279,7 +293,9 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         return totalTests > 0;
       }).toList();
 
-      print('DEBUG: ${teachersWithTests.length} out of ${teachers.length} teachers have conducted tests');
+      print(
+        'DEBUG: ${teachersWithTests.length} out of ${teachers.length} teachers have conducted tests',
+      );
 
       final standards = classNamesSet.toList()..sort();
       print('DEBUG: Found ${standards.length} unique standards: $standards');
