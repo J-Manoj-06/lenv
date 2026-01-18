@@ -338,7 +338,7 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _SearchFilters extends StatelessWidget {
+class _SearchFilters extends StatefulWidget {
   const _SearchFilters({
     required this.primary,
     required this.chip,
@@ -360,101 +360,160 @@ class _SearchFilters extends StatelessWidget {
   final Color textColor;
 
   @override
+  State<_SearchFilters> createState() => _SearchFiltersState();
+}
+
+class _SearchFiltersState extends State<_SearchFilters> {
+  final TextEditingController _controller = TextEditingController();
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      setState(() {
+        _hasText = _controller.text.isNotEmpty;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Modern Premium Search Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            height: 48,
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(14),
+              color: widget.isDark
+                  ? const Color(0xFF1F2A3A)
+                  : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: isDark
-                    ? const Color(0xFF334155)
+                color: widget.isDark
+                    ? const Color(0xFF2E3C52)
                     : const Color(0xFFE2E8F0),
                 width: 1,
               ),
-              boxShadow: isDark
-                  ? null
+              boxShadow: widget.isDark
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
                   : [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.04),
-                        blurRadius: 8,
+                        blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
                     ],
             ),
             child: Row(
               children: [
-                Icon(Icons.search_rounded, color: slate, size: 24),
-                const SizedBox(width: 14),
+                const SizedBox(width: 16),
+                Icon(
+                  Icons.search_rounded,
+                  color: widget.slate.withOpacity(0.6),
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
-                    onChanged: onQueryChanged,
+                    controller: _controller,
+                    onChanged: widget.onQueryChanged,
                     style: TextStyle(
-                      color: textColor,
+                      color: widget.textColor,
                       fontSize: 15,
                       fontWeight: FontWeight.w400,
                       height: 1.4,
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Search by name, subject or class...',
+                      hintText: 'Search staff by name, subject, or class…',
                       hintStyle: TextStyle(
-                        color: slate.withOpacity(0.7),
+                        color: widget.slate.withOpacity(0.5),
                         fontSize: 15,
+                        fontWeight: FontWeight.w400,
                       ),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
+                if (_hasText)
+                  GestureDetector(
+                    onTap: () {
+                      _controller.clear();
+                      widget.onQueryChanged('');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.close,
+                        color: widget.slate.withOpacity(0.6),
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 12),
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+          // Filter Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: Wrap(
-              spacing: 8,
+            child: Row(
               children: [
                 _FilterChip(
                   label: 'All',
                   value: 'all',
-                  active: activeFilter == 'all',
-                  primary: primary,
-                  chip: chip,
-                  slate: slate,
-                  onTap: () => onFilterChanged('all'),
+                  active: widget.activeFilter == 'all',
+                  primary: widget.primary,
+                  chip: widget.chip,
+                  slate: widget.slate,
+                  onTap: () => widget.onFilterChanged('all'),
                 ),
+                const SizedBox(width: 8),
                 _FilterChip(
                   label: 'Teaching',
                   value: 'teaching',
-                  active: activeFilter == 'teaching',
-                  primary: primary,
-                  chip: chip,
-                  slate: slate,
-                  onTap: () => onFilterChanged('teaching'),
+                  active: widget.activeFilter == 'teaching',
+                  primary: widget.primary,
+                  chip: widget.chip,
+                  slate: widget.slate,
+                  onTap: () => widget.onFilterChanged('teaching'),
                 ),
+                const SizedBox(width: 8),
                 _FilterChip(
                   label: 'Non-Teaching',
                   value: 'non-teaching',
-                  active: activeFilter == 'non-teaching',
-                  primary: primary,
-                  chip: chip,
-                  slate: slate,
-                  onTap: () => onFilterChanged('non-teaching'),
+                  active: widget.activeFilter == 'non-teaching',
+                  primary: widget.primary,
+                  chip: widget.chip,
+                  slate: widget.slate,
+                  onTap: () => widget.onFilterChanged('non-teaching'),
                 ),
+                const SizedBox(width: 8),
                 _FilterChip(
                   label: 'On Leave',
                   value: 'on-leave',
-                  active: activeFilter == 'on-leave',
-                  primary: primary,
-                  chip: chip,
-                  slate: slate,
-                  onTap: () => onFilterChanged('on-leave'),
+                  active: widget.activeFilter == 'on-leave',
+                  primary: widget.primary,
+                  chip: widget.chip,
+                  slate: widget.slate,
+                  onTap: () => widget.onFilterChanged('on-leave'),
                 ),
               ],
             ),

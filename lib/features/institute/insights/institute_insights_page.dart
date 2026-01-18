@@ -17,69 +17,9 @@ class InstituteInsightsPage extends StatefulWidget {
 class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
   final InsightsRepository _repository = InsightsRepository();
 
-  bool _isAggregating = false;
-
   @override
   void initState() {
     super.initState();
-    // Don't load data here - cards will load their own data when tapped
-  }
-
-  Future<void> _triggerAggregation() async {
-    setState(() => _isAggregating = true);
-
-    try {
-      // Show progress dialog
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => _AggregationProgressDialog(),
-      );
-
-      // Trigger aggregations
-      final baseUrl = 'https://insights-aggregator.giridharannj.workers.dev';
-
-      // Run aggregations in sequence
-      await http.get(Uri.parse('$baseUrl/aggregate-top-performers'));
-      await http.get(Uri.parse('$baseUrl/aggregate-teacher-stats'));
-
-      // Wait a moment for Firestore to propagate
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Close dialog
-      if (mounted) Navigator.of(context).pop();
-
-      // Clear cache
-      _repository.clearCaches();
-
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Insights refreshed successfully!'),
-            backgroundColor: Color(0xFF10B981),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      print('❌ Error triggering aggregation: $e');
-      if (mounted) {
-        Navigator.of(context).pop(); // Close dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to refresh: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isAggregating = false);
-      }
-    }
   }
 
   @override
@@ -94,10 +34,7 @@ class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _TopBar(
-              onRefresh: _triggerAggregation,
-              isAggregating: _isAggregating,
-            ),
+            _TopBar(),
             Expanded(
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -132,10 +69,7 @@ class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onRefresh, required this.isAggregating});
-
-  final VoidCallback onRefresh;
-  final bool isAggregating;
+  const _TopBar();
 
   @override
   Widget build(BuildContext context) {
@@ -161,27 +95,6 @@ class _TopBar extends StatelessWidget {
               'School Insights',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
               overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: isAggregating ? null : onRefresh,
-            icon: isAggregating
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF146D7A),
-                      ),
-                    ),
-                  )
-                : const Icon(Icons.refresh, size: 22),
-            tooltip: 'Refresh Insights (Runs Aggregation)',
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFF146D7A).withOpacity(0.1),
-              foregroundColor: const Color(0xFF146D7A),
             ),
           ),
         ],
