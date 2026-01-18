@@ -145,13 +145,30 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final subtitleColor = isDark ? Colors.white70 : const Color(0xFF64748B);
 
+    // Extract unique classes from staff
+    final allClasses = <String>{};
+    for (var staff in _staff) {
+      for (var classInfo in staff.classes) {
+        if (classInfo != 'Not assigned') {
+          // Extract just the grade part (e.g., "Grade 10" from "Grade 10: A, Math")
+          final parts = classInfo.split(':');
+          if (parts.isNotEmpty) {
+            allClasses.add(parts[0].trim());
+          }
+        }
+      }
+    }
+    final availableClasses = ['All Classes', ...allClasses.toList()..sort()];
+
     final filtered = _staff.where((s) {
       final matchesQuery =
           _query.isEmpty ||
           s.name.toLowerCase().contains(_query) ||
           s.subjects.any((subj) => subj.toLowerCase().contains(_query)) ||
           s.classes.any((c) => c.toLowerCase().contains(_query));
-      final matchesFilter = _filter == 'all' || s.roleKey == _filter;
+      
+      final matchesFilter = _filter == 'all' || 
+          s.classes.any((c) => c.toLowerCase().contains(_filter.toLowerCase()));
       return matchesQuery && matchesFilter;
     }).toList();
 
@@ -178,8 +195,10 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
                   setState(() => _query = value.trim().toLowerCase()),
               onFilterChanged: (value) => setState(() => _filter = value),
               activeFilter: _filter,
+              availableClasses: availableClasses,
               isDark: isDark,
               textColor: textColor,
+              cardColor: cardColor,
             ),
             Expanded(
               child: _isLoading
@@ -346,8 +365,10 @@ class _SearchFilters extends StatefulWidget {
     required this.onQueryChanged,
     required this.onFilterChanged,
     required this.activeFilter,
+    required this.availableClasses,
     required this.isDark,
     required this.textColor,
+    required this.cardColor,
   });
 
   final Color primary;
@@ -356,8 +377,10 @@ class _SearchFilters extends StatefulWidget {
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<String> onFilterChanged;
   final String activeFilter;
+  final List<String> availableClasses;
   final bool isDark;
   final Color textColor;
+  final Color cardColor;
 
   @override
   State<_SearchFilters> createState() => _SearchFiltersState();
@@ -381,6 +404,114 @@ class _SearchFiltersState extends State<_SearchFilters> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  void _showClassPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: widget.cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: widget.slate.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Icon(Icons.school_rounded, color: widget.primary, size: 22),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Filter by Class',
+                    style: TextStyle(
+                      color: widget.textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: widget.availableClasses.length,
+                itemBuilder: (context, index) {
+                  final classItem = widget.availableClasses[index];
+                  final value = classItem == 'All Classes' ? 'all' : classItem;
+                  final isSelected = value == widget.activeFilter;
+                  
+                  return InkWell(
+                    onTap: () {
+                      widget.onFilterChanged(value);
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected 
+                            ? widget.primary.withOpacity(0.1) 
+                            : Colors.transparent,
+                        border: Border(
+                          left: BorderSide(
+                            color: isSelected 
+                                ? widget.primary 
+                                : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              classItem,
+                              style: TextStyle(
+                                color: isSelected 
+                                    ? widget.primary 
+                                    : widget.textColor,
+                                fontSize: 15,
+                                fontWeight: isSelected 
+                                    ? FontWeight.w600 
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(
+                              Icons.check_circle,
+                              color: widget.primary,
+                              size: 20,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -471,51 +602,47 @@ class _SearchFiltersState extends State<_SearchFilters> {
             ),
           ),
           const SizedBox(height: 12),
-          // Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _FilterChip(
-                  label: 'All',
-                  value: 'all',
-                  active: widget.activeFilter == 'all',
-                  primary: widget.primary,
-                  chip: widget.chip,
-                  slate: widget.slate,
-                  onTap: () => widget.onFilterChanged('all'),
+          // Class Filter Dropdown
+          GestureDetector(
+            onTap: () => _showClassPicker(context),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: widget.cardColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: widget.isDark ? const Color(0xFF2E3C52) : const Color(0xFFE2E8F0),
+                  width: 1,
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Teaching',
-                  value: 'teaching',
-                  active: widget.activeFilter == 'teaching',
-                  primary: widget.primary,
-                  chip: widget.chip,
-                  slate: widget.slate,
-                  onTap: () => widget.onFilterChanged('teaching'),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Non-Teaching',
-                  value: 'non-teaching',
-                  active: widget.activeFilter == 'non-teaching',
-                  primary: widget.primary,
-                  chip: widget.chip,
-                  slate: widget.slate,
-                  onTap: () => widget.onFilterChanged('non-teaching'),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'On Leave',
-                  value: 'on-leave',
-                  active: widget.activeFilter == 'on-leave',
-                  primary: widget.primary,
-                  chip: widget.chip,
-                  slate: widget.slate,
-                  onTap: () => widget.onFilterChanged('on-leave'),
-                ),
-              ],
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.school_rounded,
+                    color: widget.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.activeFilter == 'all' 
+                          ? 'All Classes' 
+                          : widget.activeFilter,
+                      style: TextStyle(
+                        color: widget.textColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: widget.slate,
+                    size: 20,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
