@@ -10,6 +10,7 @@ import '../../services/cloudflare_r2_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/local_cache_service.dart';
+import '../../widgets/media_preview_card.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
 class StaffRoomChatPage extends StatefulWidget {
@@ -561,110 +562,126 @@ class _MessageBubble extends StatelessWidget {
           constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.75,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: isMe
-                ? primaryColor
-                : theme.colorScheme.surfaceContainerHighest.withOpacity(0.7),
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(16),
-              topRight: const Radius.circular(16),
-              bottomLeft: Radius.circular(isMe ? 16 : 4),
-              bottomRight: Radius.circular(isMe ? 4 : 16),
-            ),
-          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: isMe
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: [
-              if (isForwarded) ...[
-                Row(
-                  children: [
-                    Icon(
-                      Icons.forward,
-                      size: 14,
-                      color: isMe ? Colors.white70 : Colors.black54,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Forwarded',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontStyle: FontStyle.italic,
-                        color: isMe ? Colors.white70 : Colors.black54,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-              ],
               if (!isMe) ...[
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: roleColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        senderRole == 'principal' ? 'Principal' : 'Teacher',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: roleColor,
-                          fontWeight: FontWeight.w600,
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, bottom: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        senderName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textTheme.bodyMedium?.color?.withOpacity(
-                            0.8,
+                        decoration: BoxDecoration(
+                          color: roleColor.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          senderRole == 'principal' ? 'Principal' : 'Teacher',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: roleColor,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          senderName,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: theme.textTheme.bodyMedium?.color
+                                ?.withOpacity(0.8),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: hasAttachment && text.isEmpty ? 4 : 16,
+                  vertical: hasAttachment && text.isEmpty ? 4 : 10,
+                ),
+                decoration: BoxDecoration(
+                  color: isMe
+                      ? primaryColor
+                      : theme.colorScheme.surfaceContainerHighest.withOpacity(
+                          0.7,
+                        ),
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: const Radius.circular(16),
+                    bottomLeft: Radius.circular(isMe ? 16 : 4),
+                    bottomRight: Radius.circular(isMe ? 4 : 16),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isForwarded) ...[
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.forward,
+                            size: 14,
+                            color: isMe ? Colors.white70 : Colors.black54,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Forwarded',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: isMe ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    if (hasAttachment) ...[
+                      _buildAttachmentWidget(
+                        attachmentUrl,
+                        attachmentType ?? 'application/octet-stream',
+                        attachmentName,
+                        thumbnailUrl,
+                      ),
+                      if (text.isNotEmpty) const SizedBox(height: 8),
+                    ],
+                    if (text.isNotEmpty)
+                      Text(
+                        text,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: isMe
+                              ? Colors.white
+                              : theme.textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      timeStr,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isMe
+                            ? Colors.white.withOpacity(0.7)
+                            : theme.textTheme.bodyMedium?.color?.withOpacity(
+                                0.5,
+                              ),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 6),
-              ],
-              if (hasAttachment) ...[
-                _buildAttachmentWidget(
-                  attachmentUrl,
-                  attachmentType ?? 'application/octet-stream',
-                  attachmentName,
-                  thumbnailUrl,
-                  isMe,
-                  theme,
-                ),
-                if (text.isNotEmpty) const SizedBox(height: 8),
-              ],
-              if (text.isNotEmpty)
-                Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: isMe
-                        ? Colors.white
-                        : theme.textTheme.bodyLarge?.color,
-                  ),
-                ),
-              const SizedBox(height: 4),
-              Text(
-                timeStr,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isMe
-                      ? Colors.white.withOpacity(0.7)
-                      : theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
                 ),
               ),
             ],
@@ -679,155 +696,29 @@ class _MessageBubble extends StatelessWidget {
     String type,
     String? name,
     String? thumbnailUrl,
-    bool isMe,
-    ThemeData theme,
   ) {
-    if (type.startsWith('image/')) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          thumbnailUrl ?? url,
-          width: 200,
-          height: 200,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Container(
-              width: 200,
-              height: 200,
-              color: Colors.grey[300],
-              child: const Center(child: CircularProgressIndicator()),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              width: 200,
-              height: 200,
-              color: Colors.grey[300],
-              child: const Icon(Icons.error, color: Colors.red),
-            );
-          },
-        ),
-      );
-    } else if (type == 'application/pdf') {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isMe
-              ? Colors.white.withOpacity(0.2)
-              : Colors.red.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.picture_as_pdf,
-              color: isMe ? Colors.white : Colors.red,
-              size: 32,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name ?? 'Document.pdf',
-                    style: TextStyle(
-                      color: isMe ? Colors.white : Colors.black87,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'PDF Document',
-                    style: TextStyle(
-                      color: isMe ? Colors.white70 : Colors.black54,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    } else if (type.startsWith('audio/')) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isMe
-              ? Colors.white.withOpacity(0.2)
-              : Colors.purple.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.audiotrack,
-              color: isMe ? Colors.white : Colors.purple,
-              size: 32,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name ?? 'Audio.mp3',
-                    style: TextStyle(
-                      color: isMe ? Colors.white : Colors.black87,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Audio File',
-                    style: TextStyle(
-                      color: isMe ? Colors.white70 : Colors.black54,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isMe
-              ? Colors.white.withOpacity(0.2)
-              : Colors.grey.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.insert_drive_file,
-              color: isMe ? Colors.white : Colors.grey,
-              size: 32,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                name ?? 'File',
-                style: TextStyle(
-                  color: isMe ? Colors.white : Colors.black87,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      );
+    // Extract R2 key from URL
+    final uri = Uri.tryParse(url);
+    if (uri == null) return const SizedBox();
+
+    final r2Key = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+
+    return MediaPreviewCard(
+      r2Key: r2Key,
+      fileName: name ?? _fileNameFromUrl(url),
+      mimeType: type,
+      fileSize: 0, // Unknown for existing messages
+      thumbnailBase64: thumbnailUrl,
+      isMe: isMe,
+      selectionMode: false,
+    );
+  }
+
+  String _fileNameFromUrl(String url) {
+    try {
+      return url.split('/').last.split('?').first;
+    } catch (_) {
+      return 'file';
     }
   }
 }

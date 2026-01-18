@@ -516,15 +516,13 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               }
             },
       onLongPress: null, // Let parent GestureDetector handle selection
-      child: Container(
-        width: 260,
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 250,
+          height: 250,
           child: Stack(
+            fit: StackFit.expand,
             children: [
               // Show downloaded image or thumbnail
               if (_isDownloaded && _localPath != null)
@@ -539,35 +537,85 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                       filePath.endsWith('.webp');
 
                   if (!isImageFile) {
-                    return _buildThumbnailFallback();
+                    return Container(
+                      color: Colors.grey[800],
+                      child: const Icon(
+                        Icons.broken_image,
+                        size: 64,
+                        color: Colors.white54,
+                      ),
+                    );
                   }
 
                   return Image.file(
                     File(_localPath!),
-                    height: 260,
-                    width: 260,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
-                      return _buildThumbnailFallback();
+                      return Container(
+                        color: Colors.grey[800],
+                        child: const Icon(
+                          Icons.broken_image,
+                          size: 64,
+                          color: Colors.white54,
+                        ),
+                      );
                     },
                   );
                 }()
               else if (widget.thumbnailBase64 != null &&
                   widget.thumbnailBase64!.isNotEmpty)
-                ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child: ColorFiltered(
-                    colorFilter: const ColorFilter.mode(
-                      Colors.black38,
-                      BlendMode.darken,
-                    ),
-                    child: _buildThumbnailFallback(),
-                  ),
-                )
+                () {
+                  // Check if it's a URL or base64 data
+                  if (widget.thumbnailBase64!.startsWith('http')) {
+                    // It's a URL, use Image.network
+                    return ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: ColorFiltered(
+                        colorFilter: const ColorFilter.mode(
+                          Colors.black38,
+                          BlendMode.darken,
+                        ),
+                        child: Image.network(
+                          widget.thumbnailBase64!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: Colors.grey[800],
+                            child: const Icon(
+                              Icons.image,
+                              size: 64,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  } else {
+                    // It's base64 data
+                    return ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: ColorFiltered(
+                        colorFilter: const ColorFilter.mode(
+                          Colors.black38,
+                          BlendMode.darken,
+                        ),
+                        child: Image.memory(
+                          base64Decode(widget.thumbnailBase64!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: Colors.grey[800],
+                            child: const Icon(
+                              Icons.image,
+                              size: 64,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                }()
               else
                 Container(
-                  height: 260,
-                  width: 260,
                   color: Colors.grey[800],
                   child: const Icon(
                     Icons.image,
