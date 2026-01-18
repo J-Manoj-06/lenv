@@ -3,14 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import './teacher_insights_details_page.dart';
 
 class AllTeachersStatsPage extends StatefulWidget {
-  const AllTeachersStatsPage({
-    super.key,
-    required this.schoolCode,
-    required this.range,
-  });
+  const AllTeachersStatsPage({super.key, required this.schoolCode});
 
   final String schoolCode;
-  final String range;
 
   @override
   State<AllTeachersStatsPage> createState() => _AllTeachersStatsPageState();
@@ -554,7 +549,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
                                       teacherId: teacher['uid'],
                                       teacherName: teacher['name'],
                                       schoolCode: widget.schoolCode,
-                                      range: widget.range,
                                     ),
                               ),
                             );

@@ -8,12 +8,10 @@ class ClassSectionsPerformersPage extends StatefulWidget {
     super.key,
     required this.className,
     required this.schoolCode,
-    required this.range,
   });
 
   final String className;
   final String schoolCode;
-  final String range;
 
   @override
   State<ClassSectionsPerformersPage> createState() =>

@@ -9,13 +9,11 @@ class TeacherInsightsDetailsPage extends StatefulWidget {
     required this.teacherId,
     required this.teacherName,
     required this.schoolCode,
-    required this.range,
   });
 
   final String teacherId;
   final String teacherName;
   final String schoolCode;
-  final String range;
 
   @override
   State<TeacherInsightsDetailsPage> createState() =>
@@ -41,7 +39,6 @@ class _TeacherInsightsDetailsPageState
     try {
       final detail = await _repository.getTeacherTestsDetail(
         schoolCode: widget.schoolCode,
-        range: widget.range,
         teacherId: widget.teacherId,
       );
 
@@ -144,12 +141,9 @@ class _TeacherInsightsDetailsPageState
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'in ${widget.range}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                        ),
+                      const Text(
+                        'All-time',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                     ],
                   ),

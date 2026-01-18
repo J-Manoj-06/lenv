@@ -2,14 +2,9 @@ import 'package:flutter/material.dart';
 import './all_teachers_stats_page.dart';
 
 class InsightsTeacherPerformanceCard extends StatelessWidget {
-  const InsightsTeacherPerformanceCard({
-    super.key,
-    required this.schoolCode,
-    required this.range,
-  });
+  const InsightsTeacherPerformanceCard({super.key, required this.schoolCode});
 
   final String schoolCode;
-  final String range;
 
   @override
   Widget build(BuildContext context) {
@@ -25,8 +20,7 @@ class InsightsTeacherPerformanceCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                AllTeachersStatsPage(schoolCode: schoolCode, range: range),
+            builder: (context) => AllTeachersStatsPage(schoolCode: schoolCode),
           ),
         );
       },

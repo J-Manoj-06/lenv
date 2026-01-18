@@ -134,46 +134,20 @@ class InsightsRepository {
   /// Fetch teacher detailed tests
   Future<TeacherTestsDetail?> getTeacherTestsDetail({
     required String schoolCode,
-    required String range,
     required String teacherId,
     bool forceRefresh = false,
   }) async {
-    final cacheKey = '${schoolCode}_${range}_$teacherId';
+    final cacheKey = '${schoolCode}_alltime_$teacherId';
 
     if (!forceRefresh && _teacherTestsCache.containsKey(cacheKey)) {
       return _teacherTestsCache[cacheKey];
     }
 
     try {
-      // First try to get from pre-computed insights collection
-      final docId = cacheKey;
-      final doc = await _firestore
-          .collection('insights_teacher_tests')
-          .doc(docId)
-          .get();
+      // Fetch ALL test results for this teacher (no time filtering)
+      print('📊 Fetching all-time test data for teacherId: $teacherId');
 
-      if (doc.exists) {
-        final detail = TeacherTestsDetail.fromFirestore(doc);
-        _teacherTestsCache[cacheKey] = detail;
-        return detail;
-      }
-
-      // If not found, compute from testResults collection (where actual test data is)
-      print('⚠️ No pre-computed data for $docId, fetching from testResults...');
-
-      // Calculate date range for the query
-      final now = DateTime.now();
-      DateTime cutoffDate;
-      if (range == '7d') {
-        cutoffDate = now.subtract(const Duration(days: 7));
-      } else if (range == '30d') {
-        cutoffDate = now.subtract(const Duration(days: 30));
-      } else {
-        // monthly - go back 30 days
-        cutoffDate = now.subtract(const Duration(days: 30));
-      }
-
-      // Get completed test results for this teacher
+      // Get ALL completed test results for this teacher
       final testResultsSnapshot = await _firestore
           .collection('testResults')
           .where('teacherId', isEqualTo: teacherId)
@@ -182,7 +156,7 @@ class InsightsRepository {
           .get();
 
       print(
-        '📊 Found ${testResultsSnapshot.docs.length} test results with teacherId=$teacherId',
+        '📊 Found ${testResultsSnapshot.docs.length} test results for teacherId=$teacherId',
       );
 
       if (testResultsSnapshot.docs.isEmpty) {
@@ -191,7 +165,7 @@ class InsightsRepository {
         return TeacherTestsDetail(
           teacherId: teacherId,
           schoolCode: schoolCode,
-          range: range,
+          range: 'alltime',
           updatedAt: DateTime.now(),
           recentTests: [],
         );
@@ -208,9 +182,6 @@ class InsightsRepository {
 
         if (testId == null || completedAt == null) continue;
 
-        // Filter by date range
-        if (completedAt.isBefore(cutoffDate)) continue;
-
         // Store test info if not already stored
         if (!uniqueTests.containsKey(testId)) {
           uniqueTests[testId] = {
@@ -224,12 +195,9 @@ class InsightsRepository {
         }
 
         // Collect scores for average calculation
+        // The 'score' field in testResults is already a percentage (0-100)
         final score = (data['score'] as num?)?.toDouble() ?? 0.0;
-        final totalMarks = (data['totalMarks'] as num?)?.toDouble() ?? 1.0;
-        if (totalMarks > 0) {
-          final percentage = (score / totalMarks) * 100;
-          testScores[testId]!.add(percentage);
-        }
+        testScores[testId]!.add(score);
       }
 
       print(
@@ -261,7 +229,7 @@ class InsightsRepository {
       final detail = TeacherTestsDetail(
         teacherId: teacherId,
         schoolCode: schoolCode,
-        range: range,
+        range: 'alltime',
         updatedAt: DateTime.now(),
         recentTests: tests,
       );

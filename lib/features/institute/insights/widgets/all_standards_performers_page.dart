@@ -3,14 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import './class_sections_performers_page.dart';
 
 class AllStandardsPerformersPage extends StatefulWidget {
-  const AllStandardsPerformersPage({
-    super.key,
-    required this.schoolCode,
-    required this.range,
-  });
+  const AllStandardsPerformersPage({super.key, required this.schoolCode});
 
   final String schoolCode;
-  final String range;
 
   @override
   State<AllStandardsPerformersPage> createState() =>
@@ -120,7 +115,6 @@ class _AllStandardsPerformersPageState
                           builder: (context) => ClassSectionsPerformersPage(
                             className: standard,
                             schoolCode: widget.schoolCode,
-                            range: widget.range,
                           ),
                         ),
                       );

@@ -17,7 +17,6 @@ class InstituteInsightsPage extends StatefulWidget {
 class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
   final InsightsRepository _repository = InsightsRepository();
 
-  String _selectedRange = '7d';
   bool _isAggregating = false;
 
   @override
@@ -83,10 +82,6 @@ class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
     }
   }
 
-  void _onRangeChanged(String range) {
-    setState(() => _selectedRange = range);
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -100,8 +95,6 @@ class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
         child: Column(
           children: [
             _TopBar(
-              selectedRange: _selectedRange,
-              onRangeChanged: _onRangeChanged,
               onRefresh: _triggerAggregation,
               isAggregating: _isAggregating,
             ),
@@ -113,23 +106,18 @@ class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Card 1: Top Performers
-                    InsightsTopPerformersCard(
-                      schoolCode: schoolCode,
-                      range: _selectedRange,
-                    ),
+                    InsightsTopPerformersCard(schoolCode: schoolCode),
                     const SizedBox(height: 16),
 
                     // Card 2: Teacher Performance
-                    InsightsTeacherPerformanceCard(
-                      schoolCode: schoolCode,
-                      range: _selectedRange,
-                    ),
+                    InsightsTeacherPerformanceCard(schoolCode: schoolCode),
                     const SizedBox(height: 16),
 
                     // Card 3: AI Analysis
                     InsightsAIAnalysisCard(
                       schoolCode: schoolCode,
-                      range: _selectedRange,
+                      range:
+                          '30d', // Keep for AI analysis backward compatibility
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -144,15 +132,8 @@ class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({
-    required this.selectedRange,
-    required this.onRangeChanged,
-    required this.onRefresh,
-    required this.isAggregating,
-  });
+  const _TopBar({required this.onRefresh, required this.isAggregating});
 
-  final String selectedRange;
-  final ValueChanged<String> onRangeChanged;
   final VoidCallback onRefresh;
   final bool isAggregating;
 
@@ -182,9 +163,7 @@ class _TopBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 8),
-          _RangeToggle(selected: selectedRange, onTap: onRangeChanged),
-          const SizedBox(width: 8),
+          const Spacer(),
           IconButton(
             onPressed: isAggregating ? null : onRefresh,
             icon: isAggregating
@@ -243,56 +222,6 @@ class _AggregationProgressDialog extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _RangeToggle extends StatelessWidget {
-  const _RangeToggle({required this.selected, required this.onTap});
-
-  final String selected;
-  final ValueChanged<String> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0);
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: ['7d', '30d', 'monthly']
-            .map(
-              (r) => GestureDetector(
-                onTap: () => onTap(r),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected == r
-                        ? const Color(0xFF146D7A)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    r,
-                    style: TextStyle(
-                      color: selected == r ? Colors.white : Colors.grey,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            )
-            .toList(),
       ),
     );
   }
