@@ -326,47 +326,27 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     // Use orange for teachers, teal for principals
     final primaryColor = widget.isTeacher
         ? const Color(0xFFF97316) // Orange
         : const Color(0xFF146D7A); // Teal
 
+    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.business, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Staff Room',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    'All Principals & Teachers',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        backgroundColor: bgColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.chevron_left, color: textColor, size: 32),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.isTeacher ? 'Teacher Group Chat' : 'Principal Chat',
+          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
         ),
       ),
       body: Column(
