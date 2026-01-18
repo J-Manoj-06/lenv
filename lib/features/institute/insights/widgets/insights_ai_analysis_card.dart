@@ -28,8 +28,17 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
   AIInsightsReport? _report;
 
   final List<String> _scopes = ['Whole School', 'Standard', 'Section', 'Class'];
-  final List<String> _standards = ['6', '7', '8', '9', '10', '11', '12'];
-  final List<String> _sections = ['A', 'B', 'C', 'D'];
+  final List<String> _standards = [
+    'Select',
+    '6',
+    '7',
+    '8',
+    '9',
+    '10',
+    '11',
+    '12',
+  ];
+  final List<String> _sections = ['Select', 'A', 'B', 'C', 'D'];
   final List<String> _metrics = [
     'Performance',
     'Attendance',

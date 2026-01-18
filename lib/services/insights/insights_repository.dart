@@ -242,36 +242,88 @@ class InsightsRepository {
     }
   }
 
-  /// Fetch aggregated metrics for AI analysis
+  /// Fetch aggregated metrics for AI analysis (last 15 days only, minimal data)
   Future<InsightsMetrics?> getInsightsMetrics({
     required String schoolCode,
     required String range,
     required String scopeKey,
     bool forceRefresh = false,
   }) async {
-    final cacheKey = '${schoolCode}_${range}_$scopeKey';
+    final cacheKey = '${schoolCode}_15d_$scopeKey';
 
     if (!forceRefresh && _metricsCache.containsKey(cacheKey)) {
       return _metricsCache[cacheKey];
     }
 
     try {
-      final docId = cacheKey;
-      final doc = await _firestore
-          .collection('insights_metrics')
-          .doc(docId)
+      // Instead of pre-aggregated data, compute minimal metrics from last 15 days
+      print(
+        '📊 Computing minimal metrics from last 15 days for AI analysis...',
+      );
+
+      final now = DateTime.now();
+      final cutoffDate = now.subtract(const Duration(days: 15));
+      final cutoffTimestamp = Timestamp.fromDate(cutoffDate);
+
+      // Get test results from last 15 days only
+      final testResultsSnapshot = await _firestore
+          .collection('testResults')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('status', isEqualTo: 'completed')
+          .where('completedAt', isGreaterThanOrEqualTo: cutoffTimestamp)
           .get();
 
-      if (!doc.exists) {
-        print('⚠️ No metrics data for $docId');
+      if (testResultsSnapshot.docs.isEmpty) {
+        print('⚠️ No test data in last 15 days for $schoolCode');
         return null;
       }
 
-      final metrics = InsightsMetrics.fromFirestore(doc);
+      // Compute minimal aggregated metrics
+      double totalScore = 0;
+      int validScores = 0;
+      Set<String> uniqueTests = {};
+
+      for (var doc in testResultsSnapshot.docs) {
+        final data = doc.data();
+        final score = (data['score'] as num?)?.toDouble();
+        final testId = data['testId'] as String?;
+
+        if (score != null && score >= 0 && score <= 100) {
+          totalScore += score;
+          validScores++;
+        }
+
+        if (testId != null) uniqueTests.add(testId);
+      }
+
+      final avgScore = validScores > 0 ? totalScore / validScores : 0.0;
+      final participation = validScores > 0
+          ? (validScores.toDouble() / testResultsSnapshot.docs.length) * 100
+          : 0.0;
+
+      // Create minimal metrics object
+      final metrics = InsightsMetrics(
+        schoolCode: schoolCode,
+        range: '15d',
+        scopeKey: scopeKey,
+        avgScore: avgScore,
+        testCount: uniqueTests.length,
+        updatedAt: now,
+        // Minimal data - only essentials
+        attendanceAvg: 0.0,
+        participationAvg: participation,
+        topImproversCount: 0,
+        weakStudentsCount: 0,
+        subjectAverages: {},
+      );
+
       _metricsCache[cacheKey] = metrics;
+      print(
+        '✅ Computed metrics: ${uniqueTests.length} tests, avg ${avgScore.toStringAsFixed(1)}%',
+      );
       return metrics;
     } catch (e) {
-      print('❌ Error fetching metrics: $e');
+      print('❌ Error computing metrics: $e');
       return null;
     }
   }

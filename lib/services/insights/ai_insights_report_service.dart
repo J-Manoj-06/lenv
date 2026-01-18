@@ -95,11 +95,11 @@ class AIInsightsReportService {
           'messages': [
             {
               'role': 'system',
-              'content': '''You are an educational data analyst. 
-Generate a structured school insights report with exactly this format:
+              'content':
+                  '''Educational analyst. Generate concise school report in this format:
 
 Summary:
-[2-3 sentences overview]
+[2 sentences max]
 
 Strengths:
 - [strength 1]
@@ -108,20 +108,20 @@ Strengths:
 
 Weak Areas:
 - [weakness 1]
-- [weakness 2]
+- [weakness 2]  
 - [weakness 3]
 
-Recommended Actions:
+Actions:
 - [action 1]
 - [action 2]
 - [action 3]
 
-Be specific and actionable. Use the metrics provided.''',
+Be specific.''',
             },
             {'role': 'user', 'content': prompt},
           ],
           'temperature': 0.7,
-          'max_tokens': 800,
+          'max_tokens': 500,
         }),
       );
 
@@ -139,48 +139,48 @@ Be specific and actionable. Use the metrics provided.''',
     }
   }
 
-  /// Build AI prompt from metrics
+  /// Build AI prompt from metrics (compact format to reduce tokens)
   String _buildPrompt(InsightsMetrics metrics, String metricType) {
     return '''
-Analyze this school data for ${metrics.scopeKey} over ${metrics.range}:
+School: ${metrics.schoolCode} | Last 15 days | Scope: ${metrics.scopeKey}
 
-Metrics:
-${metrics.toAIPromptJson()}
+Data:
+- Avg Score: ${metrics.avgScore.toStringAsFixed(1)}%
+- Tests: ${metrics.testCount}
+- Participation: ${metrics.participationAvg.toStringAsFixed(1)}%
 
-Focus Area: $metricType
+Focus: $metricType
 
-Generate a structured report with:
-1. Summary (2-3 sentences)
-2. Top 3 Strengths
-3. Top 3 Weak Areas
-4. Top 3 Recommended Actions
+Provide:
+1. Summary (2 sentences)
+2. 3 Strengths
+3. 3 Weak Areas  
+4. 3 Actions
 
-Be specific and actionable.
+Be concise.
 ''';
   }
 
-  /// Fallback report if API fails
+  /// Fallback report if API fails (compact version)
   String _generateFallbackReport(InsightsMetrics metrics, String metricType) {
-    final scope = metrics.scopeKey == 'school' ? 'School' : 'Selected scope';
-
     return '''
 Summary:
-$scope shows an average score of ${metrics.avgScore.toStringAsFixed(1)}% with ${metrics.testCount} tests conducted in the ${metrics.range} period. Attendance average is ${metrics.attendanceAvg.toStringAsFixed(1)}%.
+Last 15 days: ${metrics.testCount} tests completed, avg ${metrics.avgScore.toStringAsFixed(1)}% performance.
 
 Strengths:
-- Overall performance is ${metrics.avgScore >= 75 ? 'above' : 'near'} acceptable levels
-- ${metrics.topImproversCount} students showing improvement
-- Test participation rate is ${metrics.participationAvg.toStringAsFixed(1)}%
+- Performance at ${metrics.avgScore >= 75 ? 'good' : 'acceptable'} level
+- ${metrics.testCount} assessments completed
+- Active participation
 
 Weak Areas:
-- ${metrics.weakStudentsCount} students need additional support
-- Some subjects showing below-average performance
-- Attendance could be improved in certain areas
+- Need more consistent testing
+- Some students below target
+- Tracking improvements needed
 
-Recommended Actions:
-- Implement targeted intervention for struggling students
-- Conduct subject-specific remedial sessions
-- Monitor and encourage consistent attendance
+Actions:
+- Focus on struggling students
+- Increase test frequency
+- Monitor participation rates
 ''';
   }
 }
