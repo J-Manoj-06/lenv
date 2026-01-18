@@ -287,14 +287,19 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         print('DEBUG: Error fetching scheduledTests: $e');
       }
 
-      // Filter out teachers with no tests conducted
-      final teachersWithTests = teachers.where((teacher) {
-        final totalTests = teacher['totalTests'] as int;
-        return totalTests > 0;
-      }).toList();
+      // Sort teachers by test count (highest first), then by name
+      teachers.sort((a, b) {
+        final aTests = a['totalTests'] as int;
+        final bTests = b['totalTests'] as int;
+        if (aTests != bTests) {
+          return bTests.compareTo(aTests); // Descending by tests
+        }
+        return (a['name'] as String).compareTo(b['name'] as String);
+      });
 
+      final teachersWithTests = teachers.where((t) => (t['totalTests'] as int) > 0).length;
       print(
-        'DEBUG: ${teachersWithTests.length} out of ${teachers.length} teachers have conducted tests',
+        'DEBUG: $teachersWithTests out of ${teachers.length} teachers have conducted tests',
       );
 
       final standards = classNamesSet.toList()..sort();
@@ -302,7 +307,7 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
 
       if (mounted) {
         setState(() {
-          _teachers = teachersWithTests;
+          _teachers = teachers; // Show ALL teachers, not just those with tests
           _availableStandards = standards;
           _applyFilters();
           _isLoading = false;
