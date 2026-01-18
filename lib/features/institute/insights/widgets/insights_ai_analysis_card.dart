@@ -32,13 +32,7 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
   final List<String> _scopes = ['Whole School', 'Standard', 'Section'];
   List<String> _standards = ['Select'];
   List<String> _sections = ['Select'];
-  final List<String> _metrics = [
-    'Performance',
-    'Attendance',
-    'Participation',
-    'Weak Subjects',
-    'Improvement',
-  ];
+  final List<String> _metrics = ['Performance', 'Attendance'];
 
   @override
   void initState() {

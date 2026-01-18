@@ -77,14 +77,7 @@ class InsightsTeacherPerformanceCard extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Text(
-                'Data loads when tapped',
-                style: TextStyle(color: subtitleColor, fontSize: 14),
-              ),
-            ),
+            ),    
           ],
         ),
       ),

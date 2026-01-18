@@ -76,60 +76,74 @@ class AIInsightsReport {
     required String metric,
     required String aiResponseText,
   }) {
-    // Parse AI response (assumes structured format)
-    final lines = aiResponseText.split('\n');
+    // Clean response - remove markdown formatting
+    String cleanText = aiResponseText
+        .replaceAll('**', '')
+        .replaceAll('###', '')
+        .replaceAll('##', '')
+        .replaceAll('#', '');
+
+    final lines = cleanText.split('\n');
     String summary = '';
     final strengths = <String>[];
     final weakAreas = <String>[];
     final suggestedActions = <String>[];
 
     String currentSection = '';
+    bool summaryStarted = false;
+
     for (var line in lines) {
       final trimmed = line.trim();
       if (trimmed.isEmpty) continue;
 
-      if (trimmed.toLowerCase().contains('summary:')) {
+      // Detect sections
+      final lowerLine = trimmed.toLowerCase();
+      if (lowerLine.startsWith('summary:')) {
         currentSection = 'summary';
+        summaryStarted = false;
+        // Check if summary is on same line
+        final afterColon = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+        if (afterColon.isNotEmpty) {
+          summary = afterColon;
+          summaryStarted = true;
+        }
         continue;
-      } else if (trimmed.toLowerCase().contains('strength')) {
+      } else if (lowerLine.contains('strength')) {
         currentSection = 'strengths';
         continue;
-      } else if (trimmed.toLowerCase().contains('weak')) {
+      } else if (lowerLine.contains('weak')) {
         currentSection = 'weakAreas';
         continue;
-      } else if (trimmed.toLowerCase().contains('action') ||
-          trimmed.toLowerCase().contains('recommendation')) {
+      } else if (lowerLine.contains('action') ||
+          lowerLine.contains('recommendation')) {
         currentSection = 'suggestedActions';
         continue;
       }
 
-      if (currentSection == 'summary') {
-        summary += '$trimmed ';
-      } else if (currentSection == 'strengths' &&
-          (trimmed.startsWith('-') ||
-              trimmed.startsWith('•') ||
-              trimmed.startsWith('*'))) {
-        strengths.add(trimmed.substring(1).trim());
-      } else if (currentSection == 'weakAreas' &&
-          (trimmed.startsWith('-') ||
-              trimmed.startsWith('•') ||
-              trimmed.startsWith('*'))) {
-        weakAreas.add(trimmed.substring(1).trim());
-      } else if (currentSection == 'suggestedActions' &&
-          (trimmed.startsWith('-') ||
-              trimmed.startsWith('•') ||
-              trimmed.startsWith('*'))) {
-        suggestedActions.add(trimmed.substring(1).trim());
+      // Parse content based on section
+      if (currentSection == 'summary' && !summaryStarted) {
+        summary = trimmed;
+        summaryStarted = true;
+      } else if (currentSection == 'strengths') {
+        final cleaned = _extractBulletPoint(trimmed);
+        if (cleaned.isNotEmpty) strengths.add(cleaned);
+      } else if (currentSection == 'weakAreas') {
+        final cleaned = _extractBulletPoint(trimmed);
+        if (cleaned.isNotEmpty) weakAreas.add(cleaned);
+      } else if (currentSection == 'suggestedActions') {
+        final cleaned = _extractBulletPoint(trimmed);
+        if (cleaned.isNotEmpty) suggestedActions.add(cleaned);
       }
     }
 
     // Fallback if parsing fails
     if (summary.isEmpty) {
-      summary = aiResponseText.substring(
-        0,
-        aiResponseText.length > 200 ? 200 : aiResponseText.length,
-      );
+      summary = 'Analysis completed for ${metric.toLowerCase()}';
     }
+    if (strengths.isEmpty) strengths.add('Data analysis in progress');
+    if (weakAreas.isEmpty) weakAreas.add('Review pending');
+    if (suggestedActions.isEmpty)
+      suggestedActions.add('Recommendations will be provided');
 
     return AIInsightsReport(
       reportId: reportId,
@@ -138,12 +152,27 @@ class AIInsightsReport {
       scopeKey: scopeKey,
       metric: metric,
       summary: summary.trim(),
-      strengths: strengths.isNotEmpty ? strengths : ['Analysis in progress'],
-      weakAreas: weakAreas.isNotEmpty ? weakAreas : ['Analysis in progress'],
-      suggestedActions: suggestedActions.isNotEmpty
-          ? suggestedActions
-          : ['Recommendations being generated'],
+      strengths: strengths.take(3).toList(),
+      weakAreas: weakAreas.take(3).toList(),
+      suggestedActions: suggestedActions.take(3).toList(),
       generatedAt: DateTime.now(),
     );
+  }
+
+  /// Extract bullet point content, handling -, •, *, or numbered lists
+  static String _extractBulletPoint(String line) {
+    final trimmed = line.trim();
+    // Handle numbered lists: "1.", "2.", etc.
+    final numMatch = RegExp(r'^\d+\.\s*(.*)').firstMatch(trimmed);
+    if (numMatch != null) {
+      return numMatch.group(1)?.trim() ?? '';
+    }
+    // Handle bullet points: -, •, *
+    if (trimmed.startsWith('-') ||
+        trimmed.startsWith('•') ||
+        trimmed.startsWith('*')) {
+      return trimmed.substring(1).trim();
+    }
+    return '';
   }
 }

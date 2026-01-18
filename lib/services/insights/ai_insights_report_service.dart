@@ -83,6 +83,16 @@ class AIInsightsReportService {
 
     final prompt = _buildPrompt(metrics, metricType);
 
+    // Metric-specific system prompts
+    String systemPrompt;
+    if (metricType == 'Attendance') {
+      systemPrompt =
+          'Attendance analyst. Analyze ONLY attendance data. Do NOT mention performance, scores, or test results. Reply format:\n\nSummary:\n[One line about attendance]\n\nStrengths:\n- [attendance strength 1]\n- [attendance strength 2]\n- [attendance strength 3]\n\nWeak Areas:\n- [attendance weakness 1]\n- [attendance weakness 2]\n- [attendance weakness 3]\n\nActions:\n- [attendance action 1]\n- [attendance action 2]\n- [attendance action 3]';
+    } else {
+      systemPrompt =
+          'Performance analyst. Analyze ONLY test scores and performance. Do NOT mention attendance. Reply format:\n\nSummary:\n[One line about performance]\n\nStrengths:\n- [performance strength 1]\n- [performance strength 2]\n- [performance strength 3]\n\nWeak Areas:\n- [performance weakness 1]\n- [performance weakness 2]\n- [performance weakness 3]\n\nActions:\n- [performance action 1]\n- [performance action 2]\n- [performance action 3]';
+    }
+
     try {
       final response = await http.post(
         Uri.parse(_apiUrl),
@@ -93,35 +103,11 @@ class AIInsightsReportService {
         body: jsonEncode({
           'model': 'deepseek-chat',
           'messages': [
-            {
-              'role': 'system',
-              'content':
-                  '''Educational analyst. Generate concise school report in this format:
-
-Summary:
-[2 sentences max]
-
-Strengths:
-- [strength 1]
-- [strength 2]
-- [strength 3]
-
-Weak Areas:
-- [weakness 1]
-- [weakness 2]  
-- [weakness 3]
-
-Actions:
-- [action 1]
-- [action 2]
-- [action 3]
-
-Be specific.''',
-            },
+            {'role': 'system', 'content': systemPrompt},
             {'role': 'user', 'content': prompt},
           ],
           'temperature': 0.7,
-          'max_tokens': 500,
+          'max_tokens': 300,
         }),
       );
 
@@ -141,46 +127,70 @@ Be specific.''',
 
   /// Build AI prompt from metrics (compact format to reduce tokens)
   String _buildPrompt(InsightsMetrics metrics, String metricType) {
-    return '''
-School: ${metrics.schoolCode} | Last 15 days | Scope: ${metrics.scopeKey}
+    // Customize prompt based on metric type - STRICTLY separate
+    if (metricType == 'Attendance') {
+      return '''15-day attendance analysis for ${metrics.scopeKey}:
 
-Data:
-- Avg Score: ${metrics.avgScore.toStringAsFixed(1)}%
-- Tests: ${metrics.testCount}
-- Participation: ${metrics.participationAvg.toStringAsFixed(1)}%
+Attendance Rate: ${metrics.attendanceAvg.toStringAsFixed(0)}%
+Students needing attention: ${metrics.weakStudentsCount}
+Tracking sessions: ${metrics.testCount}
 
-Focus: $metricType
+Analyze attendance patterns only. Focus on presence/absence trends, regularity, and student engagement in attending school. Do not discuss test scores or academic performance.''';
+    } else {
+      // Performance metric - DO NOT include attendance
+      return '''15-day academic performance for ${metrics.scopeKey}:
 
-Provide:
-1. Summary (2 sentences)
-2. 3 Strengths
-3. 3 Weak Areas  
-4. 3 Actions
+Average Score: ${metrics.avgScore.toStringAsFixed(0)}%
+Tests Conducted: ${metrics.testCount}
+Student Participation: ${metrics.participationAvg.toStringAsFixed(0)}%
+Weak Performers: ${metrics.weakStudentsCount}
 
-Be concise.
-''';
+Analyze test performance and academic results only. Focus on scores, understanding, and learning outcomes. Do not discuss attendance.''';
+    }
   }
 
   /// Fallback report if API fails (compact version)
   String _generateFallbackReport(InsightsMetrics metrics, String metricType) {
-    return '''
+    if (metricType == 'Attendance') {
+      return '''
 Summary:
-Last 15 days: ${metrics.testCount} tests completed, avg ${metrics.avgScore.toStringAsFixed(1)}% performance.
+Attendance rate is ${metrics.attendanceAvg.toStringAsFixed(0)}% over 15 days.
 
 Strengths:
-- Performance at ${metrics.avgScore >= 75 ? 'good' : 'acceptable'} level
-- ${metrics.testCount} assessments completed
-- Active participation
+- Regular attendance tracking maintained
+- ${metrics.testCount} sessions monitored
+- System captures daily presence
 
 Weak Areas:
-- Need more consistent testing
-- Some students below target
-- Tracking improvements needed
+- ${metrics.attendanceAvg.toStringAsFixed(0)}% rate needs improvement
+- ${metrics.weakStudentsCount} students frequently absent
+- Consistency gaps observed
 
 Actions:
-- Focus on struggling students
-- Increase test frequency
-- Monitor participation rates
+- Contact parents of frequent absentees
+- Implement attendance rewards program
+- Monitor and address absence patterns
 ''';
+    } else {
+      return '''
+Summary:
+Average performance is ${metrics.avgScore.toStringAsFixed(0)}% across ${metrics.testCount} assessments.
+
+Strengths:
+- ${metrics.testCount} tests completed successfully
+- ${metrics.participationAvg.toStringAsFixed(0)}% student participation
+- Regular assessments maintained
+
+Weak Areas:
+- Overall score at ${metrics.avgScore.toStringAsFixed(0)}% needs improvement
+- ${metrics.weakStudentsCount} students below target
+- Concept mastery gaps identified
+
+Actions:
+- Provide targeted tutoring for weak students
+- Increase practice and revision sessions
+- Focus on difficult topics and concepts
+''';
+    }
   }
 }
