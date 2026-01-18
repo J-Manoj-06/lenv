@@ -19,6 +19,7 @@ class InsightsAIAnalysisCard extends StatefulWidget {
 
 class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
   final AIInsightsReportService _aiService = AIInsightsReportService();
+  final PageController _pageController = PageController();
 
   String _selectedScope = 'Whole School';
   String? _selectedStandard;
@@ -28,6 +29,7 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
   bool _isGenerating = false;
   bool _isLoadingOptions = true;
   AIInsightsReport? _report;
+  int _currentCardIndex = 0;
 
   final List<String> _scopes = ['Whole School', 'Standard', 'Section'];
   List<String> _standards = ['Select'];
@@ -38,6 +40,12 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
   void initState() {
     super.initState();
     _loadAvailableOptions();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -347,10 +355,10 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
                   ),
                 ),
 
-                // Report Display
+                // Report Display with Carousel
                 if (_report != null) ...[
                   const SizedBox(height: 24),
-                  _buildReportDisplay(
+                  _buildCarouselReport(
                     _report!,
                     textColor,
                     subtitleColor,
@@ -416,6 +424,778 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
         ),
       ],
     );
+  }
+
+  Widget _buildCarouselReport(
+    AIInsightsReport report,
+    Color textColor,
+    Color subtitleColor,
+    bool isDark,
+  ) {
+    return Column(
+      children: [
+        // Carousel
+        SizedBox(
+          height: 420,
+          child: PageView(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() => _currentCardIndex = index);
+            },
+            children: [
+              _buildOverviewCard(report, textColor, subtitleColor, isDark),
+              _buildStrengthsCard(report, textColor, subtitleColor, isDark),
+              _buildWeakAreasCard(report, textColor, subtitleColor, isDark),
+              _buildActionPlanCard(report, textColor, subtitleColor, isDark),
+              _buildTrendCard(report, textColor, subtitleColor, isDark),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Dot Indicators
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            5,
+            (index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: _currentCardIndex == index ? 24 : 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: _currentCardIndex == index
+                    ? const Color(0xFF146D7A)
+                    : subtitleColor.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Swipe Hint
+        if (_currentCardIndex < 4)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.swipe,
+                color: subtitleColor.withOpacity(0.6),
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Swipe to see more insights →',
+                style: TextStyle(
+                  color: subtitleColor.withOpacity(0.7),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  // Card 1: Overview with AI Score
+  Widget _buildOverviewCard(
+    AIInsightsReport report,
+    Color textColor,
+    Color subtitleColor,
+    bool isDark,
+  ) {
+    final aiScore = _calculateAIScore(report);
+    final status = _getPerformanceStatus(aiScore);
+    final statusColor = _getStatusColor(status);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+              : [Colors.white, const Color(0xFFF8FAFC)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF146D7A).withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Card Title
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF146D7A).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.analytics_rounded,
+                  color: Color(0xFF146D7A),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'AI Overview',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // AI Score Display
+          Center(
+            child: Column(
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 140,
+                      height: 140,
+                      child: CircularProgressIndicator(
+                        value: aiScore / 100,
+                        strokeWidth: 12,
+                        backgroundColor: subtitleColor.withOpacity(0.1),
+                        valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                      ),
+                    ),
+                    Column(
+                      children: [
+                        Text(
+                          aiScore.toStringAsFixed(0),
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 48,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          'AI Score',
+                          style: TextStyle(
+                            color: subtitleColor,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: statusColor.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _getStatusIcon(status),
+                        color: statusColor,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        status,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Summary (2 lines max)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              _truncateSummary(report.summary, 2),
+              style: TextStyle(color: subtitleColor, fontSize: 13, height: 1.6),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Card 2: Strengths
+  Widget _buildStrengthsCard(
+    AIInsightsReport report,
+    Color textColor,
+    Color subtitleColor,
+    bool isDark,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [const Color(0xFF064E3B), const Color(0xFF022C22)]
+              : [const Color(0xFFECFDF5), Colors.white],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10B981).withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.trending_up_rounded,
+                  color: Color(0xFF10B981),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Key Strengths',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Strengths List
+          Expanded(
+            child: ListView.builder(
+              itemCount: report.strengths.take(5).length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFF10B981),
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          report.strengths[index],
+                          style: TextStyle(
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
+                            fontSize: 13,
+                            height: 1.6,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Card 3: Weak Areas
+  Widget _buildWeakAreasCard(
+    AIInsightsReport report,
+    Color textColor,
+    Color subtitleColor,
+    bool isDark,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [const Color(0xFF7C2D12), const Color(0xFF431407)]
+              : [const Color(0xFFFEF3C7), Colors.white],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF59E0B).withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.warning_rounded,
+                  color: Color(0xFFF59E0B),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Areas to Improve',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Weak Areas List
+          Expanded(
+            child: ListView.builder(
+              itemCount: report.weakAreas.take(5).length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.priority_high_rounded,
+                          color: Color(0xFFF59E0B),
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          report.weakAreas[index],
+                          style: TextStyle(
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
+                            fontSize: 13,
+                            height: 1.6,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Card 4: Action Plan
+  Widget _buildActionPlanCard(
+    AIInsightsReport report,
+    Color textColor,
+    Color subtitleColor,
+    bool isDark,
+  ) {
+    final priorities = ['High', 'High', 'Medium'];
+    final priorityColors = {
+      'High': const Color(0xFFEF4444),
+      'Medium': const Color(0xFFF59E0B),
+      'Low': const Color(0xFF10B981),
+    };
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [const Color(0xFF1E40AF), const Color(0xFF1E3A8A)]
+              : [const Color(0xFFDCFCE7), Colors.white],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF146D7A).withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF146D7A).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.playlist_add_check_rounded,
+                  color: Color(0xFF146D7A),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Action Plan',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Action Items
+          Expanded(
+            child: ListView.builder(
+              itemCount: report.suggestedActions.take(3).length,
+              itemBuilder: (context, index) {
+                final priority = index < priorities.length
+                    ? priorities[index]
+                    : 'Low';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: priorityColors[priority]!.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: priorityColors[priority]!.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              priority,
+                              style: TextStyle(
+                                color: priorityColors[priority],
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Step ${index + 1}',
+                            style: TextStyle(
+                              color: subtitleColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        report.suggestedActions[index],
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 13,
+                          height: 1.6,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Card 5: Trend
+  Widget _buildTrendCard(
+    AIInsightsReport report,
+    Color textColor,
+    Color subtitleColor,
+    bool isDark,
+  ) {
+    // Mock data - replace with actual metrics
+    final metrics = [
+      {
+        'label': 'Average Score',
+        'value': 0.72,
+        'color': const Color(0xFF10B981),
+      },
+      {'label': 'Attendance', 'value': 0.85, 'color': const Color(0xFF3B82F6)},
+      {'label': 'Engagement', 'value': 0.68, 'color': const Color(0xFF8B5CF6)},
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [const Color(0xFF581C87), const Color(0xFF3B0764)]
+              : [const Color(0xFFFAF5FF), Colors.white],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF8B5CF6).withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B5CF6).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.show_chart_rounded,
+                  color: Color(0xFF8B5CF6),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Performance Trends',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Progress Bars
+          ...metrics.map((metric) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        metric['label'] as String,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '${((metric['value'] as double) * 100).toInt()}%',
+                        style: TextStyle(
+                          color: metric['color'] as Color,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: metric['value'] as double,
+                      backgroundColor: subtitleColor.withOpacity(0.1),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        metric['color'] as Color,
+                      ),
+                      minHeight: 10,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 16),
+          // Improvement Suggestion
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.lightbulb_rounded,
+                  color: Color(0xFFFBBF24),
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Focus on improving engagement through interactive activities',
+                    style: TextStyle(
+                      color: subtitleColor,
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods
+  double _calculateAIScore(AIInsightsReport report) {
+    // Calculate based on strengths vs weak areas
+    final strengthCount = report.strengths.length;
+    final weakCount = report.weakAreas.length;
+    final total = strengthCount + weakCount;
+
+    if (total == 0) return 50.0;
+
+    final ratio = strengthCount / total;
+    return (ratio * 100).clamp(0, 100);
+  }
+
+  String _getPerformanceStatus(double score) {
+    if (score >= 70) return 'Good';
+    if (score >= 50) return 'Moderate';
+    return 'Critical';
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Good':
+        return const Color(0xFF10B981);
+      case 'Moderate':
+        return const Color(0xFFF59E0B);
+      case 'Critical':
+        return const Color(0xFFEF4444);
+      default:
+        return const Color(0xFF6B7280);
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'Good':
+        return Icons.check_circle_rounded;
+      case 'Moderate':
+        return Icons.warning_rounded;
+      case 'Critical':
+        return Icons.error_rounded;
+      default:
+        return Icons.info_rounded;
+    }
+  }
+
+  String _truncateSummary(String text, int maxLines) {
+    final words = text.split(' ');
+    if (words.length <= 20) return text;
+    return '${words.take(20).join(' ')}...';
   }
 
   Widget _buildReportDisplay(
