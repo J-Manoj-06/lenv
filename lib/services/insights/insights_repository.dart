@@ -145,18 +145,129 @@ class InsightsRepository {
     }
 
     try {
+      // First try to get from pre-computed insights collection
       final docId = cacheKey;
       final doc = await _firestore
           .collection('insights_teacher_tests')
           .doc(docId)
           .get();
 
-      if (!doc.exists) {
-        print('⚠️ No teacher tests data for $docId');
-        return null;
+      if (doc.exists) {
+        final detail = TeacherTestsDetail.fromFirestore(doc);
+        _teacherTestsCache[cacheKey] = detail;
+        return detail;
       }
 
-      final detail = TeacherTestsDetail.fromFirestore(doc);
+      // If not found, compute from testResults collection (where actual test data is)
+      print(
+        '⚠️ No pre-computed data for $docId, fetching from testResults...',
+      );
+
+      // Calculate date range for the query
+      final now = DateTime.now();
+      DateTime cutoffDate;
+      if (range == '7d') {
+        cutoffDate = now.subtract(const Duration(days: 7));
+      } else if (range == '30d') {
+        cutoffDate = now.subtract(const Duration(days: 30));
+      } else {
+        // monthly - go back 30 days
+        cutoffDate = now.subtract(const Duration(days: 30));
+      }
+
+      // Get completed test results for this teacher
+      final testResultsSnapshot = await _firestore
+          .collection('testResults')
+          .where('teacherId', isEqualTo: teacherId)
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('status', isEqualTo: 'completed')
+          .get();
+
+      print(
+        '📊 Found ${testResultsSnapshot.docs.length} test results with teacherId=$teacherId',
+      );
+
+      if (testResultsSnapshot.docs.isEmpty) {
+        print('⚠️ No test results data for $teacherId in testResults');
+        // Return empty detail instead of null
+        return TeacherTestsDetail(
+          teacherId: teacherId,
+          schoolCode: schoolCode,
+          range: range,
+          updatedAt: DateTime.now(),
+          recentTests: [],
+        );
+      }
+
+      // Group results by testId to get unique tests
+      final Map<String, Map<String, dynamic>> uniqueTests = {};
+      final Map<String, List<double>> testScores = {};
+
+      for (var doc in testResultsSnapshot.docs) {
+        final data = doc.data();
+        final testId = data['testId'] as String?;
+        final completedAt = (data['completedAt'] as Timestamp?)?.toDate();
+        
+        if (testId == null || completedAt == null) continue;
+        
+        // Filter by date range
+        if (completedAt.isBefore(cutoffDate)) continue;
+
+        // Store test info if not already stored
+        if (!uniqueTests.containsKey(testId)) {
+          uniqueTests[testId] = {
+            'testId': testId,
+            'title': data['testTitle'] ?? data['title'] ?? 'Untitled Test',
+            'className': data['className'] ?? '',
+            'section': data['section'] ?? '',
+            'date': completedAt,
+          };
+          testScores[testId] = [];
+        }
+
+        // Collect scores for average calculation
+        final score = (data['score'] as num?)?.toDouble() ?? 0.0;
+        final totalMarks = (data['totalMarks'] as num?)?.toDouble() ?? 1.0;
+        if (totalMarks > 0) {
+          final percentage = (score / totalMarks) * 100;
+          testScores[testId]!.add(percentage);
+        }
+      }
+
+      print(
+        '📊 Found ${uniqueTests.length} unique tests for teacher $teacherId',
+      );
+
+      // Build TestSummary list with average scores
+      final tests = uniqueTests.values.map((testData) {
+        final testId = testData['testId'] as String;
+        final scores = testScores[testId] ?? [];
+        final avgScore = scores.isEmpty 
+            ? 0.0 
+            : scores.reduce((a, b) => a + b) / scores.length;
+
+        return TestSummary(
+          testId: testId,
+          title: testData['title'] as String,
+          standard: testData['className'] as String,
+          section: testData['section'] as String,
+          avgScore: avgScore,
+          date: testData['date'] as DateTime,
+        );
+      }).toList();
+
+      // Sort by date (newest first)
+      tests.sort((a, b) => b.date.compareTo(a.date));
+
+      // Create a basic TeacherTestsDetail from computed data
+      final detail = TeacherTestsDetail(
+        teacherId: teacherId,
+        schoolCode: schoolCode,
+        range: range,
+        updatedAt: DateTime.now(),
+        recentTests: tests,
+      );
+
       _teacherTestsCache[cacheKey] = detail;
       return detail;
     } catch (e) {
