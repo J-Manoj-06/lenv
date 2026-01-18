@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../models/insights/ai_report_model.dart';
 import '../../../../services/insights/ai_insights_report_service.dart';
 
@@ -25,20 +26,12 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
   String _selectedMetric = 'Performance';
 
   bool _isGenerating = false;
+  bool _isLoadingOptions = true;
   AIInsightsReport? _report;
 
-  final List<String> _scopes = ['Whole School', 'Standard', 'Section', 'Class'];
-  final List<String> _standards = [
-    'Select',
-    '6',
-    '7',
-    '8',
-    '9',
-    '10',
-    '11',
-    '12',
-  ];
-  final List<String> _sections = ['Select', 'A', 'B', 'C', 'D'];
+  final List<String> _scopes = ['Whole School', 'Standard', 'Section'];
+  List<String> _standards = ['Select'];
+  List<String> _sections = ['Select'];
   final List<String> _metrics = [
     'Performance',
     'Attendance',
@@ -47,16 +40,104 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
     'Improvement',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadAvailableOptions();
+  }
+
+  @override
+  void didUpdateWidget(InsightsAIAnalysisCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload options if school code changed
+    if (oldWidget.schoolCode != widget.schoolCode && widget.schoolCode.isNotEmpty) {
+      _loadAvailableOptions();
+    }
+  }
+
+  Future<void> _loadAvailableOptions() async {
+    // Skip if school code is empty
+    if (widget.schoolCode.isEmpty) {
+      print('⚠️ Skipping load: School code is empty');
+      setState(() => _isLoadingOptions = false);
+      return;
+    }
+
+    setState(() => _isLoadingOptions = true);
+
+    try {
+      print(
+        '🔍 Loading standards and sections for school: ${widget.schoolCode}',
+      );
+
+      // Fetch students from the school
+      final snapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .where('schoolCode', isEqualTo: widget.schoolCode)
+          .get();
+
+      print('📋 Found ${snapshot.docs.length} students');
+
+      final Set<String> uniqueStandards = {};
+      final Set<String> uniqueSections = {};
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+
+        // Extract standard from className
+        // Handles formats: "Grade 10", "10", "10 - A - Math"
+        final className = data['className'] as String?;
+        if (className != null && className.isNotEmpty) {
+          String grade = className;
+
+          // Remove "Grade" prefix if present
+          grade = grade.replaceAll('Grade ', '').replaceAll('grade ', '');
+
+          // If contains dash, take first part (e.g., "10 - A - Math" -> "10")
+          if (grade.contains('-')) {
+            grade = grade.split('-')[0].trim();
+          }
+
+          grade = grade.trim();
+
+          // Only add if it's a valid number
+          if (grade.isNotEmpty && RegExp(r'^\d+$').hasMatch(grade)) {
+            uniqueStandards.add(grade);
+          }
+        }
+
+        // Extract section
+        final section = data['section'] as String?;
+        if (section != null && section.isNotEmpty) {
+          uniqueSections.add(section.trim().toUpperCase());
+        }
+      }
+
+      // Sort and update lists
+      final sortedStandards = uniqueStandards.toList()
+        ..sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+      final sortedSections = uniqueSections.toList()..sort();
+
+      print('✅ Found standards: $sortedStandards');
+      print('✅ Found sections: $sortedSections');
+
+      setState(() {
+        _standards = ['Select', ...sortedStandards];
+        _sections = ['Select', ...sortedSections];
+        _isLoadingOptions = false;
+      });
+    } catch (e) {
+      print('❌ Error loading options: $e');
+      setState(() => _isLoadingOptions = false);
+    }
+  }
+
   String _getScopeKey() {
     if (_selectedScope == 'Whole School') {
       return 'school';
     } else if (_selectedScope == 'Standard' && _selectedStandard != null) {
       return 'STD$_selectedStandard';
     } else if (_selectedScope == 'Section' &&
-        _selectedStandard != null &&
-        _selectedSection != null) {
-      return 'STD${_selectedStandard}_$_selectedSection';
-    } else if (_selectedScope == 'Class' &&
         _selectedStandard != null &&
         _selectedSection != null) {
       return 'STD${_selectedStandard}_$_selectedSection';
