@@ -166,8 +166,9 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
           s.name.toLowerCase().contains(_query) ||
           s.subjects.any((subj) => subj.toLowerCase().contains(_query)) ||
           s.classes.any((c) => c.toLowerCase().contains(_query));
-      
-      final matchesFilter = _filter == 'all' || 
+
+      final matchesFilter =
+          _filter == 'all' ||
           s.classes.any((c) => c.toLowerCase().contains(_filter.toLowerCase()));
       return matchesQuery && matchesFilter;
     }).toList();
@@ -454,7 +455,7 @@ class _SearchFiltersState extends State<_SearchFilters> {
                   final classItem = widget.availableClasses[index];
                   final value = classItem == 'All Classes' ? 'all' : classItem;
                   final isSelected = value == widget.activeFilter;
-                  
+
                   return InkWell(
                     onTap: () {
                       widget.onFilterChanged(value);
@@ -466,13 +467,13 @@ class _SearchFiltersState extends State<_SearchFilters> {
                         vertical: 16,
                       ),
                       decoration: BoxDecoration(
-                        color: isSelected 
-                            ? widget.primary.withOpacity(0.1) 
+                        color: isSelected
+                            ? widget.primary.withOpacity(0.1)
                             : Colors.transparent,
                         border: Border(
                           left: BorderSide(
-                            color: isSelected 
-                                ? widget.primary 
+                            color: isSelected
+                                ? widget.primary
                                 : Colors.transparent,
                             width: 3,
                           ),
@@ -484,12 +485,12 @@ class _SearchFiltersState extends State<_SearchFilters> {
                             child: Text(
                               classItem,
                               style: TextStyle(
-                                color: isSelected 
-                                    ? widget.primary 
+                                color: isSelected
+                                    ? widget.primary
                                     : widget.textColor,
                                 fontSize: 15,
-                                fontWeight: isSelected 
-                                    ? FontWeight.w600 
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
                                     : FontWeight.w400,
                               ),
                             ),
@@ -611,23 +612,21 @@ class _SearchFiltersState extends State<_SearchFilters> {
                 color: widget.cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: widget.isDark ? const Color(0xFF2E3C52) : const Color(0xFFE2E8F0),
+                  color: widget.isDark
+                      ? const Color(0xFF2E3C52)
+                      : const Color(0xFFE2E8F0),
                   width: 1,
                 ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.school_rounded,
-                    color: widget.primary,
-                    size: 20,
-                  ),
+                  Icon(Icons.school_rounded, color: widget.primary, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      widget.activeFilter == 'all' 
-                          ? 'All Classes' 
+                      widget.activeFilter == 'all'
+                          ? 'All Classes'
                           : widget.activeFilter,
                       style: TextStyle(
                         color: widget.textColor,
