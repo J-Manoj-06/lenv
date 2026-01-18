@@ -50,7 +50,8 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
   void didUpdateWidget(InsightsAIAnalysisCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Reload options if school code changed
-    if (oldWidget.schoolCode != widget.schoolCode && widget.schoolCode.isNotEmpty) {
+    if (oldWidget.schoolCode != widget.schoolCode &&
+        widget.schoolCode.isNotEmpty) {
       _loadAvailableOptions();
     }
   }
