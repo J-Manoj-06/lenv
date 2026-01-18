@@ -19,18 +19,30 @@ class CommunitiesScreen extends StatefulWidget {
 }
 
 class _CommunitiesScreenState extends State<CommunitiesScreen>
-    with UnreadCountMixin<CommunitiesScreen> {
+    with UnreadCountMixin<CommunitiesScreen>, AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
   bool _isLoading = true;
   List<CommunityModel> _myCommunities = [];
   final Map<String, int> _lastMessageTs = {}; // communityId -> latest timestamp
   final Map<String, dynamic> _messageListeners =
       {}; // Store listeners for cleanup
+  bool _hasLoadedOnce = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    _loadMyCommunities();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasLoadedOnce) {
+      _hasLoadedOnce = true;
+      _loadMyCommunities();
+    }
   }
 
   @override
@@ -168,6 +180,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,

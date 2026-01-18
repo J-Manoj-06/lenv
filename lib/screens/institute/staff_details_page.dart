@@ -34,9 +34,6 @@ class StaffDetailsPage extends StatelessWidget {
             // Performance Section (only if has data)
             if (_hasPerformanceData()) _buildPerformanceSection(context),
             if (_hasPerformanceData()) const SizedBox(height: 16),
-
-            // Notes Section
-            _buildNotesSection(context),
           ],
         ),
       ),
@@ -274,7 +271,10 @@ class StaffDetailsPage extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(color: _getTextSecondary(context), fontSize: 12),
+                style: TextStyle(
+                  color: _getTextSecondary(context),
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
@@ -465,7 +465,10 @@ class StaffDetailsPage extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: _getCardBg(context),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _getBorder(context), width: 0.5),
+                      border: Border.all(
+                        color: _getBorder(context),
+                        width: 0.5,
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -502,53 +505,6 @@ class StaffDetailsPage extends StatelessWidget {
               .toList(),
         ),
       ],
-    );
-  }
-
-  Widget _buildNotesSection(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _getCardBg(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _getBorder(context), width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.note_outlined, color: _getPrimary(), size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Notes',
-                style: TextStyle(
-                  color: _getTextPrimary(context),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _getPanel(context),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              'No notes available',
-              style: TextStyle(
-                color: _getTextSecondary(context),
-                fontSize: 13,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

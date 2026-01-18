@@ -19,6 +19,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
   final CommunityService _communityService = CommunityService();
   bool _isLoading = true;
   List<CommunityModel> _myCommunities = [];
+  bool _hasLoadedOnce = false;
 
   @override
   bool get wantKeepAlive => true; // ✅ Preserve state when switching tabs
@@ -26,7 +27,15 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
   @override
   void initState() {
     super.initState();
-    _loadMyCommunities();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasLoadedOnce) {
+      _hasLoadedOnce = true;
+      _loadMyCommunities();
+    }
   }
 
   Future<void> _loadMyCommunities() async {
