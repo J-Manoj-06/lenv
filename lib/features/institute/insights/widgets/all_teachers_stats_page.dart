@@ -297,7 +297,9 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         return (a['name'] as String).compareTo(b['name'] as String);
       });
 
-      final teachersWithTests = teachers.where((t) => (t['totalTests'] as int) > 0).length;
+      final teachersWithTests = teachers
+          .where((t) => (t['totalTests'] as int) > 0)
+          .length;
       print(
         'DEBUG: $teachersWithTests out of ${teachers.length} teachers have conducted tests',
       );
