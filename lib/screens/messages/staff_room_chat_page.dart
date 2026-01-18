@@ -81,7 +81,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
             'text': text,
             'senderId': currentUser.uid,
             'senderName': currentUser.name,
-            'senderRole': currentUser.role,
+            'senderRole': currentUser.role.toString().split('.').last,
             'timestamp': FieldValue.serverTimestamp(),
             'createdAt': DateTime.now().millisecondsSinceEpoch,
           });
@@ -177,7 +177,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
             'text': '',
             'senderId': currentUser.uid,
             'senderName': currentUser.name,
-            'senderRole': currentUser.role,
+            'senderRole': currentUser.role.toString().split('.').last,
             'timestamp': FieldValue.serverTimestamp(),
             'createdAt': DateTime.now().millisecondsSinceEpoch,
             'attachmentUrl': mediaMessage.r2Url,
