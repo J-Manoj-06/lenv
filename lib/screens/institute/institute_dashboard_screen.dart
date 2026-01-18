@@ -1518,21 +1518,13 @@ class _QuickActionCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Chat with all principals & teachers',
+                    'Chat with all teachers',
                     style: TextStyle(color: subtitleColor, fontSize: 13),
                   ),
                 ],
               ),
             ),
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: tealColor,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.arrow_forward, color: Colors.white),
-            ),
+            Icon(Icons.chevron_right, color: subtitleColor, size: 24),
           ],
         ),
       ),

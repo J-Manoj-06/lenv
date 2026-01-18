@@ -752,7 +752,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                           children: [
                             Expanded(
                               child: Text(
-                                'Staff Room',
+                                'Teacher Group Chat',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -765,7 +765,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Chat with all principals & teachers',
+                          'Chat with all teachers',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,

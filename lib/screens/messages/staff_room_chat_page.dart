@@ -345,7 +345,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.isTeacher ? 'Teacher Group Chat' : 'Principal Chat',
+          widget.isTeacher ? 'Teacher Group Chat' : 'Staff Room',
           style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
         ),
       ),
