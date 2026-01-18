@@ -321,10 +321,22 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
   void _applyFilters() {
     List<Map<String, dynamic>> result = _teachers;
 
-    // Note: The class filter is for UI organization only, all teachers are shown regardless
-    // since all teachers can teach in any class
+    // Filter by selected class/standard
+    if (_selectedStandard != null) {
+      result = result.where((teacher) {
+        final classes = teacher['classesHandled'] as List<dynamic>;
+        return classes.any(
+          (c) => c.toString().toLowerCase().contains(
+            _selectedStandard!.toLowerCase(),
+          ),
+        );
+      }).toList();
+      print(
+        'DEBUG: After class filter "$_selectedStandard": ${result.length} teachers',
+      );
+    }
 
-    // Filter by search query only
+    // Filter by search query
     if (_searchController.text.isNotEmpty) {
       result = result
           .where(
@@ -353,6 +365,132 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
     super.dispose();
   }
 
+  void _showClassPicker(
+    BuildContext context,
+    Color cardColor,
+    Color textColor,
+    Color subtitleColor,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: subtitleColor.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.school_rounded,
+                    color: const Color(0xFF146D7A),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Filter by Class',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _availableStandards.length + 1,
+                itemBuilder: (context, index) {
+                  final classItem = index == 0
+                      ? 'All Classes'
+                      : _availableStandards[index - 1];
+                  final value = index == 0
+                      ? null
+                      : _availableStandards[index - 1];
+                  final isSelected =
+                      (value == null && _selectedStandard == null) ||
+                      (value == _selectedStandard);
+
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedStandard = value;
+                      });
+                      _applyFilters();
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF146D7A).withOpacity(0.1)
+                            : Colors.transparent,
+                        border: Border(
+                          left: BorderSide(
+                            color: isSelected
+                                ? const Color(0xFF146D7A)
+                                : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              classItem,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? const Color(0xFF146D7A)
+                                    : textColor,
+                                fontSize: 15,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(
+                              Icons.check_circle,
+                              color: const Color(0xFF146D7A),
+                              size: 20,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -375,124 +513,155 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
       ),
       body: Column(
         children: [
-          // Standard Filter Chips
-          if (_availableStandards.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    // All Standards chip
-                    FilterChip(
-                      label: Text(
-                        'All',
-                        style: TextStyle(
-                          color: _selectedStandard == null
-                              ? Colors.white
-                              : textColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      backgroundColor: _selectedStandard == null
-                          ? const Color(0xFF146D7A)
-                          : cardColor,
-                      side: BorderSide(
-                        color: _selectedStandard == null
-                            ? const Color(0xFF146D7A)
-                            : subtitleColor.withOpacity(0.3),
-                      ),
-                      onSelected: (selected) {
-                        setState(() {
-                          _selectedStandard = null;
-                        });
-                        _applyFilters();
-                      },
+          // Modern Search and Filter Section
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              children: [
+                // Modern Premium Search Bar
+                Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF1F2A3A)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFF2E3C52)
+                          : const Color(0xFFE2E8F0),
+                      width: 1,
                     ),
-                    const SizedBox(width: 8),
-                    // Individual standard chips
-                    ..._availableStandards.map(
-                      (standard) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          label: Text(
-                            standard,
-                            style: TextStyle(
-                              color: _selectedStandard == standard
-                                  ? Colors.white
-                                  : textColor,
-                              fontWeight: FontWeight.w600,
+                    boxShadow: isDark
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 16),
+                      Icon(
+                        Icons.search_rounded,
+                        color: subtitleColor.withOpacity(0.6),
+                        size: 22,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (value) => _applyFilters(),
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                            height: 1.4,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Search teachers by name…',
+                            hintStyle: TextStyle(
+                              color: subtitleColor.withOpacity(0.5),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12,
                             ),
                           ),
-                          backgroundColor: _selectedStandard == standard
-                              ? const Color(0xFF146D7A)
-                              : cardColor,
-                          side: BorderSide(
-                            color: _selectedStandard == standard
-                                ? const Color(0xFF146D7A)
-                                : subtitleColor.withOpacity(0.3),
-                          ),
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedStandard = standard;
-                            });
-                            _applyFilters();
-                          },
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else if (!_isLoading)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Text(
-                'No class standards available',
-                style: TextStyle(color: subtitleColor, fontSize: 14),
-              ),
-            ),
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _filterTeachers,
-              decoration: InputDecoration(
-                hintText: 'Search teachers...',
-                hintStyle: TextStyle(color: subtitleColor),
-                prefixIcon: Icon(Icons.search, color: subtitleColor),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(Icons.clear, color: subtitleColor),
-                        onPressed: () {
-                          _searchController.clear();
-                          _filterTeachers('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: subtitleColor),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: subtitleColor),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: Color(0xFF146D7A),
-                    width: 2,
+                      if (_searchController.text.isNotEmpty)
+                        GestureDetector(
+                          onTap: () {
+                            _searchController.clear();
+                            _applyFilters();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            child: Icon(
+                              Icons.close,
+                              color: subtitleColor.withOpacity(0.6),
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: 12),
+                    ],
                   ),
                 ),
-                filled: true,
-                fillColor: isDark
-                    ? const Color(0xFF334155)
-                    : const Color(0xFFF1F5F9),
-              ),
-              style: TextStyle(color: textColor),
+                const SizedBox(height: 12),
+                // Class Filter Dropdown
+                if (_availableStandards.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => _showClassPicker(
+                      context,
+                      cardColor,
+                      textColor,
+                      subtitleColor,
+                    ),
+                    child: Container(
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF2E3C52)
+                              : const Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.school_rounded,
+                            color: const Color(0xFF146D7A),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _selectedStandard ?? 'All Classes',
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: subtitleColor,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (!_isLoading && _availableStandards.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 0,
+                      vertical: 12,
+                    ),
+                    child: Text(
+                      'No class standards available',
+                      style: TextStyle(color: subtitleColor, fontSize: 14),
+                    ),
+                  ),
+              ],
             ),
           ),
           // Teachers list
