@@ -25,6 +25,24 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
     _loadData();
   }
 
+  List<String> _normalizeSections(dynamic sections) {
+    if (sections == null) return <String>[];
+    if (sections is List) {
+      return sections
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    if (sections is String) {
+      return sections
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    return <String>[];
+  }
+
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
@@ -63,22 +81,38 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         final authUid = teacherData['uid'] as String?;
         final firestoreDocId = doc.id;
 
+        // Parse teacher's assigned classes from classAssignments field
+        // Format: ["Grade 10: C, physical education", "Grade 11: B, physical education"]
+        final classAssignments =
+            teacherData['classAssignments'] as List<dynamic>? ?? [];
+        final assignedClasses = <String>{};
+
+        for (var assignment in classAssignments) {
+          final assignmentStr = assignment.toString();
+          // Extract "Grade X" from "Grade X: Section, Subject"
+          final colonIndex = assignmentStr.indexOf(':');
+          if (colonIndex > 0) {
+            final className = assignmentStr.substring(0, colonIndex).trim();
+            assignedClasses.add(className);
+          }
+        }
+
         teachers.add({
           'uid': authUid ?? firestoreDocId, // Use Auth UID if available
           'docId': firestoreDocId, // Keep doc ID as backup
           'name': teacherName,
           'email': teacherData['email'] ?? '',
           'totalTests': 0, // Default to 0
-          'classesHandled': [],
+          'classesHandled': assignedClasses.toList(),
           'section': '',
         });
       }
 
       // Debug: Print first few teachers with their UIDs
-      print('DEBUG: First 3 teachers with UIDs:');
+      print('DEBUG: First 3 teachers with UIDs and assigned classes:');
       for (var teacher in teachers.take(3)) {
         print(
-          '  - Name: "${teacher['name']}", UID: "${teacher['uid']}", Email: "${teacher['email']}"',
+          '  - Name: "${teacher['name']}", UID: "${teacher['uid']}", Email: "${teacher['email']}", Classes: ${teacher['classesHandled']}',
         );
       }
 
@@ -126,10 +160,19 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         }
       }
 
-      // Update teachers with their classes
+      // Merge additional classes found from students (don't replace original classesHandled)
       for (var teacher in teachers) {
-        final classes = teacherToClassesMap[teacher['uid']] ?? <String>{};
-        teacher['classesHandled'] = classes.toList()..sort();
+        final originalClasses = teacher['classesHandled'] as List<dynamic>;
+        final additionalClasses =
+            teacherToClassesMap[teacher['uid']] ?? <String>{};
+
+        // Combine original classes from user document with classes found from students
+        final allClasses = <String>{
+          ...originalClasses.map((c) => c.toString()),
+          ...additionalClasses,
+        };
+
+        teacher['classesHandled'] = allClasses.toList()..sort();
       }
 
       // Get test data from testResults collection (where actual test data is stored)
@@ -301,6 +344,10 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
 
       final standards = classNamesSet.toList()..sort();
       print('DEBUG: Found ${standards.length} unique standards: $standards');
+      print('DEBUG: All teachers classesHandled summary:');
+      for (var teacher in teachers) {
+        print('  - ${teacher['name']}: ${teacher['classesHandled']}');
+      }
 
       if (mounted) {
         setState(() {
@@ -324,12 +371,30 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
     // Filter by selected class/standard
     if (_selectedStandard != null) {
       result = result.where((teacher) {
-        final classes = teacher['classesHandled'] as List<dynamic>;
-        return classes.any(
-          (c) => c.toString().toLowerCase().contains(
-            _selectedStandard!.toLowerCase(),
-          ),
-        );
+        final assignedClasses = teacher['classesHandled'] as List<dynamic>;
+
+        // Check if teacher's assigned classes contain the selected standard
+        // Teacher's classesHandled format: ["Grade 10", "Grade 11"]
+        // Selected standard format: "Grade 10"
+        return assignedClasses.any((className) {
+          final classStr = className.toString();
+          // Match exact class name or extract grade number
+          if (classStr.toLowerCase() == _selectedStandard!.toLowerCase()) {
+            return true;
+          }
+
+          // Extract grade number from "Grade X" format for flexible matching
+          final gradeMatch = RegExp(r'(\d+)').firstMatch(classStr);
+          final selectedGradeMatch = RegExp(
+            r'(\d+)',
+          ).firstMatch(_selectedStandard!);
+
+          if (gradeMatch != null && selectedGradeMatch != null) {
+            return gradeMatch.group(1) == selectedGradeMatch.group(1);
+          }
+
+          return false;
+        });
       }).toList();
       print(
         'DEBUG: After class filter "$_selectedStandard": ${result.length} teachers',
