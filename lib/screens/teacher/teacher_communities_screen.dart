@@ -27,11 +27,19 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
   @override
   void initState() {
     super.initState();
+    // Load immediately on first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_hasLoadedOnce) {
+        _hasLoadedOnce = true;
+        _loadMyCommunities();
+      }
+    });
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Fallback if not loaded yet
     if (!_hasLoadedOnce) {
       _hasLoadedOnce = true;
       _loadMyCommunities();

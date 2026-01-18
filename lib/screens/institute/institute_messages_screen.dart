@@ -14,17 +14,33 @@ class InstituteMessagesScreen extends StatefulWidget {
       _InstituteMessagesScreenState();
 }
 
-class _InstituteMessagesScreenState extends State<InstituteMessagesScreen> {
+class _InstituteMessagesScreenState extends State<InstituteMessagesScreen>
+    with AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
   bool _isLoading = false;
   List<CommunityModel> _joined = [];
-  bool _hasLoadedOnce = false;
+  bool _hasAttemptedLoad = false;
+  bool _dataLoaded = false;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load immediately on first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadData();
+      }
+    });
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_hasLoadedOnce) {
-      _hasLoadedOnce = true;
+    // Try to load if we haven't successfully loaded yet
+    if (!_dataLoaded && !_isLoading) {
       _loadData();
     }
   }
@@ -35,12 +51,16 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
     final schoolCode = user?.instituteId ?? '';
+
+    // If user data isn't ready yet, don't mark as attempted
     if (user == null || schoolCode.isEmpty) {
-      if (mounted) {
+      if (mounted && _hasAttemptedLoad) {
         setState(() => _isLoading = false);
       }
       return;
     }
+
+    _hasAttemptedLoad = true;
 
     if (mounted) {
       setState(() => _isLoading = true);
@@ -56,6 +76,7 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen> {
         setState(() {
           _joined = joined;
           _isLoading = false;
+          _dataLoaded = true; // Mark as successfully loaded
         });
       }
     } catch (e) {
@@ -105,6 +126,19 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+
+    // Listen to AuthProvider changes and trigger load when user becomes available
+    final auth = Provider.of<AuthProvider>(context);
+    final user = auth.currentUser;
+
+    // If we have user data but haven't loaded communities yet, trigger load
+    if (user != null && !_dataLoaded && !_isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadData();
+      });
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF0E0F14) : const Color(0xFFF8FAFC);
     final cardColor = isDark ? const Color(0xFF1A1C23) : Colors.white;
