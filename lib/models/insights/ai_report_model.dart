@@ -142,8 +142,9 @@ class AIInsightsReport {
     }
     if (strengths.isEmpty) strengths.add('Data analysis in progress');
     if (weakAreas.isEmpty) weakAreas.add('Review pending');
-    if (suggestedActions.isEmpty)
+    if (suggestedActions.isEmpty) {
       suggestedActions.add('Recommendations will be provided');
+    }
 
     return AIInsightsReport(
       reportId: reportId,
