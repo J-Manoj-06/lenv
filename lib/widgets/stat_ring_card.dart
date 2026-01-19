@@ -11,14 +11,14 @@ class StatRingCard extends StatefulWidget {
   final double ringSize;
 
   const StatRingCard({
-    Key? key,
+    super.key,
     required this.percentage,
     required this.primaryLabel,
     required this.primaryValue,
     required this.details,
     this.accentColor = const Color(0xFFF2800D),
     this.ringSize = 110,
-  }) : super(key: key);
+  });
 
   @override
   State<StatRingCard> createState() => _StatRingCardState();

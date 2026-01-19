@@ -1777,10 +1777,22 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           final results = snapshot.data!;
           testsTaken = results.length;
           double totalScore = 0.0;
+
+          print(
+            '[Performance] 📊 Calculating from ${results.length} test results',
+          );
+
           for (var result in results) {
+            print(
+              '[Performance] ✅ Test: ${result.testTitle}, Score: ${result.score}',
+            );
             totalScore += result.score;
           }
+
           avgScore = testsTaken > 0 ? totalScore / testsTaken : 0.0;
+          print(
+            '[Performance] 📈 Final: $testsTaken tests, ${avgScore.toInt()}% average',
+          );
         }
 
         final isDark = Theme.of(context).brightness == Brightness.dark;
