@@ -95,8 +95,7 @@ class DailyChallengeProvider with ChangeNotifier {
 
       await prefs.setString(cacheKey, date);
       await prefs.setString(dataKey, jsonEncode(data));
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Check if THIS SPECIFIC student has already answered today's challenge
@@ -118,6 +117,24 @@ class DailyChallengeProvider with ChangeNotifier {
         _hasAnsweredStates[studentId] = true;
         final isCorrect = answerDoc.data()?['isCorrect'] == true;
         _resultStates[studentId] = isCorrect ? 'correct' : 'incorrect';
+
+        // ENHANCEMENT: Ensure cached challenge has correct answer from answer doc
+        // This is critical for displaying the correct answer on dashboard after answering
+        final answerData = answerDoc.data();
+        if (answerData != null && _cachedChallenges[studentId] != null) {
+          // Merge correct answer from answer document into cached challenge
+          _cachedChallenges[studentId]!['correctAnswer'] =
+              answerData['correctAnswer'];
+          _cachedChallenges[studentId]!['question'] =
+              answerData['question'] ??
+              _cachedChallenges[studentId]!['question'];
+        } else if (answerData != null && _cachedChallenges[studentId] == null) {
+          // If no cached challenge but has answer, create minimal cache with answer data
+          _cachedChallenges[studentId] = {
+            'correctAnswer': answerData['correctAnswer'],
+            'question': answerData['question'] ?? 'Daily Challenge Question',
+          };
+        }
       } else {
         _hasAnsweredStates[studentId] = false;
         _resultStates[studentId] = null;
@@ -136,6 +153,22 @@ class DailyChallengeProvider with ChangeNotifier {
           _hasAnsweredStates[studentId] = true;
           final isCorrect = answerDoc.data()?['isCorrect'] == true;
           _resultStates[studentId] = isCorrect ? 'correct' : 'incorrect';
+
+          // Also merge correct answer in offline mode
+          final answerData = answerDoc.data();
+          if (answerData != null && _cachedChallenges[studentId] != null) {
+            _cachedChallenges[studentId]!['correctAnswer'] =
+                answerData['correctAnswer'];
+            _cachedChallenges[studentId]!['question'] =
+                answerData['question'] ??
+                _cachedChallenges[studentId]!['question'];
+          } else if (answerData != null &&
+              _cachedChallenges[studentId] == null) {
+            _cachedChallenges[studentId] = {
+              'correctAnswer': answerData['correctAnswer'],
+              'question': answerData['question'] ?? 'Daily Challenge Question',
+            };
+          }
         } else {
           _hasAnsweredStates[studentId] = false;
           _resultStates[studentId] = null;
@@ -197,8 +230,7 @@ class DailyChallengeProvider with ChangeNotifier {
             standard =
                 data?['standard'] ?? data?['class'] ?? data?['grade'] ?? 8;
           }
-        } catch (e) {
-        }
+        } catch (e) {}
 
         // Fetch from OpenTriviaDB
         final challenge = await _challengeService.getDailyChallengeForToday(
@@ -215,7 +247,6 @@ class DailyChallengeProvider with ChangeNotifier {
           // Save to cache
           await _saveToCache(studentId, today, challengeData);
           await prefs.setInt(standardKey, standard);
-
         } else {
           _cachedChallenges[studentId] = null;
           _errorMessage = 'Unable to fetch challenge from OpenTriviaDB';
@@ -256,9 +287,10 @@ class DailyChallengeProvider with ChangeNotifier {
 
     try {
       final correctAnswer = cachedChallenge['correctAnswer'] as String;
+      final question =
+          cachedChallenge['question'] as String? ?? 'Daily Challenge';
       final isCorrect = selectedAnswer == correctAnswer;
       final today = _getTodayDate();
-
 
       // Save answer record to daily_challenge_answers with student-specific doc ID
       final docId = '${studentId}_$today';
@@ -266,18 +298,17 @@ class DailyChallengeProvider with ChangeNotifier {
         'studentId': studentId,
         'studentEmail': studentEmail,
         'date': today,
+        'question': question, // Save question for later display
         'selectedAnswer': selectedAnswer,
         'correctAnswer': correctAnswer,
         'isCorrect': isCorrect,
         'answeredAt': FieldValue.serverTimestamp(),
       });
 
-
       // Update streak regardless of correct/incorrect answer
       await _updateStreak(studentId, today);
 
       if (isCorrect) {
-
         // Create student_rewards entry for THIS student only
         final rewardDoc = _firestore.collection('student_rewards').doc();
         await rewardDoc.set({
@@ -297,7 +328,6 @@ class DailyChallengeProvider with ChangeNotifier {
           'rewardPoints': FieldValue.increment(5),
         }, SetOptions(merge: true));
 
-
         // Award badges for daily challenge
         try {
           final studentDoc = await _firestore
@@ -307,16 +337,13 @@ class DailyChallengeProvider with ChangeNotifier {
           final streakDays =
               (studentDoc.data()?['dailyChallengeStreak'] as int?) ?? 1;
 
-
           await _badgeRules.onDailyChallenge(
             studentId: studentId,
             streakDays: streakDays,
             fast: false, // Could track answer time in future
             accuracyPercent: 100, // Daily challenge is single question
           );
-
-        } catch (e) {
-        }
+        } catch (e) {}
       }
 
       // Update THIS student's state
@@ -326,7 +353,6 @@ class DailyChallengeProvider with ChangeNotifier {
 
       // Clear selected answer after submission
       _selectedAnswers[studentId] = null;
-
 
       notifyListeners();
 
@@ -390,9 +416,7 @@ class DailyChallengeProvider with ChangeNotifier {
         'streak': newStreak,
         'lastStreakDate': today,
       }, SetOptions(merge: true));
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Parse date string (yyyy-MM-dd) to DateTime
@@ -439,9 +463,7 @@ class DailyChallengeProvider with ChangeNotifier {
           await prefs.remove(key);
         }
       }
-
-    } catch (e) {
-    }
+    } catch (e) {}
 
     // Clear in-memory state
     _cachedChallenges.clear();
@@ -473,7 +495,6 @@ class DailyChallengeProvider with ChangeNotifier {
       _submittingStates.remove(studentId);
 
       notifyListeners();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 }

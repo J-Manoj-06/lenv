@@ -808,16 +808,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           .doc(userId)
           .set({'viewedAt': FieldValue.serverTimestamp()});
 
-      // Verify write
-      final verify = await FirebaseFirestore.instance
-          .collection('institute_announcements')
-          .doc(announcementId)
-          .collection('views')
-          .doc(userId)
-          .get();
-
       // StreamBuilder will automatically update the UI
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error marking announcement as viewed: $e');
+    }
   }
 
   /// Stream real-time view status for principal announcements
@@ -1200,6 +1194,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         );
         final result = dailyChallengeProvider.getTodayResult(student.uid);
         final isCorrect = result == 'correct';
+        final challengeData = dailyChallengeProvider.getCachedChallenge(
+          student.uid,
+        );
 
         return GestureDetector(
           onTap: hasAnswered
@@ -1253,76 +1250,303 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title
-                Text(
-                  hasAnswered
-                      ? (isCorrect
-                            ? 'Challenge Completed!'
-                            : 'Challenge Attempted')
-                      : 'Daily Challenge',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: hasAnswered
-                        ? (isCorrect
-                              ? const Color(0xFF4CAF50)
-                              : const Color(0xFFEF5350))
-                        : Theme.of(context).textTheme.bodyLarge?.color,
-                    height: 1.2,
-                  ),
+                // Title with icon
+                Row(
+                  children: [
+                    Icon(
+                      hasAnswered
+                          ? (isCorrect
+                                ? Icons.check_circle
+                                : Icons.info_outline)
+                          : Icons.emoji_events_outlined,
+                      color: hasAnswered
+                          ? (isCorrect
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFFEF5350))
+                          : _primary,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        hasAnswered
+                            ? (isCorrect
+                                  ? 'Challenge Completed! 🎉'
+                                  : 'Challenge Attempted')
+                            : 'Daily Challenge 🏆',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: hasAnswered
+                              ? (isCorrect
+                                    ? const Color(0xFF4CAF50)
+                                    : const Color(0xFFEF5350))
+                              : Theme.of(context).textTheme.bodyLarge?.color,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
+
                 // Subtitle
                 Text(
                   hasAnswered
                       ? (isCorrect
-                            ? 'You earned +5 points!'
-                            : 'Try again tomorrow!')
-                      : "Answer today's MCQ to earn points",
+                            ? 'Perfect! You earned +5 points! 🌟'
+                            : 'Keep trying! Check the correct answer below.')
+                      : "Answer today's MCQ to earn points and boost your streak!",
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
                     color: hasAnswered
                         ? (isCorrect
-                              ? const Color(0xFF4CAF50).withOpacity(0.7)
-                              : const Color(0xFFEF5350).withOpacity(0.7))
+                              ? const Color(0xFF4CAF50).withOpacity(0.9)
+                              : const Color(0xFFEF5350).withOpacity(0.9))
                         : _muted(context),
                   ),
                 ),
+
+                // Premium Correct Answer Display (only shown after attempt)
+                if (hasAnswered && challengeData != null) ...[
+                  const SizedBox(height: 16),
+                  _buildCorrectAnswerDisplay(
+                    challengeData['correctAnswer'] as String?,
+                    challengeData['question'] as String?,
+                    isCorrect,
+                  ),
+                ],
+
                 // Button
                 if (!hasAnswered) ...[
                   const SizedBox(height: 16),
                   Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
-                      vertical: 12,
+                      vertical: 14,
                     ),
                     decoration: BoxDecoration(
-                      color: _primary,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Text(
-                      'Take Challenge',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                      gradient: LinearGradient(
+                        colors: [_primary, _primary.withOpacity(0.8)],
                       ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _primary.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-                // Status icon for completed
-                if (hasAnswered) ...[
-                  const SizedBox(height: 12),
-                  Icon(
-                    isCorrect ? Icons.check_circle : Icons.cancel,
-                    color: isCorrect
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFFEF5350),
-                    size: 32,
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.play_arrow, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Take Challenge',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Premium Correct Answer Display Widget
+  Widget _buildCorrectAnswerDisplay(
+    String? correctAnswer,
+    String? question,
+    bool wasCorrect,
+  ) {
+    if (correctAnswer == null) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: 0.95 + (0.05 * value),
+          child: Opacity(
+            opacity: value,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: wasCorrect
+                      ? [
+                          const Color(0xFF4CAF50).withOpacity(0.15),
+                          const Color(0xFF66BB6A).withOpacity(0.1),
+                        ]
+                      : [
+                          const Color(0xFF2196F3).withOpacity(0.15),
+                          const Color(0xFF42A5F5).withOpacity(0.1),
+                        ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: wasCorrect
+                      ? const Color(0xFF4CAF50).withOpacity(0.3)
+                      : const Color(0xFF2196F3).withOpacity(0.3),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        (wasCorrect
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFF2196F3))
+                            .withOpacity(0.1),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header with icon
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: wasCorrect
+                              ? const Color(0xFF4CAF50).withOpacity(0.2)
+                              : const Color(0xFF2196F3).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          wasCorrect ? Icons.lightbulb : Icons.school,
+                          color: wasCorrect
+                              ? const Color(0xFF4CAF50)
+                              : const Color(0xFF2196F3),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          wasCorrect ? 'Your Answer' : 'Correct Answer',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: wasCorrect
+                              ? const Color(0xFF4CAF50).withOpacity(0.2)
+                              : const Color(0xFF2196F3).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          wasCorrect ? 'CORRECT' : 'LEARN',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: wasCorrect
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFF2196F3),
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Correct answer text with premium styling
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.black.withOpacity(0.3)
+                          : Colors.white.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: wasCorrect
+                            ? const Color(0xFF4CAF50).withOpacity(0.2)
+                            : const Color(0xFF2196F3).withOpacity(0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline,
+                          color: wasCorrect
+                              ? const Color(0xFF4CAF50)
+                              : const Color(0xFF2196F3),
+                          size: 22,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            correctAnswer,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white : Colors.black87,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Motivational message
+                  if (!wasCorrect) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          color: const Color(0xFF2196F3).withOpacity(0.7),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Don\'t worry! Every mistake is a learning opportunity. Come back tomorrow! 💪',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         );
