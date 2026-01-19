@@ -565,8 +565,31 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               else if (widget.thumbnailBase64 != null &&
                   widget.thumbnailBase64!.isNotEmpty)
                 () {
-                  // Check if it's a URL or base64 data
-                  if (widget.thumbnailBase64!.startsWith('http')) {
+                  // Check if it's a file path, URL, or base64 data
+                  if (widget.thumbnailBase64!.startsWith('/')) {
+                    // It's a file path, use Image.file
+                    return ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: ColorFiltered(
+                        colorFilter: const ColorFilter.mode(
+                          Colors.black38,
+                          BlendMode.darken,
+                        ),
+                        child: Image.file(
+                          File(widget.thumbnailBase64!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: Colors.grey[800],
+                            child: const Icon(
+                              Icons.image,
+                              size: 64,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  } else if (widget.thumbnailBase64!.startsWith('http')) {
                     // It's a URL, use Image.network
                     return ImageFiltered(
                       imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
@@ -591,27 +614,39 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                     );
                   } else {
                     // It's base64 data
-                    return ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                      child: ColorFiltered(
-                        colorFilter: const ColorFilter.mode(
-                          Colors.black38,
-                          BlendMode.darken,
-                        ),
-                        child: Image.memory(
-                          base64Decode(widget.thumbnailBase64!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: Colors.grey[800],
-                            child: const Icon(
-                              Icons.image,
-                              size: 64,
-                              color: Colors.white54,
+                    try {
+                      return ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                        child: ColorFiltered(
+                          colorFilter: const ColorFilter.mode(
+                            Colors.black38,
+                            BlendMode.darken,
+                          ),
+                          child: Image.memory(
+                            base64Decode(widget.thumbnailBase64!),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: Colors.grey[800],
+                              child: const Icon(
+                                Icons.image,
+                                size: 64,
+                                color: Colors.white54,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    );
+                      );
+                    } catch (e) {
+                      // Invalid base64, show error icon
+                      return Container(
+                        color: Colors.grey[800],
+                        child: const Icon(
+                          Icons.broken_image,
+                          size: 64,
+                          color: Colors.white54,
+                        ),
+                      );
+                    }
                   }
                 }()
               else

@@ -7,6 +7,10 @@ import '../models/community.dart';
 class GroupMessagingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Cache for student class IDs to prevent repeated Firestore queries
+  static final Map<String, String> _classIdCache = {};
+  static final Map<String, DateTime> _cacheTimestamps = {};
+
   // ====================================================
   // GROUP CHAT METHODS
   // ====================================================
@@ -375,7 +379,25 @@ class GroupMessagingService {
 
   /// Get student's class ID from their profile
   Future<String?> getStudentClassId(String studentId) async {
-    return _getStudentClassIdInternal(studentId, isRetry: false);
+    // Check cache first (cache valid for 5 minutes)
+    if (_classIdCache.containsKey(studentId)) {
+      final cacheAge = DateTime.now().difference(_cacheTimestamps[studentId]!);
+      if (cacheAge.inMinutes < 5) {
+        debugPrint('📦 Using cached classId for student $studentId');
+        return _classIdCache[studentId];
+      }
+    }
+
+    final classId = await _getStudentClassIdInternal(studentId, isRetry: false);
+
+    // Cache the result (even if null, to prevent repeated failed queries)
+    if (classId != null) {
+      _classIdCache[studentId] = classId;
+      _cacheTimestamps[studentId] = DateTime.now();
+      debugPrint('💾 Cached classId $classId for student $studentId');
+    }
+
+    return classId;
   }
 
   Future<String?> _getStudentClassIdInternal(
@@ -383,12 +405,15 @@ class GroupMessagingService {
     required bool isRetry,
   }) async {
     try {
+      debugPrint(
+        '🔍 Fetching classId for student $studentId (retry: $isRetry)',
+      );
+
       // ✅ FIX: Check students collection first (primary source for student data)
-      // Force server read to avoid stale cache
       final studentDoc = await _firestore
           .collection('students')
           .doc(studentId)
-          .get(const GetOptions(source: Source.server));
+          .get();
 
       String? fullClassName;
       String? sectionField;
@@ -400,14 +425,19 @@ class GroupMessagingService {
         fullClassName = studentData['className'] ?? '';
         sectionField = studentData['section'] ?? '';
         schoolCode = studentData['schoolCode'] ?? '';
+        debugPrint(
+          '✅ Found student in students collection: $fullClassName - $sectionField',
+        );
       } else {
-        // Fallback: Try users collection with server read
+        // Fallback: Try users collection
+        debugPrint('⚠️ Student not in students collection, trying users...');
         final userDoc = await _firestore
             .collection('users')
             .doc(studentId)
-            .get(const GetOptions(source: Source.server));
+            .get();
 
         if (!userDoc.exists || userDoc.data() == null) {
+          debugPrint('❌ Student not found in users collection either');
           return null;
         }
 
@@ -415,12 +445,16 @@ class GroupMessagingService {
         fullClassName = userData['className'] ?? '';
         sectionField = userData['section'] ?? '';
         schoolCode = userData['schoolId'] ?? userData['schoolCode'] ?? '';
+        debugPrint(
+          '✅ Found student in users collection: $fullClassName - $sectionField',
+        );
       }
 
       if (fullClassName == null || fullClassName.isEmpty) {
+        debugPrint('❌ className is empty');
         if (!isRetry) {
-          // Try one more time with a fresh fetch
-          await Future.delayed(const Duration(milliseconds: 1000));
+          // Try one more time with a delay
+          await Future.delayed(const Duration(milliseconds: 1500));
           return _getStudentClassIdInternal(studentId, isRetry: true);
         } else {
           return null;

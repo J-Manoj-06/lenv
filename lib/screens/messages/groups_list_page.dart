@@ -124,6 +124,9 @@ class _GroupsListPageState extends State<GroupsListPage>
   Future<void> _loadClassSubjects() async {
     if (!mounted) return;
 
+    // If we already have a classId, don't refetch it unnecessarily
+    final shouldRefetchClassId = _classId == null;
+
     setState(() => _isLoading = true);
     _hasAttemptedLoad = true;
 
@@ -153,8 +156,12 @@ class _GroupsListPageState extends State<GroupsListPage>
         return;
       }
 
-      // Get student's class ID from their profile (checks students collection first)
-      final classId = await _messagingService.getStudentClassId(studentUid);
+      // Get student's class ID (use cached value if already loaded)
+      String? classId = _classId;
+
+      if (shouldRefetchClassId || classId == null) {
+        classId = await _messagingService.getStudentClassId(studentUid);
+      }
 
       if (!mounted) return;
 
@@ -162,7 +169,8 @@ class _GroupsListPageState extends State<GroupsListPage>
         setState(() {
           _subjects = [];
           _isLoading = false;
-          _classId = null;
+          // Don't reset _classId to null if we already had one
+          // This preserves it across navigation
         });
         return;
       }
