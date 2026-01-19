@@ -61,9 +61,33 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     _checkDownloadStatus();
   }
 
+  @override
+  void didUpdateWidget(MediaPreviewCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-check download status if r2Key changes (pending -> uploaded)
+    if (oldWidget.r2Key != widget.r2Key) {
+      _checkDownloadStatus();
+    }
+  }
+
   Future<void> _checkDownloadStatus() async {
-    // ALWAYS check repository for download status
-    // Never trust localPath from Firestore - it might be from a different device/session
+    // For sender's own uploaded images, use widget.localPath immediately
+    if (widget.localPath != null &&
+        widget.localPath!.isNotEmpty &&
+        widget.isMe) {
+      final file = File(widget.localPath!);
+      if (await file.exists()) {
+        if (mounted) {
+          setState(() {
+            _isDownloaded = true;
+            _localPath = widget.localPath;
+          });
+        }
+        return;
+      }
+    }
+
+    // Check repository for download status
     final downloaded = await _repository.isDownloaded(widget.r2Key);
     final path = await _repository.getLocalFilePath(widget.r2Key);
 
@@ -660,7 +684,11 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 ),
 
               // Download overlay only for receivers; sender auto-fetches silently
-              if (!_isDownloaded && !_isDownloading && !widget.isMe)
+              // Don't show if uploading or if already downloaded
+              if (!_isDownloaded &&
+                  !_isDownloading &&
+                  !widget.uploading &&
+                  !widget.isMe)
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
@@ -706,7 +734,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 ),
 
               // Uploading overlay centered inside the image (for sender pending)
-              if (widget.uploading)
+              // Only show if actually uploading (pending message with progress)
+              if (widget.uploading && !_isDownloaded)
                 Positioned.fill(
                   child: AbsorbPointer(
                     absorbing: true,
@@ -744,8 +773,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   ),
                 ),
 
-              // Download progress overlay
-              if (_isDownloading)
+              // Download progress overlay - only show when explicitly downloading
+              if (_isDownloading && !widget.uploading)
                 Positioned.fill(
                   child: Container(
                     color: Colors.black.withOpacity(0.7),

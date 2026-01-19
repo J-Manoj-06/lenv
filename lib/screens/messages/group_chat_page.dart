@@ -1448,7 +1448,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 fsMsg.senderId == pendingMsg.senderId;
                             final timeMatch =
                                 (fsMsg.timestamp - pendingMsg.timestamp).abs() <
-                                5000; // within 5 seconds
+                                15000; // within 15 seconds (more lenient)
 
                             // For media messages: match by messageId (both pending and server have same messageId)
                             if (pendingMsg.mediaMetadata != null &&
@@ -1470,7 +1470,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 '   senderMatch=$senderMatch, timeMatch=$timeMatch',
                               );
 
-                              return senderMatch && timeMatch && messageIdMatch;
+                              // For media: prioritize messageId match, time is secondary
+                              return senderMatch && messageIdMatch;
                             }
                             // For text-only messages: sender + time match is enough
                             if (pendingMsg.mediaMetadata == null &&
