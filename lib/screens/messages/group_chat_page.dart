@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
@@ -654,11 +655,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   Future<void> _pickAndSendImage() async {
     try {
-      final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+      final List<XFile> images = await _imagePicker.pickMultiImage(
+        limit: 5, // Limit selection to 5 images at picker level
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
       );
 
-      if (image == null) return;
+      if (images.isEmpty) return;
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
@@ -673,58 +677,88 @@ class _GroupChatPageState extends State<GroupChatPage> {
         return;
       }
 
-      final file = File(image.path);
-      if (!file.existsSync()) {
+      final conversationId = '${widget.classId}_${widget.subjectId}';
+      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final List<MediaMetadata> mediaList = [];
+      final List<String> localPaths = [];
+      final groupMessageId =
+          'upload_${baseTimestamp}_${currentUserId.hashCode}';
+
+      // Create metadata for each image with local path
+      for (int i = 0; i < images.length; i++) {
+        final image = images[i];
+        final file = File(image.path);
+
+        if (!file.existsSync()) continue;
+
+        final messageId = '${groupMessageId}_$i';
+        localPaths.add(file.path);
+
+        mediaList.add(
+          MediaMetadata(
+            messageId: messageId,
+            r2Key: 'pending/$messageId',
+            publicUrl: '',
+            thumbnail: file.path,
+            localPath: file.path, // Store local path in metadata
+            expiresAt: DateTime.now().add(const Duration(days: 30)),
+            uploadedAt: DateTime.now(),
+            originalFileName: file.path.split('/').last,
+            fileSize: await file.length(),
+            mimeType: 'image/jpeg',
+          ),
+        );
+      }
+
+      if (mediaList.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Image file not found')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No valid images found')),
+          );
         }
         return;
       }
 
-      final conversationId = '${widget.classId}_${widget.subjectId}';
-      final messageId =
-          'upload_${DateTime.now().millisecondsSinceEpoch}_${currentUserId.hashCode}';
-
-      // Create pending message for immediate display
+      // Create single pending message with multiple media items
       final pendingMessage = GroupChatMessage(
-        id: 'pending:$messageId',
+        id: 'pending:$groupMessageId',
         senderId: currentUserId,
         senderName: currentUserName,
         message: '',
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        mediaMetadata: MediaMetadata(
-          messageId: messageId,
-          r2Key: 'pending/$messageId',
-          publicUrl: '', // Will be set after upload
-          thumbnail: file.path, // Use local file path as thumbnail
-          expiresAt: DateTime.now().add(const Duration(days: 30)),
-          uploadedAt: DateTime.now(),
-          originalFileName: file.path.split('/').last,
-          fileSize: await file.length(),
-          mimeType: 'image/jpeg',
-        ),
+        timestamp: baseTimestamp,
+        mediaMetadata: mediaList.first, // Primary image
+        multipleMedia: mediaList.length > 1 ? mediaList : null,
       );
 
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
-        _uploadingMessageIds.add(messageId);
-        _pendingUploadProgress[messageId] = 0.0;
-        _localSenderMediaPaths[messageId] = file.path;
+        for (int i = 0; i < mediaList.length; i++) {
+          final messageId = mediaList[i].messageId;
+          _uploadingMessageIds.add(messageId);
+          _pendingUploadProgress[messageId] = 0.0;
+          _localSenderMediaPaths[messageId] = localPaths[i];
+        }
       });
 
-      // Queue upload in background service
-      await BackgroundUploadService().queueUpload(
-        file: file,
-        conversationId: conversationId,
-        senderId: currentUserId,
-        senderRole: 'group',
-        mediaType: 'message',
-        chatType: 'group',
-        senderName: currentUserName,
-        messageId: messageId,
-      );
+      // Queue each image for upload
+      for (int i = 0; i < images.length; i++) {
+        final image = images[i];
+        final file = File(image.path);
+        if (!file.existsSync()) continue;
+
+        final messageId = '${groupMessageId}_$i';
+
+        await BackgroundUploadService().queueUpload(
+          file: file,
+          conversationId: conversationId,
+          senderId: currentUserId,
+          senderRole: 'group',
+          mediaType: 'message',
+          chatType: 'group',
+          senderName: currentUserName,
+          messageId: messageId,
+        );
+      }
 
       // Scroll to show the new message
       _scrollToBottom(force: true);
@@ -732,7 +766,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to queue image: $e')));
+        ).showSnackBar(SnackBar(content: Text('Failed to queue images: $e')));
       }
     }
   }
@@ -2052,8 +2086,18 @@ class _MessageBubble extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Media handling
-                        if (message.mediaMetadata != null) ...[
+                        // Multiple media handling (grid layout)
+                        if (message.multipleMedia != null &&
+                            message.multipleMedia!.isNotEmpty) ...[
+                          _buildMultipleMediaGrid(
+                            context,
+                            message.multipleMedia!,
+                          ),
+                          if (message.message.isNotEmpty)
+                            const SizedBox(height: 8),
+                        ]
+                        // Single media handling
+                        else if (message.mediaMetadata != null) ...[
                           _buildMetadataAttachment(
                             context,
                             message.mediaMetadata!,
@@ -2143,6 +2187,335 @@ class _MessageBubble extends StatelessWidget {
       uploading: isUploading,
       uploadProgress: uploadProgressVal,
       selectionMode: selectionMode,
+    );
+  }
+
+  Widget _buildMultipleMediaGrid(
+    BuildContext context,
+    List<MediaMetadata> mediaList,
+  ) {
+    final count = mediaList.length;
+
+    // Constrain max width for better WhatsApp-style appearance
+    Widget gridContent;
+
+    // WhatsApp-style grid layout
+    if (count == 2) {
+      // 2 images: side by side
+      gridContent = Row(
+        children: [
+          Expanded(
+            child: _buildGridImage(
+              context,
+              mediaList[0],
+              allMedia: mediaList,
+              currentIndex: 0,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Expanded(
+            child: _buildGridImage(
+              context,
+              mediaList[1],
+              allMedia: mediaList,
+              currentIndex: 1,
+            ),
+          ),
+        ],
+      );
+    } else if (count == 3) {
+      // 3 images: 1 large on left, 2 stacked on right
+      gridContent = Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: _buildGridImage(
+              context,
+              mediaList[0],
+              allMedia: mediaList,
+              currentIndex: 0,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Expanded(
+            child: Column(
+              children: [
+                _buildGridImage(
+                  context,
+                  mediaList[1],
+                  allMedia: mediaList,
+                  currentIndex: 1,
+                ),
+                const SizedBox(height: 2),
+                _buildGridImage(
+                  context,
+                  mediaList[2],
+                  allMedia: mediaList,
+                  currentIndex: 2,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else if (count == 4) {
+      // 4 images: 2x2 grid
+      gridContent = Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildGridImage(
+                  context,
+                  mediaList[0],
+                  allMedia: mediaList,
+                  currentIndex: 0,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: _buildGridImage(
+                  context,
+                  mediaList[1],
+                  allMedia: mediaList,
+                  currentIndex: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Expanded(
+                child: _buildGridImage(
+                  context,
+                  mediaList[2],
+                  allMedia: mediaList,
+                  currentIndex: 2,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: _buildGridImage(
+                  context,
+                  mediaList[3],
+                  allMedia: mediaList,
+                  currentIndex: 3,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    } else if (count == 5) {
+      // 5 images: 2x2 grid with +1 overlay on 4th image
+      gridContent = Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildGridImage(
+                  context,
+                  mediaList[0],
+                  allMedia: mediaList,
+                  currentIndex: 0,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: _buildGridImage(
+                  context,
+                  mediaList[1],
+                  allMedia: mediaList,
+                  currentIndex: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Expanded(
+                child: _buildGridImage(
+                  context,
+                  mediaList[2],
+                  allMedia: mediaList,
+                  currentIndex: 2,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    // Open gallery viewer starting at 4th image
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => _ImageGalleryViewer(
+                          mediaList: mediaList,
+                          initialIndex: 3,
+                          localSenderMediaPaths: localSenderMediaPaths,
+                          isMe: isMe,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Stack(
+                    children: [
+                      _buildGridImage(
+                        context,
+                        mediaList[3],
+                        allMedia: mediaList,
+                        currentIndex: 3,
+                      ),
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              '+1',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    } else {
+      // Fallback for single image
+      gridContent = _buildGridImage(
+        context,
+        mediaList[0],
+        allMedia: mediaList,
+        currentIndex: 0,
+      );
+    }
+
+    // Check if ANY image in the grid is uploading
+    final isAnyUploading = mediaList.any(
+      (media) => uploadingMessageIds.contains(media.messageId),
+    );
+
+    // Calculate average upload progress for the grid
+    double gridUploadProgress = 0.0;
+    if (isAnyUploading) {
+      final uploadingMedia = mediaList
+          .where((media) => uploadingMessageIds.contains(media.messageId))
+          .toList();
+      if (uploadingMedia.isNotEmpty) {
+        final totalProgress = uploadingMedia.fold<double>(
+          0.0,
+          (sum, media) => sum + (pendingUploadProgress[media.messageId] ?? 0.0),
+        );
+        gridUploadProgress = totalProgress / uploadingMedia.length;
+      }
+    }
+
+    // Constrain width to max 280px for WhatsApp-style appearance
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: Stack(
+        children: [
+          gridContent,
+          // Single loading overlay on entire grid
+          if (isAnyUploading)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        strokeWidth: 3,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '${(gridUploadProgress * 100).toInt()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Uploading ${mediaList.length} ${mediaList.length == 1 ? "image" : "images"}...',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGridImage(
+    BuildContext context,
+    MediaMetadata metadata, {
+    List<MediaMetadata>? allMedia,
+    int? currentIndex,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: GestureDetector(
+          onTap: () {
+            // Open gallery viewer when tapping grid image
+            if (allMedia != null && currentIndex != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _ImageGalleryViewer(
+                    mediaList: allMedia,
+                    initialIndex: currentIndex,
+                    localSenderMediaPaths: localSenderMediaPaths,
+                    isMe: isMe,
+                  ),
+                ),
+              );
+            }
+          },
+          child: MediaPreviewCard(
+            key: ValueKey('grid-${metadata.messageId}'),
+            r2Key: metadata.r2Key,
+            fileName: _fileNameFromMetadata(metadata),
+            mimeType: metadata.mimeType ?? 'image/jpeg',
+            fileSize: metadata.fileSize ?? 0,
+            thumbnailBase64: metadata.thumbnail,
+            localPath:
+                metadata.localPath ?? localSenderMediaPaths[metadata.messageId],
+            isMe: isMe,
+            uploading: false, // No individual upload progress in grid
+            uploadProgress: null,
+            selectionMode: selectionMode,
+          ),
+        ),
+      ),
     );
   }
 
@@ -2993,5 +3366,145 @@ class _AudioPlayerModalState extends State<AudioPlayerModal> {
     final minutes = twoDigits(duration.inMinutes.remainder(60));
     final seconds = twoDigits(duration.inSeconds.remainder(60));
     return '$minutes:$seconds';
+  }
+}
+
+// Image Gallery Viewer - Vertical scrollable viewer for grid images
+class _ImageGalleryViewer extends StatefulWidget {
+  final List<MediaMetadata> mediaList;
+  final int initialIndex;
+  final Map<String, String> localSenderMediaPaths;
+  final bool isMe;
+
+  const _ImageGalleryViewer({
+    required this.mediaList,
+    required this.initialIndex,
+    required this.localSenderMediaPaths,
+    required this.isMe,
+  });
+
+  @override
+  State<_ImageGalleryViewer> createState() => _ImageGalleryViewerState();
+}
+
+class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.mediaList.length}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        centerTitle: true,
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        itemCount: widget.mediaList.length,
+        itemBuilder: (context, index) {
+          final metadata = widget.mediaList[index];
+          final localPath =
+              metadata.localPath ??
+              widget.localSenderMediaPaths[metadata.messageId];
+
+          return _buildImageViewer(metadata, localPath);
+        },
+      ),
+    );
+  }
+
+  Widget _buildImageViewer(MediaMetadata metadata, String? localPath) {
+    // Priority: local path → thumbnail → download from r2Key
+    Widget imageWidget;
+
+    if (widget.isMe && localPath != null && localPath.isNotEmpty) {
+      // Sender: use local file immediately
+      final file = File(localPath);
+      imageWidget = Image.file(
+        file,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      );
+    } else if (metadata.thumbnail != null && metadata.thumbnail.isNotEmpty) {
+      // Use thumbnail if available
+      if (metadata.thumbnail.startsWith('/')) {
+        // Local file path
+        imageWidget = Image.file(
+          File(metadata.thumbnail),
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+        );
+      } else {
+        // Base64 thumbnail
+        try {
+          final bytes = base64Decode(metadata.thumbnail);
+          imageWidget = Image.memory(
+            bytes,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          );
+        } catch (e) {
+          imageWidget = _buildFallbackImage(metadata);
+        }
+      }
+    } else {
+      // Fallback: show download button or URL
+      imageWidget = _buildFallbackImage(metadata);
+    }
+
+    return InteractiveViewer(
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: Center(child: imageWidget),
+    );
+  }
+
+  Widget _buildFallbackImage(MediaMetadata metadata) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.image, size: 64, color: Colors.white54),
+          const SizedBox(height: 16),
+          const Text(
+            'Image not available locally',
+            style: TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            metadata.originalFileName ?? 'image.jpg',
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
   }
 }

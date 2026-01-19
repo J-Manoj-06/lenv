@@ -7,6 +7,8 @@ class GroupChatMessage {
   final String message;
   final String? imageUrl;
   final MediaMetadata? mediaMetadata; // WhatsApp-style media metadata
+  final List<MediaMetadata>?
+  multipleMedia; // For multiple images in one message
   final int timestamp;
   final List<String>? deletedFor; // List of user IDs who deleted this message
   final bool isDeleted; // Whether message was deleted by sender
@@ -18,6 +20,7 @@ class GroupChatMessage {
     required this.message,
     this.imageUrl,
     this.mediaMetadata,
+    this.multipleMedia,
     required this.timestamp,
     this.deletedFor,
     this.isDeleted = false,
@@ -32,6 +35,11 @@ class GroupChatMessage {
       imageUrl: data['imageUrl'],
       mediaMetadata: data['mediaMetadata'] != null
           ? MediaMetadata.fromFirestore(data['mediaMetadata'])
+          : null,
+      multipleMedia: data['multipleMedia'] != null
+          ? (data['multipleMedia'] as List)
+                .map((m) => MediaMetadata.fromFirestore(m))
+                .toList()
           : null,
       timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
       deletedFor: data['deletedFor'] != null
@@ -48,6 +56,7 @@ class GroupChatMessage {
       'message': message,
       'imageUrl': imageUrl,
       'mediaMetadata': mediaMetadata?.toFirestore(),
+      'multipleMedia': multipleMedia?.map((m) => m.toFirestore()).toList(),
       'timestamp': timestamp,
       'deletedFor': deletedFor,
       'isDeleted': isDeleted,
