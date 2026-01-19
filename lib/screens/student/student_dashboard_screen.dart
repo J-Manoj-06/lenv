@@ -16,6 +16,7 @@ import '../../utils/cache_manager.dart';
 import '../../services/badge_service.dart';
 import '../../badges/badge_model.dart';
 import '../../badges/badge_master.dart';
+import '../../widgets/stat_ring_card.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
 import 'badge_gallery_screen.dart';
@@ -1065,7 +1066,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               child: CustomPaint(
                 painter: _CircularComparisonPainter(
                   progress: animatedValue,
-                  strokeWidth: 10,
+                  strokeWidth: 14,
                 ),
               ),
             ),
@@ -1380,10 +1381,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeOutBack,
       builder: (context, value, child) {
+        // Clamp value to valid range [0.0, 1.0] to prevent animation errors during hot restart
+        final clampedValue = value.clamp(0.0, 1.0);
         return Transform.scale(
-          scale: 0.95 + (0.05 * value),
+          scale: 0.95 + (0.05 * clampedValue),
           child: Opacity(
-            opacity: value,
+            opacity: clampedValue,
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1780,128 +1783,48 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           avgScore = testsTaken > 0 ? totalScore / testsTaken : 0.0;
         }
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Builder(
-              builder: (context) {
-                final isDark = Theme.of(context).brightness == Brightness.dark;
-                return Text(
+            Row(
+              children: [
+                Icon(Icons.analytics_rounded, size: 24, color: _primary),
+                const SizedBox(width: 8),
+                Text(
                   'Performance',
                   style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
                     color: isDark ? Colors.white : Colors.black87,
                     height: 1.2,
+                    letterSpacing: -0.5,
                   ),
-                );
-              },
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            Builder(
-              builder: (context) {
-                final isDark = Theme.of(context).brightness == Brightness.dark;
-                return Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: _surface(context),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: Theme.of(context).dividerColor.withOpacity(0.35),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.22 : 0.06),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      // Circular score
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(
-                            width: 110,
-                            height: 110,
-                            child: CustomPaint(
-                              painter: CircularProgressPainter(
-                                progress: avgScore / 100,
-                                strokeWidth: 9,
-                              ),
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${avgScore.toInt()}%',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w800,
-                                  color: isDark ? Colors.white : Colors.black87,
-                                  shadows: isDark
-                                      ? [
-                                          Shadow(
-                                            color: Colors.white24,
-                                            blurRadius: 8,
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                              ),
-                              Text(
-                                'Avg. Score',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: isDark
-                                      ? Colors.white70
-                                      : Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      // Tests taken
-                      Column(
-                        children: [
-                          Text(
-                            '$testsTaken',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : Colors.black87,
-                              shadows: isDark
-                                  ? [
-                                      Shadow(
-                                        color: Colors.white24,
-                                        blurRadius: 8,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                          ),
-                          Text(
-                            'Tests Taken',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: isDark
-                                  ? Colors.white70
-                                  : Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              },
+            StatRingCard(
+              percentage: avgScore,
+              primaryValue: '${avgScore.toInt()}%',
+              primaryLabel: 'Avg. Score',
+              accentColor: _primary,
+              ringSize: 150,
+              details: [
+                StatDetail(
+                  value: '$testsTaken',
+                  label: 'Tests Taken',
+                  icon: Icons.assignment_outlined,
+                  iconColor: _primary.withOpacity(0.8),
+                ),
+                StatDetail(
+                  value: '${avgScore.toInt()}%',
+                  label: 'Average Score',
+                  icon: Icons.trending_up_rounded,
+                  iconColor: _primary.withOpacity(0.8),
+                ),
+              ],
             ),
           ],
         );
@@ -1933,117 +1856,46 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           return const SizedBox.shrink();
         }
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Attendance',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: _onSurface(context),
-                height: 1.2,
-              ),
+            Row(
+              children: [
+                Icon(Icons.calendar_today_rounded, size: 24, color: _primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Attendance',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : Colors.black87,
+                    height: 1.2,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: _surface(context),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.35),
+            StatRingCard(
+              percentage: attendancePct,
+              primaryValue: '${attendancePct.toInt()}%',
+              primaryLabel: 'Present',
+              accentColor: _primary,
+              ringSize: 150,
+              details: [
+                StatDetail(
+                  value: '$presentDays',
+                  label: 'Days Present',
+                  dotColor: _primary,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  // Circular attendance
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 90,
-                        height: 90,
-                        child: CustomPaint(
-                          painter: CircularProgressPainter(
-                            progress: attendancePct / 100,
-                            strokeWidth: 10,
-                            color: const Color(0xFF4CAF50),
-                            backgroundColor: const Color(
-                              0xFFEF5350,
-                            ).withOpacity(0.2),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${attendancePct.toInt()}%',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: _onSurface(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 24),
-                  // Legend
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF4CAF50).withOpacity(0.9),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '$presentDays Days Present',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: _onSurface(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF5350).withOpacity(0.9),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '$absentDays Days Absent',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: _onSurface(context).withOpacity(0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                StatDetail(
+                  value: '$absentDays',
+                  label: 'Days Absent',
+                  dotColor: _primary.withOpacity(0.3),
+                ),
+              ],
             ),
           ],
         );
