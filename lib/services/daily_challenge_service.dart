@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/daily_challenge.dart';
 
 class DailyChallengeService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   static const String _dateKey = 'daily_challenge_date';
   static const String _jsonKey = 'daily_challenge_json';
   static const String _attemptedKey = 'daily_challenge_attempted';
@@ -14,23 +17,76 @@ class DailyChallengeService {
   static const String _streakKey = 'daily_challenge_streak';
 
   /// Get smart difficulty based on student's standard/class
+  /// Grades 4-6: Easy
+  /// Grades 7-10: Medium
+  /// Grades 11-12: Hard
   String getSmartDifficulty(int standard) {
-    if (standard >= 1 && standard <= 8) {
+    if (standard >= 4 && standard <= 6) {
       return 'easy';
-    } else if (standard >= 9 && standard <= 10) {
+    } else if (standard >= 7 && standard <= 10) {
       return 'medium';
     } else if (standard >= 11 && standard <= 12) {
-      // Probability system for class 11-12
-      final random = DateTime.now().millisecondsSinceEpoch % 100;
-      if (random < 30) {
-        return 'easy'; // 30% chance
-      } else if (random < 80) {
-        return 'medium'; // 50% chance
-      } else {
-        return 'hard'; // 20% chance
-      }
+      return 'hard';
     }
-    return 'easy'; // Default fallback
+    return 'medium'; // Default fallback
+  }
+
+  /// Fetch question from Firebase (pre-cached by Cloudflare Worker)
+  /// This is the PRIMARY method - questions are fetched once daily at 2 AM
+  /// by Cloudflare Worker and stored in Firebase
+  Future<DailyChallenge?> fetchQuestionFromFirebase(int standard) async {
+    try {
+      final difficulty = getSmartDifficulty(standard);
+      final today = DateTime.now().toIso8601String().split('T').first;
+
+      debugPrint(
+        '📥 Fetching $difficulty question for grade $standard from Firebase...',
+      );
+
+      // Fetch from Firebase daily_challenges collection
+      final doc = await _firestore
+          .collection('daily_challenges')
+          .doc(today)
+          .get(const GetOptions(source: Source.serverAndCache));
+
+      if (!doc.exists || doc.data() == null) {
+        debugPrint(
+          '⚠️ No challenge found in Firebase for $today, falling back to API',
+        );
+        return await fetchQuestionFromAPI(standard);
+      }
+
+      final data = doc.data()!;
+
+      // Get difficulty-specific fields
+      final prefix = difficulty; // 'easy', 'medium', or 'hard'
+      final question = data['${prefix}_question'] as String?;
+      final correctAnswer = data['${prefix}_correctAnswer'] as String?;
+      final optionsList = data['${prefix}_options'] as List?;
+      final category = data['${prefix}_category'] as String?;
+      final difficultyLevel = data['${prefix}_difficulty'] as String?;
+
+      if (question == null || correctAnswer == null || optionsList == null) {
+        debugPrint('⚠️ Incomplete data in Firebase, falling back to API');
+        return await fetchQuestionFromAPI(standard);
+      }
+
+      final options = optionsList.map((e) => e.toString()).toList();
+
+      debugPrint('✅ Successfully fetched $difficulty question from Firebase');
+
+      return DailyChallenge(
+        question: question,
+        options: options,
+        correctAnswer: correctAnswer,
+        category: category ?? 'General Knowledge',
+        difficulty: difficultyLevel ?? difficulty,
+      );
+    } catch (e) {
+      debugPrint('❌ Error fetching from Firebase: $e');
+      debugPrint('⚠️ Falling back to OpenTriviaDB API');
+      return await fetchQuestionFromAPI(standard);
+    }
   }
 
   /// Get category list based on student's standard/class
@@ -53,13 +109,16 @@ class DailyChallengeService {
     return [9]; // Default General Knowledge
   }
 
-  /// Fetch question from OpenTriviaDB API
+  /// Fetch question from OpenTriviaDB API (FALLBACK ONLY)
+  /// This is only used when Firebase fetch fails or data is missing
   Future<DailyChallenge?> fetchQuestionFromAPI(int standard) async {
     try {
       final difficulty = getSmartDifficulty(standard);
       final categoryList = getCategoryList(standard);
       categoryList.shuffle();
       final category = categoryList.first;
+
+      debugPrint('🌐 Fetching from OpenTriviaDB API (fallback)...');
 
       final uri = Uri.parse(
         'https://opentdb.com/api.php?amount=1&type=multiple&category=$category&difficulty=$difficulty',
@@ -68,6 +127,7 @@ class DailyChallengeService {
       final response = await http.get(uri).timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) {
+        debugPrint('❌ OpenTriviaDB API error: ${response.statusCode}');
         return null;
       }
 
@@ -75,6 +135,7 @@ class DailyChallengeService {
       final results = data['results'] as List?;
 
       if (results == null || results.isEmpty) {
+        debugPrint('❌ Empty results from OpenTriviaDB');
         return null;
       }
 
@@ -93,6 +154,8 @@ class DailyChallengeService {
       final allOptions = [correctAnswer, ...incorrectAnswers];
       allOptions.shuffle(Random(DateTime.now().millisecondsSinceEpoch));
 
+      debugPrint('✅ Successfully fetched from OpenTriviaDB API');
+
       return DailyChallenge(
         question: question,
         options: allOptions,
@@ -101,8 +164,17 @@ class DailyChallengeService {
         difficulty: questionData['difficulty'] as String,
       );
     } catch (e) {
+      debugPrint('❌ Error fetching from API: $e');
       return null;
     }
+  }
+
+  /// Debug print helper
+  void debugPrint(String message) {
+    if (const bool.fromEnvironment('dart.vm.product')) {
+      return; // Skip in production
+    }
+    print('[DailyChallengeService] $message');
   }
 
   /// Decode HTML entities (&quot;, &#039;, &amp;, etc.)
@@ -123,6 +195,8 @@ class DailyChallengeService {
   }
 
   /// Get daily challenge for today (load or fetch new)
+  /// PRIMARY: Fetch from Firebase (pre-cached by Cloudflare Worker)
+  /// FALLBACK: Fetch from OpenTriviaDB API if Firebase fails
   Future<DailyChallenge?> getDailyChallengeForToday(
     String userId,
     int standard,
@@ -133,18 +207,26 @@ class DailyChallengeService {
     final savedDate = prefs.getString('${_dateKey}_$userId');
 
     if (savedDate == today) {
-      // Load saved challenge
+      // Load saved challenge from local cache
       final jsonString = prefs.getString('${_jsonKey}_$userId');
       if (jsonString != null) {
-        final jsonData = json.decode(jsonString) as Map<String, dynamic>;
-        return DailyChallenge.fromJson(jsonData);
+        try {
+          final jsonData = json.decode(jsonString) as Map<String, dynamic>;
+          return DailyChallenge.fromJson(jsonData);
+        } catch (e) {
+          debugPrint('❌ Error loading cached challenge: $e');
+        }
       }
     }
 
-    // Fetch new challenge
-    final challenge = await fetchQuestionFromAPI(standard);
+    // Fetch new challenge from Firebase (primary source)
+    DailyChallenge? challenge = await fetchQuestionFromFirebase(standard);
+
+    // If Firebase fails, fallback to API
+    challenge ??= await fetchQuestionFromAPI(standard);
+
     if (challenge != null) {
-      // Save new challenge
+      // Save new challenge to local cache
       await prefs.setString('${_dateKey}_$userId', today);
       await prefs.setString(
         '${_jsonKey}_$userId',

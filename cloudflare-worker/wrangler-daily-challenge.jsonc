@@ -1,0 +1,16 @@
+{
+  "name": "daily-challenge-worker",
+  "compatibility_date": "2024-01-01",
+  "main": "src/daily-challenge-worker.ts",
+  
+  // Environment variables (secrets)
+  // Set using: wrangler secret put FIREBASE_SERVICE_ACCOUNT
+  "vars": {},
+  
+  // Scheduled trigger - Runs every day at 2:00 AM India time
+  // Cron format: "minute hour day month dayOfWeek"
+  // 2 AM IST = 8:30 PM UTC (previous day)
+  "triggers": {
+    "crons": ["30 20 * * *"]
+  }
+}
