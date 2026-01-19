@@ -368,6 +368,8 @@ class DailyChallengeProvider with ChangeNotifier {
   /// Update streak for a student
   Future<void> _updateStreak(String studentId, String today) async {
     try {
+      print('[Streak] 🔥 Updating streak for student: $studentId on $today');
+
       // Get student document
       final studentDoc = await _firestore
           .collection('users')
@@ -375,6 +377,7 @@ class DailyChallengeProvider with ChangeNotifier {
           .get();
 
       if (!studentDoc.exists) {
+        print('[Streak] ❌ Student document does not exist');
         return;
       }
 
@@ -382,14 +385,22 @@ class DailyChallengeProvider with ChangeNotifier {
       final lastStreakDate = data['lastStreakDate'] as String?;
       final currentStreak = data['streak'] as int? ?? 0;
 
+      print(
+        '[Streak] 📊 Current streak: $currentStreak, Last date: $lastStreakDate',
+      );
+
       int newStreak;
 
       if (lastStreakDate == null) {
         // First time answering
         newStreak = 1;
+        print('[Streak] 🆕 First time answering - setting streak to 1');
       } else if (lastStreakDate == today) {
         // Already answered today (shouldn't happen, but keep current streak)
         newStreak = currentStreak;
+        print(
+          '[Streak] ⚠️ Already answered today - keeping streak at $currentStreak',
+        );
       } else {
         // Check if it's a consecutive day
         final lastDate = _parseDate(lastStreakDate);
@@ -397,26 +408,50 @@ class DailyChallengeProvider with ChangeNotifier {
 
         if (lastDate != null && todayDate != null) {
           final daysDiff = todayDate.difference(lastDate).inDays;
+          print(
+            '[Streak] 📅 Days difference: $daysDiff (Last: $lastDate, Today: $todayDate)',
+          );
 
           if (daysDiff == 1) {
             // Consecutive day - increment streak
             newStreak = currentStreak + 1;
+            print(
+              '[Streak] ✅ Consecutive day! Incrementing streak: $currentStreak → $newStreak',
+            );
+          } else if (daysDiff == 0) {
+            // Same day (shouldn't happen but handle it)
+            newStreak = currentStreak;
+            print(
+              '[Streak] ⚠️ Same day detected - keeping streak at $currentStreak',
+            );
           } else {
             // Missed days - reset streak
             newStreak = 1;
+            print(
+              '[Streak] ⚠️ Missed ${daysDiff - 1} days - resetting streak to 1',
+            );
           }
         } else {
           // Error parsing dates - reset streak
           newStreak = 1;
+          print('[Streak] ❌ Error parsing dates - resetting streak to 1');
         }
       }
+
+      print(
+        '[Streak] 💾 Updating Firestore: streak=$newStreak, lastStreakDate=$today',
+      );
 
       // Update student document
       await _firestore.collection('users').doc(studentId).set({
         'streak': newStreak,
         'lastStreakDate': today,
       }, SetOptions(merge: true));
-    } catch (e) {}
+
+      print('[Streak] ✅ Streak updated successfully!');
+    } catch (e) {
+      print('[Streak] ❌ Error updating streak: $e');
+    }
   }
 
   /// Parse date string (yyyy-MM-dd) to DateTime

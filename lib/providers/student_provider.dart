@@ -90,8 +90,7 @@ class StudentProvider with ChangeNotifier {
         await _updateStudentStats(studentId);
 
         _hasLoaded = true; // Mark as loaded
-      } else {
-      }
+      } else {}
     } catch (e) {
       _errorMessage = 'Failed to load dashboard: ${e.toString()}';
 
@@ -148,10 +147,15 @@ class StudentProvider with ChangeNotifier {
   // Refresh only student data (lightweight - just updates streak in UI)
   Future<void> refreshStudentStreak(String studentId) async {
     try {
+      print('[StudentProvider] 🔄 Refreshing student streak for: $studentId');
       // Only fetch current student - no full reload
       _currentStudent = await _studentService.getCurrentStudent();
+      print(
+        '[StudentProvider] ✅ Student data refreshed. New streak: ${_currentStudent?.streak}',
+      );
       notifyListeners();
     } catch (e) {
+      print('[StudentProvider] ❌ Error refreshing student: $e');
     }
   }
 
@@ -178,8 +182,7 @@ class StudentProvider with ChangeNotifier {
       // Reload student data
       _currentStudent = await _studentService.getCurrentStudent();
       notifyListeners();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // Submit daily challenge answer
@@ -227,8 +230,7 @@ class StudentProvider with ChangeNotifier {
         );
         notifyListeners();
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // Mark all notifications as read
@@ -253,8 +255,7 @@ class StudentProvider with ChangeNotifier {
           .toList();
 
       notifyListeners();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // Refresh data

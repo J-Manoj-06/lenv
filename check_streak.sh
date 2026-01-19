@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Quick script to check your streak data in Firebase
+# Run this after answering a daily challenge to verify streak is updating
+
+echo "🔥 Checking streak data in Firebase..."
+echo ""
+echo "📱 Run your Flutter app in debug mode and:"
+echo "   1. Answer the daily challenge"
+echo "   2. Check the console output for [Streak] logs"
+echo "   3. Look for lines like:"
+echo "      [Streak] 📊 Current streak: X, Last date: YYYY-MM-DD"
+echo "      [Streak] ✅ Consecutive day! Incrementing streak: X → Y"
+echo ""
+echo "🔍 To manually check Firestore:"
+echo "   1. Go to https://console.firebase.google.com"
+echo "   2. Navigate to Firestore Database"
+echo "   3. Open the 'users' collection"
+echo "   4. Find your student document"
+echo "   5. Check fields: 'streak' and 'lastStreakDate'"
+echo ""
+echo "💡 Expected behavior:"
+echo "   - First answer: streak = 1"
+echo "   - Next day answer: streak = 2"
+echo "   - Skip a day: streak resets to 1"
+echo ""
+echo "🐛 If streak is stuck at 1:"
+echo "   - Check console logs for [Streak] errors"
+echo "   - Verify 'lastStreakDate' is updating correctly"
+echo "   - Check date format is YYYY-MM-DD"
