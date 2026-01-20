@@ -1120,28 +1120,92 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
       // Cache miss or expired - fetch from Firestore
 
-      Query query = FirebaseFirestore.instance.collection('users');
-
-      if (student.schoolId != null) {
-        query = query.where('schoolId', isEqualTo: student.schoolId);
-      }
-      if (student.className != null) {
-        query = query.where('className', isEqualTo: student.className);
-      }
-
-      query = query.where('role', isEqualTo: 'student');
-
-      final snapshot = await query.get();
-
+      // 1) Try aggregating from student_rewards (same source as the student card)
+      //    so topper and student values stay in sync.
       int maxPoints = 0;
-      for (final doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>?;
-        if (data != null) {
-          final points = data['rewardPoints'];
-          if (points is int && points > maxPoints) {
-            maxPoints = points;
-          } else if (points is num && points.toInt() > maxPoints) {
-            maxPoints = points.toInt();
+      try {
+        Query rewardsQuery = FirebaseFirestore.instance.collection(
+          'student_rewards',
+        );
+
+        if ((student.schoolId ?? '').isNotEmpty) {
+          rewardsQuery = rewardsQuery.where(
+            'schoolId',
+            isEqualTo: student.schoolId,
+          );
+        }
+        if ((student.className ?? '').isNotEmpty) {
+          rewardsQuery = rewardsQuery.where(
+            'className',
+            isEqualTo: student.className,
+          );
+        }
+
+        final rewardsSnapshot = await rewardsQuery.get();
+
+        if (rewardsSnapshot.docs.isNotEmpty) {
+          final Map<String, int> pointsByStudent = {};
+
+          for (final doc in rewardsSnapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>?;
+            if (data == null) continue;
+
+            final studentId = data['studentId'] as String? ?? '';
+            if (studentId.isEmpty) continue;
+
+            final points = data['pointsEarned'];
+            final asInt = points is int
+                ? points
+                : (points is num ? points.toInt() : 0);
+
+            pointsByStudent.update(
+              studentId,
+              (value) => value + asInt,
+              ifAbsent: () => asInt,
+            );
+          }
+
+          if (pointsByStudent.isNotEmpty) {
+            maxPoints = pointsByStudent.values.fold<int>(
+              0,
+              (prev, value) => value > prev ? value : prev,
+            );
+          }
+        }
+      } catch (_) {
+        // Ignore and fall back to users collection
+      }
+
+      // 2) Fallback: use users.rewardPoints if aggregation didn't find anything
+      if (maxPoints == 0) {
+        Query usersQuery = FirebaseFirestore.instance.collection('users');
+
+        if (student.schoolId != null) {
+          usersQuery = usersQuery.where(
+            'schoolId',
+            isEqualTo: student.schoolId,
+          );
+        }
+        if (student.className != null) {
+          usersQuery = usersQuery.where(
+            'className',
+            isEqualTo: student.className,
+          );
+        }
+
+        usersQuery = usersQuery.where('role', isEqualTo: 'student');
+
+        final snapshot = await usersQuery.get();
+
+        for (final doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data != null) {
+            final points = data['rewardPoints'];
+            if (points is int && points > maxPoints) {
+              maxPoints = points;
+            } else if (points is num && points.toInt() > maxPoints) {
+              maxPoints = points.toInt();
+            }
           }
         }
       }
@@ -1375,6 +1439,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     if (correctAnswer == null) return const SizedBox.shrink();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = const Color(0xFFF2800D);
+    final danger = const Color(0xFFE44F4F);
+    final cardGradients = [
+      isDark ? const Color(0xFF1A1B1F) : const Color(0xFFFBFBFE),
+      isDark ? const Color(0xFF111218) : const Color(0xFFF1F2F7),
+    ];
+    final muted = isDark ? Colors.white70 : Colors.black54;
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
@@ -1384,128 +1455,80 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         // Clamp value to valid range [0.0, 1.0] to prevent animation errors during hot restart
         final clampedValue = value.clamp(0.0, 1.0);
         return Transform.scale(
-          scale: 0.95 + (0.05 * clampedValue),
+          scale: 0.96 + (0.04 * clampedValue),
           child: Opacity(
             opacity: clampedValue,
             child: Container(
-              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: wasCorrect
-                      ? [
-                          const Color(0xFF4CAF50).withOpacity(0.15),
-                          const Color(0xFF66BB6A).withOpacity(0.1),
-                        ]
-                      : [
-                          const Color(0xFF2196F3).withOpacity(0.15),
-                          const Color(0xFF42A5F5).withOpacity(0.1),
-                        ],
+                  colors: cardGradients,
                 ),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: wasCorrect
-                      ? const Color(0xFF4CAF50).withOpacity(0.3)
-                      : const Color(0xFF2196F3).withOpacity(0.3),
-                  width: 1.5,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.black.withOpacity(0.04),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color:
-                        (wasCorrect
-                                ? const Color(0xFF4CAF50)
-                                : const Color(0xFF2196F3))
-                            .withOpacity(0.1),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withOpacity(isDark ? 0.28 : 0.12),
+                    blurRadius: 16,
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header with icon
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: wasCorrect
-                              ? const Color(0xFF4CAF50).withOpacity(0.2)
-                              : const Color(0xFF2196F3).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          wasCorrect ? Icons.lightbulb : Icons.school,
-                          color: wasCorrect
-                              ? const Color(0xFF4CAF50)
-                              : const Color(0xFF2196F3),
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          wasCorrect ? 'Your Answer' : 'Correct Answer',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: wasCorrect
-                              ? const Color(0xFF4CAF50).withOpacity(0.2)
-                              : const Color(0xFF2196F3).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          wasCorrect ? 'CORRECT' : 'LEARN',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: wasCorrect
-                                ? const Color(0xFF4CAF50)
-                                : const Color(0xFF2196F3),
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                    ],
+                  // Correct answer header
+                  Text(
+                    "Keep trying! Check the correct answer below.",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: muted,
+                      height: 1.45,
+                    ),
                   ),
-                  const SizedBox(height: 14),
 
-                  // Correct answer text with premium styling
+                  const SizedBox(height: 10),
+
+                  // Correct answer highlight block
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? Colors.black.withOpacity(0.3)
-                          : Colors.white.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(10),
+                          ? Colors.white.withOpacity(0.04)
+                          : Colors.black.withOpacity(0.02),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: wasCorrect
-                            ? const Color(0xFF4CAF50).withOpacity(0.2)
-                            : const Color(0xFF2196F3).withOpacity(0.2),
+                        color: (wasCorrect ? accent : danger).withOpacity(0.18),
                       ),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.check_circle_outline,
-                          color: wasCorrect
-                              ? const Color(0xFF4CAF50)
-                              : const Color(0xFF2196F3),
-                          size: 22,
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: (wasCorrect ? accent : danger).withOpacity(
+                              0.12,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.check_rounded,
+                            color: wasCorrect ? accent : danger,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1513,41 +1536,15 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                             correctAnswer,
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                               color: isDark ? Colors.white : Colors.black87,
-                              height: 1.4,
+                              height: 1.35,
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-
-                  // Motivational message
-                  if (!wasCorrect) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.auto_awesome,
-                          color: const Color(0xFF2196F3).withOpacity(0.7),
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Don\'t worry! Every mistake is a learning opportunity. Come back tomorrow! 💪',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontStyle: FontStyle.italic,
-                              color: isDark ? Colors.white70 : Colors.black54,
-                              height: 1.3,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),

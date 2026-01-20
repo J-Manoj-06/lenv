@@ -185,56 +185,7 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
     );
   }
 
-  PreferredSizeWidget _buildModernAppBar(
-
   Widget _buildModernSearchBar(
-    BuildContext context,
-    bool isDark,
-    Color cardBg,
-  ) {
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(110),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-        decoration: BoxDecoration(
-          color: cardBg,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                'Rewards Store',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : const Color(0xFF1F2937),
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Browse and redeem amazing rewards',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.grey[400] : Colors.grey[600],
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
     BuildContext context,
     bool isDark,
     Color cardBg,
