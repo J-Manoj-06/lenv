@@ -98,7 +98,10 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       });
     }
 
-    // ✅ No auto-download - user must explicitly click download button
+    // Auto-download images for better UX (only images, not PDFs/audio)
+    if (!_isDownloaded && _isImage && widget.thumbnailBase64 != null) {
+      _download();
+    }
   }
 
   Future<void> _download() async {
@@ -574,6 +577,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   return Image.file(
                     File(_localPath!),
                     fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
                         color: Colors.grey[800],
@@ -591,72 +595,48 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 () {
                   // Check if it's a file path, URL, or base64 data
                   if (widget.thumbnailBase64!.startsWith('/')) {
-                    // It's a file path, use Image.file
-                    return ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                      child: ColorFiltered(
-                        colorFilter: const ColorFilter.mode(
-                          Colors.black38,
-                          BlendMode.darken,
-                        ),
-                        child: Image.file(
-                          File(widget.thumbnailBase64!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: Colors.grey[800],
-                            child: const Icon(
-                              Icons.image,
-                              size: 64,
-                              color: Colors.white54,
-                            ),
-                          ),
+                    // It's a file path, use Image.file (NO BLUR for better UX)
+                    return Image.file(
+                      File(widget.thumbnailBase64!),
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[800],
+                        child: const Icon(
+                          Icons.image,
+                          size: 64,
+                          color: Colors.white54,
                         ),
                       ),
                     );
                   } else if (widget.thumbnailBase64!.startsWith('http')) {
-                    // It's a URL, use Image.network
-                    return ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                      child: ColorFiltered(
-                        colorFilter: const ColorFilter.mode(
-                          Colors.black38,
-                          BlendMode.darken,
-                        ),
-                        child: Image.network(
-                          widget.thumbnailBase64!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: Colors.grey[800],
-                            child: const Icon(
-                              Icons.image,
-                              size: 64,
-                              color: Colors.white54,
-                            ),
-                          ),
+                    // It's a URL, use Image.network (NO BLUR for better UX)
+                    return Image.network(
+                      widget.thumbnailBase64!,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[800],
+                        child: const Icon(
+                          Icons.image,
+                          size: 64,
+                          color: Colors.white54,
                         ),
                       ),
                     );
                   } else {
-                    // It's base64 data
+                    // It's base64 data (NO BLUR for better UX)
                     try {
-                      return ImageFiltered(
-                        imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                        child: ColorFiltered(
-                          colorFilter: const ColorFilter.mode(
-                            Colors.black38,
-                            BlendMode.darken,
-                          ),
-                          child: Image.memory(
-                            base64Decode(widget.thumbnailBase64!),
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.grey[800],
-                              child: const Icon(
-                                Icons.image,
-                                size: 64,
-                                color: Colors.white54,
-                              ),
-                            ),
+                      return Image.memory(
+                        base64Decode(widget.thumbnailBase64!),
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: Colors.grey[800],
+                          child: const Icon(
+                            Icons.image,
+                            size: 64,
+                            color: Colors.white54,
                           ),
                         ),
                       );

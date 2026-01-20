@@ -23,11 +23,7 @@ class GroupMessagingService {
     GroupChatMessage message,
   ) async {
     try {
-      debugPrint('📨 GroupMessagingService.sendGroupMessage:');
-      debugPrint('   messageId=${message.mediaMetadata?.messageId}');
-      debugPrint('   senderId=${message.senderId}');
-
-      // 1. Add message to Firestore
+      // Add message to Firestore
       await _firestore
           .collection('classes')
           .doc(classId)
@@ -36,9 +32,7 @@ class GroupMessagingService {
           .collection('messages')
           .add(message.toFirestore());
 
-      debugPrint('✅ Message written to Firestore');
-
-      // 2. ✅ OPTIMIZATION: Update teacher_groups index for this class-subject combo
+      // Update teacher_groups index for this class-subject combo
       // This updates the teacher's unread count in real-time without scanning messages
       await _updateTeacherGroupsAfterMessage(classId, subjectId, message);
     } catch (e) {

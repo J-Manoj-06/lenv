@@ -258,12 +258,7 @@ class BackgroundUploadService extends ChangeNotifier {
             originalFileName: mediaMessage.fileName,
           );
 
-          debugPrint(
-            '📤 BackgroundUploadService creating metadata: messageId=${upload.id}, r2Key=$r2Key',
-          );
-          debugPrint(
-            '   Sending to Firestore with metadata.messageId=${upload.id}',
-          );
+          // Creating and sending metadata to Firestore
 
           // If this upload is part of a group, collect metadata instead of sending immediately
           if (upload.groupId != null) {
@@ -281,9 +276,6 @@ class BackgroundUploadService extends ChangeNotifier {
             if (allComplete) {
               // All uploads in group are done - send one message with multipleMedia
               final allMetadata = _completedGroups[upload.groupId!]!;
-              debugPrint(
-                '✅ Group ${upload.groupId} complete with ${allMetadata.length} media items',
-              );
 
               // Route to the correct messaging service based on chatType
               if (upload.chatType == 'group' || upload.senderRole == 'group') {

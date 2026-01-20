@@ -44,7 +44,7 @@ class OfflineCacheManager {
     if (_initialized) return;
 
     try {
-      // Open all boxes in parallel with timeout
+      // Open all boxes in parallel with longer timeout for slower devices
       await Future.wait([
             Hive.openBox<Map>(_groupsBoxName),
             Hive.openBox<Map>(_communitiesBoxName),
@@ -56,7 +56,7 @@ class OfflineCacheManager {
             Hive.openBox<Map>(_userDataBoxName),
           ])
           .timeout(
-            const Duration(seconds: 2),
+            const Duration(seconds: 10),
             onTimeout: () =>
                 throw TimeoutException('OfflineCacheManager timeout'),
           )

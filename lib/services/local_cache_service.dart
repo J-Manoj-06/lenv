@@ -39,7 +39,7 @@ class LocalCacheService {
 
     try {
       // Hive is already initialized in main(), just open boxes
-      // Open boxes with timeout to prevent hanging
+      // Open boxes with longer timeout for slower devices
       await Future.wait([
             Hive.openBox<Map>(_messagesBoxName),
             Hive.openBox<Map>(_mediaBoxName),
@@ -48,7 +48,7 @@ class LocalCacheService {
             Hive.openBox<Map>(_mediaMetadataBoxName),
           ])
           .timeout(
-            const Duration(seconds: 2),
+            const Duration(seconds: 10),
             onTimeout: () =>
                 throw TimeoutException('Hive initialization timeout'),
           )

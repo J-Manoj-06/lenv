@@ -2113,17 +2113,19 @@ class _MessageBubble extends StatelessWidget {
                   ),
                   child: Padding(
                     padding: EdgeInsets.symmetric(
+                      // Tighter padding for media-only bubbles to maximize image area
                       horizontal:
                           (message.mediaMetadata != null ||
                                   message.imageUrl != null) &&
                               message.message.isEmpty
-                          ? 4
+                          ? 6
                           : 14,
+                      // Reduce bottom border for media-only bubbles
                       vertical:
                           (message.mediaMetadata != null ||
                                   message.imageUrl != null) &&
                               message.message.isEmpty
-                          ? 4
+                          ? 0
                           : 12,
                     ),
                     child: Column(
@@ -2350,90 +2352,102 @@ class _MessageBubble extends StatelessWidget {
           ),
         ],
       );
-    } else if (count == 5) {
-      // 5 images: 2x2 grid with +1 overlay on 4th image
-      gridContent = Column(
+    } else if (count >= 5) {
+      // 5+ images: 2x2 grid + vertical strip for remaining
+      gridContent = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildGridImage(
-                  context,
-                  mediaList[0],
-                  allMedia: mediaList,
-                  currentIndex: 0,
-                ),
-              ),
-              const SizedBox(width: 2),
-              Expanded(
-                child: _buildGridImage(
-                  context,
-                  mediaList[1],
-                  allMedia: mediaList,
-                  currentIndex: 1,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Expanded(
-                child: _buildGridImage(
-                  context,
-                  mediaList[2],
-                  allMedia: mediaList,
-                  currentIndex: 2,
-                ),
-              ),
-              const SizedBox(width: 2),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    // Open gallery viewer starting at 4th image
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => _ImageGalleryViewer(
-                          mediaList: mediaList,
-                          initialIndex: 3,
-                          localSenderMediaPaths: localSenderMediaPaths,
-                          isMe: isMe,
-                        ),
+          // Left side: 2x2 grid with clean gaps
+          Expanded(
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildGridImage(
+                        context,
+                        mediaList[0],
+                        allMedia: mediaList,
+                        currentIndex: 0,
                       ),
-                    );
-                  },
-                  child: Stack(
-                    children: [
-                      _buildGridImage(
+                    ),
+                    const SizedBox(width: 2),
+                    Expanded(
+                      child: _buildGridImage(
+                        context,
+                        mediaList[1],
+                        allMedia: mediaList,
+                        currentIndex: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildGridImage(
+                        context,
+                        mediaList[2],
+                        allMedia: mediaList,
+                        currentIndex: 2,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Expanded(
+                      child: _buildGridImage(
                         context,
                         mediaList[3],
                         allMedia: mediaList,
                         currentIndex: 3,
                       ),
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              '+1',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 2),
+          // Right side: Vertical scroll for remaining images
+          SizedBox(
+            width: 140,
+            child: ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: count - 4,
+              itemBuilder: (context, index) {
+                final mediaIndex = index + 4;
+                return Column(
+                  children: [
+                    if (index > 0) const SizedBox(height: 2),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _ImageGalleryViewer(
+                              mediaList: mediaList,
+                              initialIndex: mediaIndex,
+                              localSenderMediaPaths: localSenderMediaPaths,
+                              isMe: isMe,
                             ),
                           ),
+                        );
+                      },
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildGridImage(
+                          context,
+                          mediaList[mediaIndex],
+                          allMedia: mediaList,
+                          currentIndex: mediaIndex,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       );
@@ -2447,29 +2461,31 @@ class _MessageBubble extends StatelessWidget {
       );
     }
 
-    // Check if ANY image in the grid is uploading
-    final isAnyUploading = mediaList.any(
-      (media) => uploadingMessageIds.contains(media.messageId),
-    );
+    // Check if ANY image in the grid is uploading (progress < 1.0)
+    final uploadingMediaWithProgress = mediaList
+        .where(
+          (media) =>
+              uploadingMessageIds.contains(media.messageId) &&
+              (pendingUploadProgress[media.messageId] ?? 0.0) < 1.0,
+        )
+        .toList();
+
+    final isAnyUploading = uploadingMediaWithProgress.isNotEmpty;
 
     // Calculate average upload progress for the grid
     double gridUploadProgress = 0.0;
     if (isAnyUploading) {
-      final uploadingMedia = mediaList
-          .where((media) => uploadingMessageIds.contains(media.messageId))
-          .toList();
-      if (uploadingMedia.isNotEmpty) {
-        final totalProgress = uploadingMedia.fold<double>(
-          0.0,
-          (sum, media) => sum + (pendingUploadProgress[media.messageId] ?? 0.0),
-        );
-        gridUploadProgress = totalProgress / uploadingMedia.length;
-      }
+      final totalProgress = uploadingMediaWithProgress.fold<double>(
+        0.0,
+        (sum, media) => sum + (pendingUploadProgress[media.messageId] ?? 0.0),
+      );
+      gridUploadProgress =
+          totalProgress / (uploadingMediaWithProgress.isEmpty ? 1 : uploadingMediaWithProgress.length);
     }
 
-    // Constrain width to max 280px for WhatsApp-style appearance
+    // Constrain width for better appearance
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 280),
+      constraints: const BoxConstraints(maxWidth: 320),
       child: Stack(
         children: [
           gridContent,
