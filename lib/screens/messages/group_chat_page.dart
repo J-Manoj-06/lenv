@@ -757,6 +757,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
           chatType: 'group',
           senderName: currentUserName,
           messageId: messageId,
+          groupId: groupMessageId, // Group all uploads together
         );
       }
 
@@ -1486,13 +1487,29 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
                             // For media messages: match by messageId (both pending and server have same messageId)
                             if (pendingMsg.mediaMetadata != null &&
-                                fsMsg.mediaMetadata != null) {
+                                (fsMsg.mediaMetadata != null ||
+                                    fsMsg.multipleMedia != null)) {
                               final pendingMsgId =
                                   pendingMsg.mediaMetadata!.messageId;
+
+                              // Check primary metadata
                               final serverMsgId =
-                                  fsMsg.mediaMetadata!.messageId;
+                                  fsMsg.mediaMetadata?.messageId;
                               final messageIdMatch =
                                   serverMsgId == pendingMsgId;
+
+                              // Also check multipleMedia array
+                              final multipleMediaMatch =
+                                  fsMsg.multipleMedia?.any(
+                                    (m) =>
+                                        m.messageId == pendingMsgId ||
+                                        pendingMsg.multipleMedia?.any(
+                                              (pm) =>
+                                                  pm.messageId == m.messageId,
+                                            ) ==
+                                            true,
+                                  ) ??
+                                  false;
 
                               debugPrint(
                                 '🔍 DEDUP CHECK: pending=${pendingMsg.id}, server=${fsMsg.id}',
@@ -1501,11 +1518,37 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 '   pendingMsgId=$pendingMsgId, serverMsgId=$serverMsgId, match=$messageIdMatch',
                               );
                               debugPrint(
+                                '   multipleMediaMatch=$multipleMediaMatch',
+                              );
+                              debugPrint(
                                 '   senderMatch=$senderMatch, timeMatch=$timeMatch',
                               );
 
-                              // For media: prioritize messageId match, time is secondary
-                              return senderMatch && messageIdMatch;
+                              // For media: prioritize messageId match (either in primary or multipleMedia)
+                              if (messageIdMatch || multipleMediaMatch) {
+                                // Preserve local paths from pending message
+                                if (pendingMsg.multipleMedia != null) {
+                                  for (final pm in pendingMsg.multipleMedia!) {
+                                    if (pm.localPath != null &&
+                                        pm.localPath!.isNotEmpty) {
+                                      _localSenderMediaPaths[pm.messageId] =
+                                          pm.localPath!;
+                                      debugPrint(
+                                        '💾 PRESERVED LOCAL PATH: ${pm.messageId} -> ${pm.localPath}',
+                                      );
+                                    }
+                                  }
+                                }
+                                if (pendingMsg.mediaMetadata?.localPath !=
+                                    null) {
+                                  _localSenderMediaPaths[pendingMsg
+                                          .mediaMetadata!
+                                          .messageId] =
+                                      pendingMsg.mediaMetadata!.localPath!;
+                                }
+                                return senderMatch;
+                              }
+                              return false;
                             }
                             // For text-only messages: sender + time match is enough
                             if (pendingMsg.mediaMetadata == null &&
@@ -3453,7 +3496,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
       );
-    } else if (metadata.thumbnail != null && metadata.thumbnail.isNotEmpty) {
+    } else if (metadata.thumbnail.isNotEmpty) {
       // Use thumbnail if available
       if (metadata.thumbnail.startsWith('/')) {
         // Local file path

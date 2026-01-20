@@ -23,6 +23,7 @@ class PendingUpload {
   final String mediaType;
   final String fileName;
   final String mimeType;
+  final String? groupId; // For grouping multiple uploads into one message
   UploadStatus status;
   double progress;
   String? r2Url;
@@ -39,6 +40,7 @@ class PendingUpload {
     required this.mediaType,
     required this.fileName,
     required this.mimeType,
+    this.groupId,
     this.status = UploadStatus.pending,
     this.progress = 0.0,
   });
@@ -54,6 +56,7 @@ class PendingUpload {
     'mediaType': mediaType,
     'fileName': fileName,
     'mimeType': mimeType,
+    'groupId': groupId,
     'status': status.toString(),
     'progress': progress,
     'r2Url': r2Url,
@@ -72,6 +75,7 @@ class PendingUpload {
           mediaType: json['mediaType'],
           fileName: json['fileName'],
           mimeType: json['mimeType'],
+          groupId: json['groupId'],
           status: UploadStatus.values.firstWhere(
             (s) => s.toString() == json['status'],
             orElse: () => UploadStatus.pending,
@@ -99,6 +103,9 @@ class BackgroundUploadService extends ChangeNotifier {
   Timer? _processingTimer;
   bool _isProcessing = false;
   bool _initialized = false;
+
+  // Track completed uploads by groupId
+  final Map<String, List<MediaMetadata>> _completedGroups = {};
 
   // Callback for UI to track uploading messages
   Function(String messageId, bool isUploading, double progress)?
@@ -149,6 +156,7 @@ class BackgroundUploadService extends ChangeNotifier {
     String? senderName,
     String?
     messageId, // Optional: use client-generated pending messageId for progress mapping
+    String? groupId, // Optional: group multiple uploads into one message
   }) async {
     // Ensure service is initialized
     if (!_initialized) {
@@ -170,6 +178,7 @@ class BackgroundUploadService extends ChangeNotifier {
       mediaType: mediaType,
       fileName: file.path.split('/').last,
       mimeType: _getMimeType(file.path),
+      groupId: groupId,
     );
 
     _uploads.add(upload);
@@ -256,7 +265,58 @@ class BackgroundUploadService extends ChangeNotifier {
             '   Sending to Firestore with metadata.messageId=${upload.id}',
           );
 
-          // Route to the correct messaging service based on chatType
+          // If this upload is part of a group, collect metadata instead of sending immediately
+          if (upload.groupId != null) {
+            _completedGroups[upload.groupId!] ??= [];
+            _completedGroups[upload.groupId!]!.add(metadata);
+
+            // Check if all uploads in this group are complete
+            final groupUploads = _uploads
+                .where((u) => u.groupId == upload.groupId)
+                .toList();
+            final allComplete = groupUploads.every(
+              (u) => u.status == UploadStatus.completed,
+            );
+
+            if (allComplete) {
+              // All uploads in group are done - send one message with multipleMedia
+              final allMetadata = _completedGroups[upload.groupId!]!;
+              debugPrint(
+                '✅ Group ${upload.groupId} complete with ${allMetadata.length} media items',
+              );
+
+              // Route to the correct messaging service based on chatType
+              if (upload.chatType == 'group' || upload.senderRole == 'group') {
+                final parts = upload.conversationId.split('_');
+                if (parts.length >= 2) {
+                  final classId = parts.first;
+                  final subjectId = parts.sublist(1).join('_');
+                  final message = GroupChatMessage(
+                    id: '',
+                    senderId: upload.senderId,
+                    senderName: upload.senderName ?? 'Teacher',
+                    message: '',
+                    imageUrl: null,
+                    mediaMetadata: allMetadata.first,
+                    multipleMedia: allMetadata.length > 1 ? allMetadata : null,
+                    timestamp: DateTime.now().millisecondsSinceEpoch,
+                  );
+                  await _groupService.sendGroupMessage(
+                    classId,
+                    subjectId,
+                    message,
+                  );
+                }
+              }
+
+              // Clean up completed group
+              _completedGroups.remove(upload.groupId);
+              _uploads.removeWhere((u) => u.groupId == upload.groupId);
+            }
+            continue; // Don't send individual message for grouped uploads
+          }
+
+          // Route to the correct messaging service based on chatType (for non-grouped uploads)
           if (upload.chatType == 'group' || upload.senderRole == 'group') {
             // conversationId expected as "{classId}_{subjectId}"
             final parts = upload.conversationId.split('_');
