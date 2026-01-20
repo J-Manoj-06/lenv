@@ -55,9 +55,29 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
 
     return Scaffold(
       backgroundColor: scaffoldBg,
-      appBar: _buildModernAppBar(context, isDark, cardBg),
       body: Column(
         children: [
+          // Header matching leaderboard style
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Rewards Store',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           RewardsTopSwitcher(
             isCatalogActive: true,
             studentId: widget.studentId,
