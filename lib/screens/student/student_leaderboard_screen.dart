@@ -32,10 +32,6 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   bool _isPerTest = false;
   String? _selectedTestId;
   String _selectedTestLabel = 'Test Name';
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
-  final _searchFocusNode = FocusNode();
-  String _pendingSearchText = '';
 
   final _leaderboardService = LeaderboardService();
 
@@ -52,8 +48,6 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   final Map<String, Stream<List<LeaderboardEntry>>> _cachedPerTestStreams = {};
   @override
   void dispose() {
-    _searchController.dispose();
-    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -126,7 +120,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
         children: [
           // Top bar with back button and title
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -145,7 +139,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           ),
           // Tab selector
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
             child: Container(
               decoration: BoxDecoration(
                 color: theme.brightness == Brightness.dark
@@ -372,314 +366,12 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
         },
       );
     } else {
-      // Per-Test: show test cards inline for this student
+      // Per-Test: show test cards with search
       final uid = _currentUid;
       if (uid == null) {
         return _loadingState(theme);
       }
-      return StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('testResults')
-            .where('studentId', isEqualTo: uid)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _loadingState(theme);
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: _emptyState(
-                theme,
-                'No tests assigned yet',
-                icon: Icons.menu_book_outlined,
-              ),
-            );
-          }
-
-          // Unique tests by testId
-          final testMap = <String, Map<String, dynamic>>{};
-          for (final doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final testId = data['testId'] as String?;
-            if (testId != null && !testMap.containsKey(testId)) {
-              testMap[testId] = data;
-            }
-          }
-          var tests = testMap.values.toList();
-          tests.sort((a, b) {
-            final aDate = (a['assignedAt'] as Timestamp?)?.toDate();
-            final bDate = (b['assignedAt'] as Timestamp?)?.toDate();
-            if (aDate == null || bDate == null) return 0;
-            return bDate.compareTo(aDate);
-          });
-
-          // Filter by search query
-          if (_searchQuery.isNotEmpty) {
-            tests = tests.where((t) {
-              final title = (t['testTitle'] as String? ?? '').toLowerCase();
-              final subject = (t['subject'] as String? ?? '').toLowerCase();
-              final query = _searchQuery.toLowerCase();
-              return title.contains(query) || subject.contains(query);
-            }).toList();
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Search bar
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: TextField(
-                  focusNode: _searchFocusNode,
-                  controller: _searchController,
-                  onChanged: (value) {
-                    // Only update pending text; do not filter yet
-                    _pendingSearchText = value;
-                    // Keep keyboard open reliably
-                    if (!_searchFocusNode.hasFocus) {
-                      _searchFocusNode.requestFocus();
-                    }
-                  },
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (value) {
-                    _applySearch();
-                  },
-                  style: TextStyle(
-                    color: theme.brightness == Brightness.dark
-                        ? Colors.white
-                        : const Color(0xFF1A1D21),
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search tests...',
-                    hintStyle: TextStyle(
-                      color: theme.brightness == Brightness.dark
-                          ? Colors.white54
-                          : Colors.black54,
-                    ),
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: theme.brightness == Brightness.dark
-                          ? Colors.white54
-                          : Colors.black54,
-                    ),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_pendingSearchText.isNotEmpty &&
-                            _pendingSearchText != _searchQuery)
-                          IconButton(
-                            tooltip: 'Apply search',
-                            icon: Icon(
-                              Icons.search,
-                              color: theme.brightness == Brightness.dark
-                                  ? Colors.white70
-                                  : Colors.black54,
-                            ),
-                            onPressed: _applySearch,
-                          ),
-                        if (_searchQuery.isNotEmpty)
-                          IconButton(
-                            tooltip: 'Clear search',
-                            icon: Icon(
-                              Icons.clear,
-                              color: theme.brightness == Brightness.dark
-                                  ? Colors.white54
-                                  : Colors.black54,
-                            ),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _searchQuery = '';
-                                _pendingSearchText = '';
-                              });
-                              _searchFocusNode.requestFocus();
-                            },
-                          ),
-                      ],
-                    ),
-                    filled: true,
-                    fillColor: theme.brightness == Brightness.dark
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-              ),
-              // Test cards list
-              Expanded(
-                child: tests.isEmpty
-                    ? Center(
-                        child: Text(
-                          _searchQuery.isNotEmpty
-                              ? 'No tests found'
-                              : 'No tests assigned yet',
-                          style: TextStyle(
-                            color: theme.brightness == Brightness.dark
-                                ? Colors.white54
-                                : Colors.black54,
-                            fontSize: 16,
-                          ),
-                        ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        itemCount: tests.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final t = tests[index];
-                          final title =
-                              t['testTitle'] as String? ?? 'Unnamed Test';
-                          final subject = t['subject'] as String? ?? '';
-                          final assignedAt = (t['assignedAt'] as Timestamp?)
-                              ?.toDate();
-                          final months = const [
-                            'Jan',
-                            'Feb',
-                            'Mar',
-                            'Apr',
-                            'May',
-                            'Jun',
-                            'Jul',
-                            'Aug',
-                            'Sep',
-                            'Oct',
-                            'Nov',
-                            'Dec',
-                          ];
-                          final dateStr = assignedAt != null
-                              ? '${months[assignedAt.month - 1]} ${assignedAt.day}, ${assignedAt.year}'
-                              : '';
-
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        PerTestLeaderboardDetail(
-                                          testId: t['testId'] as String,
-                                          testTitle: title,
-                                          subject: subject,
-                                        ),
-                                  ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: theme.brightness == Brightness.dark
-                                      ? const Color(0xFF1A1A1A)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: theme.brightness == Brightness.dark
-                                        ? const Color(
-                                            0xFFFF7B00,
-                                          ).withOpacity(0.2)
-                                        : Colors.black.withOpacity(0.05),
-                                  ),
-                                ),
-                                padding: const EdgeInsets.all(16),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 48,
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        color:
-                                            theme.brightness == Brightness.dark
-                                            ? const Color(0xFF27272A)
-                                            : const Color(0xFFF5F5F5),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        Icons.menu_book,
-                                        color:
-                                            theme.brightness == Brightness.dark
-                                            ? Colors.white
-                                            : const Color(0xFF1A1D21),
-                                        size: 24,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            title,
-                                            style: TextStyle(
-                                              color:
-                                                  theme.brightness ==
-                                                      Brightness.dark
-                                                  ? Colors.white
-                                                  : const Color(0xFF1A1D21),
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          if (subject.isNotEmpty) ...[
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              subject,
-                                              style: TextStyle(
-                                                color:
-                                                    theme.brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFA1A1AA)
-                                                    : Colors.black54,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ],
-                                          if (dateStr.isNotEmpty) ...[
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              dateStr,
-                                              style: TextStyle(
-                                                color:
-                                                    theme.brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFF71717A)
-                                                    : Colors.black45,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                    Icon(
-                                      Icons.arrow_forward_ios,
-                                      color: theme.brightness == Brightness.dark
-                                          ? Colors.white30
-                                          : Colors.black26,
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          );
-        },
-      );
+      return _PerTestTab(studentId: uid, theme: theme);
     }
   }
 
@@ -1072,8 +764,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           .get();
       if (q.docs.isNotEmpty) {
         st = q.docs.first.data();
-      } else {
-      }
+      } else {}
     }
 
     _schoolCode = (st?['schoolCode'] as String?)?.trim();
@@ -1085,13 +776,11 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     if (_className != null && _className!.isEmpty) _className = null;
     if (_section != null && _section!.isEmpty) _section = null;
 
-
     if (_schoolCode != null && _className != null) {
       setState(() {
         _overallStream = _buildOverallStream();
       });
-    } else {
-    }
+    } else {}
   }
 
   Future<void> _ensureTestsLoaded() async {
@@ -1135,8 +824,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           if (test.status == TestStatus.published) {
             _myTests.add(test);
           }
-        } catch (e) {
-        }
+        } catch (e) {}
       }
     }
   }
@@ -1218,13 +906,223 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     }
     return list;
   }
+}
 
-  void _applySearch() {
-    setState(() {
-      _searchQuery = _pendingSearchText.trim();
-    });
-    // Keep focus for continued editing
-    _searchFocusNode.requestFocus();
+/// 🔍 Per-Test Tab with Live Search
+/// Completely isolated widget with its own state management
+class _PerTestTab extends StatefulWidget {
+  final String studentId;
+  final ThemeData theme;
+
+  const _PerTestTab({required this.studentId, required this.theme});
+
+  @override
+  State<_PerTestTab> createState() => _PerTestTabState();
+}
+
+class _PerTestTabState extends State<_PerTestTab> {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('testResults')
+          .where('studentId', isEqualTo: widget.studentId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildLoading();
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmpty('No tests assigned yet');
+        }
+
+        // Extract unique tests
+        final testMap = <String, Map<String, dynamic>>{};
+        for (final doc in snapshot.data!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final testId = data['testId'] as String?;
+          if (testId != null && !testMap.containsKey(testId)) {
+            testMap[testId] = data;
+          }
+        }
+
+        var tests = testMap.values.toList();
+        tests.sort((a, b) {
+          final aDate = (a['assignedAt'] as Timestamp?)?.toDate();
+          final bDate = (b['assignedAt'] as Timestamp?)?.toDate();
+          if (aDate == null || bDate == null) return 0;
+          return bDate.compareTo(aDate);
+        });
+
+        return tests.isEmpty
+            ? _buildEmpty('No tests assigned yet')
+            : _buildTestList(tests);
+      },
+    );
+  }
+
+  Widget _buildTestList(List<Map<String, dynamic>> tests) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      itemCount: tests.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 15),
+      itemBuilder: (context, index) {
+        final t = tests[index];
+        final title = t['testTitle'] as String? ?? 'Unnamed Test';
+        final subject = t['subject'] as String? ?? '';
+        final assignedAt = (t['assignedAt'] as Timestamp?)?.toDate();
+        final dateStr = assignedAt != null
+            ? '${_monthName(assignedAt.month)} ${assignedAt.day}, ${assignedAt.year}'
+            : '';
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PerTestLeaderboardDetail(
+                    testId: t['testId'] as String,
+                    testTitle: title,
+                    subject: subject,
+                  ),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              decoration: BoxDecoration(
+                color: widget.theme.brightness == Brightness.dark
+                    ? const Color(0xFF1A1A1A)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: widget.theme.brightness == Brightness.dark
+                      ? const Color(0xFFFF7B00).withOpacity(0.2)
+                      : Colors.black.withOpacity(0.05),
+                ),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: widget.theme.brightness == Brightness.dark
+                          ? const Color(0xFF27272A)
+                          : const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.menu_book,
+                      color: widget.theme.brightness == Brightness.dark
+                          ? Colors.white
+                          : const Color(0xFF1A1D21),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: widget.theme.brightness == Brightness.dark
+                                ? Colors.white
+                                : const Color(0xFF1A1D21),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (subject.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            subject,
+                            style: TextStyle(
+                              color: widget.theme.brightness == Brightness.dark
+                                  ? const Color(0xFFA1A1AA)
+                                  : Colors.black54,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                        if (dateStr.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            dateStr,
+                            style: TextStyle(
+                              color: widget.theme.brightness == Brightness.dark
+                                  ? const Color(0xFF71717A)
+                                  : Colors.black45,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    color: widget.theme.brightness == Brightness.dark
+                        ? Colors.white30
+                        : Colors.black26,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLoading() {
+    return Center(
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(
+          widget.theme.brightness == Brightness.dark
+              ? Colors.white
+              : const Color(0xFFf27f0d),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty(String message) {
+    return Center(
+      child: Text(
+        message,
+        style: TextStyle(
+          color: widget.theme.brightness == Brightness.dark
+              ? Colors.white54
+              : Colors.black54,
+          fontSize: 16,
+        ),
+      ),
+    );
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return months[month - 1];
   }
 }
 

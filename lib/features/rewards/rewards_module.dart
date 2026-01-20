@@ -32,7 +32,14 @@ class RewardsModule {
       GoRoute(
         path: '/rewards/catalog',
         name: 'rewards-catalog',
-        builder: (context, state) => const RewardsCatalogScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const RewardsCatalogScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 150),
+        ),
       ),
       // Product Detail Screen
       GoRoute(
@@ -51,9 +58,17 @@ class RewardsModule {
       GoRoute(
         path: '/rewards/requests/student/:studentId',
         name: 'student-requests',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final studentId = state.pathParameters['studentId']!;
-          return StudentRequestsScreen(studentId: studentId);
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: StudentRequestsScreen(studentId: studentId),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+            transitionDuration: const Duration(milliseconds: 150),
+          );
         },
       ),
       // Parent Dashboard Screen
@@ -98,7 +113,7 @@ class RewardsModule {
     );
   }
 
-  /// Navigate to student requests
+  /// Navigate to student requests with smooth transition
   static void navigateToStudentRequests(
     BuildContext context, {
     required String studentId,
