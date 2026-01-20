@@ -21,8 +21,12 @@ class ConnectivityService {
     if (_initialized) return;
 
     try {
-      // Check initial connectivity state
-      final result = await _connectivity.checkConnectivity();
+      // Check initial connectivity state with timeout
+      final result = await _connectivity.checkConnectivity().timeout(
+        const Duration(milliseconds: 500),
+        onTimeout: () =>
+            ConnectivityResult.wifi, // Assume online if check times out
+      );
       _isOnline = result != ConnectivityResult.none;
       _initialized = true;
 

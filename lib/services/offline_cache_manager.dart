@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:async';
 
 /// Unified offline cache manager for all app data
 /// Handles:
@@ -43,16 +44,38 @@ class OfflineCacheManager {
     if (_initialized) return;
 
     try {
-      _groupsBox = await Hive.openBox<Map>(_groupsBoxName);
-      _communitiesBox = await Hive.openBox<Map>(_communitiesBoxName);
-      _dailyContentBox = await Hive.openBox<Map>(_dailyContentBoxName);
-      _dashboardBox = await Hive.openBox<Map>(_dashboardBoxName);
-      _profileBox = await Hive.openBox<Map>(_profileBoxName);
-      _leaderboardBox = await Hive.openBox<Map>(_leaderboardBoxName);
-      _announcementsBox = await Hive.openBox<Map>(_announcementsBoxName);
-      _userDataBox = await Hive.openBox<Map>(_userDataBoxName);
+      // Open all boxes in parallel with timeout
+      await Future.wait([
+            Hive.openBox<Map>(_groupsBoxName),
+            Hive.openBox<Map>(_communitiesBoxName),
+            Hive.openBox<Map>(_dailyContentBoxName),
+            Hive.openBox<Map>(_dashboardBoxName),
+            Hive.openBox<Map>(_profileBoxName),
+            Hive.openBox<Map>(_leaderboardBoxName),
+            Hive.openBox<Map>(_announcementsBoxName),
+            Hive.openBox<Map>(_userDataBoxName),
+          ])
+          .timeout(
+            const Duration(seconds: 2),
+            onTimeout: () =>
+                throw TimeoutException('OfflineCacheManager timeout'),
+          )
+          .then((boxes) {
+            _groupsBox = boxes[0];
+            _communitiesBox = boxes[1];
+            _dailyContentBox = boxes[2];
+            _dashboardBox = boxes[3];
+            _profileBox = boxes[4];
+            _leaderboardBox = boxes[5];
+            _announcementsBox = boxes[6];
+            _userDataBox = boxes[7];
+          });
+
       _initialized = true;
     } catch (e) {
+      // Mark as initialized even on error to prevent retry loops
+      _initialized = true;
+      debugPrint('⚠️ OfflineCacheManager initialization failed: $e');
       rethrow;
     }
   }

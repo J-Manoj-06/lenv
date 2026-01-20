@@ -170,20 +170,16 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _resolveAndNavigate() async {
     try {
-      // Give FirebaseAuth a brief moment to restore the user from disk
-      final auth = FirebaseAuth.instance;
-      User? user = auth.currentUser;
-      if (user == null) {
-        try {
-          user = await auth.authStateChanges().first.timeout(
-            const Duration(seconds: 2),
-            onTimeout: () => null,
-          );
-        } catch (_) {}
-      }
+      // Parallelize auth check and session retrieval for faster startup
+      final results = await Future.wait([
+        _getFirebaseUser(),
+        SessionManager.getInitialScreen(),
+      ]);
 
-      // Keep the splash visible for a short, smooth animation
-      await Future.delayed(const Duration(milliseconds: 1200));
+      final initialRoute = results[1] as String;
+
+      // Minimal splash delay for smooth animation
+      await Future.delayed(const Duration(milliseconds: 500));
 
       if (!mounted) return;
 
@@ -237,12 +233,26 @@ class _SplashScreenState extends State<SplashScreen>
       }
 
       // Normal navigation
-      final route = await SessionManager.getInitialScreen();
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, route);
+      Navigator.pushReplacementNamed(context, initialRoute);
     } catch (_) {
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/role-selection');
     }
+  }
+
+  /// Get Firebase user with timeout to avoid waiting too long
+  Future<User?> _getFirebaseUser() async {
+    final auth = FirebaseAuth.instance;
+    User? user = auth.currentUser;
+    if (user == null) {
+      try {
+        user = await auth.authStateChanges().first.timeout(
+          const Duration(milliseconds: 800),
+          onTimeout: () => null,
+        );
+      } catch (_) {}
+    }
+    return user;
   }
 }

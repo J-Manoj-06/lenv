@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart' as local_auth;
@@ -32,17 +33,8 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    // Initialize Local Cache Service for media messaging
-    await LocalCacheService().initialize();
-
-    // Initialize offline cache manager for app-wide offline support
-    await OfflineCacheManager().initialize();
-
-    // Initialize connectivity service for network state tracking
-    await ConnectivityService().initialize();
-
-    // Initialize share receiver service for Android sharing
-    await ShareReceiverService().initialize();
+    // Initialize Hive once before any service uses it
+    await Hive.initFlutter();
 
     // Enable offline persistence for Firestore
     FirebaseFirestore.instance.settings = const Settings(
@@ -50,14 +42,9 @@ void main() async {
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
 
-    // Test Firestore connection
-    try {
-      final testQuery = await FirebaseFirestore.instance
-          .collection('schools')
-          .limit(1)
-          .get(const GetOptions(source: Source.server));
-      if (testQuery.docs.isNotEmpty) {}
-    } catch (firestoreError) {}
+    // Initialize services asynchronously without blocking app startup
+    // These will complete in the background
+    _initializeServicesAsync();
   } catch (e) {
     // If Firebase is already initialized (e.g., hot reload), ignore the error
     if (!e.toString().contains('duplicate-app')) {
@@ -70,6 +57,22 @@ void main() async {
   // be performed only from teacher/admin contexts or backend cron.
 
   runApp(const MyApp());
+}
+
+/// Initialize services asynchronously to avoid blocking startup
+Future<void> _initializeServicesAsync() async {
+  try {
+    // Run all service initializations in parallel
+    await Future.wait([
+      LocalCacheService().initialize(),
+      OfflineCacheManager().initialize(),
+      ConnectivityService().initialize(),
+      ShareReceiverService().initialize(),
+    ], eagerError: false); // Continue even if one fails
+  } catch (e) {
+    // Services failed to initialize, but app can still run
+    print('⚠️ Service initialization error: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {

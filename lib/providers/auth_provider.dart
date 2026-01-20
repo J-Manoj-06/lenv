@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
@@ -29,7 +30,8 @@ class AuthProvider with ChangeNotifier {
     if (_initialized) return;
 
     _isLoading = true;
-    notifyListeners();
+    // Defer notification to avoid setState during build
+    _safeNotifyListeners();
 
     try {
       final firebaseUser = FirebaseAuth.instance.currentUser;
@@ -42,6 +44,20 @@ class AuthProvider with ChangeNotifier {
     } finally {
       _initialized = true;
       _isLoading = false;
+      _safeNotifyListeners();
+    }
+  }
+
+  /// Safely notify listeners, deferring if called during build
+  void _safeNotifyListeners() {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      // We're in the build phase, defer notification
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    } else {
+      // Safe to notify immediately
       notifyListeners();
     }
   }
@@ -108,7 +124,6 @@ class AuthProvider with ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
-
       // Sign out from Firebase
       await _authService.signOut();
 
@@ -119,7 +134,6 @@ class AuthProvider with ChangeNotifier {
       _initialized = false;
 
       notifyListeners();
-
     } catch (e) {
       _errorMessage = e.toString();
       notifyListeners();

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../models/test_model.dart';
 import '../services/firestore_service.dart';
 
@@ -144,7 +145,7 @@ class TestProvider with ChangeNotifier {
     _currentTeacherId = teacherId; // update active context
     _loadingStates['teacher_$teacherId'] = true;
     _errorStates['teacher_$teacherId'] = null;
-    notifyListeners();
+    _safeNotifyListeners();
 
     // Cancel only this teacher's previous subscription
     _teacherSubscriptions[subKey]?.cancel();
@@ -156,12 +157,12 @@ class TestProvider with ChangeNotifier {
             _teacherTests[teacherId] = tests;
             _loadingStates['teacher_$teacherId'] = false;
             _errorStates['teacher_$teacherId'] = null;
-            notifyListeners();
+            _safeNotifyListeners();
           },
           onError: (error) {
             _errorStates['teacher_$teacherId'] = error.toString();
             _loadingStates['teacher_$teacherId'] = false;
-            notifyListeners();
+            _safeNotifyListeners();
           },
         );
   }
@@ -172,7 +173,7 @@ class TestProvider with ChangeNotifier {
     _currentStudentId = studentId; // update active context
     _loadingStates['student_$studentId'] = true;
     _errorStates['student_$studentId'] = null;
-    notifyListeners();
+    _safeNotifyListeners();
 
     // Cancel only this student's previous subscription
     _studentSubscriptions[subKey]?.cancel();
@@ -184,12 +185,12 @@ class TestProvider with ChangeNotifier {
             _studentTests[studentId] = tests;
             _loadingStates['student_$studentId'] = false;
             _errorStates['student_$studentId'] = null;
-            notifyListeners();
+            _safeNotifyListeners();
           },
           onError: (error) {
             _errorStates['student_$studentId'] = error.toString();
             _loadingStates['student_$studentId'] = false;
-            notifyListeners();
+            _safeNotifyListeners();
           },
         );
   }
@@ -201,7 +202,7 @@ class TestProvider with ChangeNotifier {
     } else if (_currentStudentId != null) {
       _selectedTests['student_${_currentStudentId!}'] = test;
     }
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   // Update test
@@ -245,7 +246,21 @@ class TestProvider with ChangeNotifier {
     if (_currentStudentId != null) {
       _errorStates['student_${_currentStudentId!}'] = null;
     }
-    notifyListeners();
+    _safeNotifyListeners();
+  }
+
+  /// Safely notify listeners, deferring if called during build
+  void _safeNotifyListeners() {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      // We're in the build phase, defer notification
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    } else {
+      // Safe to notify immediately
+      notifyListeners();
+    }
   }
 
   @override

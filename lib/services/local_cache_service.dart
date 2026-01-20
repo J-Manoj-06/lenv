@@ -1,4 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:async';
 
 /// Local cache storage using Hive
 /// Manages:
@@ -37,16 +38,33 @@ class LocalCacheService {
     if (_initialized) return;
 
     try {
-      await Hive.initFlutter();
-
-      _messagesBox = await Hive.openBox<Map>(_messagesBoxName);
-      _mediaBox = await Hive.openBox<Map>(_mediaBoxName);
-      _sessionBox = await Hive.openBox<String>(_userSessionBoxName);
-      _unreadCountsBox = await Hive.openBox<int>(_unreadCountsBoxName);
-      _mediaMetadataBox = await Hive.openBox<Map>(_mediaMetadataBoxName);
+      // Hive is already initialized in main(), just open boxes
+      // Open boxes with timeout to prevent hanging
+      await Future.wait([
+            Hive.openBox<Map>(_messagesBoxName),
+            Hive.openBox<Map>(_mediaBoxName),
+            Hive.openBox<String>(_userSessionBoxName),
+            Hive.openBox<int>(_unreadCountsBoxName),
+            Hive.openBox<Map>(_mediaMetadataBoxName),
+          ])
+          .timeout(
+            const Duration(seconds: 2),
+            onTimeout: () =>
+                throw TimeoutException('Hive initialization timeout'),
+          )
+          .then((boxes) {
+            _messagesBox = boxes[0] as Box<Map>;
+            _mediaBox = boxes[1] as Box<Map>;
+            _sessionBox = boxes[2] as Box<String>;
+            _unreadCountsBox = boxes[3] as Box<int>;
+            _mediaMetadataBox = boxes[4] as Box<Map>;
+          });
 
       _initialized = true;
     } catch (e) {
+      // Mark as initialized even on error to prevent retry loops
+      _initialized = true;
+      print('⚠️ LocalCacheService initialization failed: $e');
       rethrow;
     }
   }
@@ -108,8 +126,7 @@ class LocalCacheService {
         'lastUpdated': DateTime.now().toIso8601String(),
         'count': messages.length,
       });
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get cached messages for a conversation
@@ -154,8 +171,7 @@ class LocalCacheService {
     try {
       metadata['cachedAt'] = DateTime.now().toIso8601String();
       await _mediaMetadataBox.put(mediaId, metadata);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get cached media metadata
@@ -176,8 +192,7 @@ class LocalCacheService {
   }) async {
     try {
       await _unreadCountsBox.put(conversationId, count);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get cached unread count
@@ -212,8 +227,7 @@ class LocalCacheService {
         'cachedAt': DateTime.now().toIso8601String(),
         // Don't store actual bytes in Hive - use CacheManager instead
       });
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get cache statistics
@@ -238,8 +252,7 @@ class LocalCacheService {
     try {
       await _messagesBox.delete(conversationId);
       await _unreadCountsBox.delete(conversationId);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Delete specific media cache
@@ -247,7 +260,6 @@ class LocalCacheService {
     try {
       await _mediaBox.delete(mediaId);
       await _mediaMetadataBox.delete(mediaId);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 }
