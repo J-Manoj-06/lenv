@@ -2480,7 +2480,10 @@ class _MessageBubble extends StatelessWidget {
         (sum, media) => sum + (pendingUploadProgress[media.messageId] ?? 0.0),
       );
       gridUploadProgress =
-          totalProgress / (uploadingMediaWithProgress.isEmpty ? 1 : uploadingMediaWithProgress.length);
+          totalProgress /
+          (uploadingMediaWithProgress.isEmpty
+              ? 1
+              : uploadingMediaWithProgress.length);
     }
 
     // Constrain width for better appearance
