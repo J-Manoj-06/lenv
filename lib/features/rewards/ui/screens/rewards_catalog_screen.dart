@@ -186,6 +186,8 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
   }
 
   PreferredSizeWidget _buildModernAppBar(
+
+  Widget _buildModernSearchBar(
     BuildContext context,
     bool isDark,
     Color cardBg,
@@ -233,8 +235,6 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
       ),
     );
   }
-
-  Widget _buildModernSearchBar(
     BuildContext context,
     bool isDark,
     Color cardBg,
