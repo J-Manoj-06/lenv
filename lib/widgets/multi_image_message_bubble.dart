@@ -45,7 +45,7 @@ class MultiImageMessageBubble extends StatelessWidget {
     final content = _buildContent(context);
     final count = imageUrls.length;
     final useIntrinsic = count <= 4; // Only for small grids, not GridView
-
+//summa
     final bubbleContent = Container(
       decoration: BoxDecoration(
         color: bubbleColor,
