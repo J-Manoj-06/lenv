@@ -29,6 +29,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
+import '../../widgets/multi_image_message_bubble.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String classId;
@@ -101,11 +102,73 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final DateTime _lastMarkedReadAt = DateTime.fromMillisecondsSinceEpoch(0);
   UnreadCountProvider? _unreadRef;
 
+  // Cache keys for pending messages persistence
+  late String _pendingMessagesCacheKey;
+  late String _uploadProgressCacheKey;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Cache provider reference to avoid context lookup in dispose
     _unreadRef ??= Provider.of<UnreadCountProvider>(context, listen: false);
+  }
+
+  // ===== Pending messages persistence =====
+  Future<void> _restorePendingMessagesFromCache() async {
+    try {
+      final cacheService = LocalCacheService();
+
+      // Restore pending messages from conversation cache
+      final cachedMessages = cacheService.getCachedMessages(
+        _pendingMessagesCacheKey,
+      );
+      if (cachedMessages != null && cachedMessages.isNotEmpty) {
+        _pendingMessages.clear();
+        for (final msgMap in cachedMessages) {
+          try {
+            // Use fromFirestore to deserialize from cached JSON
+            final msg = GroupChatMessage.fromFirestore(
+              msgMap.cast<String, dynamic>(),
+              msgMap['id'] as String? ?? 'pending:unknown',
+            );
+            _pendingMessages.add(msg);
+          } catch (e) {
+            // Skip malformed messages
+          }
+        }
+      }
+
+      // Trigger rebuild with restored data
+      if (_pendingMessages.isNotEmpty) {
+        if (mounted) setState(() {});
+      }
+    } catch (e) {
+      // Silently fail - cache errors shouldn't break the app
+    }
+  }
+
+  Future<void> _cachePendingMessages() async {
+    try {
+      final cacheService = LocalCacheService();
+
+      // Cache pending messages
+      if (_pendingMessages.isNotEmpty) {
+        final messages = _pendingMessages.map((m) {
+          final firestore = m.toFirestore();
+          // Include id in the cached message
+          firestore['id'] = m.id;
+          return firestore;
+        }).toList();
+        await cacheService.cacheMessages(
+          conversationId: _pendingMessagesCacheKey,
+          messages: messages,
+        );
+      } else {
+        await cacheService.deleteConversationCache(_pendingMessagesCacheKey);
+      }
+    } catch (e) {
+      // Silently fail
+    }
   }
 
   // ===== Date helpers for day separators =====
@@ -365,6 +428,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize cache keys for this chat session
+    _pendingMessagesCacheKey =
+        'pending_msgs_${widget.classId}_${widget.subjectId}';
+    _uploadProgressCacheKey =
+        'upload_progress_${widget.classId}_${widget.subjectId}';
+
+    // Restore pending messages and progress from cache
+    _restorePendingMessagesFromCache();
+
     // Remove global setState - it causes image blinking
     // Only rebuild when focus/emoji picker changes
     _messageFocusNode.addListener(() {
@@ -388,6 +461,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
             _pendingUploadProgress.remove(messageId);
           }
         });
+        // Cache progress updates
+        _cachePendingMessages();
       }
     };
 
@@ -739,6 +814,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
           _localSenderMediaPaths[messageId] = localPaths[i];
         }
       });
+      // Persist to cache
+      _cachePendingMessages();
 
       // Queue each image for upload
       for (int i = 0; i < images.length; i++) {
@@ -1065,6 +1142,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
         );
         _pendingUploadProgress.remove(messageId);
       });
+      // Cache after removal
+      _cachePendingMessages();
 
       // Now safe to delete temp recording file (we have it cached)
       try {
@@ -1102,6 +1181,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
           _pendingMessages.removeWhere((m) => m.id.startsWith('pending:'));
           _pendingUploadProgress.clear();
         });
+        // Cache after clear
+        _cachePendingMessages();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send audio: $e'),
@@ -2102,95 +2183,170 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     ),
                   ),
-                Material(
-                  elevation: 0,
-                  color: isMe ? myBubbleColor : otherBubbleColor,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(12),
-                    topRight: const Radius.circular(12),
-                    bottomLeft: Radius.circular(isMe ? 12 : 6),
-                    bottomRight: Radius.circular(isMe ? 6 : 12),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      // Tighter padding for media-only bubbles to maximize image area
-                      horizontal:
-                          (message.mediaMetadata != null ||
-                                  message.imageUrl != null) &&
-                              message.message.isEmpty
-                          ? 6
-                          : 14,
-                      // Reduce bottom border for media-only bubbles
-                      vertical:
-                          (message.mediaMetadata != null ||
-                                  message.imageUrl != null) &&
-                              message.message.isEmpty
-                          ? 0
-                          : 12,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Multiple media handling (grid layout)
-                        if (message.multipleMedia != null &&
-                            message.multipleMedia!.isNotEmpty) ...[
-                          _buildMultipleMediaGrid(
+                // Multiple media handling (WhatsApp-style grid) - NO outer bubble
+                if (message.multipleMedia != null &&
+                    message.multipleMedia!.isNotEmpty)
+                  Column(
+                    crossAxisAlignment: isMe
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      MultiImageMessageBubble(
+                        imageUrls: message.multipleMedia!
+                            .map((m) => m.localPath ?? m.publicUrl)
+                            .toList(),
+                        isMe: isMe,
+                        onImageTap: (index) {
+                          Navigator.push(
                             context,
-                            message.multipleMedia!,
-                          ),
-                          if (message.message.isNotEmpty)
-                            const SizedBox(height: 8),
-                        ]
-                        // Single media handling
-                        else if (message.mediaMetadata != null) ...[
-                          _buildMetadataAttachment(
-                            context,
-                            message.mediaMetadata!,
-                          ),
-                          if (message.message.isNotEmpty)
-                            const SizedBox(height: 8),
-                        ]
-                        // Legacy URL support (images/PDFs)
-                        else if (message.imageUrl != null) ...[
-                          _buildLegacyAttachment(context, message.imageUrl!),
-                          if (message.message.isNotEmpty)
-                            const SizedBox(height: 8),
-                        ],
-                        if (message.message.isNotEmpty)
-                          Linkify(
-                            onOpen: (link) async {
-                              final uri = Uri.parse(link.url);
-                              if (await canLaunchUrl(uri)) {
-                                await launchUrl(
-                                  uri,
-                                  mode: LaunchMode.externalApplication,
-                                );
-                              }
-                            },
-                            text: LinkUtils.addProtocolToBareUrls(
-                              message.message,
+                            MaterialPageRoute(
+                              builder: (_) => _ImageGalleryViewer(
+                                mediaList: message.multipleMedia!,
+                                initialIndex: index,
+                                localSenderMediaPaths: localSenderMediaPaths,
+                                isMe: isMe,
+                              ),
                             ),
-                            options: const LinkifyOptions(defaultToHttps: true),
-                            style: TextStyle(
-                              color: isMe
-                                  ? const Color(0xFF1A1D21)
-                                  : theme.colorScheme.onSurface,
-                              fontSize: 14,
-                              height: 1.5,
+                          );
+                        },
+                      ),
+                      if (message.message.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Material(
+                          elevation: 0,
+                          color: isMe ? myBubbleColor : otherBubbleColor,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(12),
+                            topRight: const Radius.circular(12),
+                            bottomLeft: Radius.circular(isMe ? 12 : 6),
+                            bottomRight: Radius.circular(isMe ? 6 : 12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
                             ),
-                            linkStyle: TextStyle(
-                              color: isMe
-                                  ? const Color(0xFF0066CC)
-                                  : theme.colorScheme.primary,
-                              fontSize: 14,
-                              height: 1.5,
-                              decoration: TextDecoration.underline,
+                            child: Linkify(
+                              onOpen: (link) async {
+                                final uri = Uri.parse(link.url);
+                                if (await canLaunchUrl(uri)) {
+                                  await launchUrl(
+                                    uri,
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                }
+                              },
+                              text: LinkUtils.addProtocolToBareUrls(
+                                message.message,
+                              ),
+                              options: const LinkifyOptions(
+                                defaultToHttps: true,
+                              ),
+                              style: TextStyle(
+                                color: isMe
+                                    ? const Color(0xFF1A1D21)
+                                    : theme.colorScheme.onSurface,
+                                fontSize: 14,
+                                height: 1.5,
+                              ),
+                              linkStyle: TextStyle(
+                                color: isMe
+                                    ? const Color(0xFF0066CC)
+                                    : theme.colorScheme.primary,
+                                fontSize: 14,
+                                height: 1.5,
+                                decoration: TextDecoration.underline,
+                              ),
                             ),
                           ),
+                        ),
                       ],
+                    ],
+                  )
+                // Single media or text-only messages
+                else
+                  Material(
+                    elevation: 0,
+                    color: isMe ? myBubbleColor : otherBubbleColor,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(12),
+                      topRight: const Radius.circular(12),
+                      bottomLeft: Radius.circular(isMe ? 12 : 6),
+                      bottomRight: Radius.circular(isMe ? 6 : 12),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        // Tighter padding for media-only bubbles to maximize image area
+                        horizontal:
+                            (message.mediaMetadata != null ||
+                                    message.imageUrl != null) &&
+                                message.message.isEmpty
+                            ? 6
+                            : 14,
+                        // Reduce bottom border for media-only bubbles
+                        vertical:
+                            (message.mediaMetadata != null ||
+                                    message.imageUrl != null) &&
+                                message.message.isEmpty
+                            ? 0
+                            : 12,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Single media handling
+                          if (message.mediaMetadata != null) ...[
+                            _buildMetadataAttachment(
+                              context,
+                              message.mediaMetadata!,
+                            ),
+                            if (message.message.isNotEmpty)
+                              const SizedBox(height: 8),
+                          ]
+                          // Legacy URL support (images/PDFs)
+                          else if (message.imageUrl != null) ...[
+                            _buildLegacyAttachment(context, message.imageUrl!),
+                            if (message.message.isNotEmpty)
+                              const SizedBox(height: 8),
+                          ],
+                          if (message.message.isNotEmpty)
+                            Linkify(
+                              onOpen: (link) async {
+                                final uri = Uri.parse(link.url);
+                                if (await canLaunchUrl(uri)) {
+                                  await launchUrl(
+                                    uri,
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                }
+                              },
+                              text: LinkUtils.addProtocolToBareUrls(
+                                message.message,
+                              ),
+                              options: const LinkifyOptions(
+                                defaultToHttps: true,
+                              ),
+                              style: TextStyle(
+                                color: isMe
+                                    ? const Color(0xFF1A1D21)
+                                    : theme.colorScheme.onSurface,
+                                fontSize: 14,
+                                height: 1.5,
+                              ),
+                              linkStyle: TextStyle(
+                                color: isMe
+                                    ? const Color(0xFF0066CC)
+                                    : theme.colorScheme.primary,
+                                fontSize: 14,
+                                height: 1.5,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 const SizedBox(height: 4),
                 Text(
                   _formatTime(message.timestamp),
@@ -3504,15 +3660,37 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
   }
 
   Widget _buildImageViewer(MediaMetadata metadata, String? localPath) {
-    // Priority: local path → thumbnail → download from r2Key
+    // Priority: local file (if it exists) → full network URL → thumbnail → fallback
     Widget imageWidget;
 
-    if (widget.isMe && localPath != null && localPath.isNotEmpty) {
-      // Sender: use local file immediately
-      final file = File(localPath);
+    final file = (localPath != null && localPath.isNotEmpty)
+        ? File(localPath)
+        : null;
+    final hasLocalFile = file != null && file.existsSync();
+    final hasNetwork = metadata.publicUrl.isNotEmpty;
+
+    if (hasLocalFile) {
       imageWidget = Image.file(
         file,
         fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      );
+    } else if (hasNetwork) {
+      imageWidget = Image.network(
+        metadata.publicUrl,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(
+            child: SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+          );
+        },
         errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
       );
     } else if (metadata.thumbnail.isNotEmpty) {
@@ -3522,6 +3700,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
         imageWidget = Image.file(
           File(metadata.thumbnail),
           fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
           errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
         );
       } else {
@@ -3531,6 +3710,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           imageWidget = Image.memory(
             bytes,
             fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
             errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
           );
         } catch (e) {

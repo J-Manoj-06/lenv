@@ -3,7 +3,6 @@ import '../services/media_repository.dart';
 import '../screens/audio_player_screen.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:open_filex/open_filex.dart';
-import 'dart:ui';
 import 'dart:convert';
 import 'dart:io';
 
