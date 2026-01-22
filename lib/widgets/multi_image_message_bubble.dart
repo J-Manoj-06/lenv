@@ -13,6 +13,8 @@ class MultiImageMessageBubble extends StatelessWidget {
   final List<String> imageUrls;
   final bool isMe;
   final void Function(int index) onImageTap;
+  final List<double?>?
+  uploadProgress; // Upload progress for each image (0.0-1.0)
 
   final double bubbleRadius;
   final double tileRadius;
@@ -24,6 +26,7 @@ class MultiImageMessageBubble extends StatelessWidget {
     required this.imageUrls,
     required this.isMe,
     required this.onImageTap,
+    this.uploadProgress,
     this.bubbleRadius = 18,
     this.tileRadius = 14,
     this.gap = 6,
@@ -45,7 +48,7 @@ class MultiImageMessageBubble extends StatelessWidget {
     final content = _buildContent(context);
     final count = imageUrls.length;
     final useIntrinsic = count <= 4; // Only for small grids, not GridView
-//summa
+    //summa
     final bubbleContent = Container(
       decoration: BoxDecoration(
         color: bubbleColor,
@@ -90,6 +93,7 @@ class MultiImageMessageBubble extends StatelessWidget {
           index: 0,
           radius: tileRadius,
           onTap: onImageTap,
+          uploadProgress: uploadProgress?[0],
         ),
       );
     }
@@ -108,6 +112,7 @@ class MultiImageMessageBubble extends StatelessWidget {
                   index: 0,
                   radius: tileRadius,
                   onTap: onImageTap,
+                  uploadProgress: uploadProgress?[0],
                 ),
               ),
             ),
@@ -120,6 +125,7 @@ class MultiImageMessageBubble extends StatelessWidget {
                   index: 1,
                   radius: tileRadius,
                   onTap: onImageTap,
+                  uploadProgress: uploadProgress?[1],
                 ),
               ),
             ),
@@ -135,6 +141,7 @@ class MultiImageMessageBubble extends StatelessWidget {
         gap: gap,
         tileRadius: tileRadius,
         onTap: onImageTap,
+        uploadProgress: uploadProgress,
       );
     }
 
@@ -156,6 +163,7 @@ class MultiImageMessageBubble extends StatelessWidget {
                         index: 0,
                         radius: tileRadius,
                         onTap: onImageTap,
+                        uploadProgress: uploadProgress?[0],
                       ),
                     ),
                   ),
@@ -168,6 +176,7 @@ class MultiImageMessageBubble extends StatelessWidget {
                         index: 1,
                         radius: tileRadius,
                         onTap: onImageTap,
+                        uploadProgress: uploadProgress?[1],
                       ),
                     ),
                   ),
@@ -187,6 +196,7 @@ class MultiImageMessageBubble extends StatelessWidget {
                         index: 2,
                         radius: tileRadius,
                         onTap: onImageTap,
+                        uploadProgress: uploadProgress?[2],
                       ),
                     ),
                   ),
@@ -199,6 +209,7 @@ class MultiImageMessageBubble extends StatelessWidget {
                         index: 3,
                         radius: tileRadius,
                         onTap: onImageTap,
+                        uploadProgress: uploadProgress?[3],
                       ),
                     ),
                   ),
@@ -239,6 +250,10 @@ class MultiImageMessageBubble extends StatelessWidget {
           onTap: onImageTap,
           showOverlay: showOverlay,
           overlayCount: overlayCount,
+          uploadProgress:
+              uploadProgress != null && index < uploadProgress!.length
+              ? uploadProgress![index]
+              : null,
         );
       },
     );
@@ -252,12 +267,14 @@ class _ThreeImageLayout extends StatelessWidget {
   final double gap;
   final double tileRadius;
   final void Function(int) onTap;
+  final List<double?>? uploadProgress;
 
   const _ThreeImageLayout({
     required this.imageUrls,
     required this.gap,
     required this.tileRadius,
     required this.onTap,
+    this.uploadProgress,
   });
 
   @override
@@ -278,6 +295,7 @@ class _ThreeImageLayout extends StatelessWidget {
                       index: 0,
                       radius: tileRadius,
                       onTap: onTap,
+                      uploadProgress: uploadProgress?[0],
                     ),
                   ),
                 ),
@@ -290,6 +308,7 @@ class _ThreeImageLayout extends StatelessWidget {
                       index: 1,
                       radius: tileRadius,
                       onTap: onTap,
+                      uploadProgress: uploadProgress?[1],
                     ),
                   ),
                 ),
@@ -305,6 +324,7 @@ class _ThreeImageLayout extends StatelessWidget {
               index: 2,
               radius: tileRadius,
               onTap: onTap,
+              uploadProgress: uploadProgress?[2],
             ),
           ),
         ],
@@ -320,6 +340,7 @@ class _ImageTile extends StatefulWidget {
   final void Function(int) onTap;
   final bool showOverlay;
   final int overlayCount;
+  final double? uploadProgress; // 0.0 to 1.0, null means completed
 
   const _ImageTile({
     required this.url,
@@ -328,6 +349,7 @@ class _ImageTile extends StatefulWidget {
     required this.onTap,
     this.showOverlay = false,
     this.overlayCount = 0,
+    this.uploadProgress,
   });
 
   @override
@@ -364,6 +386,40 @@ class _ImageTileState extends State<_ImageTile> {
 
             // Image (network or file)
             _buildImage(widget.url),
+
+            // Upload progress overlay
+            if (widget.uploadProgress != null && widget.uploadProgress! < 1.0)
+              Container(
+                color: Colors.black.withOpacity(0.7),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: CircularProgressIndicator(
+                          value: widget.uploadProgress,
+                          strokeWidth: 3,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFFFFA929),
+                          ),
+                          backgroundColor: Colors.white24,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${(widget.uploadProgress! * 100).toInt()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             // "+N" overlay on 4th tile when total > 4
             if (widget.showOverlay)

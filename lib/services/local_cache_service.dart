@@ -113,7 +113,7 @@ class LocalCacheService {
     }
   }
 
-  /// Cache messages for a conversation
+  /// Cache messages for a conversation (async)
   /// Key: conversationId
   /// Value: {messages: [...], lastUpdated: ISO8601}
   Future<void> cacheMessages({
@@ -127,6 +127,34 @@ class LocalCacheService {
         'count': messages.length,
       });
     } catch (e) {}
+  }
+
+  /// Cache messages SYNCHRONOUSLY by calling put() without await
+  /// Hive put() is synchronous by default; we just don't await it
+  void cacheMessagesSync({
+    required String conversationId,
+    required List<Map<String, dynamic>> messages,
+  }) {
+    try {
+      _messagesBox.put(conversationId, {
+        'messages': messages,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'count': messages.length,
+      });
+    } catch (e) {
+      // Fail silently in sync context
+    }
+  }
+
+  /// Clear messages cache synchronously
+  void clearCacheSync(String conversationId) {
+    try {
+      if (_messagesBox.containsKey(conversationId)) {
+        _messagesBox.delete(conversationId);
+      }
+    } catch (e) {
+      // Fail silently in sync context
+    }
   }
 
   /// Get cached messages for a conversation
