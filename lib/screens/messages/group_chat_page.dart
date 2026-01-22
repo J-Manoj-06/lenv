@@ -202,6 +202,90 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
   }
 
+  /// Rebuild pending message placeholders for any in-flight uploads that
+  /// were already queued before this screen mounted. Without this, uploads
+  /// that continue in the background can lose their optimistic bubbles and
+  /// appear to "disappear" until Firestore confirms.
+  Future<void> _hydrateInFlightUploads() async {
+    try {
+      final uploadService = BackgroundUploadService();
+      final conversationId = '${widget.classId}_${widget.subjectId}';
+
+      final uploads = uploadService.uploads.where((u) {
+        final sameConversation = u.conversationId == conversationId;
+        final stillActive =
+            u.status != UploadStatus.completed &&
+            u.status != UploadStatus.failed &&
+            u.status != UploadStatus.cancelled;
+        return sameConversation && stillActive;
+      }).toList();
+
+      if (uploads.isEmpty) return;
+
+      // Group multi-image uploads using groupId so they render as one bubble
+      final Map<String, List<PendingUpload>> grouped = {};
+      for (final upload in uploads) {
+        final groupKey = upload.groupId ?? upload.id;
+        grouped.putIfAbsent(groupKey, () => []).add(upload);
+      }
+
+      setState(() {
+        grouped.forEach((groupKey, items) {
+          // Avoid duplicating if cache already restored this pending message
+          final pendingId = 'pending:$groupKey';
+          if (_pendingMessages.any((m) => m.id == pendingId)) return;
+
+          final mediaList = <MediaMetadata>[];
+
+          for (final upload in items) {
+            final file = File(upload.filePath);
+            final fileSize = file.existsSync() ? file.lengthSync() : null;
+
+            mediaList.add(
+              MediaMetadata(
+                messageId: upload.id,
+                r2Key: 'pending/${upload.id}',
+                publicUrl: '',
+                thumbnail: file.existsSync() ? file.path : '',
+                localPath: file.path,
+                expiresAt: DateTime.now().add(const Duration(days: 30)),
+                uploadedAt: DateTime.now(),
+                originalFileName: upload.fileName,
+                fileSize: fileSize,
+                mimeType: upload.mimeType,
+              ),
+            );
+
+            _uploadingMessageIds.add(upload.id);
+            _pendingUploadProgress[upload.id] = upload.progress;
+            if (file.path.isNotEmpty) {
+              _localSenderMediaPaths[upload.id] = file.path;
+            }
+          }
+
+          if (mediaList.isEmpty) return;
+
+          final first = items.first;
+          final pendingMessage = GroupChatMessage(
+            id: pendingId,
+            senderId: first.senderId,
+            senderName: first.senderName ?? 'You',
+            message: '',
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            mediaMetadata: mediaList.first,
+            multipleMedia: mediaList.length > 1 ? mediaList : null,
+          );
+
+          _pendingMessages.insert(0, pendingMessage);
+        });
+      });
+
+      _cachePendingMessages();
+    } catch (e) {
+      debugPrint('❌ Hydrate pending uploads failed: $e');
+    }
+  }
+
   // ===== Date helpers for day separators =====
   String _formatDayLabel(DateTime dt) {
     final now = DateTime.now();
@@ -469,6 +553,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
     // Restore pending messages and progress from cache SYNCHRONOUSLY
     // This must complete before StreamBuilder starts to prevent messages from disappearing
     _restorePendingMessagesFromCacheSync();
+
+    // Also recreate optimistic placeholders for any uploads already running
+    // (e.g., after app resume or navigation) so they remain visible immediately.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _hydrateInFlightUploads();
+    });
 
     // Remove global setState - it causes image blinking
     // Only rebuild when focus/emoji picker changes
