@@ -823,7 +823,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     // ✅ OPTIMIZATION: Mark group as read in teacher_groups index
     _markGroupAsReadInFirestore(group);
 
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => GroupChatPage(
@@ -838,8 +838,9 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
         ),
       ),
     );
-    // ✅ REMOVED forceRefresh to prevent 3-4 second loading delay
-    // Cache will naturally expire after 5 minutes
+    // Refresh group list so new message pushes this group to the top
+    // without waiting for cache expiry.
+    await _loadGroups(forceRefresh: true);
   }
 
   /// ✅ OPTIMIZATION: Mark group as read in teacher_groups Firestore collection

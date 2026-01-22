@@ -185,6 +185,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
         final messages = _pendingMessages.map((m) {
           final firestore = m.toFirestore();
           firestore['id'] = m.id;
+          // Preserve device-local paths in cache so thumbnails/audio remain
+          if (m.mediaMetadata?.localPath != null) {
+            firestore['mediaMetadata'] ??= {};
+            (firestore['mediaMetadata'] as Map<String, dynamic>)['localPath'] =
+                m.mediaMetadata!.localPath;
+          }
+          if (m.multipleMedia != null) {
+            final list = firestore['multipleMedia'] as List<dynamic>?;
+            if (list != null) {
+              for (int i = 0; i < list.length; i++) {
+                final original = m.multipleMedia![i];
+                if (original.localPath != null) {
+                  (list[i] as Map<String, dynamic>)['localPath'] =
+                      original.localPath;
+                }
+              }
+            }
+          }
           return firestore;
         }).toList();
         // Use synchronous write to guarantee completion
@@ -213,11 +231,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       final uploads = uploadService.uploads.where((u) {
         final sameConversation = u.conversationId == conversationId;
-        final stillActive =
-            u.status != UploadStatus.completed &&
+        // Keep completed uploads too so pending bubbles persist until Firestore
+        final stillRelevant =
             u.status != UploadStatus.failed &&
             u.status != UploadStatus.cancelled;
-        return sameConversation && stillActive;
+        return sameConversation && stillRelevant;
       }).toList();
 
       if (uploads.isEmpty) return;
