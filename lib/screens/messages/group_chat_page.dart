@@ -179,9 +179,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final cacheService = LocalCacheService();
 
       if (_pendingMessages.isNotEmpty) {
-        debugPrint(
-          '💾 CACHING ${_pendingMessages.length} pending messages SYNCHRONOUSLY',
-        );
+        debugPrint('💾 CACHING ${_pendingMessages.length} pending messages SYNCHRONOUSLY');
         final messages = _pendingMessages.map((m) {
           final firestore = m.toFirestore();
           firestore['id'] = m.id;
@@ -602,9 +600,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     // CRITICAL EMERGENCY SAVE: Last chance to persist pending messages
     // Must happen SYNCHRONOUSLY before any cleanup
     if (_pendingMessages.isNotEmpty) {
-      debugPrint(
-        '🆘 DISPOSE EMERGENCY: Saving ${_pendingMessages.length} pending messages SYNCHRONOUSLY',
-      );
+      debugPrint('🆘 DISPOSE EMERGENCY: Saving ${_pendingMessages.length} pending messages SYNCHRONOUSLY');
       try {
         final cacheService = LocalCacheService();
         final messages = _pendingMessages.map((m) {
@@ -1611,12 +1607,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         ];
 
                         // SAFETY CHECK: Snapshot uploading IDs before dedup
-                        final uploadingMessageIds = <String>{
-                          ..._uploadingMessageIds,
-                        };
-                        debugPrint(
-                          '🔐 DEDUP SAFETY: ${uploadingMessageIds.length} messages still uploading',
-                        );
+                        final uploadingMessageIds = <String>{..._uploadingMessageIds};
+                        debugPrint('🔐 DEDUP SAFETY: ${uploadingMessageIds.length} messages still uploading');
 
                         // Remove pending messages that now have a corresponding Firestore message
                         allMessages.removeWhere((pendingMsg) {
@@ -1626,96 +1618,58 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           }
 
                           // GOLDEN RULE: Keep any message where ANY media is still uploading
-                          if (pendingMsg.multipleMedia != null &&
-                              pendingMsg.multipleMedia!.isNotEmpty) {
+                          if (pendingMsg.multipleMedia != null && pendingMsg.multipleMedia!.isNotEmpty) {
                             final anyStillUploading = pendingMsg.multipleMedia!
-                                .any(
-                                  (m) =>
-                                      uploadingMessageIds.contains(m.messageId),
-                                );
+                                .any((m) => uploadingMessageIds.contains(m.messageId));
                             if (anyStillUploading) {
-                              debugPrint(
-                                '⏳ KEEP PENDING GROUP: ${pendingMsg.id} (${pendingMsg.multipleMedia!.length} media, some uploading)',
-                              );
+                              debugPrint('⏳ KEEP PENDING GROUP: ${pendingMsg.id} (${pendingMsg.multipleMedia!.length} media, some uploading)');
                               return false; // Keep it
                             }
                           } else if (pendingMsg.mediaMetadata != null) {
-                            if (uploadingMessageIds.contains(
-                              pendingMsg.mediaMetadata!.messageId,
-                            )) {
-                              debugPrint(
-                                '⏳ KEEP PENDING SINGLE: ${pendingMsg.id} (still uploading)',
-                              );
+                            if (uploadingMessageIds.contains(pendingMsg.mediaMetadata!.messageId)) {
+                              debugPrint('⏳ KEEP PENDING SINGLE: ${pendingMsg.id} (still uploading)');
                               return false; // Keep it
                             }
                           }
 
                           // Now check if server has confirmed this message
                           bool hasServerVersion = false;
-
-                          if (pendingMsg.multipleMedia != null &&
-                              pendingMsg.multipleMedia!.isNotEmpty) {
+                          
+                          if (pendingMsg.multipleMedia != null && pendingMsg.multipleMedia!.isNotEmpty) {
                             // For multi-image: ALL media must be on server
-                            final allMediaOnServer = pendingMsg.multipleMedia!
-                                .every((pm) {
-                                  return messages.any((fsMsg) {
-                                    // Check if this media ID is in the Firestore message
-                                    final inPrimary =
-                                        fsMsg.mediaMetadata?.messageId ==
-                                        pm.messageId;
-                                    final inArray =
-                                        fsMsg.multipleMedia?.any(
-                                          (m) => m.messageId == pm.messageId,
-                                        ) ??
-                                        false;
-                                    return inPrimary || inArray;
-                                  });
-                                });
+                            final allMediaOnServer = pendingMsg.multipleMedia!.every((pm) {
+                              return messages.any((fsMsg) {
+                                // Check if this media ID is in the Firestore message
+                                final inPrimary = fsMsg.mediaMetadata?.messageId == pm.messageId;
+                                final inArray = fsMsg.multipleMedia?.any((m) => m.messageId == pm.messageId) ?? false;
+                                return inPrimary || inArray;
+                              });
+                            });
                             hasServerVersion = allMediaOnServer;
                             if (allMediaOnServer) {
-                              debugPrint(
-                                '✅ ALL MEDIA CONFIRMED: ${pendingMsg.id}',
-                              );
+                              debugPrint('✅ ALL MEDIA CONFIRMED: ${pendingMsg.id}');
                             } else {
-                              debugPrint(
-                                '⏳ WAITING FOR MEDIA: ${pendingMsg.id} (${pendingMsg.multipleMedia!.length} items)',
-                              );
+                              debugPrint('⏳ WAITING FOR MEDIA: ${pendingMsg.id} (${pendingMsg.multipleMedia!.length} items)');
                             }
                           } else if (pendingMsg.mediaMetadata != null) {
                             // For single media: find by messageId
                             hasServerVersion = messages.any((fsMsg) {
-                              final inPrimary =
-                                  fsMsg.mediaMetadata?.messageId ==
-                                  pendingMsg.mediaMetadata!.messageId;
-                              final inArray =
-                                  fsMsg.multipleMedia?.any(
-                                    (m) =>
-                                        m.messageId ==
-                                        pendingMsg.mediaMetadata!.messageId,
-                                  ) ??
-                                  false;
+                              final inPrimary = fsMsg.mediaMetadata?.messageId == pendingMsg.mediaMetadata!.messageId;
+                              final inArray = fsMsg.multipleMedia?.any((m) => m.messageId == pendingMsg.mediaMetadata!.messageId) ?? false;
                               return inPrimary || inArray;
                             });
                             if (hasServerVersion) {
-                              debugPrint(
-                                '✅ SINGLE MEDIA CONFIRMED: ${pendingMsg.id}',
-                              );
+                              debugPrint('✅ SINGLE MEDIA CONFIRMED: ${pendingMsg.id}');
                             }
                           } else {
                             // Text-only: match by sender + timestamp
                             hasServerVersion = messages.any((fsMsg) {
-                              final senderMatch =
-                                  fsMsg.senderId == pendingMsg.senderId;
-                              final timeMatch =
-                                  (fsMsg.timestamp - pendingMsg.timestamp)
-                                      .abs() <
-                                  15000;
+                              final senderMatch = fsMsg.senderId == pendingMsg.senderId;
+                              final timeMatch = (fsMsg.timestamp - pendingMsg.timestamp).abs() < 15000;
                               return senderMatch && timeMatch;
                             });
                             if (hasServerVersion) {
-                              debugPrint(
-                                '✅ TEXT MESSAGE CONFIRMED: ${pendingMsg.id}',
-                              );
+                              debugPrint('✅ TEXT MESSAGE CONFIRMED: ${pendingMsg.id}');
                             }
                           }
 
@@ -1723,17 +1677,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             // Preserve local paths before removing
                             if (pendingMsg.multipleMedia != null) {
                               for (final pm in pendingMsg.multipleMedia!) {
-                                if (pm.localPath != null &&
-                                    pm.localPath!.isNotEmpty) {
-                                  _localSenderMediaPaths[pm.messageId] =
-                                      pm.localPath!;
+                                if (pm.localPath != null && pm.localPath!.isNotEmpty) {
+                                  _localSenderMediaPaths[pm.messageId] = pm.localPath!;
                                 }
                               }
                             }
                             if (pendingMsg.mediaMetadata?.localPath != null) {
-                              _localSenderMediaPaths[pendingMsg
-                                      .mediaMetadata!
-                                      .messageId] =
+                              _localSenderMediaPaths[pendingMsg.mediaMetadata!.messageId] =
                                   pendingMsg.mediaMetadata!.localPath!;
                             }
                             return true; // Remove from pending
@@ -1743,9 +1693,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         });
 
                         // Sort by timestamp (newest first)
-                        allMessages.sort(
-                          (a, b) => b.timestamp.compareTo(a.timestamp),
-                        );
+                        allMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
                         return _buildMessageList(
                           allMessages,
