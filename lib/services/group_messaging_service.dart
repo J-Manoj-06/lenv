@@ -35,6 +35,9 @@ class GroupMessagingService {
       // Update teacher_groups index for this class-subject combo
       // This updates the teacher's unread count in real-time without scanning messages
       await _updateTeacherGroupsAfterMessage(classId, subjectId, message);
+
+      // ✅ NEW: Update class document for students so they see groups reorder in real-time
+      await _updateClassAfterMessage(classId, subjectId, message);
     } catch (e) {
       throw Exception('Failed to send group message: $e');
     }
@@ -95,6 +98,28 @@ class GroupMessagingService {
         },
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+    } catch (e) {
+      // Don't throw - message was already sent successfully
+    }
+  }
+
+  /// ✅ NEW: Update class document with subject-level last message time
+  /// This allows students' group lists to reorder in real-time
+  Future<void> _updateClassAfterMessage(
+    String classId,
+    String subjectId,
+    GroupChatMessage message,
+  ) async {
+    try {
+      // Store last message time by subject so list can sort by it
+      await _firestore
+          .collection('classes')
+          .doc(classId)
+          .set({
+            'subjectLastMessageTime': {
+              subjectId: FieldValue.serverTimestamp(),
+            },
+          }, SetOptions(merge: true));
     } catch (e) {
       // Don't throw - message was already sent successfully
     }

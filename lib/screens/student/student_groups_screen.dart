@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../utils/chat_type_config.dart';
@@ -19,12 +20,19 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
   Map<String, dynamic>? _classData;
   bool _isLoading = true;
   String? _errorMessage;
+  StreamSubscription<DocumentSnapshot>? _classStreamSubscription;
 
   @override
   void initState() {
     super.initState();
     // ✅ NEW: Ensure auth is initialized before loading data
     _initializeAndLoad();
+  }
+
+  @override
+  void dispose() {
+    _classStreamSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -39,7 +47,7 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
     }
   }
 
-  /// Initialize auth and load class data
+  /// Initialize auth and set up class data stream listener
   Future<void> _initializeAndLoad() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -48,11 +56,121 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
       await authProvider.ensureInitialized();
 
       // Now load class data after auth is ready
-      await _loadClassData();
+      await _setupClassStream();
     } catch (e) {
       if (mounted) {
         setState(() {
           _errorMessage = 'Error: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Set up real-time listener for class data updates
+  Future<void> _setupClassStream() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      if (currentUser == null) {
+        setState(() {
+          _errorMessage = 'User not authenticated';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // First load - get student info to find class doc ID
+      final studentDoc = await _firestore
+          .collection('students')
+          .doc(currentUser.uid)
+          .get();
+
+      if (!studentDoc.exists) {
+        setState(() {
+          _errorMessage = 'Student data not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final studentData = studentDoc.data()!;
+      final className = studentData['className'] as String?;
+      final section = studentData['section'] as String?;
+      final schoolCode = studentData['schoolCode'] as String?;
+
+      if (className == null || section == null || schoolCode == null) {
+        setState(() {
+          _errorMessage = 'Class information not available';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Find class document ID
+      final classQuery = await _firestore
+          .collection('classes')
+          .where('className', isEqualTo: className)
+          .where('section', isEqualTo: section)
+          .where('schoolCode', isEqualTo: schoolCode)
+          .limit(1)
+          .get();
+
+      if (classQuery.docs.isEmpty) {
+        setState(() {
+          _errorMessage = 'Class not found in database';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final classDocId = classQuery.docs.first.id;
+
+      // 🔥 NEW: Set up real-time listener on class document
+      _classStreamSubscription?.cancel();
+      _classStreamSubscription = _firestore
+          .collection('classes')
+          .doc(classDocId)
+          .snapshots()
+          .listen((snapshot) async {
+            if (!snapshot.exists) {
+              if (mounted) {
+                setState(() {
+                  _errorMessage = 'Class data not found';
+                  _isLoading = false;
+                });
+              }
+              return;
+            }
+
+            final classData = snapshot.data()!;
+            classData['id'] = snapshot.id;
+
+            // Prime unread badges for all subjects
+            await _prefetchUnreadCountsForSubjects(
+              classId: snapshot.id,
+              subjects: classData['subjects'] as List<dynamic>?,
+            );
+
+            if (mounted) {
+              setState(() {
+                _classData = classData;
+                _isLoading = false;
+              });
+            }
+          }, onError: (error) {
+            if (mounted) {
+              setState(() {
+                _errorMessage = 'Error loading class: $error';
+                _isLoading = false;
+              });
+            }
+          });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error setting up stream: $e';
           _isLoading = false;
         });
       }
@@ -240,7 +358,7 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
       return const Center(child: Text('No class data available'));
     }
 
-    final subjects = _classData!['subjects'] as List<dynamic>?;
+    var subjects = _classData!['subjects'] as List<dynamic>?;
     final subjectTeachers =
         _classData!['subjectTeachers'] as Map<String, dynamic>?;
     final classId = _classData!['id'] as String;
@@ -269,6 +387,32 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
         ),
       );
     }
+
+    // Sort subjects by last message time (most recent first)
+    final sortedSubjects = List<dynamic>.from(subjects);
+    final subjectLastMessageTime = _classData!['subjectLastMessageTime'] as Map<String, dynamic>?;
+    if (subjectLastMessageTime != null && subjectLastMessageTime.isNotEmpty) {
+      sortedSubjects.sort((a, b) {
+        final timeA = subjectLastMessageTime[a] as dynamic;
+        final timeB = subjectLastMessageTime[b] as dynamic;
+        
+        // Handle null timestamps (subjects with no messages)
+        if (timeA == null && timeB == null) return 0;
+        if (timeA == null) return 1;  // Subjects without messages go to bottom
+        if (timeB == null) return -1;
+        
+        // Both are timestamps - sort descending (most recent first)
+        try {
+          final dateA = (timeA as Timestamp).toDate();
+          final dateB = (timeB as Timestamp).toDate();
+          return dateB.compareTo(dateA);  // Descending
+        } catch (e) {
+          return 0;
+        }
+      });
+    }
+    
+    final finalSubjects = sortedSubjects;
 
     return RefreshIndicator(
       onRefresh: _loadClassData,
@@ -346,9 +490,9 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: subjects.length,
+              itemCount: finalSubjects.length,
               itemBuilder: (context, index) {
-                final subject = subjects[index] as String;
+                final subject = finalSubjects[index] as String;
                 final teacherData =
                     subjectTeachers?[subject.toLowerCase()]
                         as Map<String, dynamic>?;

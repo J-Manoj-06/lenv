@@ -63,8 +63,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
-  late final WhatsAppMediaUploadService _whatsappMediaUpload;
-
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
   bool _isRecording = false;
@@ -99,12 +97,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final Duration _soundDebounce = const Duration(milliseconds: 500);
   // Show unread split inside chat to aid context (user requested)
   final bool _showUnreadDivider = true;
-  final DateTime _lastMarkedReadAt = DateTime.fromMillisecondsSinceEpoch(0);
   UnreadCountProvider? _unreadRef;
 
   // Cache keys for pending messages persistence
   late String _pendingMessagesCacheKey;
+  // ignore: unused_field
   late String _uploadProgressCacheKey;
+  // ignore: unused_field
+  late WhatsAppMediaUploadService _whatsappMediaUpload;
 
   @override
   void didChangeDependencies() {
@@ -421,7 +421,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
       itemCount: messages.length,
       itemBuilder: (context, index) {
         final message = messages[index];
-        final hasMeta = message.mediaMetadata != null;
         // Skip deleted messages - don't display them at all
         if (message.isDeleted) {
           return const SizedBox.shrink();
@@ -680,8 +679,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       if (currentUser != null) {
-        final chatId = '${widget.classId}|${widget.subjectId}';
-
         // Update centralized unread tracker (this updates Firestore)
         await _markChatAsReadForUser();
 
@@ -1624,11 +1621,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       debugPrint(
                         '   msg.id=${msg.id}, msgId=${msg.mediaMetadata?.messageId}, sender=${msg.senderId}',
                       );
-                    }
-
-                    // Log Firestore messages with their mediaMetadata.messageId
-                    if (messages.isNotEmpty) {
-                      for (final msg in messages.take(3)) {}
                     }
 
                     // Auto-scroll when a new newest message arrives (keep latest in view)
@@ -2597,6 +2589,7 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
+  // ignore: unused_element
   Widget _buildMultipleMediaGrid(
     BuildContext context,
     List<MediaMetadata> mediaList,
@@ -3025,10 +3018,12 @@ class _GroupMessageSearchScreenState extends State<GroupMessageSearchScreen> {
   final ScrollController _scrollController = ScrollController();
 
   List<GroupChatMessage> _results = [];
-  DocumentSnapshot? _cursor;
+
   bool _loading = false;
   bool _hasMore = true;
   String _lastQuery = '';
+  // ignore: unused_field
+  String? _cursor;
 
   @override
   void initState() {
