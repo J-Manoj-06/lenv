@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../../../providers/auth_provider.dart';
 import '../../messages/group_chat_page.dart';
 import '../../../services/group_messaging_service.dart';
@@ -314,6 +315,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   String? _errorMessage;
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
+  StreamSubscription<DocumentSnapshot>? _groupsStreamSubscription;
 
   @override
   bool get wantKeepAlive => true; // ✅ Preserve state when switching tabs
@@ -329,6 +331,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   @override
   void dispose() {
     _searchController.dispose();
+    _groupsStreamSubscription?.cancel();
     super.dispose();
   }
 
@@ -350,7 +353,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     });
   }
 
-  /// Initialize auth and load groups
+  /// Initialize auth and set up real-time group listener
   Future<void> _initializeAndLoad() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -358,8 +361,11 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       // ✅ CRITICAL: Wait for auth to initialize on app start
       await authProvider.ensureInitialized();
 
-      // Now load groups after auth is ready
-      await _loadGroups();
+      // Now set up stream listener after auth is ready
+      final currentUser = authProvider.currentUser;
+      if (currentUser != null) {
+        _setupTeacherGroupsStream(currentUser.uid);
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -370,43 +376,66 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     }
   }
 
+  /// Set up real-time listener on teacher_groups Firestore document
+  /// This ensures groups reorder immediately when new messages arrive
+  void _setupTeacherGroupsStream(String teacherId) {
+    // Cancel previous subscription if exists
+    _groupsStreamSubscription?.cancel();
+
+    _groupsStreamSubscription = FirebaseFirestore.instance
+        .collection('teacher_groups')
+        .doc(teacherId)
+        .snapshots()
+        .listen(
+          (snapshot) async {
+            if (!mounted) return;
+
+            // Load groups fresh from the updated teacher_groups doc
+            try {
+              final groups = await _service.getTeacherMessageGroups(teacherId);
+
+              if (mounted) {
+                setState(() {
+                  _groups = groups;
+                  // Reapply search filter if active
+                  if (_isSearching) {
+                    final query = _searchController.text.toLowerCase();
+                    _filteredGroups = groups.where((group) {
+                      return group.subjectName.toLowerCase().contains(query) ||
+                          group.className.toLowerCase().contains(query) ||
+                          group.sectionName.toLowerCase().contains(query) ||
+                          group.displayName.toLowerCase().contains(query);
+                    }).toList();
+                  } else {
+                    _filteredGroups = groups;
+                  }
+                  _isLoading = false;
+                });
+              }
+            } catch (e) {
+              if (mounted) {
+                setState(() {
+                  _errorMessage = 'Error loading groups: $e';
+                });
+              }
+            }
+          },
+          onError: (error) {
+            if (mounted) {
+              setState(() {
+                _errorMessage = 'Error listening to groups: $error';
+                _isLoading = false;
+              });
+            }
+          },
+        );
+  }
+
   Future<void> _loadGroups({bool forceRefresh = false}) async {
-    // ✅ NEW: Option to force clear cache and refresh
+    // ✅ REMOVED: _loadGroups now obsolete (handled by stream listener)
+    // Kept for backward compatibility if called elsewhere
     if (forceRefresh) {
       _service.clearCache();
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUser = authProvider.currentUser;
-
-      if (currentUser == null) {
-        setState(() {
-          _errorMessage = 'User not authenticated';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final groups = await _service.getTeacherMessageGroups(currentUser.uid);
-
-      setState(() {
-        _groups = groups;
-        _filteredGroups = groups;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Error loading groups: $e';
-        _isLoading = false;
-      });
     }
   }
 
