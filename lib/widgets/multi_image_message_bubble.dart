@@ -46,8 +46,6 @@ class MultiImageMessageBubble extends StatelessWidget {
     final borderColor = const Color(0xFFFFA929).withOpacity(0.6);
 
     final content = _buildContent(context);
-    final count = imageUrls.length;
-    final useIntrinsic = count <= 4; // Only for small grids, not GridView
     //summa
     final bubbleContent = Container(
       decoration: BoxDecoration(
@@ -73,9 +71,7 @@ class MultiImageMessageBubble extends StatelessWidget {
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-        child: useIntrinsic
-            ? IntrinsicWidth(child: bubbleContent)
-            : bubbleContent,
+        child: bubbleContent,
       ),
     );
   }
@@ -229,7 +225,7 @@ class MultiImageMessageBubble extends StatelessWidget {
 
     final grid = GridView.builder(
       shrinkWrap: true,
-      physics: const BouncingScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -392,31 +388,40 @@ class _ImageTileState extends State<_ImageTile> {
               Container(
                 color: Colors.black.withOpacity(0.7),
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: CircularProgressIndicator(
-                          value: widget.uploadProgress,
-                          strokeWidth: 3,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFFFFA929),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final tileSize = constraints.biggest.shortestSide;
+                      final indicatorSize = tileSize.clamp(24.0, 40.0);
+                      final spacing = tileSize <= 48 ? 4.0 : 8.0;
+                      final fontSize = tileSize <= 48 ? 11.0 : 12.0;
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: indicatorSize,
+                            height: indicatorSize,
+                            child: CircularProgressIndicator(
+                              value: widget.uploadProgress,
+                              strokeWidth: 3,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Color(0xFFFFA929),
+                              ),
+                              backgroundColor: Colors.white24,
+                            ),
                           ),
-                          backgroundColor: Colors.white24,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${(widget.uploadProgress! * 100).toInt()}%',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                          SizedBox(height: spacing),
+                          Text(
+                            '${(widget.uploadProgress! * 100).toInt()}%',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: fontSize,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),

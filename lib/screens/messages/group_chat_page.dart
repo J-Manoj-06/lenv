@@ -117,34 +117,27 @@ class _GroupChatPageState extends State<GroupChatPage> {
   void _restorePendingMessagesFromCacheSync() {
     try {
       final cacheService = LocalCacheService();
-
-      // Restore pending messages from conversation cache
       final cachedMessages = cacheService.getCachedMessages(
         _pendingMessagesCacheKey,
-      );
-
-      debugPrint(
-        '\n📦 CACHE RESTORE: Found ${cachedMessages?.length ?? 0} cached messages',
       );
 
       if (cachedMessages != null && cachedMessages.isNotEmpty) {
         _pendingMessages.clear();
         for (final msgMap in cachedMessages) {
           try {
-            // Use fromFirestore to deserialize from cached JSON
+            // Cast to Map<String, dynamic> safely (Hive returns Map<dynamic, dynamic>)
+            final Map<String, dynamic> msgData = Map.from(msgMap);
             final msg = GroupChatMessage.fromFirestore(
-              msgMap.cast<String, dynamic>(),
-              msgMap['id'] as String? ?? 'pending:unknown',
+              msgData,
+              msgData['id'] as String? ?? 'pending:unknown',
             );
             _pendingMessages.add(msg);
-            debugPrint('   ✅ Restored pending: ${msg.id}');
 
             // Restore upload progress for each media item
             if (msg.multipleMedia != null) {
               for (final media in msg.multipleMedia!) {
                 _uploadingMessageIds.add(media.messageId);
                 _pendingUploadProgress[media.messageId] = 0.0;
-                // Restore local paths
                 if (media.localPath != null && media.localPath!.isNotEmpty) {
                   _localSenderMediaPaths[media.messageId] = media.localPath!;
                 }
@@ -153,7 +146,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
             if (msg.mediaMetadata != null) {
               _uploadingMessageIds.add(msg.mediaMetadata!.messageId);
               _pendingUploadProgress[msg.mediaMetadata!.messageId] = 0.0;
-              // Restore local path
               if (msg.mediaMetadata!.localPath != null &&
                   msg.mediaMetadata!.localPath!.isNotEmpty) {
                 _localSenderMediaPaths[msg.mediaMetadata!.messageId] =
@@ -161,15 +153,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
               }
             }
           } catch (e) {
-            debugPrint('   ❌ Failed to restore message: $e');
+            // Silently skip individual message restoration errors
           }
         }
-        debugPrint(
-          '📦 CACHE RESTORE COMPLETE: ${_pendingMessages.length} messages restored\n',
-        );
       }
     } catch (e) {
-      debugPrint('❌ Cache restoration failed: $e');
+      // Silently skip cache restoration errors
     }
   }
 
@@ -179,13 +168,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final cacheService = LocalCacheService();
 
       if (_pendingMessages.isNotEmpty) {
-        debugPrint(
-          '💾 CACHING ${_pendingMessages.length} pending messages SYNCHRONOUSLY',
-        );
-        final messages = _pendingMessages.map((m) {
+        final List<Map<String, dynamic>> messages = _pendingMessages.map((m) {
           final firestore = m.toFirestore();
           firestore['id'] = m.id;
-          // Preserve device-local paths in cache so thumbnails/audio remain
           if (m.mediaMetadata?.localPath != null) {
             firestore['mediaMetadata'] ??= {};
             (firestore['mediaMetadata'] as Map<String, dynamic>)['localPath'] =
@@ -203,40 +188,46 @@ class _GroupChatPageState extends State<GroupChatPage> {
               }
             }
           }
-          return firestore;
+          return _stripTimestamps(firestore) as Map<String, dynamic>;
         }).toList();
-        // Use synchronous write to guarantee completion
         cacheService.cacheMessagesSync(
           conversationId: _pendingMessagesCacheKey,
           messages: messages,
         );
-        debugPrint('✅ SYNC Cache saved immediately');
       } else {
-        debugPrint('🗑️ Clearing cache (no pending messages)');
         cacheService.clearCacheSync(_pendingMessagesCacheKey);
       }
     } catch (e) {
-      debugPrint('❌ Cache operation failed: $e');
+      // Silently ignore cache write errors
     }
   }
 
-  /// Rebuild pending message placeholders for any in-flight uploads that
-  /// were already queued before this screen mounted. Without this, uploads
-  /// that continue in the background can lose their optimistic bubbles and
-  /// appear to "disappear" until Firestore confirms.
+  /// Recursively convert Firestore Timestamp to millis (int) to make Hive safe.
+  dynamic _stripTimestamps(dynamic value) {
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    if (value is List) return value.map(_stripTimestamps).toList();
+    if (value is Map) {
+      return value.map((k, v) => MapEntry(k, _stripTimestamps(v)));
+    }
+    return value;
+  }
+
+  /// Rehydrate any in-flight background uploads into visible pending bubbles.
   Future<void> _hydrateInFlightUploads() async {
     try {
       final uploadService = BackgroundUploadService();
-      final conversationId = '${widget.classId}_${widget.subjectId}';
+      await uploadService.initialize();
 
-      final uploads = uploadService.uploads.where((u) {
-        final sameConversation = u.conversationId == conversationId;
-        // Keep completed uploads too so pending bubbles persist until Firestore
-        final stillRelevant =
-            u.status != UploadStatus.failed &&
-            u.status != UploadStatus.cancelled;
-        return sameConversation && stillRelevant;
-      }).toList();
+      final conversationId = '${widget.classId}_${widget.subjectId}';
+      final uploads = uploadService.uploads
+          .where(
+            (u) =>
+                u.conversationId == conversationId &&
+                (u.status == UploadStatus.pending ||
+                    u.status == UploadStatus.uploading),
+          )
+          .toList();
 
       if (uploads.isEmpty) return;
 
@@ -1639,15 +1630,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             )
                             .toList();
 
-                    debugPrint(
-                      '📥 FIRESTORE SNAPSHOT: ${messages.length} messages received',
-                    );
-                    for (var msg in messages.take(3)) {
-                      debugPrint(
-                        '   msg.id=${msg.id}, msgId=${msg.mediaMetadata?.messageId}, sender=${msg.senderId}',
-                      );
-                    }
-
                     // Auto-scroll when a new newest message arrives (keep latest in view)
                     final newestId = messages.isNotEmpty
                         ? messages.first.id
@@ -1710,26 +1692,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
                         // Merge pending messages with Firestore messages, removing duplicates
                         // (pending messages that have been successfully uploaded to Firestore)
-                        debugPrint(
-                          '\n🔄 MERGE: ${_pendingMessages.length} pending + ${messages.length} firestore',
-                        );
-                        if (_pendingMessages.isNotEmpty) {
-                          for (var p in _pendingMessages) {
-                            debugPrint(
-                              '   PENDING: id=${p.id}, msgId=${p.mediaMetadata?.messageId ?? p.multipleMedia?.first.messageId}',
-                            );
-                          }
-                        } else {
-                          debugPrint(
-                            '   ⚠️ WARNING: No pending messages in memory!',
-                          );
-                        }
-                        for (var f in messages.take(3)) {
-                          debugPrint(
-                            '   FIRESTORE: id=${f.id}, msgId=${f.mediaMetadata?.messageId ?? f.multipleMedia?.first.messageId}',
-                          );
-                        }
-
                         final allMessages = <GroupChatMessage>[
                           ..._pendingMessages,
                           ...messages,
@@ -1739,15 +1701,101 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         final uploadingMessageIds = <String>{
                           ..._uploadingMessageIds,
                         };
-                        debugPrint(
-                          '🔐 DEDUP SAFETY: ${uploadingMessageIds.length} messages still uploading',
-                        );
+
+                        // Track which pending messages to remove from state
+                        final pendingIdsToRemove = <String>[];
 
                         // Remove pending messages that now have a corresponding Firestore message
                         allMessages.removeWhere((pendingMsg) {
                           // Only process pending messages
                           if (!pendingMsg.id.startsWith('pending:')) {
                             return false;
+                          }
+
+                          // Build a set of media IDs for reliable matching
+                          final pendingMediaIds = <String>{};
+                          if (pendingMsg.multipleMedia != null) {
+                            pendingMediaIds.addAll(
+                              pendingMsg.multipleMedia!.map((m) => m.messageId),
+                            );
+                          }
+                          if (pendingMsg.mediaMetadata != null) {
+                            pendingMediaIds.add(
+                              pendingMsg.mediaMetadata!.messageId,
+                            );
+                          }
+
+                          // First, try matching by media IDs (most reliable for uploads)
+                          final hasMatchingMedia =
+                              pendingMediaIds.isNotEmpty &&
+                              messages.any((fsMsg) {
+                                if (fsMsg.id.startsWith('pending:'))
+                                  return false;
+                                final fsMediaIds = <String>{};
+                                if (fsMsg.multipleMedia != null) {
+                                  fsMediaIds.addAll(
+                                    fsMsg.multipleMedia!.map(
+                                      (m) => m.messageId,
+                                    ),
+                                  );
+                                }
+                                if (fsMsg.mediaMetadata != null) {
+                                  fsMediaIds.add(
+                                    fsMsg.mediaMetadata!.messageId,
+                                  );
+                                }
+                                if (fsMediaIds.isEmpty) return false;
+                                return fsMediaIds.any(pendingMediaIds.contains);
+                              });
+
+                          // Fallback: match sender + wider time window for text-only pending messages
+                          final hasServerVersion =
+                              hasMatchingMedia ||
+                              messages.any((fsMsg) {
+                                final senderMatch =
+                                    fsMsg.senderId == pendingMsg.senderId;
+                                final diff =
+                                    (fsMsg.timestamp - pendingMsg.timestamp)
+                                        .abs();
+                                final timeMatch =
+                                    diff < 30000; // 30 second window
+                                final isNotPending = !fsMsg.id.startsWith(
+                                  'pending:',
+                                );
+                                return senderMatch && timeMatch && isNotPending;
+                              });
+
+                          if (hasServerVersion) {
+                            // Preserve local paths before removing
+                            if (pendingMsg.multipleMedia != null) {
+                              for (final pm in pendingMsg.multipleMedia!) {
+                                if (pm.localPath != null &&
+                                    pm.localPath!.isNotEmpty) {
+                                  _localSenderMediaPaths[pm.messageId] =
+                                      pm.localPath!;
+                                }
+                                _uploadingMessageIds.remove(pm.messageId);
+                                _pendingUploadProgress.remove(pm.messageId);
+                              }
+                            }
+                            if (pendingMsg.mediaMetadata?.localPath != null) {
+                              _localSenderMediaPaths[pendingMsg
+                                      .mediaMetadata!
+                                      .messageId] =
+                                  pendingMsg.mediaMetadata!.localPath!;
+                            }
+                            if (pendingMsg.mediaMetadata != null) {
+                              _uploadingMessageIds.remove(
+                                pendingMsg.mediaMetadata!.messageId,
+                              );
+                              _pendingUploadProgress.remove(
+                                pendingMsg.mediaMetadata!.messageId,
+                              );
+                            }
+
+                            // Track for state removal
+                            pendingIdsToRemove.add(pendingMsg.id);
+                            return true; // Remove from merged list
                           }
 
                           // GOLDEN RULE: Keep any message where ANY media is still uploading
@@ -1759,113 +1807,32 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                       uploadingMessageIds.contains(m.messageId),
                                 );
                             if (anyStillUploading) {
-                              debugPrint(
-                                '⏳ KEEP PENDING GROUP: ${pendingMsg.id} (${pendingMsg.multipleMedia!.length} media, some uploading)',
-                              );
                               return false; // Keep it
                             }
                           } else if (pendingMsg.mediaMetadata != null) {
                             if (uploadingMessageIds.contains(
                               pendingMsg.mediaMetadata!.messageId,
                             )) {
-                              debugPrint(
-                                '⏳ KEEP PENDING SINGLE: ${pendingMsg.id} (still uploading)',
-                              );
                               return false; // Keep it
                             }
                           }
 
-                          // Now check if server has confirmed this message
-                          bool hasServerVersion = false;
-
-                          if (pendingMsg.multipleMedia != null &&
-                              pendingMsg.multipleMedia!.isNotEmpty) {
-                            // For multi-image: ALL media must be on server
-                            final allMediaOnServer = pendingMsg.multipleMedia!
-                                .every((pm) {
-                                  return messages.any((fsMsg) {
-                                    // Check if this media ID is in the Firestore message
-                                    final inPrimary =
-                                        fsMsg.mediaMetadata?.messageId ==
-                                        pm.messageId;
-                                    final inArray =
-                                        fsMsg.multipleMedia?.any(
-                                          (m) => m.messageId == pm.messageId,
-                                        ) ??
-                                        false;
-                                    return inPrimary || inArray;
-                                  });
-                                });
-                            hasServerVersion = allMediaOnServer;
-                            if (allMediaOnServer) {
-                              debugPrint(
-                                '✅ ALL MEDIA CONFIRMED: ${pendingMsg.id}',
-                              );
-                            } else {
-                              debugPrint(
-                                '⏳ WAITING FOR MEDIA: ${pendingMsg.id} (${pendingMsg.multipleMedia!.length} items)',
-                              );
-                            }
-                          } else if (pendingMsg.mediaMetadata != null) {
-                            // For single media: find by messageId
-                            hasServerVersion = messages.any((fsMsg) {
-                              final inPrimary =
-                                  fsMsg.mediaMetadata?.messageId ==
-                                  pendingMsg.mediaMetadata!.messageId;
-                              final inArray =
-                                  fsMsg.multipleMedia?.any(
-                                    (m) =>
-                                        m.messageId ==
-                                        pendingMsg.mediaMetadata!.messageId,
-                                  ) ??
-                                  false;
-                              return inPrimary || inArray;
-                            });
-                            if (hasServerVersion) {
-                              debugPrint(
-                                '✅ SINGLE MEDIA CONFIRMED: ${pendingMsg.id}',
-                              );
-                            }
-                          } else {
-                            // Text-only: match by sender + timestamp
-                            hasServerVersion = messages.any((fsMsg) {
-                              final senderMatch =
-                                  fsMsg.senderId == pendingMsg.senderId;
-                              final timeMatch =
-                                  (fsMsg.timestamp - pendingMsg.timestamp)
-                                      .abs() <
-                                  15000;
-                              return senderMatch && timeMatch;
-                            });
-                            if (hasServerVersion) {
-                              debugPrint(
-                                '✅ TEXT MESSAGE CONFIRMED: ${pendingMsg.id}',
-                              );
-                            }
-                          }
-
-                          if (hasServerVersion) {
-                            // Preserve local paths before removing
-                            if (pendingMsg.multipleMedia != null) {
-                              for (final pm in pendingMsg.multipleMedia!) {
-                                if (pm.localPath != null &&
-                                    pm.localPath!.isNotEmpty) {
-                                  _localSenderMediaPaths[pm.messageId] =
-                                      pm.localPath!;
-                                }
-                              }
-                            }
-                            if (pendingMsg.mediaMetadata?.localPath != null) {
-                              _localSenderMediaPaths[pendingMsg
-                                      .mediaMetadata!
-                                      .messageId] =
-                                  pendingMsg.mediaMetadata!.localPath!;
-                            }
-                            return true; // Remove from pending
-                          }
-
-                          return false; // Keep in pending
+                          return false; // Keep in merged list
                         });
+
+                        // Remove confirmed messages from _pendingMessages state
+                        if (pendingIdsToRemove.isNotEmpty) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted) return;
+                            setState(() {
+                              _pendingMessages.removeWhere(
+                                (m) => pendingIdsToRemove.contains(m.id),
+                              );
+                            });
+                            // Persist updated pending list
+                            _cachePendingMessages();
+                          });
+                        }
 
                         // Sort by timestamp (newest first)
                         allMessages.sort(
