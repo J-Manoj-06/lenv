@@ -112,14 +112,9 @@ class GroupMessagingService {
   ) async {
     try {
       // Store last message time by subject so list can sort by it
-      await _firestore
-          .collection('classes')
-          .doc(classId)
-          .set({
-            'subjectLastMessageTime': {
-              subjectId: FieldValue.serverTimestamp(),
-            },
-          }, SetOptions(merge: true));
+      await _firestore.collection('classes').doc(classId).set({
+        'subjectLastMessageTime': {subjectId: FieldValue.serverTimestamp()},
+      }, SetOptions(merge: true));
     } catch (e) {
       // Don't throw - message was already sent successfully
     }

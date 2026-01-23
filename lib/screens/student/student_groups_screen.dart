@@ -133,40 +133,43 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
           .collection('classes')
           .doc(classDocId)
           .snapshots()
-          .listen((snapshot) async {
-            if (!snapshot.exists) {
+          .listen(
+            (snapshot) async {
+              if (!snapshot.exists) {
+                if (mounted) {
+                  setState(() {
+                    _errorMessage = 'Class data not found';
+                    _isLoading = false;
+                  });
+                }
+                return;
+              }
+
+              final classData = snapshot.data()!;
+              classData['id'] = snapshot.id;
+
+              // Prime unread badges for all subjects
+              await _prefetchUnreadCountsForSubjects(
+                classId: snapshot.id,
+                subjects: classData['subjects'] as List<dynamic>?,
+              );
+
               if (mounted) {
                 setState(() {
-                  _errorMessage = 'Class data not found';
+                  _classData = classData;
                   _isLoading = false;
                 });
               }
-              return;
-            }
-
-            final classData = snapshot.data()!;
-            classData['id'] = snapshot.id;
-
-            // Prime unread badges for all subjects
-            await _prefetchUnreadCountsForSubjects(
-              classId: snapshot.id,
-              subjects: classData['subjects'] as List<dynamic>?,
-            );
-
-            if (mounted) {
-              setState(() {
-                _classData = classData;
-                _isLoading = false;
-              });
-            }
-          }, onError: (error) {
-            if (mounted) {
-              setState(() {
-                _errorMessage = 'Error loading class: $error';
-                _isLoading = false;
-              });
-            }
-          });
+            },
+            onError: (error) {
+              if (mounted) {
+                setState(() {
+                  _errorMessage = 'Error loading class: $error';
+                  _isLoading = false;
+                });
+              }
+            },
+          );
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -230,7 +233,6 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
         return;
       }
 
-
       // Query the classes collection to find the matching class
       final classQuery = await _firestore
           .collection('classes')
@@ -251,7 +253,6 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
       final classDoc = classQuery.docs.first;
       final classData = classDoc.data();
       classData['id'] = classDoc.id; // Add document ID
-
 
       // Prime unread badges for all subjects in one batch so list shows counts
       await _prefetchUnreadCountsForSubjects(
@@ -390,28 +391,29 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
 
     // Sort subjects by last message time (most recent first)
     final sortedSubjects = List<dynamic>.from(subjects);
-    final subjectLastMessageTime = _classData!['subjectLastMessageTime'] as Map<String, dynamic>?;
+    final subjectLastMessageTime =
+        _classData!['subjectLastMessageTime'] as Map<String, dynamic>?;
     if (subjectLastMessageTime != null && subjectLastMessageTime.isNotEmpty) {
       sortedSubjects.sort((a, b) {
         final timeA = subjectLastMessageTime[a] as dynamic;
         final timeB = subjectLastMessageTime[b] as dynamic;
-        
+
         // Handle null timestamps (subjects with no messages)
         if (timeA == null && timeB == null) return 0;
-        if (timeA == null) return 1;  // Subjects without messages go to bottom
+        if (timeA == null) return 1; // Subjects without messages go to bottom
         if (timeB == null) return -1;
-        
+
         // Both are timestamps - sort descending (most recent first)
         try {
           final dateA = (timeA as Timestamp).toDate();
           final dateB = (timeB as Timestamp).toDate();
-          return dateB.compareTo(dateA);  // Descending
+          return dateB.compareTo(dateA); // Descending
         } catch (e) {
           return 0;
         }
       });
     }
-    
+
     final finalSubjects = sortedSubjects;
 
     return RefreshIndicator(
@@ -549,7 +551,6 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
     final subjectId = subject.toLowerCase().replaceAll(' ', '_');
     final chatId = '$classId|$subjectId';
     final unreadCount = unread.getUnreadCount(chatId);
-
 
     final icon = _getSubjectIcon(subject);
     final color = _getSubjectColor(subject);
