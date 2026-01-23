@@ -32,6 +32,8 @@ class _GroupsListPageState extends State<GroupsListPage>
   final Map<String, int> _lastMessageTs = {}; // chatId -> latest timestamp
   final Map<String, dynamic> _messageListeners =
       {}; // Store listeners for cleanup
+  final Map<String, dynamic> _subjectListeners =
+      {}; // Track subject doc listeners for lastActivity updates
 
   @override
   bool get wantKeepAlive => true;
@@ -54,6 +56,12 @@ class _GroupsListPageState extends State<GroupsListPage>
       listener?.cancel?.call();
     }
     _messageListeners.clear();
+
+    // Cancel subject listeners
+    for (final listener in _subjectListeners.values) {
+      listener?.cancel?.call();
+    }
+    _subjectListeners.clear();
     super.dispose();
   }
 
@@ -107,6 +115,28 @@ class _GroupsListPageState extends State<GroupsListPage>
         } catch (_) {}
       }
     }, onError: (e) => print('Error listening to messages for $chatId: $e'));
+  }
+
+  void _listenForSubjectActivity(String classId, GroupSubject subject) {
+    final chatId = '$classId|${subject.id}';
+    final docRef = FirebaseFirestore.instance
+        .collection('classes')
+        .doc(classId)
+        .collection('subjects')
+        .doc(subject.id);
+
+    _subjectListeners[chatId] = docRef.snapshots().listen((doc) {
+      if (!mounted || !doc.exists) return;
+      final data = doc.data();
+      final activityTs = (data?['lastActivity'] as int?) ?? 0;
+      if (activityTs == 0) return;
+
+      final previous = _lastMessageTs[chatId] ?? 0;
+      if (activityTs > previous) {
+        _lastMessageTs[chatId] = activityTs;
+        _resortGroups();
+      }
+    }, onError: (e) => debugPrint('Error listening to subject $chatId: $e'));
   }
 
   void _resortGroups() {
@@ -233,9 +263,15 @@ class _GroupsListPageState extends State<GroupsListPage>
       }
       _messageListeners.clear();
 
+      for (final listener in _subjectListeners.values) {
+        listener?.cancel?.call();
+      }
+      _subjectListeners.clear();
+
       // Set up real-time listeners for all subjects to resort on new messages
       for (final s in subjects) {
         _listenForMessageUpdates(_classId!, s);
+        _listenForSubjectActivity(_classId!, s);
       }
     } catch (e) {
       if (!mounted) return;

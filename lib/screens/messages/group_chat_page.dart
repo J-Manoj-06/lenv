@@ -769,6 +769,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
     });
   }
 
+  Future<void> _bumpLastActivity(int timestampMs) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('classes')
+          .doc(widget.classId)
+          .collection('subjects')
+          .doc(widget.subjectId)
+          .set({'lastActivity': timestampMs}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Failed to bump lastActivity: $e');
+    }
+  }
+
   Future<void> _sendMessage({
     String? imageUrl,
     MediaMetadata? mediaMetadata,
@@ -786,6 +799,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _messageFocusNode.requestFocus();
 
     try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await _bumpLastActivity(now);
+
       final message = GroupChatMessage(
         id: '',
         senderId: currentUser.uid,
@@ -793,7 +809,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         message: text,
         imageUrl: imageUrl,
         mediaMetadata: mediaMetadata,
-        timestamp: DateTime.now().millisecondsSinceEpoch,
+        timestamp: now,
       );
 
       await _messagingService.sendGroupMessage(
@@ -963,6 +979,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
         multipleMedia: mediaList.length > 1 ? mediaList : null,
       );
 
+      await _bumpLastActivity(baseTimestamp);
+
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
         for (int i = 0; i < mediaList.length; i++) {
@@ -1064,6 +1082,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ),
       );
 
+      await _bumpLastActivity(pendingMessage.timestamp);
+
       debugPrint(
         '📝 Created pending message: id=${pendingMessage.id}, messageId=$messageId',
       );
@@ -1157,6 +1177,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ),
       );
 
+      await _bumpLastActivity(pendingMessage.timestamp);
+
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
         _uploadingMessageIds.add(messageId);
@@ -1234,6 +1256,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
         mediaMetadata: pendingMetadata,
         timestamp: DateTime.now().millisecondsSinceEpoch,
       );
+
+      await _bumpLastActivity(pendingMsg.timestamp);
+
       setState(() {
         _isRecording = false;
         _isUploading = true;
@@ -2395,7 +2420,8 @@ class _MessageBubble extends StatelessWidget {
                         uploadProgress: message.multipleMedia!
                             .map((m) => pendingUploadProgress[m.messageId])
                             .toList(),
-                        onImageTap: (index) {
+                        onImageTap: (index) async {
+                          // Open image gallery - it handles loading from cache or network
                           Navigator.push(
                             context,
                             MaterialPageRoute(

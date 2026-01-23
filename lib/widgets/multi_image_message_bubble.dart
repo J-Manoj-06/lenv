@@ -446,13 +446,18 @@ class _ImageTileState extends State<_ImageTile> {
     if (url.startsWith('/')) {
       // Local file path
       final file = File(url);
-      _markLoadedAsync();
-      return Image.file(
-        file,
-        fit: BoxFit.cover,
-        filterQuality: FilterQuality.high,
-        errorBuilder: (_, __, ___) => _errorFallback(),
-      );
+      if (file.existsSync()) {
+        _markLoadedAsync();
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (_, __, ___) => _errorFallback(),
+        );
+      } else {
+        // File not found, show download prompt
+        return _downloadPromptFallback();
+      }
     }
 
     // Network image with loadingBuilder to update skeleton visibility
@@ -464,7 +469,7 @@ class _ImageTileState extends State<_ImageTile> {
         if (progress == null) _markLoadedAsync();
         return child; // skeleton remains visible via AnimatedOpacity
       },
-      errorBuilder: (_, __, ___) => _errorFallback(),
+      errorBuilder: (_, __, ___) => _downloadPromptFallback(),
     );
   }
 
@@ -482,6 +487,35 @@ class _ImageTileState extends State<_ImageTile> {
       color: Colors.grey.shade800,
       child: const Center(
         child: Icon(Icons.broken_image, color: Colors.white54, size: 36),
+      ),
+    );
+  }
+
+  Widget _downloadPromptFallback() {
+    _markLoadedAsync();
+    return Container(
+      color: Colors.grey.shade900,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.cloud_download_outlined,
+              color: Colors.white54,
+              size: 32,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Tap to download',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
