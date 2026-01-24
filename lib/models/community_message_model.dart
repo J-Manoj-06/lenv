@@ -14,6 +14,8 @@ class CommunityMessageModel {
   final String fileUrl;
   final String fileName;
   final MediaMetadata? mediaMetadata; // WhatsApp-style media metadata
+  final List<MediaMetadata>?
+  multipleMedia; // For multiple images in one message
   final DateTime createdAt;
   final DateTime? updatedAt;
   final bool isEdited;
@@ -40,6 +42,7 @@ class CommunityMessageModel {
     required this.fileUrl,
     required this.fileName,
     this.mediaMetadata,
+    this.multipleMedia,
     required this.createdAt,
     this.updatedAt,
     required this.isEdited,
@@ -81,6 +84,11 @@ class CommunityMessageModel {
       mediaMetadata: data['mediaMetadata'] != null
           ? MediaMetadata.fromFirestore(data['mediaMetadata'])
           : null,
+      multipleMedia: data['multipleMedia'] != null
+          ? (data['multipleMedia'] as List)
+                .map((m) => MediaMetadata.fromFirestore(m))
+                .toList()
+          : null,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: data['updatedAt'] != null
           ? (data['updatedAt'] as Timestamp).toDate()
@@ -114,6 +122,7 @@ class CommunityMessageModel {
       'fileUrl': fileUrl,
       'fileName': fileName,
       'mediaMetadata': mediaMetadata?.toFirestore(),
+      'multipleMedia': multipleMedia?.map((m) => m.toFirestore()).toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'isEdited': isEdited,

@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:dio/dio.dart';
+import 'dart:convert';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../utils/link_utils.dart';
@@ -30,6 +31,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../models/media_metadata.dart';
 import '../../widgets/media_preview_card.dart';
+import '../../widgets/multi_image_message_bubble.dart';
 
 class CommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -63,6 +65,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   // Optimistic pending messages and per-upload progress
   final List<CommunityMessageModel> _pendingMessages = [];
   final Map<String, double> _pendingUploadProgress = {};
+  final Map<String, String> _localSenderMediaPaths = {};
   // Tracking for message location and highlight
   final Map<String, GlobalKey> _messageKeys = {};
   Set<String> _visibleMessageIds = {};
@@ -209,7 +212,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   void _showMediaOptions() {
     showModernAttachmentSheet(
       context,
-      onImageTap: _pickAndSendImage,
+      onImageTap: _pickAndSendImages,
       onPdfTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
       imageEnabled: widget.community.allowImages,
@@ -348,6 +351,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     );
   }
 
+  // ignore: unused_element
   Future<void> _pickAndSendImage() async {
     if (!widget.community.allowImages) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -532,6 +536,158 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _pickAndSendImages() async {
+    if (!widget.community.allowImages) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Images are not allowed in this community'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      debugPrint('🖼️ Starting image picker (multi)...');
+      List<XFile> images = [];
+      try {
+        images = await _imagePicker.pickMultiImage(
+          limit: 5,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          imageQuality: 85,
+        );
+        debugPrint('📸 Picked ${images.length} images via pickMultiImage');
+      } catch (e) {
+        debugPrint('⚠️ pickMultiImage failed: $e');
+      }
+
+      if (images.isEmpty) {
+        debugPrint('↪️ Fallback to single pickImage');
+        final XFile? single = await _imagePicker.pickImage(
+          source: ImageSource.gallery,
+        );
+        if (single != null) {
+          images = [single];
+          debugPrint('📸 Picked 1 image via pickImage');
+        }
+      }
+
+      if (images.isEmpty) {
+        debugPrint('⚠️ No images selected');
+        return;
+      }
+
+      final student = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      ).currentStudent;
+      if (student == null) return;
+
+      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final groupMessageId = 'upload_${baseTimestamp}_${student.uid.hashCode}';
+      final List<MediaMetadata> mediaList = [];
+      final List<String> localPaths = [];
+
+      for (int i = 0; i < images.length; i++) {
+        final image = images[i];
+        final file = File(image.path);
+        if (!file.existsSync()) {
+          debugPrint('⚠️ File does not exist: ${image.path}');
+          continue;
+        }
+
+        final messageId = '${groupMessageId}_$i';
+        localPaths.add(file.path);
+
+        mediaList.add(
+          MediaMetadata(
+            messageId: messageId,
+            r2Key: 'pending/$messageId',
+            publicUrl: '',
+            thumbnail: file.path,
+            localPath: file.path,
+            expiresAt: DateTime.now().add(const Duration(days: 30)),
+            uploadedAt: DateTime.now(),
+            originalFileName: file.path.split('/').last,
+            fileSize: await file.length(),
+            mimeType: 'image/jpeg',
+          ),
+        );
+      }
+
+      if (mediaList.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No valid images found')));
+        return;
+      }
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: 'pending:$groupMessageId',
+        communityId: widget.community.id,
+        senderId: student.uid,
+        senderName: student.name,
+        senderRole: 'Student',
+        senderAvatar: '',
+        type: 'image',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: '',
+        mediaMetadata: mediaList.first,
+        multipleMedia: mediaList.length > 1 ? mediaList : null,
+        createdAt: DateTime.now(),
+        updatedAt: null,
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+        deletedFor: const [],
+        documentSnapshot: null,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        for (int i = 0; i < mediaList.length; i++) {
+          final mid = mediaList[i].messageId;
+          _pendingUploadProgress[mid] = 0.0;
+          _localSenderMediaPaths[mid] = localPaths[i];
+        }
+      });
+
+      // Queue uploads in background (worker will create server messages)
+      for (int i = 0; i < images.length; i++) {
+        final file = File(images[i].path);
+        if (!file.existsSync()) continue;
+        final messageId = '${groupMessageId}_$i';
+
+        await BackgroundUploadService().queueUpload(
+          file: file,
+          conversationId: widget.community.id,
+          senderId: student.uid,
+          senderRole: 'student',
+          mediaType: 'message',
+          chatType: 'community',
+          senderName: student.name,
+          messageId: messageId,
+          groupId: groupMessageId,
+        );
+      }
+
+      _scrollToBottom(force: true);
+    } catch (e) {
+      debugPrint('❌ Error in _pickAndSendImages: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send images: $e')));
     }
   }
 
@@ -1348,95 +1504,130 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal:
-                              message.mediaMetadata != null &&
-                                  message.content.isEmpty
-                              ? 4
-                              : 14,
-                          vertical:
-                              message.mediaMetadata != null &&
-                                  message.content.isEmpty
-                              ? 4
-                              : 11,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isCurrentUser
-                              ? const Color(0xFFFFE8D1)
-                              : const Color(0xFF1A1D21),
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(16),
-                            topRight: const Radius.circular(16),
-                            bottomLeft: Radius.circular(isCurrentUser ? 16 : 4),
-                            bottomRight: Radius.circular(
-                              isCurrentUser ? 4 : 16,
+                      // Multi-image grid bubble
+                      if (message.multipleMedia != null &&
+                          message.multipleMedia!.isNotEmpty)
+                        MultiImageMessageBubble(
+                          imageUrls: message.multipleMedia!
+                              .map(
+                                (m) => m.localPath?.isNotEmpty == true
+                                    ? m.localPath!
+                                    : (m.publicUrl.isNotEmpty
+                                          ? m.publicUrl
+                                          : m.thumbnail),
+                              )
+                              .toList(),
+                          isMe: isCurrentUser,
+                          uploadProgress: message.multipleMedia!
+                              .map((m) => _pendingUploadProgress[m.messageId])
+                              .toList(),
+                          onImageTap: (index) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => _ImageGalleryViewer(
+                                  mediaList: message.multipleMedia!,
+                                  initialIndex: index,
+                                  localSenderMediaPaths: _localSenderMediaPaths,
+                                  isMe: isCurrentUser,
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      else
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal:
+                                message.mediaMetadata != null &&
+                                    message.content.isEmpty
+                                ? 4
+                                : 14,
+                            vertical:
+                                message.mediaMetadata != null &&
+                                    message.content.isEmpty
+                                ? 4
+                                : 11,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isCurrentUser
+                                ? const Color(0xFFFFE8D1)
+                                : const Color(0xFF1A1D21),
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(16),
+                              topRight: const Radius.circular(16),
+                              bottomLeft: Radius.circular(
+                                isCurrentUser ? 16 : 4,
+                              ),
+                              bottomRight: Radius.circular(
+                                isCurrentUser ? 4 : 16,
+                              ),
                             ),
                           ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Media with metadata (images, PDFs, audio)
-                            if (message.mediaMetadata != null) ...[
-                              MediaPreviewCard(
-                                r2Key: message.mediaMetadata!.r2Key,
-                                fileName: _getFileNameFromMetadata(
-                                  message.mediaMetadata!,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Media with metadata (images, PDFs, audio)
+                              if (message.mediaMetadata != null) ...[
+                                MediaPreviewCard(
+                                  r2Key: message.mediaMetadata!.r2Key,
+                                  fileName: _getFileNameFromMetadata(
+                                    message.mediaMetadata!,
+                                  ),
+                                  mimeType:
+                                      message.mediaMetadata!.mimeType ??
+                                      'application/octet-stream',
+                                  fileSize:
+                                      message.mediaMetadata!.fileSize ?? 0,
+                                  thumbnailBase64:
+                                      message.mediaMetadata!.thumbnail,
+                                  isMe: isCurrentUser,
+                                  uploading: isUploading,
+                                  uploadProgress: uploadProgress,
+                                  selectionMode: _isSelectionMode,
                                 ),
-                                mimeType:
-                                    message.mediaMetadata!.mimeType ??
-                                    'application/octet-stream',
-                                fileSize: message.mediaMetadata!.fileSize ?? 0,
-                                thumbnailBase64:
-                                    message.mediaMetadata!.thumbnail,
-                                isMe: isCurrentUser,
-                                uploading: isUploading,
-                                uploadProgress: uploadProgress,
-                                selectionMode: _isSelectionMode,
-                              ),
+                                if (message.content.isNotEmpty)
+                                  const SizedBox(height: 8),
+                              ],
+                              // Text content
                               if (message.content.isNotEmpty)
-                                const SizedBox(height: 8),
+                                Linkify(
+                                  onOpen: (link) async {
+                                    final uri = Uri.parse(link.url);
+                                    if (await canLaunchUrl(uri)) {
+                                      await launchUrl(
+                                        uri,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    }
+                                  },
+                                  text: LinkUtils.addProtocolToBareUrls(
+                                    message.content,
+                                  ),
+                                  options: const LinkifyOptions(
+                                    defaultToHttps: true,
+                                  ),
+                                  style: TextStyle(
+                                    color: isCurrentUser
+                                        ? const Color(0xFF1A1D21)
+                                        : const Color(0xFFE8E8E8),
+                                    fontSize: 15,
+                                    height: 1.45,
+                                    letterSpacing: 0.15,
+                                  ),
+                                  linkStyle: TextStyle(
+                                    color: isCurrentUser
+                                        ? const Color(0xFF0066CC)
+                                        : const Color(0xFFFFA726),
+                                    fontSize: 15,
+                                    height: 1.45,
+                                    letterSpacing: 0.15,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
                             ],
-                            // Text content
-                            if (message.content.isNotEmpty)
-                              Linkify(
-                                onOpen: (link) async {
-                                  final uri = Uri.parse(link.url);
-                                  if (await canLaunchUrl(uri)) {
-                                    await launchUrl(
-                                      uri,
-                                      mode: LaunchMode.externalApplication,
-                                    );
-                                  }
-                                },
-                                text: LinkUtils.addProtocolToBareUrls(
-                                  message.content,
-                                ),
-                                options: const LinkifyOptions(
-                                  defaultToHttps: true,
-                                ),
-                                style: TextStyle(
-                                  color: isCurrentUser
-                                      ? const Color(0xFF1A1D21)
-                                      : const Color(0xFFE8E8E8),
-                                  fontSize: 15,
-                                  height: 1.45,
-                                  letterSpacing: 0.15,
-                                ),
-                                linkStyle: TextStyle(
-                                  color: isCurrentUser
-                                      ? const Color(0xFF0066CC)
-                                      : const Color(0xFFFFA726),
-                                  fontSize: 15,
-                                  height: 1.45,
-                                  letterSpacing: 0.15,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                          ],
+                          ),
                         ),
-                      ),
                       if (!isCurrentUser && message.senderRole == 'Teacher')
                         Positioned(
                           left: -4,
@@ -2005,18 +2196,33 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                         )
                         .toList();
 
-                    // Merge pending optimistic messages
+                    // Merge pending optimistic messages with de-dup by media IDs
                     final combined = <CommunityMessageModel>[];
                     combined.addAll(messagesFromServer);
-                    final seenIds = messagesFromServer
-                        .map((m) => m.mediaMetadata?.messageId ?? m.messageId)
-                        .toSet();
-                    for (final pending in _pendingMessages) {
-                      final key =
-                          pending.mediaMetadata?.messageId ?? pending.messageId;
-                      if (!seenIds.contains(key)) {
-                        combined.add(pending);
+                    final seenMediaIds = <String>{};
+                    for (final m in messagesFromServer) {
+                      if (m.multipleMedia != null) {
+                        seenMediaIds.addAll(
+                          m.multipleMedia!.map((mm) => mm.messageId),
+                        );
                       }
+                      final singleId = m.mediaMetadata?.messageId;
+                      if (singleId != null) seenMediaIds.add(singleId);
+                    }
+                    for (final pending in _pendingMessages) {
+                      final pendingIds = <String>{};
+                      if (pending.multipleMedia != null) {
+                        pendingIds.addAll(
+                          pending.multipleMedia!.map((mm) => mm.messageId),
+                        );
+                      }
+                      final singleId = pending.mediaMetadata?.messageId;
+                      if (singleId != null) pendingIds.add(singleId);
+                      // Add only if no overlap with server media IDs
+                      final shouldAdd =
+                          pendingIds.isEmpty ||
+                          !pendingIds.any(seenMediaIds.contains);
+                      if (shouldAdd) combined.add(pending);
                     }
 
                     combined.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -2895,6 +3101,163 @@ class _StudentCommunityMessageSearchScreenState
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImageGalleryViewer extends StatefulWidget {
+  final List<MediaMetadata> mediaList;
+  final int initialIndex;
+  final Map<String, String> localSenderMediaPaths;
+  final bool isMe;
+
+  const _ImageGalleryViewer({
+    required this.mediaList,
+    required this.initialIndex,
+    required this.localSenderMediaPaths,
+    required this.isMe,
+  });
+
+  @override
+  State<_ImageGalleryViewer> createState() => _ImageGalleryViewerState();
+}
+
+class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.mediaList.length}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        centerTitle: true,
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        itemCount: widget.mediaList.length,
+        itemBuilder: (context, index) {
+          final metadata = widget.mediaList[index];
+          final localPath =
+              metadata.localPath ??
+              widget.localSenderMediaPaths[metadata.messageId];
+
+          return _buildImageViewer(metadata, localPath);
+        },
+      ),
+    );
+  }
+
+  Widget _buildImageViewer(MediaMetadata metadata, String? localPath) {
+    Widget imageWidget;
+    final file = (localPath != null && localPath.isNotEmpty)
+        ? File(localPath)
+        : null;
+    final hasLocalFile = file != null && file.existsSync();
+    final hasNetwork = metadata.publicUrl.isNotEmpty;
+
+    if (hasLocalFile) {
+      imageWidget = Image.file(
+        file,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      );
+    } else if (hasNetwork) {
+      imageWidget = Image.network(
+        metadata.publicUrl,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(
+            child: SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+          );
+        },
+        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      );
+    } else if (metadata.thumbnail.isNotEmpty) {
+      if (metadata.thumbnail.startsWith('/')) {
+        imageWidget = Image.file(
+          File(metadata.thumbnail),
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+        );
+      } else {
+        try {
+          final bytes = base64Decode(metadata.thumbnail);
+          imageWidget = Image.memory(
+            bytes,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          );
+        } catch (e) {
+          imageWidget = _buildFallbackImage(metadata);
+        }
+      }
+    } else {
+      imageWidget = _buildFallbackImage(metadata);
+    }
+
+    return InteractiveViewer(
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: Center(child: imageWidget),
+    );
+  }
+
+  Widget _buildFallbackImage(MediaMetadata metadata) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.image, size: 64, color: Colors.white54),
+          const SizedBox(height: 16),
+          const Text(
+            'Image not available locally',
+            style: TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            metadata.originalFileName ?? 'image.jpg',
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
         ],
       ),
     );

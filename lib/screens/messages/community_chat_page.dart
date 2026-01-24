@@ -4,17 +4,19 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../utils/link_utils.dart';
 import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
-import '../../services/cloudflare_r2_service.dart';
-import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../widgets/media_preview_card.dart';
+import '../../widgets/multi_image_message_bubble.dart';
+import '../../models/media_metadata.dart';
+import '../../services/background_upload_service.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -99,6 +101,12 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _showEmojiPicker = false;
 
+  // Optimistic pending uploads (parity with student group chat)
+  final List<GroupChatMessage> _pendingMessages = [];
+  final Set<String> _uploadingMessageIds = {};
+  final Map<String, double> _pendingUploadProgress = {};
+  final Map<String, String> _localSenderMediaPaths = {};
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +116,22 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         setState(() => _showEmojiPicker = false);
       }
     });
+
+    // Track upload progress so pending bubbles show overlays
+    BackgroundUploadService().onUploadProgress =
+        (messageId, isUploading, progress) {
+          if (!mounted) return;
+          setState(() {
+            if (isUploading) {
+              _uploadingMessageIds.add(messageId);
+              _pendingUploadProgress[messageId] = progress;
+            } else {
+              _uploadingMessageIds.remove(messageId);
+              _pendingUploadProgress.remove(messageId);
+            }
+          });
+        };
+
     // Setup last read stream for unread divider
     _setupLastReadStream();
     // Mark as read on entry
@@ -229,48 +253,143 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     }
   }
 
-  Future<void> _pickAndSendImage() async {
+  Future<void> _pickAndSendImages() async {
     try {
-      final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
+      print('🖼️ Starting image picker...');
+
+      // Try pickMultiImage first
+      List<XFile> images = [];
+      try {
+        images = await _imagePicker.pickMultiImage(
+          limit: 5,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          imageQuality: 85,
+        );
+        print('📸 Picked ${images.length} images via pickMultiImage');
+      } catch (e) {
+        print('⚠️ pickMultiImage failed: $e, trying pickImage instead');
+        // Fallback to single image picker if multi doesn't work
+        final image = await _imagePicker.pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          imageQuality: 85,
+        );
+        if (image != null) {
+          images = [image];
+          print('📸 Fallback: Picked 1 image via pickImage');
+        }
+      }
+
+      if (images.isEmpty) {
+        print('⚠️ No images selected');
+        return;
+      }
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) {
+        print('❌ User not authenticated');
+        return;
+      }
+
+      final conversationId = widget.communityId;
+      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final groupMessageId =
+          'upload_${baseTimestamp}_${currentUser.uid.hashCode}';
+      final List<MediaMetadata> mediaList = [];
+      final List<String> localPaths = [];
+
+      for (int i = 0; i < images.length; i++) {
+        final image = images[i];
+        final file = File(image.path);
+        if (!file.existsSync()) {
+          print('⚠️ File does not exist: ${image.path}');
+          continue;
+        }
+
+        final messageId = '${groupMessageId}_$i';
+        localPaths.add(file.path);
+
+        mediaList.add(
+          MediaMetadata(
+            messageId: messageId,
+            r2Key: 'pending/$messageId',
+            publicUrl: '',
+            thumbnail: file.path,
+            localPath: file.path,
+            expiresAt: DateTime.now().add(const Duration(days: 30)),
+            uploadedAt: DateTime.now(),
+            originalFileName: file.path.split('/').last,
+            fileSize: await file.length(),
+            mimeType: 'image/jpeg',
+          ),
+        );
+      }
+
+      if (mediaList.isEmpty) {
+        print('❌ No valid images found');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No valid images found')),
+          );
+        }
+        return;
+      }
+
+      print('✅ Created pending message with ${mediaList.length} images');
+      final pendingMessage = GroupChatMessage(
+        id: 'pending:$groupMessageId',
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
+        message: '',
+        timestamp: baseTimestamp,
+        mediaMetadata: mediaList.first,
+        multipleMedia: mediaList.length > 1 ? mediaList : null,
       );
 
-      if (image == null) return;
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        for (int i = 0; i < mediaList.length; i++) {
+          final messageId = mediaList[i].messageId;
+          _uploadingMessageIds.add(messageId);
+          _pendingUploadProgress[messageId] = 0.0;
+          _localSenderMediaPaths[messageId] = localPaths[i];
+        }
+        print(
+          '📝 Updated state with ${_pendingMessages.length} pending messages',
+        );
+      });
 
-      // Upload to Cloudflare R2
-      final imageBytes = await File(image.path).readAsBytes();
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      // Queue uploads in background
+      for (int i = 0; i < images.length; i++) {
+        final file = File(images[i].path);
+        if (!file.existsSync()) continue;
+        final messageId = '${groupMessageId}_$i';
 
-      final r2Service = CloudflareR2Service(
-        accountId: CloudflareConfig.accountId,
-        bucketName: CloudflareConfig.bucketName,
-        accessKeyId: CloudflareConfig.accessKeyId,
-        secretAccessKey: CloudflareConfig.secretAccessKey,
-        r2Domain: CloudflareConfig.r2Domain,
-      );
+        print('📤 Queueing upload for $messageId');
+        await BackgroundUploadService().queueUpload(
+          file: file,
+          conversationId: conversationId,
+          senderId: currentUser.uid,
+          senderRole: 'student',
+          mediaType: 'message',
+          chatType: 'community',
+          senderName: currentUser.name,
+          messageId: messageId,
+          groupId: groupMessageId,
+        );
+      }
 
-      // Generate signed URL
-      final signedData = await r2Service.generateSignedUploadUrl(
-        fileName: 'community_messages/${widget.communityId}/$fileName',
-        fileType: 'image/jpeg',
-      );
-
-      // Upload file
-      final imageUrl = await r2Service.uploadFileWithSignedUrl(
-        fileBytes: imageBytes,
-        signedUrl: signedData['url'],
-        contentType: 'image/jpeg',
-      );
-
-      await _sendMessage(imageUrl: imageUrl);
+      print('✅ All uploads queued, scrolling to bottom');
+      _scrollToBottom(force: true);
     } catch (e) {
+      print('❌ Error in _pickAndSendImages: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+        ).showSnackBar(SnackBar(content: Text('Failed to send images: $e')));
       }
     }
   }
@@ -294,7 +413,6 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         ? const Color(0xFF8696A0)
         : const Color(0xFF94A3B8);
     final primaryColor = const Color(0xFF00A884);
-    final accentColor = const Color(0xFFFF8800);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -352,15 +470,11 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   );
                 }
 
-                if (!snapshot.hasData) {
-                  return Center(
-                    child: CircularProgressIndicator(color: accentColor),
-                  );
-                }
+                // Proceed even while connecting so pending messages render immediately
+                final firestoreMessages =
+                    snapshot.data ?? const <GroupChatMessage>[];
 
-                final messages = snapshot.data!;
-
-                if (messages.isEmpty) {
+                if (firestoreMessages.isEmpty && _pendingMessages.isEmpty) {
                   return Center(
                     child: Text(
                       'No messages yet.\nBe the first to say hello! 👋',
@@ -373,20 +487,142 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                 return StreamBuilder<Timestamp?>(
                   stream: _lastReadAtStream,
                   builder: (context, readSnapshot) {
+                    final hasValidData = readSnapshot.data != null;
                     final lastReadMs =
-                        readSnapshot.data?.toDate().millisecondsSinceEpoch ?? 0;
+                        readSnapshot.data?.toDate().millisecondsSinceEpoch ??
+                        DateTime.now()
+                            .subtract(const Duration(days: 30))
+                            .millisecondsSinceEpoch;
 
-                    // Pre-compute a single divider position: the first read message after unread ones
+                    // Merge pending + Firestore messages and de-duplicate when server versions arrive
+                    final allMessages = <GroupChatMessage>[
+                      ..._pendingMessages,
+                      ...firestoreMessages,
+                    ];
+                    final uploadingMessageIds = <String>{
+                      ..._uploadingMessageIds,
+                    };
+                    final pendingIdsToRemove = <String>[];
+
+                    allMessages.removeWhere((pendingMsg) {
+                      if (!pendingMsg.id.startsWith('pending:')) return false;
+
+                      final pendingMediaIds = <String>{};
+                      if (pendingMsg.multipleMedia != null) {
+                        pendingMediaIds.addAll(
+                          pendingMsg.multipleMedia!.map((m) => m.messageId),
+                        );
+                      }
+                      if (pendingMsg.mediaMetadata != null) {
+                        pendingMediaIds.add(
+                          pendingMsg.mediaMetadata!.messageId,
+                        );
+                      }
+
+                      final hasMatchingMedia =
+                          pendingMediaIds.isNotEmpty &&
+                          firestoreMessages.any((fsMsg) {
+                            if (fsMsg.id.startsWith('pending:')) return false;
+                            final fsMediaIds = <String>{};
+                            if (fsMsg.multipleMedia != null) {
+                              fsMediaIds.addAll(
+                                fsMsg.multipleMedia!.map((m) => m.messageId),
+                              );
+                            }
+                            if (fsMsg.mediaMetadata != null) {
+                              fsMediaIds.add(fsMsg.mediaMetadata!.messageId);
+                            }
+                            if (fsMediaIds.isEmpty) return false;
+                            return fsMediaIds.any(pendingMediaIds.contains);
+                          });
+
+                      final hasServerVersion =
+                          hasMatchingMedia ||
+                          firestoreMessages.any((fsMsg) {
+                            final senderMatch =
+                                fsMsg.senderId == pendingMsg.senderId;
+                            final diff =
+                                (fsMsg.timestamp - pendingMsg.timestamp).abs();
+                            final timeMatch = diff < 30000;
+                            final isNotPending = !fsMsg.id.startsWith(
+                              'pending:',
+                            );
+                            return senderMatch && timeMatch && isNotPending;
+                          });
+
+                      if (hasServerVersion) {
+                        if (pendingMsg.multipleMedia != null) {
+                          for (final pm in pendingMsg.multipleMedia!) {
+                            if (pm.localPath != null &&
+                                pm.localPath!.isNotEmpty) {
+                              _localSenderMediaPaths[pm.messageId] =
+                                  pm.localPath!;
+                            }
+                            _uploadingMessageIds.remove(pm.messageId);
+                            _pendingUploadProgress.remove(pm.messageId);
+                          }
+                        }
+                        if (pendingMsg.mediaMetadata?.localPath != null) {
+                          _localSenderMediaPaths[pendingMsg
+                                  .mediaMetadata!
+                                  .messageId] =
+                              pendingMsg.mediaMetadata!.localPath!;
+                        }
+                        if (pendingMsg.mediaMetadata != null) {
+                          _uploadingMessageIds.remove(
+                            pendingMsg.mediaMetadata!.messageId,
+                          );
+                          _pendingUploadProgress.remove(
+                            pendingMsg.mediaMetadata!.messageId,
+                          );
+                        }
+
+                        pendingIdsToRemove.add(pendingMsg.id);
+                        return true;
+                      }
+
+                      if (pendingMsg.multipleMedia != null &&
+                          pendingMsg.multipleMedia!.isNotEmpty) {
+                        final anyStillUploading = pendingMsg.multipleMedia!.any(
+                          (m) => uploadingMessageIds.contains(m.messageId),
+                        );
+                        if (anyStillUploading) return false;
+                      } else if (pendingMsg.mediaMetadata != null) {
+                        if (uploadingMessageIds.contains(
+                          pendingMsg.mediaMetadata!.messageId,
+                        )) {
+                          return false;
+                        }
+                      }
+
+                      return false;
+                    });
+
+                    if (pendingIdsToRemove.isNotEmpty) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        setState(() {
+                          _pendingMessages.removeWhere(
+                            (m) => pendingIdsToRemove.contains(m.id),
+                          );
+                        });
+                      });
+                    }
+
+                    allMessages.sort(
+                      (a, b) => b.timestamp.compareTo(a.timestamp),
+                    );
+
                     int? unreadDividerIndex;
                     bool hasUnread = false;
                     bool hasRead = false;
-                    for (int i = 0; i < messages.length; i++) {
-                      final isUnread = messages[i].timestamp > lastReadMs;
+                    for (int i = 0; i < allMessages.length; i++) {
+                      final isUnread = allMessages[i].timestamp > lastReadMs;
                       hasUnread = hasUnread || isUnread;
                       hasRead = hasRead || !isUnread;
                       if (i > 0) {
                         final prevUnread =
-                            messages[i - 1].timestamp > lastReadMs;
+                            allMessages[i - 1].timestamp > lastReadMs;
                         final currUnread = isUnread;
                         if (prevUnread &&
                             !currUnread &&
@@ -395,43 +631,61 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                         }
                       }
                     }
-                    // If both read and unread exist but no boundary found, place at last item
                     if (unreadDividerIndex == null && hasUnread && hasRead) {
-                      unreadDividerIndex = messages.length - 1;
+                      unreadDividerIndex = allMessages.length - 1;
                     }
 
                     return ListView.builder(
                       controller: _scrollController,
                       reverse: true,
                       padding: const EdgeInsets.all(16),
-                      itemCount: messages.length,
+                      itemCount: allMessages.length,
                       itemBuilder: (context, index) {
-                        final message = messages[index];
+                        final message = allMessages[index];
                         final isMe = message.senderId == currentUserId;
                         final currentDate = DateTime.fromMillisecondsSinceEpoch(
                           message.timestamp,
                         );
-                        // Reverse ListView with messages sorted desc: compare with next item (index+1)
-                        // because that is visually above. Oldest message must always show divider.
-                        final isOldest = index == messages.length - 1;
+                        final isOldest = index == allMessages.length - 1;
                         final nextDate = isOldest
                             ? null
                             : DateTime.fromMillisecondsSinceEpoch(
-                                messages[index + 1].timestamp,
+                                allMessages[index + 1].timestamp,
                               );
                         final showDayDivider =
                             isOldest ||
                             _formatDayLabel(currentDate) !=
                                 _formatDayLabel(nextDate!);
 
+                        final isPending =
+                            message.id.startsWith('pending:') ||
+                            (message.mediaMetadata?.r2Key.startsWith(
+                                  'pending/',
+                                ) ??
+                                false);
+                        final uploadProgress = isPending
+                            ? _pendingUploadProgress[message
+                                  .mediaMetadata
+                                  ?.messageId]
+                            : null;
+
                         return Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (_showUnreadDivider &&
+                                hasValidData &&
                                 unreadDividerIndex == index)
                               _buildUnreadDivider(),
                             if (showDayDivider) _buildDayDivider(currentDate),
-                            _MessageBubble(message: message, isMe: isMe),
+                            _MessageBubble(
+                              message: message,
+                              isMe: isMe,
+                              uploading: isPending,
+                              uploadProgress: uploadProgress,
+                              localSenderMediaPaths: _localSenderMediaPaths,
+                              uploadingMessageIds: _uploadingMessageIds,
+                              pendingUploadProgress: _pendingUploadProgress,
+                            ),
                           ],
                         );
                       },
@@ -570,7 +824,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
             IconButton(
               icon: Icon(Icons.attach_file, color: hintColor, size: 26),
               padding: const EdgeInsets.all(8),
-              onPressed: _pickAndSendImage,
+              onPressed: _pickAndSendImages,
             ),
             const SizedBox(width: 8),
             // Mic/Send Button
@@ -607,11 +861,29 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 class _MessageBubble extends StatelessWidget {
   final GroupChatMessage message;
   final bool isMe;
+  final bool uploading;
+  final double? uploadProgress;
+  final Map<String, String> localSenderMediaPaths;
+  final Set<String> uploadingMessageIds;
+  final Map<String, double> pendingUploadProgress;
 
-  const _MessageBubble({required this.message, required this.isMe});
+  const _MessageBubble({
+    required this.message,
+    required this.isMe,
+    required this.uploading,
+    required this.uploadProgress,
+    required this.localSenderMediaPaths,
+    required this.uploadingMessageIds,
+    required this.pendingUploadProgress,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final bubbleColor = isMe
+        ? const Color(0xFFFF8800)
+        : const Color(0xFF2A2A2A);
+    final textColor = Colors.white;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -621,14 +893,13 @@ class _MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isMe) ...[
-            // Avatar for others
             CircleAvatar(
               radius: 16,
-              backgroundColor: const Color(0xFFFF8800),
+              backgroundColor: const Color(0xFFFF8800).withOpacity(0.16),
               child: Text(
                 message.senderName[0].toUpperCase(),
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFFFF8800),
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -636,8 +907,6 @@ class _MessageBubble extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-
-          // Message Content
           Flexible(
             child: Column(
               crossAxisAlignment: isMe
@@ -656,60 +925,95 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     ),
                   ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isMe
-                        ? const Color(0xFFFF8800)
-                        : const Color(0xFF2A2A2A),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 16),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (message.imageUrl != null) ...[
-                        _buildAttachment(context, message.imageUrl!),
-                        if (message.message.isNotEmpty)
-                          const SizedBox(height: 8),
-                      ],
-                      if (message.message.isNotEmpty)
-                        Linkify(
-                          onOpen: (link) async {
-                            final uri = Uri.parse(link.url);
-                            if (await canLaunchUrl(uri)) {
-                              await launchUrl(
-                                uri,
-                                mode: LaunchMode.externalApplication,
-                              );
-                            }
-                          },
-                          text: LinkUtils.addProtocolToBareUrls(
-                            message.message,
-                          ),
-                          options: const LinkifyOptions(defaultToHttps: true),
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.white,
-                            fontSize: 14,
-                          ),
-                          linkStyle: TextStyle(
-                            color: isMe
-                                ? const Color(0xFF90CAF9)
-                                : const Color(0xFFFFA726),
-                            fontSize: 14,
-                            decoration: TextDecoration.underline,
+                if (message.multipleMedia != null &&
+                    message.multipleMedia!.isNotEmpty) ...[
+                  MultiImageMessageBubble(
+                    imageUrls: message.multipleMedia!
+                        .map((m) => m.localPath ?? m.publicUrl)
+                        .toList(),
+                    isMe: isMe,
+                    uploadProgress: message.multipleMedia!
+                        .map((m) => pendingUploadProgress[m.messageId])
+                        .toList(),
+                    onImageTap: (index) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => _ImageGalleryViewer(
+                            mediaList: message.multipleMedia!,
+                            initialIndex: index,
+                            localSenderMediaPaths: localSenderMediaPaths,
+                            isMe: isMe,
                           ),
                         ),
-                    ],
+                      );
+                    },
                   ),
-                ),
+                  if (message.message.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: bubbleColor,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isMe ? 16 : 4),
+                          bottomRight: Radius.circular(isMe ? 4 : 16),
+                        ),
+                      ),
+                      child: _buildLinkifiedText(textColor),
+                    ),
+                  ],
+                ] else ...[
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal:
+                          (message.mediaMetadata != null ||
+                                  message.imageUrl != null) &&
+                              message.message.isEmpty
+                          ? 6
+                          : 16,
+                      vertical:
+                          (message.mediaMetadata != null ||
+                                  message.imageUrl != null) &&
+                              message.message.isEmpty
+                          ? 6
+                          : 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMe ? 16 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (message.mediaMetadata != null) ...[
+                          _buildMetadataAttachment(
+                            context,
+                            message.mediaMetadata!,
+                          ),
+                          if (message.message.isNotEmpty)
+                            const SizedBox(height: 8),
+                        ] else if (message.imageUrl != null) ...[
+                          _buildLegacyAttachment(context, message.imageUrl!),
+                          if (message.message.isNotEmpty)
+                            const SizedBox(height: 8),
+                        ],
+                        if (message.message.isNotEmpty)
+                          _buildLinkifiedText(textColor),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Text(
                   _formatTime(message.timestamp),
@@ -723,13 +1027,51 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildAttachment(BuildContext context, String url) {
-    // Extract R2 key from URL for legacy messages
+  Widget _buildLinkifiedText(Color textColor) {
+    return Linkify(
+      onOpen: (link) async {
+        final uri = Uri.parse(link.url);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      },
+      text: LinkUtils.addProtocolToBareUrls(message.message),
+      options: const LinkifyOptions(defaultToHttps: true),
+      style: TextStyle(color: textColor, fontSize: 14),
+      linkStyle: const TextStyle(
+        color: Color(0xFF90CAF9),
+        fontSize: 14,
+        decoration: TextDecoration.underline,
+      ),
+    );
+  }
+
+  Widget _buildMetadataAttachment(
+    BuildContext context,
+    MediaMetadata metadata,
+  ) {
+    final fileSize = metadata.fileSize ?? 0;
+    final isUploading = uploadingMessageIds.contains(metadata.messageId);
+    final uploadProgressVal = pendingUploadProgress[metadata.messageId];
+
+    return MediaPreviewCard(
+      r2Key: metadata.r2Key,
+      fileName: _fileNameFromMetadata(metadata),
+      mimeType: metadata.mimeType ?? 'application/octet-stream',
+      fileSize: fileSize,
+      thumbnailBase64: metadata.thumbnail,
+      localPath:
+          metadata.localPath ?? localSenderMediaPaths[metadata.messageId],
+      isMe: isMe,
+      uploading: isUploading,
+      uploadProgress: uploadProgressVal,
+    );
+  }
+
+  Widget _buildLegacyAttachment(BuildContext context, String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return const SizedBox();
-
     final r2Key = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
-
     final fileName = _fileNameFromUrl(url);
     final mimeType = _guessMimeType(fileName);
 
@@ -737,9 +1079,15 @@ class _MessageBubble extends StatelessWidget {
       r2Key: r2Key,
       fileName: fileName,
       mimeType: mimeType,
-      fileSize: 0, // Unknown for legacy
+      fileSize: 0,
       isMe: isMe,
+      uploading: uploading,
+      uploadProgress: uploadProgress,
     );
+  }
+
+  String _fileNameFromMetadata(MediaMetadata metadata) {
+    return metadata.originalFileName ?? metadata.r2Key.split('/').last;
   }
 
   String _guessMimeType(String fileName) {
@@ -771,5 +1119,162 @@ class _MessageBubble extends StatelessWidget {
     if (diff.inDays < 7) return '${diff.inDays}d ago';
 
     return '${date.day}/${date.month}/${date.year}';
+  }
+}
+
+class _ImageGalleryViewer extends StatefulWidget {
+  final List<MediaMetadata> mediaList;
+  final int initialIndex;
+  final Map<String, String> localSenderMediaPaths;
+  final bool isMe;
+
+  const _ImageGalleryViewer({
+    required this.mediaList,
+    required this.initialIndex,
+    required this.localSenderMediaPaths,
+    required this.isMe,
+  });
+
+  @override
+  State<_ImageGalleryViewer> createState() => _ImageGalleryViewerState();
+}
+
+class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.mediaList.length}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        centerTitle: true,
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        itemCount: widget.mediaList.length,
+        itemBuilder: (context, index) {
+          final metadata = widget.mediaList[index];
+          final localPath =
+              metadata.localPath ??
+              widget.localSenderMediaPaths[metadata.messageId];
+
+          return _buildImageViewer(metadata, localPath);
+        },
+      ),
+    );
+  }
+
+  Widget _buildImageViewer(MediaMetadata metadata, String? localPath) {
+    Widget imageWidget;
+    final file = (localPath != null && localPath.isNotEmpty)
+        ? File(localPath)
+        : null;
+    final hasLocalFile = file != null && file.existsSync();
+    final hasNetwork = metadata.publicUrl.isNotEmpty;
+
+    if (hasLocalFile) {
+      imageWidget = Image.file(
+        file,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      );
+    } else if (hasNetwork) {
+      imageWidget = Image.network(
+        metadata.publicUrl,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(
+            child: SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+          );
+        },
+        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      );
+    } else if (metadata.thumbnail.isNotEmpty) {
+      if (metadata.thumbnail.startsWith('/')) {
+        imageWidget = Image.file(
+          File(metadata.thumbnail),
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+        );
+      } else {
+        try {
+          final bytes = base64Decode(metadata.thumbnail);
+          imageWidget = Image.memory(
+            bytes,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          );
+        } catch (e) {
+          imageWidget = _buildFallbackImage(metadata);
+        }
+      }
+    } else {
+      imageWidget = _buildFallbackImage(metadata);
+    }
+
+    return InteractiveViewer(
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: Center(child: imageWidget),
+    );
+  }
+
+  Widget _buildFallbackImage(MediaMetadata metadata) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.image, size: 64, color: Colors.white54),
+          const SizedBox(height: 16),
+          const Text(
+            'Image not available locally',
+            style: TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            metadata.originalFileName ?? 'image.jpg',
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
   }
 }

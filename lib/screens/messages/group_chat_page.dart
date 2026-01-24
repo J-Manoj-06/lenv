@@ -1729,8 +1729,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           final hasMatchingMedia =
                               pendingMediaIds.isNotEmpty &&
                               messages.any((fsMsg) {
-                                if (fsMsg.id.startsWith('pending:'))
+                                if (fsMsg.id.startsWith('pending:')) {
                                   return false;
+                                }
                                 final fsMediaIds = <String>{};
                                 if (fsMsg.multipleMedia != null) {
                                   fsMediaIds.addAll(
