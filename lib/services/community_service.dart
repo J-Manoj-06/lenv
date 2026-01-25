@@ -679,6 +679,7 @@ class CommunityService {
     String? fileName,
     String? mediaType, // 'image', 'pdf', 'audio'
     MediaMetadata? mediaMetadata, // WhatsApp-style media metadata
+    List<MediaMetadata>? multipleMedia, // For multiple images in one message
   }) async {
     try {
       final batch = _firestore.batch();
@@ -709,6 +710,7 @@ class CommunityService {
         'fileUrl': fileUrl ?? '',
         'fileName': fileName ?? '',
         'mediaMetadata': mediaMetadata?.toFirestore(),
+        'multipleMedia': multipleMedia?.map((m) => m.toFirestore()).toList(),
         'createdAt': FieldValue.serverTimestamp(),
         'editedAt': null,
         'deletedAt': null,

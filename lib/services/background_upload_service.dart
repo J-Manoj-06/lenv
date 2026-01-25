@@ -299,6 +299,18 @@ class BackgroundUploadService extends ChangeNotifier {
                     message,
                   );
                 }
+              } else if (upload.chatType == 'community') {
+                // Send grouped community message with multipleMedia
+                await _communityService.sendMessage(
+                  communityId: upload.conversationId,
+                  senderId: upload.senderId,
+                  senderName: upload.senderName ?? 'Student',
+                  senderRole: upload.senderRole,
+                  content: '',
+                  mediaType: 'image',
+                  mediaMetadata: allMetadata.first,
+                  multipleMedia: allMetadata.length > 1 ? allMetadata : null,
+                );
               }
 
               // Clean up completed group

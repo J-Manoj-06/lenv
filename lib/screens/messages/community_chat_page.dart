@@ -13,6 +13,7 @@ import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
+import '../../utils/chat_type_config.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
 import '../../models/media_metadata.dart';
@@ -134,11 +135,16 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
     // Setup last read stream for unread divider
     _setupLastReadStream();
-    // Mark as read on entry
+    // Mark as read on entry and refresh unread counts
     _markAsRead();
     // Scroll to bottom on initial load only
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom(force: true);
+      // Refresh unread counts after marking as read
+      try {
+        final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+        unread.refreshChat(widget.communityId);
+      } catch (_) {}
     });
   }
 
@@ -175,7 +181,13 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       final currentUser = authProvider.currentUser;
       if (currentUser != null) {
         final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+        debugPrint('[CommunityChat] 🔔 Marking chat as read: ${widget.communityId}');
         await unread.markChatAsRead(widget.communityId);
+        // Force reload unread count for this chat after marking as read
+        await unread.loadUnreadCount(
+          chatId: widget.communityId,
+          chatType: ChatTypeConfig.communityChat,
+        );
       }
     } catch (e) {}
   }

@@ -103,7 +103,19 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => StudentProvider()),
         ChangeNotifierProvider(create: (_) => ParentProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => UnreadCountProvider()),
+        ChangeNotifierProxyProvider<
+          local_auth.AuthProvider,
+          UnreadCountProvider
+        >(
+          create: (_) => UnreadCountProvider(),
+          update: (context, auth, previous) {
+            final provider = previous ?? UnreadCountProvider();
+            if (auth.currentUser != null) {
+              provider.initialize(auth.currentUser!.uid);
+            }
+            return provider;
+          },
+        ),
         ChangeNotifierProxyProvider<
           local_auth.AuthProvider,
           DailyChallengeProvider

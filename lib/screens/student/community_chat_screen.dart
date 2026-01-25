@@ -7,6 +7,7 @@ import 'package:record/record.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:dio/dio.dart';
@@ -19,6 +20,7 @@ import '../../models/community_message_model.dart';
 import '../../providers/student_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../services/community_service.dart';
+import '../../utils/chat_type_config.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/whatsapp_media_upload_service.dart';
@@ -71,6 +73,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   Set<String> _visibleMessageIds = {};
   String? _highlightMessageId;
   Timer? _highlightResetTimer;
+  DateTime? _lastMarkedMessageAt;
 
   // Theme helpers
   Color get _primary => const Color(0xFFF2800D);
@@ -113,32 +116,202 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     );
 
     // Bridge background upload progress to UI (pending optimistic messages)
-    BackgroundUploadService().onUploadProgress =
-        (String messageId, bool isUploading, double progress) {
-          if (!mounted) return;
-          setState(() {
-            if (isUploading) {
-              _pendingUploadProgress[messageId] = progress;
-            } else {
-              // Upload complete - only remove progress, keep pending visible
-              // Dedup logic will remove pending when server message arrives
-              _pendingUploadProgress.remove(messageId);
-            }
-          });
-        };
+    BackgroundUploadService()
+        .onUploadProgress = (String messageId, bool isUploading, double progress) {
+      if (!mounted) return;
+      setState(() {
+        if (isUploading) {
+          _pendingUploadProgress[messageId] = progress;
+        } else {
+          // Upload complete - remove from progress tracking
+          _pendingUploadProgress.remove(messageId);
+
+          // For multi-image messages: remove completed image from pending immediately
+          _removeCompletedImageFromPending(messageId);
+        }
+      });
+    };
 
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToBottom(force: true),
+    );
+
+    // Mark as read immediately when opening so badges clear on entry
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markChatAsReadAndRefresh();
+    });
+
+    // Load persisted pending messages on init
+    _loadPendingMessages();
+  }
+
+  Future<void> _loadPendingMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'pending_messages_${widget.community.id}';
+      final data = prefs.getStringList(key) ?? [];
+
+      if (data.isEmpty) return;
+
+      final student = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      ).currentStudent;
+      if (student == null) return;
+
+      debugPrint('📂 Loading ${data.length} pending messages from cache');
+
+      for (final json in data) {
+        try {
+          final map = jsonDecode(json) as Map<String, dynamic>;
+          final mid = map['messageId'] as String?;
+          if (mid == null || !mid.startsWith('pending:')) continue;
+
+          // Reconstruct multipleMedia if present
+          List<MediaMetadata>? multipleMedia;
+          if (map['multipleMedia'] is List) {
+            multipleMedia = (map['multipleMedia'] as List)
+                .map((m) => _mediaFromJsonSafe(m))
+                .toList();
+          }
+
+          final msg = CommunityMessageModel(
+            messageId: mid,
+            communityId: widget.community.id,
+            senderId: student.uid,
+            senderName: map['senderName'] as String? ?? student.name,
+            senderRole: 'Student',
+            senderAvatar: '',
+            type: 'image',
+            content: map['content'] as String? ?? '',
+            imageUrl: '',
+            fileUrl: '',
+            fileName: '',
+            mediaMetadata: map['mediaMetadata'] != null
+                ? _mediaFromJsonSafe(map['mediaMetadata'])
+                : null,
+            multipleMedia: multipleMedia,
+            createdAt: DateTime.now(),
+            updatedAt: null,
+            isEdited: false,
+            isDeleted: false,
+            isPinned: false,
+            reactions: {},
+            replyTo: '',
+            replyCount: 0,
+            isReported: false,
+            reportCount: 0,
+            deletedFor: const [],
+            documentSnapshot: null,
+          );
+
+          setState(() {
+            _pendingMessages.add(msg);
+            // Track progress only if not already tracked (don't reset existing progress)
+            if (msg.multipleMedia != null) {
+              for (final mm in msg.multipleMedia!) {
+                if (!_pendingUploadProgress.containsKey(mm.messageId)) {
+                  _pendingUploadProgress[mm.messageId] = 0.0;
+                }
+              }
+            }
+            if (msg.mediaMetadata != null) {
+              if (!_pendingUploadProgress.containsKey(
+                msg.mediaMetadata!.messageId,
+              )) {
+                _pendingUploadProgress[msg.mediaMetadata!.messageId] = 0.0;
+              }
+            }
+          });
+
+          debugPrint('📥 Restored: $mid');
+        } catch (e) {
+          debugPrint('⚠️ Failed to restore pending message: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load pending messages: $e');
+    }
+  }
+
+  Future<void> _cachePendingMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'pending_messages_${widget.community.id}';
+
+      if (_pendingMessages.isEmpty) {
+        await prefs.remove(key);
+        debugPrint('🗑️ Cleared cache (no pending messages)');
+        return;
+      }
+
+      final data = _pendingMessages
+          .where((m) => m.messageId.startsWith('pending:'))
+          .map(
+            (m) => jsonEncode({
+              'messageId': m.messageId,
+              'senderName': m.senderName,
+              'content': m.content,
+              'mediaMetadata': m.mediaMetadata != null
+                  ? _mediaToJsonSafe(m.mediaMetadata!)
+                  : null,
+              'multipleMedia': m.multipleMedia
+                  ?.map((mm) => _mediaToJsonSafe(mm))
+                  .toList(),
+            }),
+          )
+          .toList();
+
+      await prefs.setStringList(key, data);
+      debugPrint('💾 Cached ${data.length} pending messages');
+    } catch (e) {
+      debugPrint('⚠️ Failed to cache pending messages: $e');
+    }
+  }
+
+  Map<String, dynamic> _mediaToJsonSafe(MediaMetadata media) {
+    return {
+      'messageId': media.messageId,
+      'r2Key': media.r2Key,
+      'publicUrl': media.publicUrl,
+      'localPath': media.localPath,
+      'thumbnail': media.thumbnail,
+      'deletedLocally': media.deletedLocally,
+      'serverStatus': media.serverStatus.toString(),
+      'expiresAt': media.expiresAt.millisecondsSinceEpoch,
+      'uploadedAt': media.uploadedAt.millisecondsSinceEpoch,
+      'fileSize': media.fileSize,
+      'mimeType': media.mimeType,
+      'originalFileName': media.originalFileName,
+    };
+  }
+
+  MediaMetadata _mediaFromJsonSafe(Map<String, dynamic> json) {
+    return MediaMetadata(
+      messageId: json['messageId'] as String,
+      r2Key: json['r2Key'] as String,
+      publicUrl: json['publicUrl'] as String? ?? '',
+      localPath: json['localPath'] as String?,
+      thumbnail: json['thumbnail'] as String? ?? '',
+      deletedLocally: json['deletedLocally'] as bool? ?? false,
+      serverStatus: ServerStatus.values.firstWhere(
+        (e) => e.toString() == json['serverStatus'],
+        orElse: () => ServerStatus.available,
+      ),
+      expiresAt: DateTime.fromMillisecondsSinceEpoch(json['expiresAt'] as int),
+      uploadedAt: DateTime.fromMillisecondsSinceEpoch(
+        json['uploadedAt'] as int,
+      ),
+      fileSize: json['fileSize'] as int?,
+      mimeType: json['mimeType'] as String?,
+      originalFileName: json['originalFileName'] as String?,
     );
   }
 
   @override
   void dispose() {
     // Mark chat as read when leaving to prevent self-unread badges
-    try {
-      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
-      unread.markChatAsRead(widget.community.id);
-    } catch (_) {}
+    _markChatAsReadAndRefresh();
 
     _messageController.dispose();
     _scrollController.dispose();
@@ -167,6 +340,27 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         _scrollController.jumpTo(0);
       }
     }
+  }
+
+  Future<void> _markChatAsReadAndRefresh({DateTime? latestMessageAt}) async {
+    if (!mounted) return;
+
+    // Avoid redundant writes if we've already marked for this or newer message
+    if (latestMessageAt != null &&
+        _lastMarkedMessageAt != null &&
+        !latestMessageAt.isAfter(_lastMarkedMessageAt!)) {
+      return;
+    }
+
+    try {
+      final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+      await unread.markChatAsRead(widget.community.id);
+      await unread.loadUnreadCount(
+        chatId: widget.community.id,
+        chatType: ChatTypeConfig.communityChat,
+      );
+      _lastMarkedMessageAt = latestMessageAt ?? DateTime.now();
+    } catch (_) {}
   }
 
   Future<void> _locateMessage(CommunityMessageModel message) async {
@@ -539,6 +733,73 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     }
   }
 
+  void _removeCompletedImageFromPending(String completedMessageId) {
+    // Find pending message containing this media ID
+    for (int i = 0; i < _pendingMessages.length; i++) {
+      final pending = _pendingMessages[i];
+
+      // Check if this pending has multiple media
+      if (pending.multipleMedia != null && pending.multipleMedia!.length > 1) {
+        // Check if completed image is in this pending
+        final hasCompleted = pending.multipleMedia!.any(
+          (m) => m.messageId == completedMessageId,
+        );
+
+        if (hasCompleted) {
+          // Remove the completed image
+          final remainingMedia = pending.multipleMedia!
+              .where((m) => m.messageId != completedMessageId)
+              .toList();
+
+          debugPrint(
+            '🗑️ Removed completed image from pending: $completedMessageId (${remainingMedia.length} remaining)',
+          );
+
+          if (remainingMedia.isEmpty) {
+            // All images uploaded - remove entire pending
+            _pendingMessages.removeAt(i);
+            debugPrint(
+              '✅ All images uploaded - removed pending: ${pending.messageId}',
+            );
+          } else {
+            // Update pending with remaining images
+            _pendingMessages[i] = CommunityMessageModel(
+              messageId: pending.messageId,
+              communityId: pending.communityId,
+              senderId: pending.senderId,
+              senderName: pending.senderName,
+              senderRole: pending.senderRole,
+              senderAvatar: pending.senderAvatar,
+              type: pending.type,
+              content: pending.content,
+              imageUrl: pending.imageUrl,
+              fileUrl: pending.fileUrl,
+              fileName: pending.fileName,
+              mediaMetadata: remainingMedia.first,
+              multipleMedia: remainingMedia.length > 1 ? remainingMedia : null,
+              createdAt: pending.createdAt,
+              updatedAt: pending.updatedAt,
+              isEdited: pending.isEdited,
+              isDeleted: pending.isDeleted,
+              isPinned: pending.isPinned,
+              reactions: pending.reactions,
+              replyTo: pending.replyTo,
+              replyCount: pending.replyCount,
+              isReported: pending.isReported,
+              reportCount: pending.reportCount,
+              deletedFor: pending.deletedFor,
+              documentSnapshot: pending.documentSnapshot,
+            );
+          }
+
+          // Update cache
+          _cachePendingMessages();
+          break;
+        }
+      }
+    }
+  }
+
   Future<void> _pickAndSendImages() async {
     if (!widget.community.allowImages) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -662,6 +923,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
           _localSenderMediaPaths[mid] = localPaths[i];
         }
       });
+
+      // Persist pending state immediately so uploads survive screen dismissal
+      await _cachePendingMessages();
 
       // Queue uploads in background (worker will create server messages)
       for (int i = 0; i < images.length; i++) {
@@ -2209,6 +2473,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       final singleId = m.mediaMetadata?.messageId;
                       if (singleId != null) seenMediaIds.add(singleId);
                     }
+                    final confirmedPendingIds = <String>[];
+                    final pendingsToUpdate = <String, List<MediaMetadata>>{};
+
                     for (final pending in _pendingMessages) {
                       final pendingIds = <String>{};
                       if (pending.multipleMedia != null) {
@@ -2218,14 +2485,112 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                       }
                       final singleId = pending.mediaMetadata?.messageId;
                       if (singleId != null) pendingIds.add(singleId);
-                      // Add only if no overlap with server media IDs
-                      final shouldAdd =
-                          pendingIds.isEmpty ||
-                          !pendingIds.any(seenMediaIds.contains);
-                      if (shouldAdd) combined.add(pending);
+
+                      // Check for partial completion (multi-image messages)
+                      if (pending.multipleMedia != null &&
+                          pending.multipleMedia!.length > 1) {
+                        // Filter out completed media items
+                        final remainingMedia = pending.multipleMedia!
+                            .where((mm) => !seenMediaIds.contains(mm.messageId))
+                            .toList();
+
+                        if (remainingMedia.isEmpty) {
+                          // All media uploaded - remove entire pending
+                          confirmedPendingIds.add(pending.messageId);
+                          debugPrint(
+                            '✅ All media confirmed: ${pending.messageId}',
+                          );
+                        } else if (remainingMedia.length <
+                            pending.multipleMedia!.length) {
+                          // Partial completion - update the pending
+                          pendingsToUpdate[pending.messageId] = remainingMedia;
+                          combined.add(pending);
+                          debugPrint(
+                            '⏳ Partial upload: ${remainingMedia.length}/${pending.multipleMedia!.length} remaining',
+                          );
+                        } else {
+                          // No uploads completed yet
+                          combined.add(pending);
+                        }
+                      } else {
+                        // Single image or no media - old logic
+                        final shouldAdd =
+                            pendingIds.isEmpty ||
+                            !pendingIds.any(seenMediaIds.contains);
+                        if (shouldAdd) {
+                          combined.add(pending);
+                        } else {
+                          confirmedPendingIds.add(pending.messageId);
+                          debugPrint(
+                            '✅ Pending confirmed: ${pending.messageId}',
+                          );
+                        }
+                      }
+                    }
+
+                    // Update pendings and remove confirmed ones in post-frame callback
+                    if (confirmedPendingIds.isNotEmpty ||
+                        pendingsToUpdate.isNotEmpty) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        setState(() {
+                          // Remove fully completed pendings
+                          _pendingMessages.removeWhere(
+                            (m) => confirmedPendingIds.contains(m.messageId),
+                          );
+
+                          // Update partially completed pendings
+                          for (final entry in pendingsToUpdate.entries) {
+                            final idx = _pendingMessages.indexWhere(
+                              (m) => m.messageId == entry.key,
+                            );
+                            if (idx != -1) {
+                              final old = _pendingMessages[idx];
+                              _pendingMessages[idx] = CommunityMessageModel(
+                                messageId: old.messageId,
+                                communityId: old.communityId,
+                                senderId: old.senderId,
+                                senderName: old.senderName,
+                                senderRole: old.senderRole,
+                                senderAvatar: old.senderAvatar,
+                                type: old.type,
+                                content: old.content,
+                                imageUrl: old.imageUrl,
+                                fileUrl: old.fileUrl,
+                                fileName: old.fileName,
+                                mediaMetadata: old.mediaMetadata,
+                                multipleMedia: entry.value, // Updated list
+                                createdAt: old.createdAt,
+                                updatedAt: old.updatedAt,
+                                isEdited: old.isEdited,
+                                isDeleted: old.isDeleted,
+                                isPinned: old.isPinned,
+                                reactions: old.reactions,
+                                replyTo: old.replyTo,
+                                replyCount: old.replyCount,
+                                isReported: old.isReported,
+                                reportCount: old.reportCount,
+                                deletedFor: old.deletedFor,
+                                documentSnapshot: old.documentSnapshot,
+                              );
+                            }
+                          }
+                        });
+                        _cachePendingMessages();
+                      });
                     }
 
                     combined.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+                    // Mark as read whenever we see a newer message while the screen is open
+                    if (combined.isNotEmpty) {
+                      final latestMessageAt = combined.first.createdAt;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _markChatAsReadAndRefresh(
+                          latestMessageAt: latestMessageAt,
+                        );
+                      });
+                    }
 
                     if (combined.isEmpty) {
                       // If we're still connecting and have no messages, show a subtle loader.

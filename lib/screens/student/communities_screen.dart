@@ -318,11 +318,12 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
             builder: (context) => CommunityChatScreen(community: community),
           ),
         ).then((_) {
-          // Refresh count on return
+          // Optimistically clear unread, then refresh from backend
           final unreadProvider = Provider.of<UnreadCountProvider>(
             context,
             listen: false,
           );
+          unreadProvider.markChatAsRead(community.id);
           unreadProvider.refreshChat(community.id);
           unreadProvider.loadUnreadCount(
             chatId: community.id,

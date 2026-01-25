@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../utils/chat_type_config.dart';
 
 /// Unified unread message count service for all chat types
@@ -31,16 +32,27 @@ class UnreadCountService {
     required String chatType,
     required String messageCollection,
     bool forceRefresh = false,
+    Timestamp? overrideLastReadAt,
   }) async {
     // Check cache first (unless force refresh)
     final cacheKey = '$chatId:$userId';
     if (!forceRefresh && _unreadCache.containsKey(cacheKey)) {
-      return _unreadCache[cacheKey] ?? 0;
+      final cached = _unreadCache[cacheKey] ?? 0;
+      debugPrint(
+        '[UnreadService] 🔎 Cache hit: chat=$chatId user=$userId count=$cached',
+      );
+      return cached;
     }
 
     try {
       // Get last read timestamp
       final lastReadAt = await _getLastReadAt(userId, chatId);
+      final effectiveLastRead = overrideLastReadAt != null
+          ? (overrideLastReadAt.millisecondsSinceEpoch >
+                    lastReadAt.millisecondsSinceEpoch
+                ? overrideLastReadAt
+                : lastReadAt)
+          : lastReadAt;
 
       // Determine field and comparison value by chat type
       // Groups use integer 'timestamp' (ms since epoch)
@@ -48,8 +60,8 @@ class UnreadCountService {
       final isGroup = chatType == ChatTypeConfig.groupChat;
       final fieldName = isGroup ? 'timestamp' : 'createdAt';
       final compareValue = isGroup
-          ? lastReadAt.toDate().millisecondsSinceEpoch
-          : lastReadAt;
+          ? effectiveLastRead.toDate().millisecondsSinceEpoch
+          : effectiveLastRead;
 
       // Count all unread messages
       final totalSnapshot = await _firestore
@@ -58,6 +70,9 @@ class UnreadCountService {
           .count()
           .get();
       final totalCount = totalSnapshot.count ?? 0;
+      debugPrint(
+        '[UnreadService] 📊 Total unread raw: chat=$chatId type=$chatType field=$fieldName count=$totalCount',
+      );
 
       // Count messages sent by current user in the unread window, then subtract
       int selfCount = 0;
@@ -76,8 +91,12 @@ class UnreadCountService {
               .count()
               .get();
           selfCount = selfSnapshot.count ?? 0;
+          debugPrint(
+            '[UnreadService] 👤 Self messages field=$senderField count=$selfCount',
+          );
           break; // stop after first successful field
         } catch (e) {
+          debugPrint('[UnreadService] ⚠️ Sender field miss: $senderField');
           continue;
         }
       }
@@ -87,9 +106,13 @@ class UnreadCountService {
 
       // Cache the result (fresh)
       _unreadCache[cacheKey] = safeCount;
+      debugPrint(
+        '[UnreadService] ✅ Final unread: chat=$chatId user=$userId count=$safeCount',
+      );
 
       return safeCount;
     } catch (e) {
+      debugPrint('[UnreadService] ❌ getUnreadCount error: $e');
       return 0; // Fail gracefully
     }
   }
@@ -104,6 +127,7 @@ class UnreadCountService {
     required Map<String, String>
     messageCollectionsMap, // chatId -> collection path
     bool forceRefresh = false,
+    Map<String, Timestamp>? overrideLastReadAtMap,
   }) async {
     final results = <String, int>{};
 
@@ -120,6 +144,7 @@ class UnreadCountService {
           chatType: chatType,
           messageCollection: collection,
           forceRefresh: forceRefresh,
+          overrideLastReadAt: overrideLastReadAtMap?[chatId],
         );
 
         results[chatId] = count;
@@ -146,11 +171,15 @@ class UnreadCountService {
             'lastReadAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
+      debugPrint(
+        '[UnreadService] 📝 Marked as read: chat=$chatId user=$userId',
+      );
 
       // Clear cache
       final cacheKey = '$chatId:$userId';
       _unreadCache.remove(cacheKey);
     } catch (e) {
+      debugPrint('[UnreadService] ❌ markChatAsRead error: $e');
       // Fail silently - don't break UI
     }
   }
@@ -167,7 +196,11 @@ class UnreadCountService {
           .get();
 
       if (doc.exists && doc['lastReadAt'] != null) {
-        return doc['lastReadAt'] as Timestamp;
+        final ts = doc['lastReadAt'] as Timestamp;
+        debugPrint(
+          '[UnreadService] ⏱️ lastReadAt: chat=$chatId user=$userId ts=${ts.millisecondsSinceEpoch}',
+        );
+        return ts;
       }
     } catch (e) {}
 
