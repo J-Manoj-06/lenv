@@ -181,7 +181,9 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       final currentUser = authProvider.currentUser;
       if (currentUser != null) {
         final unread = Provider.of<UnreadCountProvider>(context, listen: false);
-        debugPrint('[CommunityChat] 🔔 Marking chat as read: ${widget.communityId}');
+        debugPrint(
+          '[CommunityChat] 🔔 Marking chat as read: ${widget.communityId}',
+        );
         await unread.markChatAsRead(widget.communityId);
         // Force reload unread count for this chat after marking as read
         await unread.loadUnreadCount(
