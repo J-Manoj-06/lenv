@@ -3,12 +3,14 @@ class Community {
   final String name;
   final String description;
   final String icon;
+  final int memberCount;
 
   Community({
     required this.id,
     required this.name,
     required this.description,
     required this.icon,
+    this.memberCount = 0,
   });
 
   factory Community.fromFirestore(Map<String, dynamic> data, String id) {
@@ -17,10 +19,16 @@ class Community {
       name: data['name'] ?? '',
       description: data['description'] ?? '',
       icon: data['icon'] ?? '🌐',
+      memberCount: data['memberCount'] ?? 0,
     );
   }
 
   Map<String, dynamic> toFirestore() {
-    return {'name': name, 'description': description, 'icon': icon};
+    return {
+      'name': name,
+      'description': description,
+      'icon': icon,
+      'memberCount': memberCount,
+    };
   }
 }

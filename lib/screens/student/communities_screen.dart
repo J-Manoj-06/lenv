@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../utils/unread_count_mixins.dart';
 import '../../utils/chat_type_config.dart';
-import '../../widgets/unread_badge_widget.dart';
 import '../../models/community_model.dart';
 import '../../providers/student_provider.dart';
 import '../../services/community_service.dart';
@@ -310,6 +309,9 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
 
   Widget _buildCommunityCard(CommunityModel community) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final color = _getCategoryColor(community.category);
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -332,184 +334,147 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
         });
       },
       child: Container(
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 0),
         decoration: BoxDecoration(
-          color: theme.cardColor,
+          color: isDark ? const Color(0xFF222222) : Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: theme.dividerColor.withOpacity(0.1),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            // Icon
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Center(
-                child: Text(
-                  community.getCategoryIcon(),
-                  style: const TextStyle(fontSize: 28),
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 16),
-
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          community.name,
-                          style: TextStyle(
-                            color: theme.textTheme.bodyLarge?.color,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (community.memberCount > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.people,
-                                size: 12,
-                                color: theme.colorScheme.primary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${community.memberCount}',
-                                style: TextStyle(
-                                  color: theme.colorScheme.primary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  if (community.lastMessagePreview.isNotEmpty)
-                    Text(
-                      community.lastMessagePreview,
-                      style: TextStyle(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(
-                          0.6,
-                        ),
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  else
-                    Text(
-                      community.description,
-                      style: TextStyle(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(
-                          0.6,
-                        ),
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.dividerColor.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          community.category,
-                          style: TextStyle(
-                            color: theme.textTheme.bodySmall?.color
-                                ?.withOpacity(0.6),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      if (community.lastMessageAt != null) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          _formatTime(community.lastMessageAt!),
-                          style: TextStyle(
-                            color: theme.textTheme.bodySmall?.color
-                                ?.withOpacity(0.4),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Fixed width container for badge to prevent layout shift
-            SizedBox(
-              width: 56,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Consumer<UnreadCountProvider>(
-                  builder: (_, provider, __) {
-                    final count = provider.getUnreadCount(community.id);
-                    return UnreadBadge(count: count);
-                  },
-                ),
-              ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(0.3)
+                  : Colors.grey.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            child: Row(
+              children: [
+                // Orange vertical line
+                Container(
+                  width: 4,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF8800),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                    ),
+                  ),
+                ),
+                // Icon with gradient
+                const SizedBox(width: 12),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [color, color.withOpacity(0.7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: Text(
+                      community.getCategoryIcon(),
+                      style: const TextStyle(fontSize: 28),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        community.name,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          // Category Tag
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white12
+                                  : theme.dividerColor.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              community.category,
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.white70
+                                    : Colors.grey[700],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Member Count
+                          Icon(
+                            Icons.people,
+                            size: 14,
+                            color: isDark ? Colors.white54 : Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${community.memberCount} member${community.memberCount != 1 ? 's' : ''}',
+                            style: TextStyle(
+                              color: isDark ? Colors.white60 : Colors.grey[700],
+                              fontSize: 13,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Arrow Icon
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 18,
+                  color: isDark ? Colors.white38 : Colors.grey[400],
+                ),
+                const SizedBox(width: 12),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  String _formatTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
-    }
+  Color _getCategoryColor(String category) {
+    final s = category.toLowerCase();
+    if (s.contains('career')) return const Color(0xFF4A90E2);
+    if (s.contains('sport')) return const Color(0xFF2ECC71);
+    if (s.contains('coding') || s.contains('tech'))
+      return const Color(0xFF3498DB);
+    if (s.contains('music')) return const Color(0xFF9B59B6);
+    if (s.contains('arts') || s.contains('art')) return const Color(0xFFE67E22);
+    if (s.contains('health')) return const Color(0xFFE74C3C);
+    return const Color(0xFFF2800D);
   }
 }

@@ -1021,11 +1021,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        withReadStream: true,
+        allowMultiple: false,
       );
 
       if (result == null || result.files.isEmpty) return;
-
-      final file = File(result.files.single.path!);
+      final platformFile = result.files.single;
+      final file = await _ensureLocalPickedFile(platformFile);
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
@@ -1116,11 +1118,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   Future<void> _pickAndSendAudio() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.audio,
+        withReadStream: true,
+        allowMultiple: false,
+      );
 
       if (result == null || result.files.isEmpty) return;
-
-      final file = File(result.files.single.path!);
+      final platformFile = result.files.single;
+      final file = await _ensureLocalPickedFile(platformFile);
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
@@ -1198,6 +1204,23 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ).showSnackBar(SnackBar(content: Text('Failed to queue audio: $e')));
       }
     }
+  }
+
+  /// Ensure we have a readable local File for a picked PlatformFile.
+  Future<File> _ensureLocalPickedFile(PlatformFile platformFile) async {
+    if (platformFile.path != null) {
+      final f = File(platformFile.path!);
+      if (f.existsSync()) return f;
+    }
+    if (platformFile.readStream == null) {
+      throw Exception('Selected file is not accessible');
+    }
+    final tmpDir = await Directory.systemTemp.createTemp('lenv_attach_');
+    final dest = File('${tmpDir.path}/${platformFile.name}');
+    final sink = dest.openWrite();
+    await platformFile.readStream!.pipe(sink);
+    await sink.close();
+    return dest;
   }
 
   Future<void> _recordAndSendAudio() async {

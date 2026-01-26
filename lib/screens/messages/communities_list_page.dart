@@ -6,8 +6,20 @@ import '../../models/community.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../services/group_messaging_service.dart';
 import '../../utils/chat_type_config.dart';
-import '../../widgets/unread_badge_widget.dart';
 import 'community_chat_page.dart';
+
+// Helper for category-to-color mapping
+Color _getCategoryColor(String description) {
+  final s = description.toLowerCase();
+  if (s.contains('career')) return const Color(0xFF4A90E2);
+  if (s.contains('sport')) return const Color(0xFF2ECC71);
+  if (s.contains('coding') || s.contains('tech'))
+    return const Color(0xFF3498DB);
+  if (s.contains('music')) return const Color(0xFF9B59B6);
+  if (s.contains('arts') || s.contains('art')) return const Color(0xFFE67E22);
+  if (s.contains('health')) return const Color(0xFFE74C3C);
+  return const Color(0xFFF2800D);
+}
 
 class CommunitiesListPage extends StatefulWidget {
   final String studentId;
@@ -184,80 +196,136 @@ class _CommunityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF222222),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final color = _getCategoryColor(community.description);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF222222) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Orange accent bar on the left
-            Container(
-              width: 4,
-              height: 60,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF8800),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 16),
-
-            // Community Icon
-            Text(community.icon, style: const TextStyle(fontSize: 32)),
-            const SizedBox(width: 16),
-
-            // Community Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    community.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+          child: Row(
+            children: [
+              // Orange vertical line
+              Container(
+                width: 4,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF8800),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    community.description,
-                    style: const TextStyle(
-                      color: Color(0xFFB0B0B0),
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-
-            // Arrow Icon
-            SizedBox(
-              width: 56,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Consumer<UnreadCountProvider>(
-                  builder: (_, provider, __) {
-                    final count = provider.getUnreadCount(community.id);
-                    return UnreadBadge(count: count);
-                  },
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              // Icon with gradient
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [color, color.withOpacity(0.7)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Text(
+                    community.icon,
+                    style: const TextStyle(fontSize: 28),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      community.name,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white12
+                                : theme.dividerColor.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            community.description,
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.grey[700],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Member Count
+                        Icon(
+                          Icons.people,
+                          size: 14,
+                          color: isDark ? Colors.white54 : Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${community.memberCount} member${community.memberCount != 1 ? 's' : ''}',
+                          style: TextStyle(
+                            color: isDark ? Colors.white60 : Colors.grey[700],
+                            fontSize: 13,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Arrow Icon
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 18,
+                color: isDark ? Colors.white38 : Colors.grey[400],
+              ),
+              const SizedBox(width: 12),
+            ],
+          ),
         ),
       ),
     );

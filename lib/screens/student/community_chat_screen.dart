@@ -960,12 +960,15 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        withReadStream: true,
+        allowMultiple: false,
       );
 
       if (result == null || result.files.isEmpty) return;
-
-      final file = File(result.files.single.path!);
-      final fileName = result.files.single.name;
+      final platformFile = result.files.single;
+      // Ensure we have a readable local File even if path is null
+      final file = await _ensureLocalPickedFile(platformFile);
+      final fileName = platformFile.name;
 
       final student = Provider.of<StudentProvider>(
         context,
@@ -1078,12 +1081,14 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['mp3', 'm4a', 'wav', 'aac', 'ogg'],
+        withReadStream: true,
+        allowMultiple: false,
       );
 
       if (result == null || result.files.isEmpty) return;
-
-      final file = File(result.files.single.path!);
-      final fileName = result.files.single.name;
+      final platformFile = result.files.single;
+      final file = await _ensureLocalPickedFile(platformFile);
+      final fileName = platformFile.name;
 
       final student = Provider.of<StudentProvider>(
         context,
@@ -1188,6 +1193,26 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         );
       }
     }
+  }
+
+  /// Safely create a local File for a picked PlatformFile.
+  /// On some devices (low RAM / strict storage access), FilePicker may return
+  /// a content URI without a direct file path. We copy the stream to a temp file
+  /// to avoid crashes or app restarts when returning from the picker.
+  Future<File> _ensureLocalPickedFile(PlatformFile platformFile) async {
+    if (platformFile.path != null) {
+      final f = File(platformFile.path!);
+      if (f.existsSync()) return f;
+    }
+    if (platformFile.readStream == null) {
+      throw Exception('Selected file is not accessible');
+    }
+    final tmpDir = await Directory.systemTemp.createTemp('lenv_attach_');
+    final dest = File('${tmpDir.path}/${platformFile.name}');
+    final sink = dest.openWrite();
+    await platformFile.readStream!.pipe(sink);
+    await sink.close();
+    return dest;
   }
 
   Future<void> _deleteRecording() async {
