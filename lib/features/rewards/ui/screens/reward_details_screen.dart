@@ -5,6 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'reward_request_screen.dart';
 
 const Color _primaryOrange = Color(0xFFF97316);
+const Color _darkBg = Color(0xFF0F0F14);
+const Color _cardDark = Color(0xFF1E1E1E);
+const Color _borderDark = Color(0xFF2D2D32);
 
 class RewardDetailsScreen extends ConsumerWidget {
   final String productId;
@@ -20,62 +23,25 @@ class RewardDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    print('🔵 RewardDetailsScreen - productId: $productId');
-
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0F0F14)
-          : const Color(0xFFF5F6F7),
+      backgroundColor: isDark ? _darkBg : const Color(0xFFF5F6F7),
       body: FutureBuilder<DocumentSnapshot>(
         future: FirebaseFirestore.instance
             .collection('rewards_catalog')
             .doc(productId)
             .get(),
         builder: (context, snapshot) {
-          print(
-            '🔵 RewardDetailsScreen - connectionState: ${snapshot.connectionState}',
-          );
-
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          print('🔵 RewardDetailsScreen - hasError: ${snapshot.hasError}');
-          print('🔵 RewardDetailsScreen - hasData: ${snapshot.hasData}');
-          print('🔵 RewardDetailsScreen - exists: ${snapshot.data?.exists}');
-
-          if (snapshot.hasError) {
-            print('🔴 RewardDetailsScreen - error: ${snapshot.error}');
+            return _buildLoadingState(isDark);
           }
 
           if (snapshot.hasError ||
               !snapshot.hasData ||
               !snapshot.data!.exists) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Product not found',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Go Back'),
-                  ),
-                ],
-              ),
-            );
+            return _buildErrorState(context, isDark);
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          print(
-            '🟢 RewardDetailsScreen - Found product data: ${data['title']}',
-          );
-          print('🟢 RewardDetailsScreen - Data keys: ${data.keys.toList()}');
 
           return SafeArea(
             child: CustomScrollView(
@@ -85,21 +51,29 @@ class RewardDetailsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const SizedBox(height: 20),
                       _buildProductHeader(context, data, isDark),
-                      const SizedBox(height: 16),
-                      _buildPriceSection(context, data, isDark),
+                      const SizedBox(height: 24),
+                      _buildPriceRedeemCard(context, data, isDark),
+                      const SizedBox(height: 20),
+                      if (data['availability'] != null)
+                        _buildAvailabilityPill(context, data, isDark),
+                      if (data['availability'] != null)
+                        const SizedBox(height: 16),
+                      _buildDescriptionSection(context, data, isDark),
                       const SizedBox(height: 20),
                       _buildMetaInfoCards(context, data, isDark),
                       const SizedBox(height: 20),
-                      _buildDescriptionSection(context, data, isDark),
                       if (data['learning_type'] != null)
                         _buildLearningTypeSection(context, data, isDark),
+                      if (data['learning_type'] != null)
+                        const SizedBox(height: 20),
                       if (data['features'] != null)
                         _buildFeaturesSection(context, data, isDark),
-                      const SizedBox(height: 20),
+                      if (data['features'] != null) const SizedBox(height: 20),
                       _buildDeliverySellerSection(context, data, isDark),
-                      const SizedBox(height: 16),
-                      _buildExternalLinkButton(context, data, isDark),
+                      const SizedBox(height: 20),
+                      _buildViewOnAmazonButton(context, data, isDark),
                       const SizedBox(height: 120),
                     ],
                   ),
@@ -109,7 +83,84 @@ class RewardDetailsScreen extends ConsumerWidget {
           );
         },
       ),
-      bottomNavigationBar: _buildBottomCTA(context, isDark),
+      bottomNavigationBar: _buildBottomRequestCTA(context),
+    );
+  }
+
+  Widget _buildLoadingState(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 50,
+            height: 50,
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(_primaryOrange),
+              strokeWidth: 3,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Loading reward details...',
+            style: TextStyle(
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: _primaryOrange.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.error_outline_rounded,
+              size: 64,
+              color: _primaryOrange,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Product not found',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'This reward is no longer available',
+            style: TextStyle(
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: const Text('Go Back'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryOrange,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -124,34 +175,64 @@ class RewardDetailsScreen extends ConsumerWidget {
         : data['image_url'] as String?;
 
     return SliverAppBar(
-      expandedHeight: 320,
+      expandedHeight: 340,
       pinned: true,
-      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-      leading: IconButton(
-        icon: Container(
-          padding: const EdgeInsets.all(8),
+      backgroundColor: isDark ? _cardDark : Colors.white,
+      elevation: 0,
+      leading: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withOpacity(0.4),
             shape: BoxShape.circle,
           ),
-          child: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            size: 18,
-            color: Colors.white,
+          child: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context),
           ),
         ),
-        onPressed: () => Navigator.pop(context),
       ),
       flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          color: isDark ? const Color(0xFF111114) : const Color(0xFFF3F4F6),
-          child: imageUrl != null && imageUrl.isNotEmpty
-              ? Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => _buildImagePlaceholder(isDark),
-                )
-              : _buildImagePlaceholder(isDark),
+        background: Stack(
+          children: [
+            Container(
+              color: isDark ? const Color(0xFF111114) : const Color(0xFFF3F4F6),
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _buildImagePlaceholder(isDark),
+                    )
+                  : _buildImagePlaceholder(isDark),
+            ),
+            // Gradient overlay at bottom
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 120,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      (isDark ? _darkBg : const Color(0xFFF5F6F7)).withOpacity(
+                        0.8,
+                      ),
+                      isDark ? _darkBg : const Color(0xFFF5F6F7),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -159,10 +240,17 @@ class RewardDetailsScreen extends ConsumerWidget {
 
   Widget _buildImagePlaceholder(bool isDark) {
     return Center(
-      child: Icon(
-        Icons.card_giftcard_rounded,
-        size: 100,
-        color: _primaryOrange.withOpacity(0.3),
+      child: Container(
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: _primaryOrange.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          Icons.card_giftcard_rounded,
+          size: 80,
+          color: _primaryOrange.withOpacity(0.4),
+        ),
       ),
     );
   }
@@ -183,58 +271,83 @@ class RewardDetailsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Brand Badge
           if (brand != null)
-            Text(
-              brand,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: _primaryOrange,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _primaryOrange.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                brand.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: _primaryOrange,
+                ),
               ),
             ),
-          const SizedBox(height: 8),
+          if (brand != null) const SizedBox(height: 12),
+
+          // Title
           Text(
             title,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              height: 1.2,
+              height: 1.3,
+              fontSize: 24,
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
+          const SizedBox(height: 14),
+
+          // Category Chips + Rating
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (category != null) ...[
-                _buildChip(category, isDark, icon: Icons.category_outlined),
-                const SizedBox(width: 8),
+              if (category != null || subCategory != null) ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (category != null)
+                      _buildModernChip(
+                        category,
+                        isDark,
+                        icon: Icons.category_rounded,
+                      ),
+                    if (subCategory != null)
+                      _buildModernChip(
+                        subCategory,
+                        isDark,
+                        icon: Icons.label_rounded,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
               ],
-              if (subCategory != null)
-                _buildChip(subCategory, isDark, icon: Icons.sell_outlined),
+              if (ratings != null) _buildRatingRow(context, ratings, isDark),
             ],
           ),
-          if (ratings != null) ...[
-            const SizedBox(height: 12),
-            _buildRatingRow(context, ratings, isDark),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildChip(String label, bool isDark, {IconData? icon}) {
+  Widget _buildModernChip(String label, bool isDark, {IconData? icon}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[850] : Colors.grey[100],
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
-        ),
+        color: _primaryOrange.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _primaryOrange.withOpacity(0.2), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: Colors.grey[500]),
+            Icon(icon, size: 14, color: _primaryOrange),
             const SizedBox(width: 6),
           ],
           Text(
@@ -242,7 +355,7 @@ class RewardDetailsScreen extends ConsumerWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.grey[300] : Colors.grey[700],
+              color: _primaryOrange,
             ),
           ),
         ],
@@ -260,43 +373,56 @@ class RewardDetailsScreen extends ConsumerWidget {
 
     if (avgRating == null) return const SizedBox.shrink();
 
-    return Row(
-      children: [
-        Icon(Icons.star_rounded, size: 20, color: Colors.amber[500]),
-        const SizedBox(width: 6),
-        Text(
-          avgRating.toStringAsFixed(1),
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: Colors.amber[400],
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '/ 5',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
-          ),
-        ),
-        if (source != null) ...[
-          const SizedBox(width: 12),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.amber[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.amber[200]!),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.star_rounded, size: 18, color: Colors.amber[600]),
+          const SizedBox(width: 6),
           Text(
-            source,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: isDark ? Colors.grey[500] : Colors.grey[600],
+            avgRating.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Colors.amber[900],
             ),
           ),
+          const SizedBox(width: 3),
+          Text(
+            '/ 5',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.amber[700],
+            ),
+          ),
+          if (source != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              '• $source',
+              style: TextStyle(fontSize: 11, color: Colors.amber[700]),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
-  Widget _buildPriceSection(
+  Widget _buildPriceRedeemCard(
     BuildContext context,
     Map<String, dynamic> data,
     bool isDark,
   ) {
     final price = data['price'] as Map<String, dynamic>?;
+    final pointsRule = data['points_rule'] as Map<String, dynamic>?;
+    final maxPoints = pointsRule?['max_points'] as int?;
+
     if (price == null) return const SizedBox.shrink();
 
     final currency = price['currency'] ?? 'INR';
@@ -307,13 +433,28 @@ class RewardDetailsScreen extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? const Color(0xFF2D2D32) : Colors.grey.shade200,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              isDark ? const Color(0xFF252530) : const Color(0xFFFAFAFA),
+              isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            ],
           ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark ? _borderDark : Colors.grey.shade200,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _primaryOrange.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,50 +466,51 @@ class RewardDetailsScreen extends ConsumerWidget {
                   Text(
                     'Store Price',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      color: isDark ? Colors.grey[500] : Colors.grey[600],
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   if (discountedPrice != null)
                     Text(
                       '$currency ${discountedPrice.toString()}',
                       style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w900,
                             color: _primaryOrange,
+                            fontSize: 28,
                           ),
                     ),
                   if (originalPrice != null &&
                       discountedPrice != originalPrice) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Text(
                           '$currency ${originalPrice.toString()}',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                decoration: TextDecoration.lineThrough,
-                                color: isDark
-                                    ? Colors.grey[500]
-                                    : Colors.grey[600],
-                              ),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            decoration: TextDecoration.lineThrough,
+                            color: isDark ? Colors.grey[600] : Colors.grey[500],
+                          ),
                         ),
                         if (discountPercentage != null) ...[
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 10),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
+                              horizontal: 10,
+                              vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(4),
+                              color: Colors.green.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(5),
                             ),
                             child: Text(
                               '$discountPercentage% OFF',
                               style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
                                 color: Colors.green[700],
                               ),
                             ),
@@ -378,6 +520,101 @@ class RewardDetailsScreen extends ConsumerWidget {
                     ),
                   ],
                 ],
+              ),
+            ),
+            if (maxPoints != null) ...[
+              const SizedBox(width: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      _primaryOrange.withOpacity(0.15),
+                      _primaryOrange.withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _primaryOrange.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _primaryOrange.withOpacity(0.1),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.stars_rounded, color: _primaryOrange, size: 24),
+                    const SizedBox(height: 6),
+                    Text(
+                      maxPoints.toString(),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: _primaryOrange,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Points',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: _primaryOrange,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvailabilityPill(
+    BuildContext context,
+    Map<String, dynamic> data,
+    bool isDark,
+  ) {
+    final availability = data['availability'] as String?;
+    if (availability == null) return const SizedBox.shrink();
+
+    final isAvailable = availability.toLowerCase() != 'out of stock';
+    final bgColor = isAvailable
+        ? Colors.green.withOpacity(0.1)
+        : Colors.red.withOpacity(0.1);
+    final textColor = isAvailable ? Colors.green[700] : Colors.red[700];
+    final icon = isAvailable ? Icons.check_circle_rounded : Icons.block_rounded;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: textColor!.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: textColor),
+            const SizedBox(width: 8),
+            Text(
+              availability,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: textColor,
               ),
             ),
           ],
@@ -397,22 +634,26 @@ class RewardDetailsScreen extends ConsumerWidget {
     final availability = data['availability'];
 
     final items = <Map<String, dynamic>>[];
-    if (ageGroup != null)
+    if (ageGroup != null) {
       items.add({
         'label': 'Age Group',
         'value': ageGroup,
         'icon': Icons.child_care,
       });
-    if (bookFormat != null)
+    }
+    if (bookFormat != null) {
       items.add({'label': 'Format', 'value': bookFormat, 'icon': Icons.book});
-    if (binding != null)
+    }
+    if (binding != null) {
       items.add({'label': 'Binding', 'value': binding, 'icon': Icons.layers});
-    if (availability != null)
+    }
+    if (availability != null) {
       items.add({
         'label': 'Availability',
         'value': availability,
         'icon': Icons.inventory,
       });
+    }
 
     if (items.isEmpty) return const SizedBox.shrink();
 
@@ -477,8 +718,9 @@ class RewardDetailsScreen extends ConsumerWidget {
     bool isDark,
   ) {
     final description = data['description'] as String?;
-    if (description == null || description.isEmpty)
+    if (description == null || description.isEmpty) {
       return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -510,8 +752,9 @@ class RewardDetailsScreen extends ConsumerWidget {
     bool isDark,
   ) {
     final learningTypes = data['learning_type'] as List?;
-    if (learningTypes == null || learningTypes.isEmpty)
+    if (learningTypes == null || learningTypes.isEmpty) {
       return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -771,7 +1014,56 @@ class RewardDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBottomCTA(BuildContext context, bool isDark) {
+  /// Secondary CTA: opens the product on Amazon/store
+  Widget _buildViewOnAmazonButton(
+    BuildContext context,
+    Map<String, dynamic> data,
+    bool isDark,
+  ) {
+    final cta = data['cta'] as Map<String, dynamic>?;
+    final affiliate = data['affiliate'] as Map<String, dynamic>?;
+
+    String? url = cta?['redirect_url'];
+    url ??= affiliate?['affiliate_link'];
+    final buttonText = cta?['button_text'] ?? 'View on Amazon';
+
+    if (url == null) return const SizedBox.shrink();
+    final link = url;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          final uri = Uri.parse(link);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } else {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Could not open link')),
+              );
+            }
+          }
+        },
+        icon: const Icon(Icons.open_in_new, size: 18),
+        label: Text(buttonText),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 50),
+          side: BorderSide(
+            color: isDark ? Colors.grey[700]! : Colors.grey[400]!,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Primary CTA: Request Reward (navigates to request screen)
+  Widget _buildBottomRequestCTA(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: EdgeInsets.only(
         left: 16,
@@ -801,7 +1093,7 @@ class RewardDetailsScreen extends ConsumerWidget {
           onPressed: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (ctx) => RewardRequestScreen(
+                builder: (_) => RewardRequestScreen(
                   productId: productId,
                   studentId: studentId,
                 ),

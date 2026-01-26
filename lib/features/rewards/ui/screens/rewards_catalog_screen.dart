@@ -136,10 +136,14 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
                       child: ProductCard(
                         product: product,
                         onRequestPressed: () {
+                          final container = ProviderScope.containerOf(
+                            context,
+                            listen: false,
+                          );
                           Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute(
-                              builder: (ctx) => UncontrolledProviderScope(
-                                container: ProviderScope.containerOf(context),
+                              builder: (_) => UncontrolledProviderScope(
+                                container: container,
                                 child: RewardRequestScreen(
                                   productId: product.productId,
                                   studentId: widget.studentId,
@@ -149,10 +153,14 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
                           );
                         },
                         onDetailsPressed: () {
+                          final container = ProviderScope.containerOf(
+                            context,
+                            listen: false,
+                          );
                           Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute(
-                              builder: (ctx) => UncontrolledProviderScope(
-                                container: ProviderScope.containerOf(context),
+                              builder: (_) => UncontrolledProviderScope(
+                                container: container,
                                 child: RewardDetailsScreen(
                                   productId: product.productId,
                                   studentId: widget.studentId,
