@@ -1,552 +1,1828 @@
 [
   {
-    "product_id": "prod_001",
-    "source": "amazon",
-    "asin": "B09G9FPHY6",
-    "title": "boAt Rockerz 255 Pro+ Bluetooth Neckband",
-    "image_url": "https://m.media-amazon.com/images/I/61OJRbtZIvL.jpg",
+    "product_id": "B0FQ337YM6",
+    "title": "curioSprout Interactive Alphabet Activity Book | Montessori Busy Book",
+    "category": "Educational Toys & Books",
+    "sub_category": "Montessori Learning Books",
+    "brand": "curioSprout",
+    "age_group": "2-5 Years",
+    "learning_type": [
+      "Alphabet Learning",
+      "ABC Writing Practice",
+      "Fine Motor Skills",
+      "Cognitive Development",
+      "Early Childhood Education"
+    ],
+    "book_format": "Interactive Activity Book",
+    "binding": "Reusable Velcro Binding",
+    "description": "Interactive Montessori alphabet activity book designed for toddlers aged 2–5 years. Includes ABC writing practice, letter recognition, matching activities, and reusable velcro-based learning pages. Ideal for travel and quiet learning time.",
+    "features": [
+      "Montessori-inspired interactive learning",
+      "Alphabet recognition and tracing activities",
+      "Reusable velcro pages",
+      "Enhances fine motor skills",
+      "Travel-friendly quiet book",
+      "Bright, engaging illustrations",
+      "Supports early writing readiness"
+    ],
     "price": {
       "currency": "INR",
-      "estimated_price": 149
+      "original_price": 799,
+      "discounted_price": 649,
+      "discount_percentage": 19
     },
-    "affiliate_url": "https://www.amazon.in/dp/B09G9FPHY6/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.8,
-      "max_points": 298
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.2,
-    "review_count": 1250
+    "ratings": {
+      "average_rating": 4,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "curioSprout"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/81kTF1nBrZL._SL1500_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4qRtTSX"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4qRtTSX"
+    }
   },
   {
-    "product_id": "prod_002",
-    "source": "amazon",
-    "asin": "B08KJKG9VJ",
-    "title": "Realme Buds Q Master TWS Earbuds",
-    "image_url": "https://m.media-amazon.com/images/I/51DfHO2qCpL.jpg",
+    "product_id": "B0GDQ99YG9",
+    "title": "Btag Kids Premium Plush Bunny Earmuffs with Moving Ears",
+    "category": "Kids Fashion",
+    "sub_category": "Winter Accessories",
+    "brand": "Btag",
+    "target_audience": "Kids",
+    "gender": "Unisex",
+    "material": "Faux Fur / Plush",
+    "style": "Cute Bunny Design",
+    "color": "Beige",
+    "description": "Ultra-soft premium plush bunny earmuffs designed for kids. Features animated moving ears when pressed, providing warmth, comfort, and playful fun. Ideal for winter wear, outdoor activities, and gifting.",
+    "features": [
+      "Super soft premium plush material",
+      "Animated moving bunny ears",
+      "Warm and windproof earmuffs",
+      "Lightweight and comfortable fit",
+      "Skin-friendly and safe for kids",
+      "Cute design ideal for winter outfits",
+      "Perfect for gifting"
+    ],
     "price": {
       "currency": "INR",
-      "estimated_price": 1799
+      "original_price": 1199,
+      "discounted_price": 279,
+      "discount_percentage": 76
     },
-    "affiliate_url": "https://www.amazon.in/dp/B08KJKG9VJ/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.75,
-      "max_points": 3598
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.1,
-    "review_count": 980
+    "ratings": {
+      "average_rating": 4,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Btag"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/51k9piltSNL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4jGDdXy"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4jGDdXy"
+    }
   },
   {
-    "product_id": "prod_003",
-    "source": "amazon",
-    "asin": "B0B5KFYJWC",
-    "title": "OnePlus Nord Buds 2 True Wireless",
-    "image_url": "https://m.media-amazon.com/images/I/51RnAymvyWL.jpg",
+    "product_id": "SEMITO-WINTER-GLOVES",
+    "title": "SEMITO Winter Gloves for Men & Women – Thermal Windproof Touch Screen Gloves",
+    "category": "Clothing & Accessories",
+    "sub_category": "Winter Gloves",
+    "brand": "SEMITO",
+    "target_audience": "Adults",
+    "gender": "Unisex",
+    "material": [
+      "Cotton",
+      "Leather",
+      "Polyester"
+    ],
+    "color": "Black",
+    "glove_type": "Full Finger",
+    "sport_usage": [
+      "Skiing",
+      "Cycling",
+      "Bike Riding",
+      "Outdoor Activities"
+    ],
+    "special_features": [
+      "Touch Screen Compatible Fingers",
+      "Windproof Design",
+      "Thermal Insulation",
+      "Anti-Slip Palm Grip",
+      "Water Resistant",
+      "Adjustable Wrist Strap"
+    ],
+    "description": "SEMITO thermal winter gloves designed to keep hands warm, dry, and comfortable in cold weather. These windproof gloves feature touch screen compatible fingers, anti-slip palm grip, and water-resistant fabric, making them ideal for biking, cycling, skiing, and daily winter use.",
     "price": {
       "currency": "INR",
-      "estimated_price": 2299
+      "original_price": 1499,
+      "discounted_price": 649,
+      "discount_percentage": 57
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0B5KFYJWC/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.7,
-      "max_points": 4598
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.3,
-    "review_count": 1540
+    "ratings": {
+      "average_rating": 4.3,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "SEMITO"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/41wVBl7VdQL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4pGrrOf"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4pGrrOf"
+    }
   },
   {
-    "product_id": "prod_004",
-    "source": "amazon",
-    "asin": "B08T19N82P",
-    "title": "Fossil Gen 5E Smartwatch",
-    "image_url": "https://m.media-amazon.com/images/I/51Ar7FNMq6L.jpg",
+    "product_id": "MATRIX-ANALOG-WATCH-DAY-DATE",
+    "title": "Matrix Black & Blue Analog Stainless Steel Watch with Day & Date",
+    "category": "Fashion",
+    "sub_category": "Wrist Watches",
+    "brand": "Matrix",
+    "target_audience": "Adults",
+    "gender": "Unisex",
+    "watch_type": "Analog",
+    "display_features": [
+      "Day Display",
+      "Date Display"
+    ],
+    "dial_color": "Blue",
+    "case_diameter_mm": 42,
+    "strap_material": "Stainless Steel",
+    "strap_color": "Silver",
+    "movement": "Quartz",
+    "weight_kg": 0.12,
+    "country_of_origin": "India",
+    "description": "Stylish Matrix analog wrist watch featuring a black and blue dial with day and date display. Built with a durable stainless steel strap and quartz movement, making it suitable for daily wear as well as formal occasions for both men and women.",
+    "features": [
+      "Analog display with day and date function",
+      "Premium stainless steel strap",
+      "Durable quartz movement",
+      "Elegant blue dial design",
+      "Comfortable adjustable strap",
+      "Suitable for men and women",
+      "Ideal for daily and formal wear"
+    ],
     "price": {
       "currency": "INR",
-      "estimated_price": 9999
+      "original_price": 2499,
+      "discounted_price": 273,
+      "discount_percentage": 89
     },
-    "affiliate_url": "https://www.amazon.in/dp/B08T19N82P/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.6,
-      "max_points": 19998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.0,
-    "review_count": 560
+    "ratings": {
+      "average_rating": 3.8,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Matrix"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/816eXKgDfIL._SY550_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4qJerZt"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4qJerZt"
+    }
   },
   {
-    "product_id": "prod_005",
-    "source": "amazon",
-    "asin": "B08H6CZFD1",
-    "title": "Lenovo Smart Clock Essential",
-    "image_url": "https://m.media-amazon.com/images/I/61T1Dq6q2iL.jpg",
+    "product_id": "SAMSUNG-GALAXY-S25-ULTRA-5G-12GB-256GB",
+    "title": "Samsung Galaxy S25 Ultra 5G with Galaxy AI (Titanium Whitesilver, 12GB RAM, 256GB Storage)",
+    "category": "Electronics",
+    "sub_category": "Smartphones",
+    "brand": "Samsung",
+    "model": "Galaxy S25 Ultra",
+    "target_audience": "Adults",
+    "operating_system": "Android 15",
+    "processor": {
+      "chipset": "Snapdragon 8 Elite",
+      "cpu_type": "Octa-core"
+    },
+    "memory": {
+      "ram_gb": 12,
+      "storage_gb": 256
+    },
+    "display": {
+      "type": "Dynamic AMOLED",
+      "size_inches": 6.8,
+      "refresh_rate_hz": 120
+    },
+    "camera": {
+      "rear_camera": [
+        "200 MP Primary Camera",
+        "Ultra-wide Camera",
+        "Telephoto Camera"
+      ],
+      "front_camera": "High-resolution selfie camera",
+      "features": [
+        "ProVisual Engine",
+        "Night Photography",
+        "AI Camera Enhancements"
+      ]
+    },
+    "battery": {
+      "capacity_mAh": 5000,
+      "charging": "Fast Charging"
+    },
+    "connectivity": [
+      "5G",
+      "Wi-Fi",
+      "Bluetooth",
+      "USB Type-C"
+    ],
+    "color": "Titanium Whitesilver",
+    "build_material": "Titanium Frame",
+    "ai_features": [
+      "Galaxy AI",
+      "Circle to Search",
+      "AI Photo & Video Enhancements",
+      "AI Productivity Tools"
+    ],
+    "description": "Samsung Galaxy S25 Ultra 5G powered by Snapdragon 8 Elite processor and Galaxy AI. Features a premium titanium design, 200MP camera with ProVisual Engine, immersive AMOLED display, and a massive 5000mAh battery for all-day performance.",
     "price": {
       "currency": "INR",
-      "estimated_price": 2999
+      "original_price": 129999,
+      "discounted_price": 122999,
+      "discount_percentage": 5
     },
-    "affiliate_url": "https://www.amazon.in/dp/B08H6CZFD1/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.65,
-      "max_points": 5998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.4,
-    "review_count": 720
+    "ratings": {
+      "average_rating": 4.5,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Samsung"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71T10gT0BSL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4bRuNui"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4bRuNui"
+    }
   },
   {
-    "product_id": "prod_006",
-    "source": "amazon",
-    "asin": "B092MY2T8R",
-    "title": "Kindle Paperwhite (11th Gen)",
-    "image_url": "https://m.media-amazon.com/images/I/51z6K6-4vZL.jpg",
+    "product_id": "ZORO-MENS-NYLON-FABRIC-BELT",
+    "title": "ZORO Men’s Nylon Fabric Belt for Men, Plastic Flap Buckle (Fits up to 40 Inches Waist)",
+    "category": "Fashion",
+    "sub_category": "Men Accessories",
+    "brand": "ZORO",
+    "model": "Nylon Fabric Belt",
+    "target_audience": "Men",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Black",
+    "build_material": "Nylon Fabric with Plastic Buckle",
+    "ai_features": [],
+    "description": "ZORO men’s nylon fabric belt with a lightweight plastic flap buckle. Durable, adjustable, and comfortable for everyday wear. Suitable for casual, formal, and business use. Fits waist sizes up to 40 inches.",
     "price": {
       "currency": "INR",
-      "estimated_price": 9999
+      "original_price": 155,
+      "discounted_price": 141,
+      "discount_percentage": 9
     },
-    "affiliate_url": "https://www.amazon.in/dp/B092MY2T8R/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.55,
-      "max_points": 19998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.5,
-    "review_count": 2100
+    "ratings": {
+      "average_rating": 4.1,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "ZORO"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/61GOs4MJE2L._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4b82PdF"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4b82PdF"
+    }
   },
   {
-    "product_id": "prod_007",
-    "source": "amazon",
-    "asin": "B08YNJCS2R",
-    "title": "Fire TV Stick 4K Max",
-    "image_url": "https://m.media-amazon.com/images/I/51BiNKmVKPL.jpg",
+    "product_id": "MENS-2-INCH-HEEL-HEIGHT-INCREASING-ANKLE-BOOT",
+    "title": "Men’s 2 Inch Heel Height Increasing Patent Leather Ankle Boot (Casual & Formal Slip-On)",
+    "category": "Fashion",
+    "sub_category": "Men Footwear",
+    "brand": "BXY",
+    "model": "Height Increasing Ankle Boot",
+    "target_audience": "Men",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "White",
+    "build_material": "Faux Leather Upper with Polyurethane Sole",
+    "ai_features": [],
+    "description": "Men’s lightweight ankle boot with a built-in 2-inch heel for height increase. Designed with a slip-on style, faux leather upper, and durable polyurethane sole. Suitable for casual, formal, and party wear.",
     "price": {
       "currency": "INR",
-      "estimated_price": 5499
+      "original_price": 4999,
+      "discounted_price": 1159,
+      "discount_percentage": 77
     },
-    "affiliate_url": "https://www.amazon.in/dp/B08YNJCS2R/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.6,
-      "max_points": 10998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.2,
-    "review_count": 1850
+    "ratings": {
+      "average_rating": 3.8,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "BXY"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/51xdhZG5WJL._SY575_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4sUhXl6"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4sUhXl6"
+    }
   },
   {
-    "product_id": "prod_008",
-    "source": "amazon",
-    "asin": "B0BSLW1X5D",
-    "title": "JBL Flip 6 Portable Bluetooth Speaker",
-    "image_url": "https://m.media-amazon.com/images/I/51e5VG9dxUL.jpg",
+    "product_id": "AMBRANE-20000MAH-POWERBANK-STYLO-N20",
+    "title": "Ambrane 20000mAh Powerbank with In-Build Type-C Cable, 22.5W Fast Charging & USB Output",
+    "category": "Electronics",
+    "sub_category": "Power Banks",
+    "brand": "Ambrane",
+    "model": "Stylo N20",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": {
+      "capacity_mAh": 20000,
+      "charging": "22.5W Fast Charging"
+    },
+    "connectivity": [
+      "USB Type-C",
+      "USB Type-A"
+    ],
+    "color": "Black",
+    "build_material": "Plastic Body",
+    "ai_features": [],
+    "description": "Ambrane Stylo N20 20000mAh powerbank with in-built Type-C cable supports 22.5W fast charging and dual output ports. Ideal for charging smartphones, tablets, earbuds, and other USB-powered devices. Compact design with advanced safety protection.",
     "price": {
       "currency": "INR",
-      "estimated_price": 6999
+      "original_price": 2799,
+      "discounted_price": 1299,
+      "discount_percentage": 54
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0BSLW1X5D/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.65,
-      "max_points": 13998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.3,
-    "review_count": 1420
+    "ratings": {
+      "average_rating": 4.1,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Ambrane"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71zqv+i9eTL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4qtPmSd"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4qtPmSd"
+    }
   },
   {
-    "product_id": "prod_009",
-    "source": "amazon",
-    "asin": "B096TGGQVZ",
-    "title": "Instax Mini 11 Instant Camera",
-    "image_url": "https://m.media-amazon.com/images/I/515NuG7U3dL.jpg",
+    "product_id": "LYMIO-MENS-LIGHTWEIGHT-OUTDOOR-JACKET-JT-07-09",
+    "title": "Lymio Jackets for Men | Lightweight Outdoor Jacket (JT-07-09)",
+    "category": "Fashion",
+    "sub_category": "Men Jackets",
+    "brand": "Lymio",
+    "model": "JT-07-09",
+    "target_audience": "Men",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Khaki",
+    "build_material": "Polyester",
+    "ai_features": [],
+    "description": "Lymio lightweight outdoor jacket for men designed for casual and sporty wear. Made from durable polyester fabric with a regular fit and standard length. Suitable for daily use, travel, and mild outdoor activities.",
     "price": {
       "currency": "INR",
-      "estimated_price": 5999
+      "original_price": 4999,
+      "discounted_price": 719,
+      "discount_percentage": 86
     },
-    "affiliate_url": "https://www.amazon.in/dp/B096TGGQVZ/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.68,
-      "max_points": 11998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.4,
-    "review_count": 980
+    "ratings": {
+      "average_rating": 4.2,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Lymio"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71tjgRv9JbL._SY741_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4acAm4r"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4acAm4r"
+    }
   },
   {
-    "product_id": "prod_010",
-    "source": "amazon",
-    "asin": "B08QKP25T9",
-    "title": "Corsair Gaming Mouse Harpoon RGB",
-    "image_url": "https://m.media-amazon.com/images/I/51dZLLCg1rL.jpg",
+    "product_id": "TAGAS-MENS-BOMBER-JACKET-MJ-9090",
+    "title": "TAGAS Men's Regular Fit Zip-Up Casual Bomber Jacket for Men (MJ-9090)",
+    "category": "Fashion",
+    "sub_category": "Men Jackets",
+    "brand": "TAGAS",
+    "model": "MJ-9090",
+    "target_audience": "Men",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Black",
+    "build_material": "Polyester (80%) & Cotton (20%)",
+    "ai_features": [],
+    "description": "TAGAS men's regular-fit zip-up bomber jacket designed for casual and winter wear. Features a stylish ribbed collar, smooth zipper closure, and durable polyester-cotton blend fabric. Suitable for daily wear and light winter conditions.",
     "price": {
       "currency": "INR",
-      "estimated_price": 1499
+      "original_price": 2499,
+      "discounted_price": 709,
+      "discount_percentage": 72
     },
-    "affiliate_url": "https://www.amazon.in/dp/B08QKP25T9/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.75,
-      "max_points": 2998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.1,
-    "review_count": 650
+    "ratings": {
+      "average_rating": 4.1,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "TAGAS"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/51aCCj0W1xL._SY741_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/3ZnDIfF"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/3ZnDIfF"
+    }
   },
   {
-    "product_id": "prod_011",
-    "source": "amazon",
-    "asin": "B08W5Q6MZG",
-    "title": "Mechanical Gaming Keyboard RGB",
-    "image_url": "https://m.media-amazon.com/images/I/61MLlRtV-QL.jpg",
+    "product_id": "LIFELONG-FITPRO-MOTORIZED-TREADMILL-LTM03S",
+    "title": "Lifelong FitPro Motorized Treadmill for Home (4HP Peak, 3-Level Manual Incline, 14km/h)",
+    "category": "Sports & Fitness",
+    "sub_category": "Exercise Machines",
+    "brand": "Lifelong",
+    "model": "FitPro LTM03S",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": "LED Display",
+    "camera": null,
+    "battery": null,
+    "connectivity": [
+      "Bluetooth"
+    ],
+    "color": "Black",
+    "build_material": "Steel Frame with Rubber Shock Absorption Belt",
+    "ai_features": [],
+    "description": "Lifelong FitPro motorized treadmill designed for home workouts. Powered by a 4HP peak motor with a top speed of 14 km/h, 3-level manual incline, shock absorption system, and foldable hydraulic design. Includes 12 preset workout programs and Bluetooth connectivity for enhanced training.",
     "price": {
       "currency": "INR",
-      "estimated_price": 2999
+      "original_price": 59999,
+      "discounted_price": 14599,
+      "discount_percentage": 76
     },
-    "affiliate_url": "https://www.amazon.in/dp/B08W5Q6MZG/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.7,
-      "max_points": 5998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.5,
-    "review_count": 1200
+    "ratings": {
+      "average_rating": 4.2,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Lifelong"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/61LgkpsUNML._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4jYQiM8"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4jYQiM8"
+    }
   },
   {
-    "product_id": "prod_012",
-    "source": "amazon",
-    "asin": "B0B1DWPQZQ",
-    "title": "Logitech Wireless Keyboard and Mouse Combo",
-    "image_url": "https://m.media-amazon.com/images/I/51cKL5tZlmL.jpg",
+    "product_id": "SPARNOD-FITNESS-SILICONE-SPRAY-550ML",
+    "title": "Sparnod Fitness Silicone Spray for Treadmill Lubrication (Easy to Use, 550 ml)",
+    "category": "Sports & Fitness",
+    "sub_category": "Exercise Machine Accessories",
+    "brand": "Sparnod Fitness",
+    "model": "Silicone Spray 550ML",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Red & White",
+    "build_material": "Silicon Carbide Lubricant Spray",
+    "ai_features": [],
+    "description": "Sparnod Fitness silicone spray lubricant specially designed for treadmills and fitness equipment. Reduces friction, noise, and wear, helping extend belt and motor life. Easy spray application, suitable for home and commercial treadmills.",
     "price": {
       "currency": "INR",
-      "estimated_price": 1599
+      "original_price": 699,
+      "discounted_price": 250,
+      "discount_percentage": 64
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0B1DWPQZQ/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.8,
-      "max_points": 3198
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.2,
-    "review_count": 890
+    "ratings": {
+      "average_rating": 4.2,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Sparnod Fitness"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/61YZk2xdf+L._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/49zTzxR"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/49zTzxR"
+    }
   },
   {
-    "product_id": "prod_013",
-    "source": "amazon",
-    "asin": "B08CKXCGPL",
-    "title": "Sony WH-CH720N Wireless Headphones",
-    "image_url": "https://m.media-amazon.com/images/I/51rGFEiMnzL.jpg",
+    "product_id": "LEADER-BEAST-26T-IBC-PRO-CYCLE",
+    "title": "Leader Beast 26T IBC Pro Cycle with Inbuilt Carrier, Single Speed Cycle for Men",
+    "category": "Sports & Fitness",
+    "sub_category": "Cycles & Bicycles",
+    "brand": "Leader",
+    "model": "Beast 26T IBC Pro",
+    "target_audience": "Men",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Matt Black",
+    "build_material": "Rigid Steel Frame",
+    "ai_features": [],
+    "description": "Leader Beast 26T IBC Pro single-speed cycle designed for men. Features a strong rigid steel frame, inbuilt carrier, front suspension, and powerful brakes. Ideal for daily commuting, fitness riding, and city use for riders aged 10+.",
     "price": {
       "currency": "INR",
-      "estimated_price": 4999
+      "original_price": 9999,
+      "discounted_price": 4089,
+      "discount_percentage": 59
     },
-    "affiliate_url": "https://www.amazon.in/dp/B08CKXCGPL/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.65,
-      "max_points": 9998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.3,
-    "review_count": 1100
+    "ratings": {
+      "average_rating": 4.1,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Leader"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/81pQn1y7FNL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/49OOUXI"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/49OOUXI"
+    }
   },
   {
-    "product_id": "prod_014",
-    "source": "amazon",
-    "asin": "B0B35L47VL",
-    "title": "Sennheiser Momentum 4 Wireless Headphones",
-    "image_url": "https://m.media-amazon.com/images/I/51+6WjVvQpL.jpg",
+    "product_id": "LINK-HEAVY-DUTY-STEEL-CABLE-LOCK-100CM",
+    "title": "Link Heavy Duty Steel Cable Lock – 100cm Length, 7mm Thickness, Key Lock with 2 Keys",
+    "category": "Sports & Outdoors",
+    "sub_category": "Cycle & Helmet Accessories",
+    "brand": "Link",
+    "model": "Steel Cable Lock 100cm",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Black",
+    "build_material": "Alloy Steel",
+    "ai_features": [],
+    "description": "Heavy-duty steel cable lock with 7mm thick alloy steel cable and 100cm length. Designed to secure bikes, cycles, helmets, scooters, and gates. Comes with a durable key lock mechanism and 2 keys for added security.",
     "price": {
       "currency": "INR",
-      "estimated_price": 14999
+      "original_price": 210,
+      "discounted_price": 189,
+      "discount_percentage": 10
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0B35L47VL/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.6,
-      "max_points": 29998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.6,
-    "review_count": 540
+    "ratings": {
+      "average_rating": 4,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Link"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/41zr0uyB3sL._SX569_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/49yQWMz"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/49yQWMz"
+    }
   },
   {
-    "product_id": "prod_015",
-    "source": "amazon",
-    "asin": "B0946RJ3RR",
-    "title": "Elago AirPods Pro Charging Case Cover",
-    "image_url": "https://m.media-amazon.com/images/I/41hzF-ylTgL.jpg",
+    "product_id": "STRAUSS-BICYCLE-AIR-PUMP-DUAL-VALVE",
+    "title": "Strauss Bicycle Air Pump with Needle & Dual Valve | 30 CM Portable Pump",
+    "category": "Sports & Outdoors",
+    "sub_category": "Cycle Accessories",
+    "brand": "Strauss",
+    "model": "Dual Valve Hand Pump",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Black",
+    "build_material": "Durable Plastic",
+    "ai_features": [],
+    "description": "Strauss portable bicycle air pump with dual valve support and inflation needle. Designed for inflating bicycle tires, swimming rings, footballs, and other inflatables. Lightweight, sturdy base with an ergonomic T-handle for comfortable pumping.",
     "price": {
       "currency": "INR",
-      "estimated_price": 599
+      "original_price": 799,
+      "discounted_price": 255,
+      "discount_percentage": 68
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0946RJ3RR/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.9,
-      "max_points": 1198
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.0,
-    "review_count": 420
+    "ratings": {
+      "average_rating": 4,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Strauss"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/51c122qD+UL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/3Lq2GIc"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/3Lq2GIc"
+    }
   },
   {
-    "product_id": "prod_016",
-    "source": "amazon",
-    "asin": "B098GMQM3P",
-    "title": "Anker PowerCore 26800mAh Power Bank",
-    "image_url": "https://m.media-amazon.com/images/I/51HgkwCw58L.jpg",
+    "product_id": "PRO365-PREMIUM-BICYCLE-REAR-VIEW-MIRROR-2PCS",
+    "title": "PRO365 Premium Bicycle Rear View Mirror with Protective Film | Adjustable 360° Handlebar Convex Mirror (Pack of 2)",
+    "category": "Sports & Outdoors",
+    "sub_category": "Cycle Accessories",
+    "brand": "PRO365",
+    "model": "Adjustable Convex Handlebar Mirror",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Black",
+    "build_material": "Plastic",
+    "ai_features": [],
+    "description": "PRO365 premium bicycle rear view mirrors designed to provide a wide-angle view for safer riding. Features convex mirrors with protective film, adjustable 360-degree rotation, and sturdy handlebar mounting. Suitable for road, mountain, and commuter bicycles.",
     "price": {
       "currency": "INR",
-      "estimated_price": 2499
+      "original_price": 999,
+      "discounted_price": 298,
+      "discount_percentage": 70
     },
-    "affiliate_url": "https://www.amazon.in/dp/B098GMQM3P/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.75,
-      "max_points": 4998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.4,
-    "review_count": 1560
+    "ratings": {
+      "average_rating": 4,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "PRO365"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71vsLJXRjZL._SX522_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/3Zw3bU9"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/3Zw3bU9"
+    }
   },
   {
-    "product_id": "prod_017",
-    "source": "amazon",
-    "asin": "B0B4PHVBG6",
-    "title": "Baseus 65W Fast Charging Power Bank",
-    "image_url": "https://m.media-amazon.com/images/I/51HgkwCw58L.jpg",
+    "product_id": "LETTURE-BICYCLE-REAR-LIGHT-USB-RECHARGEABLE",
+    "title": "LETTURE Bicycle Rear Light with 4 Lighting Modes, USB Rechargeable Ultra Bright Red LED",
+    "category": "Sports & Outdoors",
+    "sub_category": "Cycle Accessories",
+    "brand": "LETTURE",
+    "model": "USB Rechargeable Rear Light",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": {
+      "type": "Rechargeable",
+      "charging": "USB Charging"
+    },
+    "connectivity": null,
+    "color": "Red",
+    "build_material": "Acrylonitrile Butadiene Styrene (ABS)",
+    "ai_features": [],
+    "description": "LETTURE ultra-bright bicycle rear light designed to improve visibility and safety during night and low-light rides. Features 4 lighting modes, USB rechargeable battery, lightweight waterproof design, and easy installation. Suitable for bicycles, helmets, and scooters.",
     "price": {
       "currency": "INR",
-      "estimated_price": 3299
+      "original_price": 999,
+      "discounted_price": 396,
+      "discount_percentage": 60
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0B4PHVBG6/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.7,
-      "max_points": 6598
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.3,
-    "review_count": 740
+    "ratings": {
+      "average_rating": 4.3,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "LETTURE"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/61TqZlw25EL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4jQjtRb"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4jQjtRb"
+    }
   },
   {
-    "product_id": "prod_018",
-    "source": "amazon",
-    "asin": "B08V2P4L2N",
-    "title": "Portronics Dash 5 Dash Cam",
-    "image_url": "https://m.media-amazon.com/images/I/41IEgVJNmOL.jpg",
+    "product_id": "GADGET-DEALS-HIGH-VISIBILITY-REFLECTIVE-SAFETY-VEST",
+    "title": "Gadget Deals High Visibility Protective Night Cycling Reflector Vest | Adjustable Safety Jacket",
+    "category": "Sports & Outdoors",
+    "sub_category": "Cycling Safety Accessories",
+    "brand": "Gadget Deals",
+    "model": "Reflective Safety Vest",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Neon Green",
+    "build_material": "Reflective Fabric with Elastic Straps",
+    "ai_features": [],
+    "description": "High-visibility reflective safety vest designed for night cycling and outdoor activities. Features bright reflective strips, adjustable straps for a secure fit, and lightweight breathable design. Ideal for cyclists, runners, and night commuters.",
     "price": {
       "currency": "INR",
-      "estimated_price": 4499
+      "original_price": 699,
+      "discounted_price": 177,
+      "discount_percentage": 75
     },
-    "affiliate_url": "https://www.amazon.in/dp/B08V2P4L2N/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.65,
-      "max_points": 8998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.1,
-    "review_count": 520
+    "ratings": {
+      "average_rating": 4.3,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Gadget Deals"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/41KDeLwzRZL._SX569_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/49JzpjG"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/49JzpjG"
+    }
   },
   {
-    "product_id": "prod_019",
-    "source": "amazon",
-    "asin": "B0BYJKGBL4",
-    "title": "GoPro HERO11 Black Action Camera",
-    "image_url": "https://m.media-amazon.com/images/I/41gNhxXVoSL.jpg",
+    "product_id": "MILTON-RAPID-ELECTRIC-KETTLE-1-8L",
+    "title": "Milton Rapid Electric Kettle | 1500 Watts | Stainless Steel Hot Water Kettle with Auto Shut-Off",
+    "category": "Home & Kitchen",
+    "sub_category": "Electric Kettles",
+    "brand": "Milton",
+    "model": "Rapid EK18",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Silver",
+    "build_material": "Stainless Steel",
+    "ai_features": [],
+    "description": "Milton Rapid electric kettle with 1500W power and 1.8L capacity, designed for quick boiling. Features stainless steel body, automatic shut-off, single-touch lid lock, and cool-touch handle. Ideal for home and office use.",
     "price": {
       "currency": "INR",
-      "estimated_price": 39999
+      "original_price": 1499,
+      "discounted_price": 636,
+      "discount_percentage": 58
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0BYJKGBL4/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.5,
-      "max_points": 79998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.7,
-    "review_count": 380
+    "ratings": {
+      "average_rating": 4.3,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Milton"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/61G2USexrDL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/45Z5N0z"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/45Z5N0z"
+    }
   },
   {
-    "product_id": "prod_020",
-    "source": "amazon",
-    "asin": "B09QFP5TXM",
-    "title": "DJI Mini 3 Pro Drone",
-    "image_url": "https://m.media-amazon.com/images/I/51mOLxlYsYL.jpg",
+    "product_id": "MILTON-DUO-DLX-1000-THERMOSTEEL-BOTTLE",
+    "title": "Milton Duo DLX 1000 Thermosteel Bottle | 1000 ml | 24 Hours Hot & Cold | Matte Blue",
+    "category": "Home & Kitchen",
+    "sub_category": "Water Bottles",
+    "brand": "Milton",
+    "model": "Duo DLX 1000",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Matte Blue",
+    "build_material": "Stainless Steel (Thermosteel)",
+    "ai_features": [],
+    "description": "Milton Duo DLX 1000 thermosteel bottle with 1000 ml capacity, designed to keep beverages hot or cold for up to 24 hours. Features easy grip design, rust-proof stainless steel body, leakproof lid, and premium matte finish. Ideal for travel, office, gym, and outdoor activities.",
     "price": {
       "currency": "INR",
-      "estimated_price": 49999
+      "original_price": 1249,
+      "discounted_price": 949,
+      "discount_percentage": 24
     },
-    "affiliate_url": "https://www.amazon.in/dp/B09QFP5TXM/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.45,
-      "max_points": 99998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.6,
-    "review_count": 290
+    "ratings": {
+      "average_rating": 4.4,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Milton"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/61h2-4WWeoL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4rrB6cX"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4rrB6cX"
+    }
   },
   {
-    "product_id": "prod_021",
-    "source": "amazon",
-    "asin": "B0BLQY3KB8",
-    "title": "iPad (10th Generation)",
-    "image_url": "https://m.media-amazon.com/images/I/41P8vVkaI5L.jpg",
+    "product_id": "MILTON-AURA-1000-THERMOSTEEL-BOTTLE",
+    "title": "Milton Aura 1000 Thermosteel Water Bottle | 1000 ml | 24 Hour Hot & Cold | Leak Proof Lid",
+    "category": "Home & Kitchen",
+    "sub_category": "Water Bottles",
+    "brand": "Milton",
+    "model": "Aura 1000",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Black",
+    "build_material": "Stainless Steel (SS 304, Thermosteel)",
+    "ai_features": [],
+    "description": "Milton Aura 1000 thermosteel water bottle with 1000 ml capacity, designed to keep beverages hot or cold for up to 24 hours. Features double-wall vacuum insulation, leakproof lid, rust-resistant SS 304 stainless steel body, and a sleek matte black finish. Ideal for office, gym, travel, and daily use.",
     "price": {
       "currency": "INR",
-      "estimated_price": 29999
+      "original_price": 1169,
+      "discounted_price": 909,
+      "discount_percentage": 22
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0BLQY3KB8/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.5,
-      "max_points": 59998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.5,
-    "review_count": 1250
+    "ratings": {
+      "average_rating": 4.4,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Milton"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/61bGbG28H5L._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4qsrzlA"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4qsrzlA"
+    }
   },
   {
-    "product_id": "prod_022",
-    "source": "amazon",
-    "asin": "B09Z6TWDXL",
-    "title": "Samsung Galaxy Tab S8",
-    "image_url": "https://m.media-amazon.com/images/I/41ug12j+3aL.jpg",
+    "product_id": "NUTRIPRO-JUICER-MIXER-GRINDER-500W-2JAR",
+    "title": "NutriPro Juicer Mixer Grinder – Smoothie Maker | 500 Watts | 2 Jars & 1 Blade (Silver)",
+    "category": "Home & Kitchen",
+    "sub_category": "Juicer Mixer Grinders",
+    "brand": "NutriPro",
+    "model": "500W JMG",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Silver",
+    "build_material": "Stainless Steel & Plastic",
+    "ai_features": [],
+    "description": "NutriPro 500W juicer mixer grinder designed for quick blending, grinding, and smoothie preparation. Comes with 2 jars and a powerful motor for efficient performance. Ideal for making juices, smoothies, chutneys, and dry/wet grinding. Includes 2-year warranty for peace of mind.",
     "price": {
       "currency": "INR",
-      "estimated_price": 39999
+      "original_price": 4999,
+      "discounted_price": 1499,
+      "discount_percentage": 70
     },
-    "affiliate_url": "https://www.amazon.in/dp/B09Z6TWDXL/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.48,
-      "max_points": 79998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.4,
-    "review_count": 950
+    "ratings": {
+      "average_rating": 4.2,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "NutriPro"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71rH4vEE4nL._SX679_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4sJU5ka"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4sJU5ka"
+    }
   },
   {
-    "product_id": "prod_023",
-    "source": "amazon",
-    "asin": "B0B5C1PPFM",
-    "title": "Apple MacBook Air M2",
-    "image_url": "https://m.media-amazon.com/images/I/41Z1m2Y5BIL.jpg",
+    "product_id": "1ST-STEP-PORTABLE-GRINDER-MASHER-BOWL",
+    "title": "1st Step Portable Grinder & Masher/Serving Bowl for Baby Food Preparation with Spoon (Pack of 1)",
+    "category": "Baby Products",
+    "sub_category": "Baby Feeding Accessories",
+    "brand": "1st Step",
+    "model": "Portable Grinder & Masher Bowl",
+    "target_audience": "Babies",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": "Blue",
+    "build_material": "Polypropylene (PP)",
+    "ai_features": [],
+    "description": "1st Step portable grinder and masher bowl designed for easy baby food preparation. Comes with a spoon and ergonomic handle for firm grip while grinding. BPA-free, lightweight, and ideal for preparing fresh fruits and vegetables at home or on the go.",
     "price": {
       "currency": "INR",
-      "estimated_price": 119999
+      "original_price": 269,
+      "discounted_price": 219,
+      "discount_percentage": 19
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0B5C1PPFM/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.4,
-      "max_points": 239998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.8,
-    "review_count": 420
+    "ratings": {
+      "average_rating": 4.3,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "1st Step"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/41OxUfrhqML._SY300_SX300_QL70_FMwebp_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/3ZooyXs"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/3ZooyXs"
+    }
   },
   {
-    "product_id": "prod_024",
-    "source": "amazon",
-    "asin": "B0B9BPPWFF",
-    "title": "Dell Inspiron 15 Laptop",
-    "image_url": "https://m.media-amazon.com/images/I/41aXXRm4F7L.jpg",
+    "product_id": "THE-PSYCHOLOGY-OF-MONEY-PAPERBACK",
+    "title": "The Psychology of Money: Timeless Lessons on Wealth, Greed, and Happiness (Paperback)",
+    "category": "Books",
+    "sub_category": "Business & Economics",
+    "brand": "Jaico Publishing House",
+    "model": "Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "The Psychology of Money by Morgan Housel explores timeless lessons on how people think about money. Through short stories and real-world examples, the book explains the emotional and psychological factors behind financial success, investing, and decision-making.",
     "price": {
       "currency": "INR",
-      "estimated_price": 49999
+      "original_price": 399,
+      "discounted_price": 262,
+      "discount_percentage": 34
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0B9BPPWFF/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.45,
-      "max_points": 99998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.2,
-    "review_count": 680
+    "ratings": {
+      "average_rating": 4.6,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Jaico Publishing House"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71XEsXS5RlL._SY466_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4jTgOGn"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4jTgOGn"
+    }
   },
   {
-    "product_id": "prod_025",
-    "source": "amazon",
-    "asin": "B0BWZBX9SR",
-    "title": "Samsung 4K Smart TV 55 inch",
-    "image_url": "https://m.media-amazon.com/images/I/41VImW3hQXL.jpg",
+    "product_id": "DOPAMINE-DETOX-PAPERBACK",
+    "title": "Dopamine Detox: A Short Guide to Remove Distractions and Get Your Brain to Do Hard Things (Paperback)",
+    "category": "Books",
+    "sub_category": "Self-Help & Personal Development",
+    "brand": "Independently Published",
+    "model": "Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "Dopamine Detox by Thibaut Meurisse is a practical guide to breaking addictive behaviors and eliminating distractions. The book explains how dopamine affects motivation and focus, and provides simple strategies to reset your brain, build discipline, and regain control over your habits and productivity.",
     "price": {
       "currency": "INR",
-      "estimated_price": 39999
+      "original_price": 245,
+      "discounted_price": 178,
+      "discount_percentage": 27
     },
-    "affiliate_url": "https://www.amazon.in/dp/B0BWZBX9SR/?tag=lenv-21",
-    "points_rule": {
-      "points_per_rupee": 0.48,
-      "max_points": 79998
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "rating": 4.3,
-    "review_count": 1100
+    "ratings": {
+      "average_rating": 4.4,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Thibaut Meurisse"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71Q2fXtMhaL._SY522_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4rasozC"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4rasozC"
+    }
   },
   {
-    "product_id": "prod_026",
-    "source": "manual",
-    "title": "Amazon Gift Card 500",
+    "product_id": "DO-IT-TODAY-PAPERBACK",
+    "title": "Do It Today: Overcome Procrastination, Improve Productivity and Achieve More Meaningful Things in Life (Paperback)",
+    "category": "Books",
+    "sub_category": "Self-Help & Personal Development",
+    "brand": "Penguin India",
+    "model": "Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "Do It Today by Darius Foroux is a practical guide to overcoming procrastination and taking immediate action. The book focuses on building discipline, eliminating excuses, and creating habits that help you achieve meaningful goals by doing what matters now.",
     "price": {
       "currency": "INR",
-      "estimated_price": 500
+      "original_price": 249,
+      "discounted_price": 194,
+      "discount_percentage": 22
     },
-    "points_rule": {
-      "points_per_rupee": 1.0,
-      "max_points": 1000
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "description": "Digital gift card for Amazon purchases"
+    "ratings": {
+      "average_rating": 4.5,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Penguin India"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/61jCkOVf1oL._SY425_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4qvwKkF"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4qvwKkF"
+    }
   },
   {
-    "product_id": "prod_027",
-    "source": "manual",
-    "title": "Amazon Gift Card 1000",
+    "product_id": "YOU-CAN-GEORGE-MATTHEW-ADAMS-PAPERBACK",
+    "title": "You Can | The Classic Guide to Self-Belief, Self-Help, Motivation and Personal Growth (Paperback)",
+    "category": "Books",
+    "sub_category": "Self-Help & Personal Development",
+    "brand": "General Press",
+    "model": "Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "You Can by George Matthew Adams is a timeless self-help classic that focuses on building self-belief, confidence, and inner strength. The book offers practical motivation and inspirational guidance to help readers overcome fear, develop a positive mindset, and achieve success in personal and professional life.",
     "price": {
       "currency": "INR",
-      "estimated_price": 1000
+      "original_price": 399,
+      "discounted_price": 259,
+      "discount_percentage": 38
     },
-    "points_rule": {
-      "points_per_rupee": 1.0,
-      "max_points": 2000
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "description": "Digital gift card for Amazon purchases"
+    "ratings": {
+      "average_rating": 4.4,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "General Press"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/81Qxw2thgKL._SY342_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4a86d7d"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4a86d7d"
+    }
   },
   {
-    "product_id": "prod_028",
-    "source": "manual",
-    "title": "Flipkart Gift Card 500",
+    "product_id": "THE-POWER-OF-YOUR-SUBCONSCIOUS-MIND-PAPERBACK",
+    "title": "The Power of Your Subconscious Mind: Original Classic Edition (Premium Paperback)",
+    "category": "Books",
+    "sub_category": "Self-Help & Personal Development",
+    "brand": "Fingerprint! Publishing",
+    "model": "Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "The Power of Your Subconscious Mind by Dr. Joseph Murphy is a classic self-help book that explores how the subconscious influences behavior, habits, and success. The book provides practical techniques to reprogram the subconscious mind to achieve confidence, wealth, health, and happiness.",
     "price": {
       "currency": "INR",
-      "estimated_price": 500
+      "original_price": 199,
+      "discounted_price": 118,
+      "discount_percentage": 41
     },
-    "points_rule": {
-      "points_per_rupee": 1.0,
-      "max_points": 1000
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "description": "Digital gift card for Flipkart purchases"
+    "ratings": {
+      "average_rating": 4.6,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Fingerprint! Publishing"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71g4OFCERdL._SY385_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4bdxc2j"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4bdxc2j"
+    }
   },
   {
-    "product_id": "prod_029",
-    "source": "manual",
-    "title": "Flipkart Gift Card 2000",
+    "product_id": "ATOMIC-HABITS-JAMES-CLEAR-PAPERBACK",
+    "title": "Atomic Habits: The Life-Changing Million Copy Bestseller (Paperback)",
+    "category": "Books",
+    "sub_category": "Self-Help & Personal Development",
+    "brand": "Random House Business",
+    "model": "Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "Atomic Habits by James Clear reveals a proven framework for building good habits and breaking bad ones. The book focuses on making small, incremental changes that compound into remarkable results, backed by behavioral science and real-life examples.",
     "price": {
       "currency": "INR",
-      "estimated_price": 2000
+      "original_price": 899,
+      "discounted_price": 491,
+      "discount_percentage": 45
     },
-    "points_rule": {
-      "points_per_rupee": 1.0,
-      "max_points": 4000
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "description": "Digital gift card for Flipkart purchases"
+    "ratings": {
+      "average_rating": 4.7,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Random House Business"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/817HaeblezL._SY466_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4k2ZM8X"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4k2ZM8X"
+    }
   },
   {
-    "product_id": "prod_030",
-    "source": "manual",
-    "title": "Movie Ticket Voucher",
+    "product_id": "RICH-DAD-POOR-DAD-PAPERBACK",
+    "title": "Rich Dad Poor Dad: What the Rich Teach Their Kids About Money That the Poor and Middle Class Do Not! (Paperback)",
+    "category": "Books",
+    "sub_category": "Personal Finance & Investing",
+    "brand": "Plata Publishing",
+    "model": "Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "Rich Dad Poor Dad by Robert T. Kiyosaki is a personal finance classic that challenges traditional beliefs about money, jobs, and investing. Through contrasting lessons from two father figures, the book teaches the importance of financial education, assets vs liabilities, entrepreneurship, and building wealth through smart financial decisions.",
     "price": {
       "currency": "INR",
-      "estimated_price": 300
+      "original_price": 599,
+      "discounted_price": 349,
+      "discount_percentage": 42
     },
-    "points_rule": {
-      "points_per_rupee": 0.9,
-      "max_points": 600
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
     },
-    "status": "active",
-    "description": "Valid for all major cinema chains"
+    "ratings": {
+      "average_rating": 4.6,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Plata Publishing"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71HJj3XmheL._SY425_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4qzAphm"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4qzAphm"
+    }
+  },
+  {
+    "product_id": "THE-7-HABITS-OF-HIGHLY-EFFECTIVE-PEOPLE-PAPERBACK",
+    "title": "The 7 Habits of Highly Effective People: Updated Edition (Paperback)",
+    "category": "Books",
+    "sub_category": "Self-Help & Personal Development",
+    "brand": "Simon & Schuster",
+    "model": "Updated Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "The 7 Habits of Highly Effective People by Stephen R. Covey is a landmark self-help and leadership book that presents a principle-centered approach to personal and professional effectiveness. The updated edition includes modern insights while preserving the timeless habits that help individuals achieve success, integrity, and balance.",
+    "price": {
+      "currency": "INR",
+      "original_price": 599,
+      "discounted_price": 366,
+      "discount_percentage": 39
+    },
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
+    },
+    "ratings": {
+      "average_rating": 4.6,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Simon & Schuster"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/81qgEPE6k1L._SY466_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4bcdoMJ"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4bcdoMJ"
+    }
+  },
+  {
+    "product_id": "HOW-TO-WIN-FRIENDS-AND-INFLUENCE-PEOPLE-PAPERBACK",
+    "title": "How to Win Friends and Influence People: Original Classic Edition (Premium Paperback)",
+    "category": "Books",
+    "sub_category": "Self-Help & Personal Development",
+    "brand": "Fingerprint! Publishing",
+    "model": "Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "How to Win Friends and Influence People by Dale Carnegie is a timeless self-help classic that teaches effective communication, leadership, and relationship-building skills. Through practical principles and real-life examples, the book shows how to win people over, influence others positively, and build lasting personal and professional relationships.",
+    "price": {
+      "currency": "INR",
+      "original_price": 199,
+      "discounted_price": 113,
+      "discount_percentage": 43
+    },
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
+    },
+    "ratings": {
+      "average_rating": 4.6,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Fingerprint! Publishing"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/71wf+n9OWVS._SY342_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/3LGV0Bo"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/3LGV0Bo"
+    }
+  },
+  {
+    "product_id": "HOW-TO-STOP-WORRYING-AND-START-LIVING-PAPERBACK",
+    "title": "How to Stop Worrying and Start Living: Original Edition (Premium Paperback)",
+    "category": "Books",
+    "sub_category": "Self-Help & Personal Development",
+    "brand": "Fingerprint! Publishing",
+    "model": "Paperback Edition",
+    "target_audience": "Adults",
+    "operating_system": null,
+    "processor": null,
+    "memory": null,
+    "display": null,
+    "camera": null,
+    "battery": null,
+    "connectivity": null,
+    "color": null,
+    "build_material": "Paper",
+    "ai_features": [],
+    "description": "How to Stop Worrying and Start Living by Dale Carnegie is a classic self-help book that offers practical techniques to overcome worry, reduce stress, and live a calmer, more productive life. The book provides proven methods to break the habit of worrying and focus on positive, actionable living.",
+    "price": {
+      "currency": "INR",
+      "original_price": 199,
+      "discounted_price": 125,
+      "discount_percentage": 37
+    },
+    "availability": "In Stock",
+    "delivery": {
+      "type": "Free Delivery",
+      "fulfilled_by": "Amazon"
+    },
+    "ratings": {
+      "average_rating": 4.6,
+      "rating_source": "Amazon Customers"
+    },
+    "seller": {
+      "platform": "Amazon India",
+      "brand_owner": "Fingerprint! Publishing"
+    },
+    "images": [
+      {
+        "type": "main",
+        "url": "https://m.media-amazon.com/images/I/61cvUtcU8TL._SY466_.jpg"
+      }
+    ],
+    "affiliate": {
+      "platform": "Amazon Associates",
+      "affiliate_link": "https://amzn.to/4r1koAI"
+    },
+    "cta": {
+      "button_text": "Buy Now",
+      "redirect_url": "https://amzn.to/4r1koAI"
+    }
   }
 ]

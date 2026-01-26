@@ -104,20 +104,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       const SizedBox(height: 8),
 
                       // ===== PRODUCT IMAGE SECTION =====
-                      Container(
-                        width: double.infinity,
-                        height: 280,
-                        margin: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.grey[850] : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          Icons.shopping_bag_outlined,
-                          size: 80,
-                          color: isDark ? Colors.grey[600] : Colors.grey[400],
-                        ),
-                      ),
+                      _buildDetailImageSection(product, isDark),
 
                       // ===== PRODUCT HEADER (NAME & PRICE) =====
                       Padding(
@@ -548,6 +535,60 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         setState(() => _isRequestingProduct = false);
       }
     }
+  }
+
+  Widget _buildDetailImageSection(ProductModel product, bool isDark) {
+    final imageUrl = product.imageUrl;
+
+    return Container(
+      width: double.infinity,
+      height: 280,
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[850] : Colors.grey[100],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: imageUrl != null && imageUrl.isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Icon(
+                      Icons.shopping_bag_outlined,
+                      size: 80,
+                      color: isDark ? Colors.grey[600] : Colors.grey[400],
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                            : null,
+                        strokeWidth: 2.5,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            )
+          : Center(
+              child: Icon(
+                Icons.shopping_bag_outlined,
+                size: 80,
+                color: isDark ? Colors.grey[600] : Colors.grey[400],
+              ),
+            ),
+    );
   }
 }
 

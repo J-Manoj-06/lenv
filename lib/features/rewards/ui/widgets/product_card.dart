@@ -124,6 +124,8 @@ class _ProductCardState extends State<ProductCard>
   }
 
   Widget _buildImageSection(BuildContext context, Color imageBg) {
+    final imageUrl = widget.product.imageUrl;
+
     return Container(
       width: double.infinity,
       height: 160,
@@ -131,13 +133,46 @@ class _ProductCardState extends State<ProductCard>
         color: imageBg,
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Center(
-        child: Icon(
-          Icons.card_giftcard_rounded,
-          size: 64,
-          color: _primaryOrange.withOpacity(0.4),
-        ),
-      ),
+      child: imageUrl != null && imageUrl.isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Icon(
+                      Icons.card_giftcard_rounded,
+                      size: 64,
+                      color: _primaryOrange.withOpacity(0.4),
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                            : null,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            )
+          : Center(
+              child: Icon(
+                Icons.card_giftcard_rounded,
+                size: 64,
+                color: _primaryOrange.withOpacity(0.4),
+              ),
+            ),
     );
   }
 

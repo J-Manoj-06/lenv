@@ -53,19 +53,31 @@ class ProductModel {
 
   /// Create from Firestore document
   factory ProductModel.fromMap(Map<String, dynamic> map) {
+    // Extract image URL from images array if available
+    String? imageUrl = map['image_url'];
+    if (imageUrl == null || imageUrl.isEmpty) {
+      final images = map['images'] as List?;
+      if (images != null && images.isNotEmpty) {
+        final firstImage = images[0] as Map<String, dynamic>?;
+        imageUrl = firstImage?['url'] as String?;
+      }
+    }
+
     return ProductModel(
       productId: map['product_id'] ?? '',
       source: map['source'] ?? 'manual',
       asin: map['asin'],
       title: map['title'] ?? '',
-      imageUrl: map['image_url'],
+      imageUrl: imageUrl,
       price: PriceModel.fromMap(map['price'] ?? {}),
       affiliateUrl: map['affiliate_url'],
       pointsRule: PointsRuleModel.fromMap(map['points_rule'] ?? {}),
       status: map['status'] ?? 'active',
       createdAt: (map['created_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
       description: map['description'],
-      rating: (map['rating'] as num?)?.toDouble(),
+      rating:
+          (map['rating'] as num?)?.toDouble() ??
+          (map['ratings']?['average_rating'] as num?)?.toDouble(),
       reviewCount: map['review_count'],
     );
   }
