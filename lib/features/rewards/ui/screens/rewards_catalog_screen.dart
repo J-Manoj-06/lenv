@@ -50,30 +50,29 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scaffoldBg = isDark
         ? const Color(0xFF0F0F14)
-        : const Color(0xFFF8F9FA);
-    final cardBg = isDark ? const Color(0xFF1A1A1F) : Colors.white;
+        : const Color(0xFFF5F6F7);
+    final searchBg = isDark ? const Color(0xFF1C1C1F) : Colors.white;
 
     return Scaffold(
       backgroundColor: scaffoldBg,
       body: Column(
         children: [
-          // Header matching leaderboard style
+          // Header
           SafeArea(
             bottom: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Expanded(
-                    child: Text(
-                      'Rewards Store',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  Text(
+                    'Rewards Store',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
                     ),
                   ),
+                  const Spacer(),
+                  Icon(Icons.card_giftcard_rounded, color: _primaryOrange),
                 ],
               ),
             ),
@@ -84,11 +83,11 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
           ),
           // Search and Filter Bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Column(
               children: [
-                _buildModernSearchBar(context, isDark, cardBg),
-                const SizedBox(height: 14),
+                _buildModernSearchBar(context, isDark, searchBg),
+                const SizedBox(height: 12),
                 _buildFilterChips(context),
               ],
             ),
@@ -155,25 +154,7 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
                 );
               },
               loading: () {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        valueColor: const AlwaysStoppedAnimation(
-                          _primaryOrange,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Loading rewards...',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: isDark ? Colors.grey[400] : Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+                return _buildLoadingList(isDark);
               },
               error: (error, st) {
                 return _buildErrorState(context, error, isDark);
@@ -192,62 +173,66 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
   ) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A1A1F) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.15 : 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A2A2E) : Colors.grey.shade200,
+        ),
       ),
       child: TextField(
         controller: _searchController,
         onChanged: (_) {
           setState(() {});
         },
+        style: TextStyle(
+          color: isDark ? Colors.white : Colors.black,
+          fontWeight: FontWeight.w500,
+        ),
         decoration: InputDecoration(
           hintText: 'Search rewards…',
           hintStyle: TextStyle(
-            color: isDark ? Colors.grey[500] : Colors.grey[500],
+            color: isDark ? Colors.grey[500] : Colors.grey[600],
             fontSize: 15,
             fontWeight: FontWeight.w400,
           ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: const Color(0xFFF97316),
-            size: 22,
+          prefixIcon: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Icon(Icons.search_rounded, color: _primaryOrange, size: 22),
           ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 40),
           suffixIcon: _searchController.text.isNotEmpty
               ? GestureDetector(
                   onTap: () {
                     _searchController.clear();
                     setState(() {});
                   },
-                  child: Icon(
-                    Icons.close_rounded,
-                    color: isDark ? Colors.grey[500] : Colors.grey[500],
-                    size: 20,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: isDark ? Colors.grey[500] : Colors.grey[600],
+                      size: 20,
+                    ),
                   ),
                 )
               : null,
-          filled: false,
+          filled: true,
+          fillColor: Colors.transparent,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             borderSide: const BorderSide(color: _primaryOrange, width: 2),
           ),
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
+            horizontal: 4,
+            vertical: 14,
           ),
         ),
       ),
@@ -258,97 +243,78 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final chips = [
       ('All', 'default', Icons.apps_rounded),
-      ('Low to High', 'price_asc', Icons.arrow_upward_rounded),
-      ('High to Low', 'price_desc', Icons.arrow_downward_rounded),
+      ('Low to High', 'price_asc', Icons.arrow_downward_rounded),
+      ('High to Low', 'price_desc', Icons.arrow_upward_rounded),
       ('Top Rated', 'rating', Icons.star_rounded),
     ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: List.generate(chips.length, (index) {
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
           final (label, value, icon) = chips[index];
           final isSelected = _sortBy == value;
 
-          return Padding(
-            padding: EdgeInsets.only(right: index < chips.length - 1 ? 10 : 0),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  setState(() => _sortBy = value);
-                  _animationController.forward(from: 0);
-                },
+          return InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () {
+              setState(() => _sortBy = value);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected ? _primaryOrange : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: isSelected
-                        ? const LinearGradient(
-                            colors: [Color(0xFFF97316), Color(0xFFFBBF24)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    color: isSelected
-                        ? null
-                        : (isDark
-                              ? const Color(0xFF1A1A1F)
-                              : const Color(0xFFF3F4F6)),
-                    borderRadius: BorderRadius.circular(12),
-                    border: isSelected
-                        ? null
-                        : Border.all(
-                            color: isDark
-                                ? Colors.grey[700]!
-                                : Colors.grey[300]!,
-                            width: 1,
-                          ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFFF97316).withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ]
-                        : [],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        icon,
-                        size: 16,
-                        color: isSelected
-                            ? Colors.white
-                            : (isDark ? Colors.grey[400] : Colors.grey[600]),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isSelected
-                              ? Colors.white
-                              : (isDark ? Colors.grey[300] : Colors.grey[700]),
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
+                border: Border.all(
+                  color: isSelected
+                      ? _primaryOrange
+                      : (isDark
+                            ? const Color(0xFF2D2D32)
+                            : Colors.grey.shade300),
                 ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: isSelected
+                        ? Colors.white
+                        : (isDark ? Colors.grey[300] : Colors.grey[700]),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isSelected
+                          ? Colors.white
+                          : (isDark ? Colors.grey[200] : Colors.grey[800]),
+                    ),
+                  ),
+                ],
               ),
             ),
           );
-        }),
+        },
       ),
+    );
+  }
+
+  Widget _buildLoadingList(bool isDark) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: _SkeletonCard(isDark: isDark),
+        );
+      },
     );
   }
 
@@ -485,6 +451,75 @@ class _ModernFilterChip extends StatelessWidget {
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  final bool isDark;
+
+  const _SkeletonCard({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final base = isDark ? Colors.grey[800]! : Colors.grey[300]!;
+    final highlight = isDark ? Colors.grey[700]! : Colors.grey[200]!;
+
+    Widget shimmer({required double width, required double height}) {
+      return TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 900),
+        curve: Curves.easeInOut,
+        builder: (context, value, child) {
+          return Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  base,
+                  Color.lerp(base, highlight, 0.3 + 0.3 * value)!,
+                  base,
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A1A1F) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2D2D32) : Colors.grey.shade200,
+        ),
+      ),
+      child: Row(
+        children: [
+          shimmer(width: 100, height: 110),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                shimmer(width: double.infinity, height: 14),
+                const SizedBox(height: 8),
+                shimmer(width: 160, height: 12),
+                const SizedBox(height: 10),
+                shimmer(width: 80, height: 12),
+                const SizedBox(height: 10),
+                shimmer(width: 140, height: 14),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
