@@ -7,12 +7,14 @@ const Color _primaryOrange = Color(0xFFF97316);
 class ProductCard extends StatefulWidget {
   final ProductModel product;
   final VoidCallback onRequestPressed;
+  final VoidCallback? onDetailsPressed;
   final bool isRequesting;
 
   const ProductCard({
     super.key,
     required this.product,
     required this.onRequestPressed,
+    this.onDetailsPressed,
     this.isRequesting = false,
   });
 
@@ -163,8 +165,7 @@ class _ProductCardState extends State<ProductCard> {
           ),
         ),
         const SizedBox(width: 8),
-        if (widget.product.status != null)
-          _buildStatusBadge(widget.product.status!),
+        _buildStatusBadge(widget.product.status),
       ],
     );
   }
@@ -282,7 +283,7 @@ class _ProductCardState extends State<ProductCard> {
           child: SizedBox(
             height: 42,
             child: OutlinedButton(
-              onPressed: widget.onRequestPressed,
+              onPressed: widget.onDetailsPressed ?? widget.onRequestPressed,
               style: OutlinedButton.styleFrom(
                 side: BorderSide(
                   color: isDark ? Colors.grey[700]! : Colors.grey[400]!,

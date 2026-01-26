@@ -63,8 +63,10 @@ class ProductModel {
       }
     }
 
+    final productId = map['_documentId'] as String? ?? map['product_id'] ?? '';
+
     return ProductModel(
-      productId: map['product_id'] ?? '',
+      productId: productId,
       source: map['source'] ?? 'manual',
       asin: map['asin'],
       title: map['title'] ?? '',

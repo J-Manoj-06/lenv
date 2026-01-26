@@ -35,9 +35,11 @@ class RewardsRepository {
           );
 
       if (snapshot.docs.isNotEmpty) {
-        _catalogCache = snapshot.docs
-            .map((doc) => ProductModel.fromMap(doc.data()))
-            .toList();
+        _catalogCache = snapshot.docs.map((doc) {
+          final data = doc.data();
+          data['_documentId'] = doc.id;
+          return ProductModel.fromMap(data);
+        }).toList();
         return _catalogCache!;
       }
 
@@ -91,7 +93,9 @@ class RewardsRepository {
           .doc(productId)
           .get();
       if (doc.exists) {
-        return ProductModel.fromMap(doc.data()!);
+        final data = doc.data()!;
+        data['_documentId'] = doc.id;
+        return ProductModel.fromMap(data);
       }
       return null;
     } catch (e) {
