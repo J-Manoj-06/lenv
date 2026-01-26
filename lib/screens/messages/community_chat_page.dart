@@ -107,6 +107,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final Set<String> _uploadingMessageIds = {};
   final Map<String, double> _pendingUploadProgress = {};
   final Map<String, String> _localSenderMediaPaths = {};
+  DateTime? _lastMarkedMessageAt;
 
   @override
   void initState() {
@@ -200,6 +201,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     try {
       final unread = Provider.of<UnreadCountProvider>(context, listen: false);
       unread.markChatAsRead(widget.communityId);
+      _lastMarkedMessageAt = DateTime.now();
     } catch (_) {}
 
     _messageController.dispose();
@@ -626,6 +628,20 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                     allMessages.sort(
                       (a, b) => b.timestamp.compareTo(a.timestamp),
                     );
+
+                    // Auto-mark as read when newest message is seen and newer than our last mark
+                    if (allMessages.isNotEmpty) {
+                      final latest = DateTime.fromMillisecondsSinceEpoch(
+                        allMessages.first.timestamp,
+                      );
+                      if (_lastMarkedMessageAt == null ||
+                          latest.isAfter(_lastMarkedMessageAt!)) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _markAsRead();
+                          _lastMarkedMessageAt = latest;
+                        });
+                      }
+                    }
 
                     int? unreadDividerIndex;
                     bool hasUnread = false;

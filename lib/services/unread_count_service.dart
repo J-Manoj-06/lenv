@@ -56,22 +56,38 @@ class UnreadCountService {
 
       // Determine field and comparison value by chat type
       // Groups use integer 'timestamp' (ms since epoch)
-      // Communities and others use Firestore Timestamp 'createdAt'
+      // Communities/others primarily use Firestore Timestamp 'createdAt' but fall back to
+      // 'timestamp' for legacy community documents.
       final isGroup = chatType == ChatTypeConfig.groupChat;
-      final fieldName = isGroup ? 'timestamp' : 'createdAt';
-      final compareValue = isGroup
-          ? effectiveLastRead.toDate().millisecondsSinceEpoch
-          : effectiveLastRead;
+      final fieldCandidates = isGroup
+          ? ['timestamp']
+          : ['createdAt', 'timestamp'];
 
-      // Count all unread messages
-      final totalSnapshot = await _firestore
-          .collection(messageCollection)
-          .where(fieldName, isGreaterThan: compareValue)
-          .count()
-          .get();
-      final totalCount = totalSnapshot.count ?? 0;
+      int totalCount = 0;
+      String usedField = fieldCandidates.first;
+      for (final fieldName in fieldCandidates) {
+        try {
+          final compareValue = fieldName == 'timestamp'
+              ? effectiveLastRead.toDate().millisecondsSinceEpoch
+              : effectiveLastRead;
+
+          final snapshot = await _firestore
+              .collection(messageCollection)
+              .where(fieldName, isGreaterThan: compareValue)
+              .count()
+              .get();
+          totalCount = snapshot.count ?? 0;
+          usedField = fieldName;
+          break;
+        } catch (e) {
+          debugPrint(
+            '[UnreadService] ⚠️ Count failed on field=$fieldName, trying next.',
+          );
+          continue;
+        }
+      }
       debugPrint(
-        '[UnreadService] 📊 Total unread raw: chat=$chatId type=$chatType field=$fieldName count=$totalCount',
+        '[UnreadService] 📊 Total unread raw: chat=$chatId type=$chatType field=$usedField count=$totalCount',
       );
 
       // Count messages sent by current user in the unread window, then subtract
@@ -84,9 +100,13 @@ class UnreadCountService {
         'sender',
       ]) {
         try {
+          final compareValueSelf = usedField == 'timestamp'
+              ? effectiveLastRead.toDate().millisecondsSinceEpoch
+              : effectiveLastRead;
+
           final selfSnapshot = await _firestore
               .collection(messageCollection)
-              .where(fieldName, isGreaterThan: compareValue)
+              .where(usedField, isGreaterThan: compareValueSelf)
               .where(senderField, isEqualTo: userId)
               .count()
               .get();
