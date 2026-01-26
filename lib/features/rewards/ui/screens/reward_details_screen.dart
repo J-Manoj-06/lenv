@@ -443,7 +443,6 @@ class RewardDetailsScreen extends ConsumerWidget {
               isDark ? const Color(0xFF1E1E1E) : Colors.white,
             ],
           ),
-          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isDark ? _borderDark : Colors.grey.shade200,
             width: 1,
@@ -1025,7 +1024,12 @@ class RewardDetailsScreen extends ConsumerWidget {
 
     String? url = cta?['redirect_url'];
     url ??= affiliate?['affiliate_link'];
-    final buttonText = cta?['button_text'] ?? 'View on Amazon';
+
+    // Always surface a visit-store label (even if backend still says "Buy Now")
+    String buttonText = cta?['button_text'] ?? 'Visit Amazon Store';
+    if (buttonText.toLowerCase() == 'buy now') {
+      buttonText = 'Visit Amazon Store';
+    }
 
     if (url == null) return const SizedBox.shrink();
     final link = url;
