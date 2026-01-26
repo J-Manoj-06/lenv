@@ -169,13 +169,13 @@ class DailyChallengeService {
     }
   }
 
-  /// Debug print helper
+  /// Debug print helper (silenced by default)
   void debugPrint(String message) {
-    if (const bool.fromEnvironment('dart.vm.product')) {
-      return; // Skip in production
-    }
+    if (!DailyChallengeService.verbose) return;
     print('[DailyChallengeService] $message');
   }
+
+  static bool verbose = false;
 
   /// Decode HTML entities (&quot;, &#039;, &amp;, etc.)
   String decodeHtmlEntities(String text) {

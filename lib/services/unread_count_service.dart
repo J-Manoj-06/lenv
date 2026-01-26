@@ -13,6 +13,9 @@ class UnreadCountService {
 
   UnreadCountService._internal();
 
+  // Toggle verbose logging for this service
+  static const bool _logVerbose = false;
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Cache: chatId -> unreadCount
@@ -38,9 +41,11 @@ class UnreadCountService {
     final cacheKey = '$chatId:$userId';
     if (!forceRefresh && _unreadCache.containsKey(cacheKey)) {
       final cached = _unreadCache[cacheKey] ?? 0;
-      debugPrint(
-        '[UnreadService] 🔎 Cache hit: chat=$chatId user=$userId count=$cached',
-      );
+      if (kDebugMode && _logVerbose) {
+        debugPrint(
+          '[UnreadService] 🔎 Cache hit: chat=$chatId user=$userId count=$cached',
+        );
+      }
       return cached;
     }
 
@@ -80,15 +85,19 @@ class UnreadCountService {
           usedField = fieldName;
           break;
         } catch (e) {
-          debugPrint(
-            '[UnreadService] ⚠️ Count failed on field=$fieldName, trying next.',
-          );
+          if (kDebugMode && _logVerbose) {
+            debugPrint(
+              '[UnreadService] ⚠️ Count failed on field=$fieldName, trying next.',
+            );
+          }
           continue;
         }
       }
-      debugPrint(
-        '[UnreadService] 📊 Total unread raw: chat=$chatId type=$chatType field=$usedField count=$totalCount',
-      );
+      if (kDebugMode && _logVerbose) {
+        debugPrint(
+          '[UnreadService] 📊 Total unread raw: chat=$chatId type=$chatType field=$usedField count=$totalCount',
+        );
+      }
 
       // Count messages sent by current user in the unread window, then subtract
       int selfCount = 0;
@@ -111,12 +120,16 @@ class UnreadCountService {
               .count()
               .get();
           selfCount = selfSnapshot.count ?? 0;
-          debugPrint(
-            '[UnreadService] 👤 Self messages field=$senderField count=$selfCount',
-          );
+          if (kDebugMode && _logVerbose) {
+            debugPrint(
+              '[UnreadService] 👤 Self messages field=$senderField count=$selfCount',
+            );
+          }
           break; // stop after first successful field
         } catch (e) {
-          debugPrint('[UnreadService] ⚠️ Sender field miss: $senderField');
+          if (kDebugMode && _logVerbose) {
+            debugPrint('[UnreadService] ⚠️ Sender field miss: $senderField');
+          }
           continue;
         }
       }
@@ -126,13 +139,17 @@ class UnreadCountService {
 
       // Cache the result (fresh)
       _unreadCache[cacheKey] = safeCount;
-      debugPrint(
-        '[UnreadService] ✅ Final unread: chat=$chatId user=$userId count=$safeCount',
-      );
+      if (kDebugMode && _logVerbose) {
+        debugPrint(
+          '[UnreadService] ✅ Final unread: chat=$chatId user=$userId count=$safeCount',
+        );
+      }
 
       return safeCount;
     } catch (e) {
-      debugPrint('[UnreadService] ❌ getUnreadCount error: $e');
+      if (kDebugMode && _logVerbose) {
+        debugPrint('[UnreadService] ❌ getUnreadCount error: $e');
+      }
       return 0; // Fail gracefully
     }
   }
@@ -191,15 +208,19 @@ class UnreadCountService {
             'lastReadAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
-      debugPrint(
-        '[UnreadService] 📝 Marked as read: chat=$chatId user=$userId',
-      );
+      if (kDebugMode && _logVerbose) {
+        debugPrint(
+          '[UnreadService] 📝 Marked as read: chat=$chatId user=$userId',
+        );
+      }
 
       // Clear cache
       final cacheKey = '$chatId:$userId';
       _unreadCache.remove(cacheKey);
     } catch (e) {
-      debugPrint('[UnreadService] ❌ markChatAsRead error: $e');
+      if (kDebugMode && _logVerbose) {
+        debugPrint('[UnreadService] ❌ markChatAsRead error: $e');
+      }
       // Fail silently - don't break UI
     }
   }
@@ -217,9 +238,11 @@ class UnreadCountService {
 
       if (doc.exists && doc['lastReadAt'] != null) {
         final ts = doc['lastReadAt'] as Timestamp;
-        debugPrint(
-          '[UnreadService] ⏱️ lastReadAt: chat=$chatId user=$userId ts=${ts.millisecondsSinceEpoch}',
-        );
+        if (kDebugMode && _logVerbose) {
+          debugPrint(
+            '[UnreadService] ⏱️ lastReadAt: chat=$chatId user=$userId ts=${ts.millisecondsSinceEpoch}',
+          );
+        }
         return ts;
       }
     } catch (e) {}

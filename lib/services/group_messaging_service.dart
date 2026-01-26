@@ -11,6 +11,9 @@ class GroupMessagingService {
   static final Map<String, String> _classIdCache = {};
   static final Map<String, DateTime> _cacheTimestamps = {};
 
+  // Verbose logging toggle
+  static bool logVerbose = false;
+
   // ====================================================
   // GROUP CHAT METHODS
   // ====================================================
@@ -419,9 +422,11 @@ class GroupMessagingService {
     required bool isRetry,
   }) async {
     try {
-      debugPrint(
-        '🔍 Fetching classId for student $studentId (retry: $isRetry)',
-      );
+      if (kDebugMode && GroupMessagingService.logVerbose) {
+        debugPrint(
+          '🔍 Fetching classId for student $studentId (retry: $isRetry)',
+        );
+      }
 
       // ✅ FIX: Check students collection first (primary source for student data)
       final studentDoc = await _firestore
@@ -439,19 +444,25 @@ class GroupMessagingService {
         fullClassName = studentData['className'] ?? '';
         sectionField = studentData['section'] ?? '';
         schoolCode = studentData['schoolCode'] ?? '';
-        debugPrint(
-          '✅ Found student in students collection: $fullClassName - $sectionField',
-        );
+        if (kDebugMode && GroupMessagingService.logVerbose) {
+          debugPrint(
+            '✅ Found student in students collection: $fullClassName - $sectionField',
+          );
+        }
       } else {
         // Fallback: Try users collection
-        debugPrint('⚠️ Student not in students collection, trying users...');
+        if (kDebugMode && GroupMessagingService.logVerbose) {
+          debugPrint('⚠️ Student not in students collection, trying users...');
+        }
         final userDoc = await _firestore
             .collection('users')
             .doc(studentId)
             .get();
 
         if (!userDoc.exists || userDoc.data() == null) {
-          debugPrint('❌ Student not found in users collection either');
+          if (kDebugMode && GroupMessagingService.logVerbose) {
+            debugPrint('❌ Student not found in users collection either');
+          }
           return null;
         }
 

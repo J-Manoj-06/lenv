@@ -1775,21 +1775,15 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           testsTaken = results.length;
           double totalScore = 0.0;
 
-          print(
-            '[Performance] 📊 Calculating from ${results.length} test results',
-          );
+          // Logging suppressed: performance calculation details
 
           for (var result in results) {
-            print(
-              '[Performance] ✅ Test: ${result.testTitle}, Score: ${result.score}',
-            );
+            // Logging suppressed: individual test scores
             totalScore += result.score;
           }
 
           avgScore = testsTaken > 0 ? totalScore / testsTaken : 0.0;
-          print(
-            '[Performance] 📈 Final: $testsTaken tests, ${avgScore.toInt()}% average',
-          );
+          // Logging suppressed: performance summary
         }
 
         final isDark = Theme.of(context).brightness == Brightness.dark;

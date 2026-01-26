@@ -8,6 +8,9 @@ import '../utils/chat_type_config.dart';
 class UnreadCountProvider with ChangeNotifier {
   final UnreadCountService _service = UnreadCountService();
 
+  // Toggle verbose logging for this provider
+  static const bool _logVerbose = false;
+
   // Storage: chatId -> unreadCount
   final Map<String, int> _unreadCounts = {};
 
@@ -22,7 +25,9 @@ class UnreadCountProvider with ChangeNotifier {
   /// Initialize with current user ID
   void initialize(String userId) {
     _currentUserId = userId;
-    debugPrint('[UnreadProvider] ✅ Initialized for user: $userId');
+    if (kDebugMode && _logVerbose) {
+      debugPrint('[UnreadProvider] ✅ Initialized for user: $userId');
+    }
   }
 
   /// Get unread count for a specific chat
@@ -42,7 +47,9 @@ class UnreadCountProvider with ChangeNotifier {
     required String chatType,
   }) async {
     if (_currentUserId == null) {
-      debugPrint('[UnreadProvider] ⚠️ Skipping load (no user): chat=$chatId');
+      if (kDebugMode && _logVerbose) {
+        debugPrint('[UnreadProvider] ⚠️ Skipping load (no user): chat=$chatId');
+      }
       return;
     }
 
@@ -67,9 +74,11 @@ class UnreadCountProvider with ChangeNotifier {
       );
 
       _unreadCounts[chatId] = count;
-      debugPrint(
-        '[UnreadProvider] 📥 Loaded unread: chat=$chatId count=$count',
-      );
+      if (kDebugMode && _logVerbose) {
+        debugPrint(
+          '[UnreadProvider] 📥 Loaded unread: chat=$chatId count=$count',
+        );
+      }
       notifyListeners();
     } finally {
       _loadingChats.remove(chatId);
@@ -134,14 +143,18 @@ class UnreadCountProvider with ChangeNotifier {
     // Immediately clear badge (optimistic)
     _unreadCounts[chatId] = 0;
     _optimisticLastRead[chatId] = Timestamp.fromDate(DateTime.now());
-    debugPrint('[UnreadProvider] ✅ Optimistic clear: chat=$chatId');
+    if (kDebugMode && _logVerbose) {
+      debugPrint('[UnreadProvider] ✅ Optimistic clear: chat=$chatId');
+    }
     notifyListeners();
 
     // Update Firestore (non-blocking)
     _service.markChatAsRead(userId: _currentUserId!, chatId: chatId).catchError(
       (e) {
         // If fails, next load will fix it
-        debugPrint('[UnreadProvider] ❌ markChatAsRead failed: $e');
+        if (kDebugMode && _logVerbose) {
+          debugPrint('[UnreadProvider] ❌ markChatAsRead failed: $e');
+        }
       },
     );
   }
@@ -149,7 +162,9 @@ class UnreadCountProvider with ChangeNotifier {
   /// Refresh specific chat's count
   void refreshChat(String chatId) {
     _service.refreshCache(chatId, _currentUserId ?? '');
-    debugPrint('[UnreadProvider] 🔄 Refresh cache: chat=$chatId');
+    if (kDebugMode && _logVerbose) {
+      debugPrint('[UnreadProvider] 🔄 Refresh cache: chat=$chatId');
+    }
     // Do not remove local count to avoid badge disappearing/flicker
     // Next load will overwrite with fresh value
     notifyListeners();
