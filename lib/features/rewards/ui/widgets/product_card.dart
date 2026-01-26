@@ -138,7 +138,7 @@ class _ProductCardState extends State<ProductCard>
               borderRadius: BorderRadius.circular(14),
               child: Image.network(
                 imageUrl,
-                fit: BoxFit.cover,
+                fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) {
                   return Center(
                     child: Icon(

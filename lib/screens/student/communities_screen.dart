@@ -470,8 +470,9 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
     final s = category.toLowerCase();
     if (s.contains('career')) return const Color(0xFF4A90E2);
     if (s.contains('sport')) return const Color(0xFF2ECC71);
-    if (s.contains('coding') || s.contains('tech'))
+    if (s.contains('coding') || s.contains('tech')) {
       return const Color(0xFF3498DB);
+    }
     if (s.contains('music')) return const Color(0xFF9B59B6);
     if (s.contains('arts') || s.contains('art')) return const Color(0xFFE67E22);
     if (s.contains('health')) return const Color(0xFFE74C3C);

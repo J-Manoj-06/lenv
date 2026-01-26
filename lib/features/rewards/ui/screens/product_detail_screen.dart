@@ -553,7 +553,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               borderRadius: BorderRadius.circular(16),
               child: Image.network(
                 imageUrl,
-                fit: BoxFit.cover,
+                fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) {
                   return Center(
                     child: Icon(
