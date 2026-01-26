@@ -72,9 +72,7 @@ class RewardDetailsScreen extends ConsumerWidget {
                         _buildFeaturesSection(context, data, isDark),
                       if (data['features'] != null) const SizedBox(height: 20),
                       _buildDeliverySellerSection(context, data, isDark),
-                      const SizedBox(height: 20),
-                      _buildViewOnAmazonButton(context, data, isDark),
-                      const SizedBox(height: 120),
+                      const SizedBox(height: 100),
                     ],
                   ),
                 ),
@@ -202,11 +200,13 @@ class RewardDetailsScreen extends ConsumerWidget {
             Container(
               color: isDark ? const Color(0xFF111114) : const Color(0xFFF3F4F6),
               child: imageUrl != null && imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          _buildImagePlaceholder(isDark),
+                  ? Center(
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) =>
+                            _buildImagePlaceholder(isDark),
+                      ),
                     )
                   : _buildImagePlaceholder(isDark),
             ),
@@ -443,6 +443,7 @@ class RewardDetailsScreen extends ConsumerWidget {
               isDark ? const Color(0xFF1E1E1E) : Colors.white,
             ],
           ),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isDark ? _borderDark : Colors.grey.shade200,
             width: 1,
@@ -456,7 +457,7 @@ class RewardDetailsScreen extends ConsumerWidget {
           ],
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
               child: Column(
