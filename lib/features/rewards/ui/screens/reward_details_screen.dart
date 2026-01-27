@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'reward_request_screen.dart';
 
 const Color _primaryOrange = Color(0xFFF97316);
 const Color _darkBg = Color(0xFF0F0F14);
