@@ -2101,16 +2101,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
     return Column(
       children: [
-        // Header skeleton
+        const SizedBox(height: 48),
+        // Header skeleton without orange gradient
         Container(
-          padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [_primary.withOpacity(0.3), _primary.withOpacity(0.1)],
-            ),
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
