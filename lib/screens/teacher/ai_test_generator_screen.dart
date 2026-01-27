@@ -961,38 +961,178 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   }
 
   Widget _buildGeneratedQuestions() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Generated Questions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).textTheme.headlineLarge?.color,
+        // Modern test metadata header
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFF2A3B2E),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Test title with AI badge
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _testNameController.text.isNotEmpty
+                          ? _testNameController.text
+                          : 'Generated Test',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 12,
+                          color: Colors.white70,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'AI',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Metadata chips
+              Row(
+                children: [
+                  Text(
+                    '${generatedQuestions.length} questions',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.7),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    width: 3,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.4),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Text(
+                    'Total marks: ${_totalMarksController.text}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.7),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (selectedClass != null)
+                    _buildMetaChip(
+                      Icons.school_outlined,
+                      'Grade $selectedClass',
+                    ),
+                  if (selectedSection != null)
+                    _buildMetaChip(Icons.people_outline, selectedSection!),
+                  if (selectedSubject != null)
+                    _buildMetaChip(Icons.book_outlined, selectedSubject!),
+                  if (_calculatedDuration != null)
+                    _buildMetaChip(
+                      Icons.timer_outlined,
+                      '${_calculatedDuration!.inMinutes} mins',
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 16),
-        ...generatedQuestions.map(
-          (question) => Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: _buildQuestionCard(question),
+        const SizedBox(height: 24),
+        ...generatedQuestions.asMap().entries.map(
+          (entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: _buildQuestionCard(entry.value, entry.key + 1),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildQuestionCard(GeneratedQuestion question) {
+  Widget _buildMetaChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white70),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestionCard(GeneratedQuestion question, int questionNumber) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasOptions = question.options.isNotEmpty;
+
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
+        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.08)
+              : Colors.grey.withOpacity(0.2),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -1000,62 +1140,101 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  question.question,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).textTheme.titleLarge?.color,
+                // Question number indicator
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Suggested Answer: ${question.answer}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5B7C66).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Question $questionNumber',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF5B7C66),
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
+                // Question text
+                Text(
+                  question.question,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                    color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // MCQ Options or Answer display
+                if (hasOptions)
+                  ..._buildMCQOptions(question, isDark)
+                else
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF5B7C66).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF5B7C66).withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        _buildBadge(
-                          question.topic,
-                          const Color(0xFFDBEAFE),
-                          const Color(0xFF1E40AF),
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF5B7C66).withOpacity(0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.check,
+                            size: 14,
+                            color: Color(0xFF5B7C66),
+                          ),
                         ),
-                        const SizedBox(width: 8),
-                        _buildBadge(
-                          question.difficulty,
-                          question.difficulty == 'Easy'
-                              ? const Color(0xFFFEF3C7)
-                              : question.difficulty == 'Medium'
-                              ? const Color(0xFFD1FAE5)
-                              : const Color(0xFFFEE2E2),
-                          question.difficulty == 'Easy'
-                              ? const Color(0xFF92400E)
-                              : question.difficulty == 'Medium'
-                              ? const Color(0xFF065F46)
-                              : const Color(0xFF991B1B),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Answer: ${question.answer}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.85)
+                                  : const Color(0xFF374151),
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    Text(
-                      'Confidence: ${question.confidence}%',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Theme.of(context).textTheme.bodySmall?.color,
-                      ),
+                  ),
+                const SizedBox(height: 16),
+                // Metadata badges
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildInfoBadge(
+                      question.difficulty,
+                      _getDifficultyColor(question.difficulty),
+                      isDark,
+                    ),
+                    _buildInfoBadge(
+                      '${question.points} ${question.points == 1 ? "mark" : "marks"}',
+                      const Color(0xFF6B7280),
+                      isDark,
                     ),
                   ],
                 ),
@@ -1063,7 +1242,19 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
             ),
           ),
           Container(
-            color: Theme.of(context).scaffoldBackgroundColor,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF1C1C1E).withOpacity(0.95)
+                  : Colors.white.withOpacity(0.95),
+              border: Border(
+                top: BorderSide(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.08)
+                      : Colors.grey.withOpacity(0.15),
+                  width: 1,
+                ),
+              ),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1071,87 +1262,64 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                 // Regenerate button
                 OutlinedButton.icon(
                   onPressed: () {
-                    // TODO: Implement regenerate single question
+                    // Regenerate logic here
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('\ud83d\udd04 Regenerating question...'),
-                      ),
+                      const SnackBar(content: Text('Regenerating question...')),
                     );
                   },
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Regenerate'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF6366F1),
-                    side: const BorderSide(color: Color(0xFF6366F1)),
+                    foregroundColor: const Color(0xFF5B7C66),
+                    side: const BorderSide(
+                      color: Color(0xFF5B7C66),
+                      width: 1.2,
+                    ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
+                      horizontal: 14,
                       vertical: 8,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
+                  label: const Text(
+                    'Regenerate',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
                 ),
-                Row(
-                  children: [
-                    OutlinedButton(
-                      onPressed: () {
-                        setState(() {
-                          generatedQuestions.remove(question);
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Question rejected')),
-                        );
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Theme.of(
-                          context,
-                        ).textTheme.bodyLarge?.color,
-                        side: BorderSide(color: Theme.of(context).dividerColor),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'Reject',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                const SizedBox(width: 10),
+                // Save/Accept button
+                ElevatedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Question saved to test')),
+                    );
+                  },
+                  icon: const Icon(Icons.check, size: 16),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5B7C66),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Question accepted')),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Accept',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ],
+                    elevation: 0,
+                  ),
+                  label: const Text(
+                    'Save Test',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1161,19 +1329,127 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     );
   }
 
-  Widget _buildBadge(String text, Color bgColor, Color textColor) {
+  List<Widget> _buildMCQOptions(GeneratedQuestion question, bool isDark) {
+    final optionLabels = ['A', 'B', 'C', 'D'];
+    final widgets = <Widget>[];
+
+    for (int i = 0; i < question.options.length && i < 4; i++) {
+      final option = question.options[i];
+      final isCorrect = option.toLowerCase() == question.answer.toLowerCase();
+
+      widgets.add(
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isCorrect
+                ? const Color(0xFF5B7C66).withOpacity(0.08)
+                : isDark
+                ? Colors.white.withOpacity(0.03)
+                : Colors.grey.withOpacity(0.05),
+            border: Border.all(
+              color: isCorrect
+                  ? const Color(0xFF5B7C66).withOpacity(0.3)
+                  : isDark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.grey.withOpacity(0.2),
+              width: 1.2,
+            ),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isCorrect
+                      ? const Color(0xFF5B7C66)
+                      : isDark
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    optionLabels[i],
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isCorrect
+                          ? Colors.white
+                          : isDark
+                          ? Colors.white.withOpacity(0.6)
+                          : const Color(0xFF6B7280),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  option,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark
+                        ? Colors.white.withOpacity(0.85)
+                        : const Color(0xFF374151),
+                  ),
+                ),
+              ),
+              if (isCorrect)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF5B7C66),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return widgets;
+  }
+
+  Color _getDifficultyColor(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'easy':
+        return const Color(0xFF10B981);
+      case 'medium':
+        return const Color(0xFFF59E0B);
+      case 'hard':
+        return const Color(0xFFEF4444);
+      default:
+        return const Color(0xFF6B7280);
+    }
+  }
+
+  Widget _buildInfoBadge(String text, Color bgColor, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        color: bgColor.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: bgColor.withOpacity(0.3), width: 0.8),
       ),
       child: Text(
         text,
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
-          color: textColor,
+          color: bgColor,
         ),
       ),
     );

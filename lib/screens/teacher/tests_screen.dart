@@ -85,7 +85,6 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
   Widget _buildEmptyState() {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Center(
       child: Padding(
@@ -173,7 +172,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
     final filtered = _applyFilters(tests);
     final theme = Theme.of(context);
-    final bgColor = theme.scaffoldBackgroundColor;
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? Colors.black : Colors.white;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -236,21 +236,31 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildHeader() {
-    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
+      decoration: BoxDecoration(color: isDark ? Colors.black : Colors.white),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Text(
-            'Tests',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: theme.textTheme.bodyLarge?.color,
-              letterSpacing: -1,
-            ),
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Tests',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : Colors.black,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -260,58 +270,55 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   Widget _buildSearchBar() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    return Container(
-      color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-      child: TextField(
-        controller: _searchController,
-        style: TextStyle(color: theme.textTheme.bodyLarge?.color, fontSize: 15),
-        decoration: InputDecoration(
-          hintText: 'Search tests...',
-          hintStyle: TextStyle(
-            color: theme.textTheme.bodySmall?.color?.withOpacity(0.5),
-            fontSize: 15,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.grey.withOpacity(0.2),
+            width: 1,
           ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: theme.textTheme.bodySmall?.color?.withOpacity(0.4),
-            size: 22,
-          ),
-          filled: true,
-          fillColor: isDark ? const Color(0xFF1C1E22) : const Color(0xFFF5F5F7),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: (value) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Search tests...',
+            hintStyle: TextStyle(
               color: isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : Colors.black.withOpacity(0.08),
-              width: 1,
+                  ? Colors.white.withOpacity(0.4)
+                  : Colors.grey.withOpacity(0.6),
+              fontSize: 14,
             ),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(
+            prefixIcon: Icon(
+              Icons.search,
               color: isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : Colors.black.withOpacity(0.08),
-              width: 1,
+                  ? Colors.white.withOpacity(0.5)
+                  : Colors.grey.withOpacity(0.6),
+              size: 20,
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
             ),
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(
-              color: const Color(0xFF7A5CFF).withOpacity(0.6),
-              width: 2,
-            ),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
+          style: TextStyle(
+            color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+            fontSize: 14,
           ),
         ),
-        onChanged: (value) {
-          setState(() {});
-        },
       ),
     );
   }
@@ -321,7 +328,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
     final isDark = theme.brightness == Brightness.dark;
     final tabLabels = ['All Tests', 'Live', 'Scheduled', 'Completed'];
     return Container(
-      color: theme.scaffoldBackgroundColor,
+      color: isDark ? Colors.black : Colors.white,
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -348,32 +355,31 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                       },
                     );
                   },
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
+                    duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
-                    height: 38,
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      gradient: isSelected
-                          ? const LinearGradient(
-                              colors: [Color(0xFF7A5CFF), Color(0xFF9D7FFF)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            )
-                          : null,
                       color: isSelected
+                          ? const Color(0xFF7961FF)
+                          : Colors.transparent,
+                      border: isSelected
                           ? null
-                          : (isDark
-                                ? const Color(0xFF1C1E22)
-                                : const Color(0xFFF5F5F7)),
-                      borderRadius: BorderRadius.circular(20),
+                          : Border.all(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.2)
+                                  : Colors.grey.withOpacity(0.3),
+                              width: 1.5,
+                            ),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
                                 color: const Color(
-                                  0xFF7A5CFF,
-                                ).withOpacity(0.35),
+                                  0xFF7961FF,
+                                ).withOpacity(0.25),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -384,14 +390,14 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                       child: Text(
                         tabLabels[index],
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: isSelected
                               ? Colors.white
                               : theme.textTheme.bodySmall?.color?.withOpacity(
-                                  0.65,
+                                  0.7,
                                 ),
-                          letterSpacing: 0.2,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ),
@@ -621,32 +627,30 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
             },
           );
         },
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         child: Container(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1C1E22) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
+            color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isDark
-                  ? const Color(0xFF2A2D35).withOpacity(0.5)
-                  : const Color(0xFFE5E5E7),
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.grey.withOpacity(0.12),
               width: 1,
             ),
-            boxShadow: isDark
-                ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
+              // Header with status badge and icon
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -656,365 +660,432 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                            horizontal: 10,
+                            vertical: 5,
                           ),
                           decoration: BoxDecoration(
                             color: statusBgColor,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            status,
+                            status.toUpperCase(),
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.w700,
                               color: statusColor,
-                              letterSpacing: 0.5,
+                              letterSpacing: 0.6,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         Text(
                           title,
                           style: TextStyle(
-                            fontSize: 17,
+                            fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: theme.textTheme.bodyLarge?.color,
-                            letterSpacing: -0.4,
+                            letterSpacing: -0.3,
                             height: 1.3,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           subtitle,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             color: theme.textTheme.bodySmall?.color
                                 ?.withOpacity(0.6),
+                            fontWeight: FontWeight.w500,
                             height: 1.4,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Container(
-                    width: 46,
-                    height: 46,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          iconColor.withOpacity(0.15),
-                          iconColor.withOpacity(0.08),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
+                      color: iconColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Icon(subjectIcon, color: iconColor, size: 24),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
-              // Time/Date info - Fixed height container for consistent card sizes
-              SizedBox(
-                height: 60,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    if (isLive)
-                      FutureBuilder<List<int>>(
-                        future: Future.wait([
-                          _getCompletedCount(testId ?? ''),
-                          _getTotalStudentsInClass(
-                            className,
-                            section,
-                            schoolCode,
+              // Content based on test status
+              if (isLive)
+                FutureBuilder<List<int>>(
+                  future: Future.wait([
+                    _getCompletedCount(testId ?? ''),
+                    _getTotalStudentsInClass(className, section, schoolCode),
+                  ]),
+                  builder: (context, snapshot) {
+                    final completedCount = snapshot.data?[0] ?? 0;
+                    final totalCount = snapshot.data?[1] ?? 0;
+                    final progress = totalCount > 0
+                        ? completedCount / totalCount
+                        : 0.0;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Progress bar
+                        Container(
+                          width: double.infinity,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: theme.dividerColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(999),
                           ),
-                        ]),
-                        builder: (context, snapshot) {
-                          final completedCount = snapshot.data?[0] ?? 0;
-                          final totalCount = snapshot.data?[1] ?? 0;
-                          final progress = totalCount > 0
-                              ? completedCount / totalCount
-                              : 0.0;
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: theme.dividerColor.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: progress > 0
-                                    ? FractionallySizedBox(
-                                        alignment: Alignment.centerLeft,
-                                        widthFactor: progress,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            gradient: const LinearGradient(
-                                              colors: [
-                                                Color(0xFFFFA726),
-                                                Color(0xFFFFB74D),
-                                              ],
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '$completedCount / $totalCount students completed',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: theme.textTheme.bodySmall?.color
-                                      ?.withOpacity(0.55),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      )
-                    else if (isPast)
-                      FutureBuilder<List<int>>(
-                        future: Future.wait([
-                          _getCompletedCount(testId ?? ''),
-                          _getTotalStudentsInClass(
-                            className,
-                            section,
-                            schoolCode,
-                          ),
-                        ]),
-                        builder: (context, snapshot) {
-                          final completedCount = snapshot.data?[0] ?? 0;
-                          final totalCount = snapshot.data?[1] ?? 0;
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Completed: ${_formatDateTime(endDate)}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: theme.textTheme.bodySmall?.color
-                                      ?.withOpacity(0.6),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Container(
-                                width: double.infinity,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: theme.dividerColor.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: totalCount > 0 && completedCount > 0
-                                    ? FractionallySizedBox(
-                                        alignment: Alignment.centerLeft,
-                                        widthFactor:
-                                            completedCount / totalCount,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            gradient: const LinearGradient(
-                                              colors: [
-                                                Color(0xFF7A5CFF),
-                                                Color(0xFF9D7FFF),
-                                              ],
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '$completedCount / $totalCount students completed',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: theme.textTheme.bodySmall?.color
-                                      ?.withOpacity(0.55),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      )
-                    else
-                      Text(
-                        'Scheduled: ${_formatDateTime(startDate)}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(
-                            0.6,
-                          ),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Footer buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (isLive)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF7A5CFF).withOpacity(0.15),
-                            const Color(0xFF9D7FFF).withOpacity(0.1),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          StreamBuilder<DateTime>(
-                            stream: Stream<DateTime>.periodic(
-                              const Duration(seconds: 1),
-                              (_) => DateTime.now(),
-                            ),
-                            builder: (context, snapshot) {
-                              final now = snapshot.data ?? DateTime.now();
-                              final remaining = endDate.difference(now);
-                              final hh = remaining.inHours.toString().padLeft(
-                                2,
-                                '0',
-                              );
-                              final mm = (remaining.inMinutes % 60)
-                                  .toString()
-                                  .padLeft(2, '0');
-                              final ss = (remaining.inSeconds % 60)
-                                  .toString()
-                                  .padLeft(2, '0');
-
-                              return Row(
-                                children: [
-                                  Icon(
-                                    Icons.timer_outlined,
-                                    color: const Color(0xFF7A5CFF),
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '$hh:$mm:$ss',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF7A5CFF),
-                                      letterSpacing: 0.3,
+                          child: progress > 0
+                              ? FractionallySizedBox(
+                                  alignment: Alignment.centerLeft,
+                                  widthFactor: progress,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF97316),
+                                      borderRadius: BorderRadius.circular(999),
                                     ),
                                   ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (isPast)
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF7A5CFF), Color(0xFF9D7FFF)],
+                                )
+                              : null,
                         ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF7A5CFF).withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/test-result',
-                            arguments: {
-                              'testId': testId ?? '',
-                              'name': title,
-                              'class': subtitle,
-                              'status': status,
-                              'endTime': '',
-                            },
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          foregroundColor: Colors.white,
-                          shadowColor: Colors.transparent,
+                        const SizedBox(height: 10),
+                        // Completion stats
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '$completedCount / $totalCount responses',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: theme.textTheme.bodySmall?.color,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFF97316,
+                                ).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${(progress * 100).toStringAsFixed(0)}%',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFF97316),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Timer
+                        Container(
+                          width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 11,
+                            horizontal: 12,
+                            vertical: 10,
                           ),
-                          shape: RoundedRectangleBorder(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF97316).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFF97316).withOpacity(0.25),
+                              width: 1,
+                            ),
                           ),
-                          elevation: 0,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.timer_outlined,
+                                    color: Color(0xFFF97316),
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  StreamBuilder<DateTime>(
+                                    stream: Stream<DateTime>.periodic(
+                                      const Duration(seconds: 1),
+                                      (_) => DateTime.now(),
+                                    ),
+                                    builder: (context, snapshot) {
+                                      final now =
+                                          snapshot.data ?? DateTime.now();
+                                      final remaining = endDate.difference(now);
+                                      final hh = remaining.inHours
+                                          .toString()
+                                          .padLeft(2, '0');
+                                      final mm = (remaining.inMinutes % 60)
+                                          .toString()
+                                          .padLeft(2, '0');
+                                      final ss = (remaining.inSeconds % 60)
+                                          .toString()
+                                          .padLeft(2, '0');
+
+                                      return Text(
+                                        '$hh:$mm:$ss',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFFF97316),
+                                          letterSpacing: 0.3,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                'Live now',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(
+                                    0xFFF97316,
+                                  ).withOpacity(0.8),
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        child: const Text(
-                          'View Results',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.3,
+                      ],
+                    );
+                  },
+                )
+              else if (isPast)
+                FutureBuilder<List<int>>(
+                  future: Future.wait([
+                    _getCompletedCount(testId ?? ''),
+                    _getTotalStudentsInClass(className, section, schoolCode),
+                  ]),
+                  builder: (context, snapshot) {
+                    final completedCount = snapshot.data?[0] ?? 0;
+                    final totalCount = snapshot.data?[1] ?? 0;
+                    final percentage = totalCount > 0
+                        ? ((completedCount / totalCount) * 100)
+                        : 0.0;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Completion Rate',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: theme.textTheme.bodySmall?.color,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFF10B981,
+                                ).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${percentage.toStringAsFixed(0)}%',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: theme.dividerColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(999),
                           ),
+                          child: totalCount > 0 && completedCount > 0
+                              ? FractionallySizedBox(
+                                  alignment: Alignment.centerLeft,
+                                  widthFactor: completedCount / totalCount,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF10B981),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Completed: ${_formatDateTime(endDate)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.6),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$completedCount of $totalCount students',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
+                          color: const Color(0xFF3B82F6).withOpacity(0.7),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Starts: ${_formatDateTime(startDate)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: theme.textTheme.bodySmall?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3B82F6).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFF3B82F6).withOpacity(0.2),
+                          width: 1,
                         ),
                       ),
-                    )
-                  else
-                    const SizedBox(),
+                      child: Text(
+                        'Scheduled',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF3B82F6),
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
 
-                  // Delete button
-                  Material(
-                    color: Colors.transparent,
+              const SizedBox(height: 14),
+
+              // Action buttons
+              if (isPast)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7961FF),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF7961FF).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
                     child: InkWell(
                       onTap: () {
-                        if (onDelete != null) {
-                          _showDeleteDialogConfirm(title, onDelete);
-                        }
+                        Navigator.pushNamed(
+                          context,
+                          '/test-result',
+                          arguments: {
+                            'testId': testId ?? '',
+                            'name': title,
+                            'class': subtitle,
+                            'status': status,
+                            'endTime': '',
+                          },
+                        );
                       },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        child: Icon(
-                          Icons.delete_outline_rounded,
-                          size: 20,
-                          color: theme.colorScheme.error.withOpacity(0.7),
+                      child: const Text(
+                        'View Results',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          if (onDelete != null) {
+                            _showDeleteDialogConfirm(title, onDelete);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                            color: theme.colorScheme.error.withOpacity(0.6),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -1028,15 +1099,11 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
       right: 24,
       child: Container(
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF7A5CFF), Color(0xFF9D7FFF)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: const Color(0xFF7961FF),
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF7A5CFF).withOpacity(0.4),
+              color: const Color(0xFF7961FF).withOpacity(0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
