@@ -129,6 +129,9 @@ class _NavItem extends StatelessWidget {
                   color: isSelected ? Colors.white : inactive,
                   letterSpacing: 0.2,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.visible,
+                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -198,7 +201,7 @@ class _GlassyBottomBar extends StatelessWidget {
                       _NavItem(
                         icon: Icons.dashboard_outlined,
                         selectedIcon: Icons.dashboard,
-                        label: 'Dashboard',
+                        label: 'Home',
                         isSelected: currentIndex == 0,
                         onTap: () => onTap(0),
                       ),
@@ -212,7 +215,7 @@ class _GlassyBottomBar extends StatelessWidget {
                       _NavItem(
                         icon: Icons.message_outlined,
                         selectedIcon: Icons.message,
-                        label: 'Messages',
+                        label: 'Chats',
                         isSelected: currentIndex == 2,
                         onTap: () => onTap(2),
                       ),
@@ -226,7 +229,7 @@ class _GlassyBottomBar extends StatelessWidget {
                       _NavItem(
                         icon: Icons.leaderboard_outlined,
                         selectedIcon: Icons.leaderboard,
-                        label: 'Leaderboard',
+                        label: 'Ranks',
                         isSelected: currentIndex == 4,
                         onTap: () => onTap(4),
                       ),

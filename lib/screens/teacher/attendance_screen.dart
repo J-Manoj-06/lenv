@@ -102,7 +102,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return;
       }
 
-
       // Fetch students from 'students' collection
       final snapshot = await FirebaseFirestore.instance
           .collection('students')
@@ -112,8 +111,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           .get();
 
       if (snapshot.docs.isNotEmpty) {
-      } else {
-      }
+      } else {}
 
       final List<Map<String, dynamic>> students = [];
       for (final doc in snapshot.docs) {
@@ -236,8 +234,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           _isEditing = false;
         });
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> _saveAttendance() async {
@@ -755,7 +752,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).padding.bottom + 16,
+      ),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F5F8),
         border: Border(
@@ -974,7 +976,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               .trim();
       final studentEmail = (student['email'] ?? '').toString().trim();
 
-
       // Fetch parent for this student (with all available hints)
       final parentData = await messagingService.fetchParentForStudent(
         studentId,
@@ -1018,7 +1019,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
         return;
       }
-
 
       // Build required chat params
       final authProvider2 = Provider.of<AuthProvider>(context, listen: false);
