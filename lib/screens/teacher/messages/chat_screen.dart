@@ -156,13 +156,11 @@ class _ChatScreenState extends State<ChatScreen> {
       if (_isRecording) {
         try {
           await _recorder.stop();
-        } catch (e) {
-        }
+        } catch (e) {}
 
         try {
           _recordingTimer.cancel();
-        } catch (e) {
-        }
+        } catch (e) {}
       }
 
       // IMMEDIATELY update UI
@@ -179,8 +177,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (await file.exists()) {
           await file.delete();
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       if (mounted) {
         setState(() {
@@ -213,8 +210,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _recorder.stop();
       try {
         _recordingTimer.cancel();
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     // Delete the file
@@ -224,8 +220,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (await file.exists()) {
           await file.delete();
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     // Clear state
@@ -475,9 +470,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: isDark
-              ? const Color(0xFF130F23)
-              : const Color(0xFFF6F5F8),
+          backgroundColor: isDark ? Colors.black : const Color(0xFFF6F5F8),
           appBar: _buildAppBar(theme, isDark),
           body: Column(
             children: [
@@ -782,7 +775,9 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildComposer(ThemeData theme, bool isDark) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.black : theme.scaffoldBackgroundColor,
+      ),
       child: SafeArea(
         top: false,
         child: Column(

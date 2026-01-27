@@ -263,7 +263,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bgColor = theme.scaffoldBackgroundColor;
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -352,7 +353,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   Widget _buildHeader(BuildContext context, ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
+        color: theme.brightness == Brightness.dark
+            ? Colors.black
+            : theme.scaffoldBackgroundColor,
         border: Border(
           bottom: BorderSide(
             color: theme.dividerColor.withOpacity(0.1),

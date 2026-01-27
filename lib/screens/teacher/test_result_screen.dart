@@ -76,8 +76,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
           try {
             final result = TestResultModel.fromFirestore(doc);
             completed.add(result);
-          } catch (e) {
-          }
+          } catch (e) {}
         }
       }
 
@@ -95,8 +94,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
           _questions = List<Map<String, dynamic>>.from(
             testData['questions'].map((q) => Map<String, dynamic>.from(q)),
           );
-          for (var i = 0; i < _questions.length; i++) {
-          }
+          for (var i = 0; i < _questions.length; i++) {}
         }
       }
 
@@ -165,22 +163,25 @@ class _TestResultScreenState extends State<TestResultScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back_ios_new,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
+            color: theme.textTheme.bodyLarge?.color,
           ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Test Result',
           style: TextStyle(
-            color: Theme.of(context).textTheme.bodyLarge?.color,
+            color: theme.textTheme.bodyLarge?.color,
             fontWeight: FontWeight.bold,
           ),
         ),

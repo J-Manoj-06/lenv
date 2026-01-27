@@ -15,13 +15,9 @@ class MessagesScreen extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF130F23)
-          : const Color(0xFFF6F5F8),
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF6F5F8),
       appBar: AppBar(
-        backgroundColor: isDark
-            ? const Color(0xFF130F23)
-            : const Color(0xFFF6F5F8),
+        backgroundColor: isDark ? Colors.black : const Color(0xFFF6F5F8),
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),

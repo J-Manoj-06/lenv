@@ -565,9 +565,11 @@ class _TeacherCommunityChatScreenState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
     if (_teacherId == null || _teacherName == null) {
       return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: bgColor,
         body: Center(
           child: CircularProgressIndicator(color: theme.primaryColor),
         ),
@@ -575,7 +577,7 @@ class _TeacherCommunityChatScreenState
     }
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: bgColor,
       appBar: _buildAppBar(),
       body: Column(
         children: [
@@ -732,7 +734,9 @@ class _TeacherCommunityChatScreenState
     final theme = Theme.of(context);
 
     return AppBar(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: theme.brightness == Brightness.dark
+          ? Colors.black
+          : theme.scaffoldBackgroundColor,
       elevation: 0,
       leading: IconButton(
         icon: Icon(
@@ -2207,11 +2211,12 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: bgColor,
         elevation: 0,
         leading: IconButton(
           icon: Icon(

@@ -205,11 +205,16 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
+
     return Scaffold(
+      backgroundColor: bgColor,
       body: Column(
         children: [
           Container(
-            color: Theme.of(context).scaffoldBackgroundColor,
+            color: bgColor,
             child: SafeArea(
               bottom: false,
               child: Padding(

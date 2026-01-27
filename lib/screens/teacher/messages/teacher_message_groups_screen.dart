@@ -445,9 +445,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF130F23)
-          : const Color(0xFFF6F5F8),
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF6F5F8),
       body: Column(
         children: [
           _buildSearchBar(isDark),

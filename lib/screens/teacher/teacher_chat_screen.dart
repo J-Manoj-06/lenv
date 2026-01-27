@@ -131,7 +131,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   }
 
   Future<void> _ensureConversation() async {
-
     final id = await _chat.ensureConversation(
       schoolCode: widget.schoolCode,
       teacherId: widget.teacherId,
@@ -142,7 +141,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
       section: widget.section,
     );
 
-
     setState(() => _conversationId = id);
   }
 
@@ -151,11 +149,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF121212)
-          : const Color(0xFFF6F7F8),
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF6F7F8),
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+        backgroundColor: isDark ? Colors.black : Colors.white,
         elevation: 0.5,
         titleSpacing: 0,
         title: Row(

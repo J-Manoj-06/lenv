@@ -17,9 +17,10 @@ class CreateTestEntryScreen extends StatelessWidget {
         : (isDark
               ? Colors.white.withOpacity(0.05)
               : Colors.black.withOpacity(0.05));
+    final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: bgColor,
       body: SafeArea(
         child: Column(
           children: [

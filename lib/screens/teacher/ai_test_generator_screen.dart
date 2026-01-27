@@ -399,8 +399,10 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: isDark ? Colors.black : theme.scaffoldBackgroundColor,
       body: Column(
         children: [
           _buildHeader(),

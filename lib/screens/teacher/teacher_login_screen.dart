@@ -121,7 +121,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
               userRole: 'teacher',
               schoolId: user.instituteId,
             );
-            
+
             // Initialize unread count provider
             if (mounted) {
               final unreadProvider = Provider.of<UnreadCountProvider>(
@@ -130,7 +130,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
               );
               unreadProvider.initialize(user.uid);
             }
-            
+
             if (mounted) {
               Navigator.pushReplacementNamed(context, '/teacher-dashboard');
             }
@@ -163,9 +163,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   void _handleForgotPassword() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const ForgotPasswordScreen(
-          role: 'teacher',
-        ),
+        builder: (_) => const ForgotPasswordScreen(role: 'teacher'),
       ),
     );
   }
@@ -174,7 +172,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF1A1A1A) : brandOffWhite,
+      backgroundColor: isDark ? Colors.black : brandOffWhite,
       body: SafeArea(
         child: Form(
           key: _formKey,

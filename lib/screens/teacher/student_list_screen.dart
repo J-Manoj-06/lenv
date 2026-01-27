@@ -169,8 +169,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
           });
         }
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   List<Map<String, dynamic>> get _filteredStudents {
@@ -194,7 +193,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark ? _bgDark : theme.colorScheme.surface,
+      backgroundColor: isDark ? Colors.black : theme.colorScheme.surface,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

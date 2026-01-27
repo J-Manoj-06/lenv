@@ -115,15 +115,11 @@ class _TeacherSubjectMessagesScreenState
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF140F23)
-          : const Color(0xFFF3F4F6),
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF3F4F6),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
         child: AppBar(
-          backgroundColor: isDark
-              ? Colors.white.withOpacity(0.02)
-              : Colors.white,
+          backgroundColor: isDark ? Colors.black : Colors.white,
           elevation: 1,
           titleSpacing: 0,
           centerTitle: true,
@@ -277,13 +273,7 @@ class _TeacherSubjectMessagesScreenState
     String classesLabel;
     if (hasMultiple) {
       classesLabel =
-          'Classes ${classes
-              .map(
-                (c) =>
-                    (c['className'] as String) +
-                    (c['section'].toString().isNotEmpty ? c['section'] : ''),
-              )
-              .join(', ')}';
+          'Classes ${classes.map((c) => (c['className'] as String) + (c['section'].toString().isNotEmpty ? c['section'] : '')).join(', ')}';
     } else {
       final c = classes.first;
       final sec = (c['section'] as String).trim();

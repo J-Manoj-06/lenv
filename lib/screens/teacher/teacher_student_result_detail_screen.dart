@@ -65,8 +65,7 @@ class _TeacherStudentResultDetailScreenState
           _questions = List<Map<String, dynamic>>.from(
             testData['questions'].map((q) => Map<String, dynamic>.from(q)),
           );
-          if (_questions.isNotEmpty) {
-          }
+          if (_questions.isNotEmpty) {}
         }
       }
 
@@ -81,15 +80,17 @@ class _TeacherStudentResultDetailScreenState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: isDark ? Colors.black : theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back_ios_new,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
+            color: theme.textTheme.bodyLarge?.color,
           ),
           onPressed: () => Navigator.pop(context),
         ),
@@ -455,13 +456,11 @@ class _TeacherStudentResultDetailScreenState
         (answer['isCorrect'] ?? false) == true ||
         _inferCorrectness(userAnswer, correctAnswer);
 
-
     List<dynamic> rawOptions = questionData['options'] as List? ?? [];
     final questionType = (questionData['type'] ?? 'mcq')
         .toString()
         .toLowerCase();
-    if (rawOptions.isNotEmpty) {
-    }
+    if (rawOptions.isNotEmpty) {}
 
     // For True/False style questions, create synthetic options if none exist
     if ((questionType == 'tf' ||
@@ -551,8 +550,7 @@ class _TeacherStudentResultDetailScreenState
               optionIndex,
             );
 
-            if (questionNumber <= 3) {
-            }
+            if (questionNumber <= 3) {}
 
             Color? bgColor;
             Color? borderColor;

@@ -105,10 +105,13 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: bgColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -132,14 +135,14 @@ class _ClassesScreenState extends State<ClassesScreen> {
     ); // listen to auth changes
     if (!authProviderListen.isInitialized) {
       return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: bgColor,
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_teacherData == null) {
       return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: bgColor,
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -149,7 +152,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
     final sections = _teacherData?['sections'] ?? _teacherData?['section'];
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: bgColor,
       body: Column(
         children: [
           _buildHeader(),
@@ -219,13 +222,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
             .trim() ??
         '';
 
-
     for (var className in _classNames) {
       // Extract section from className (e.g., "5 - A" -> "A")
       final section = className.split(' - ').last.trim();
       // Extract grade from className (e.g., "7 - A" -> "7")
       final gradeNum = className.split(' - ').first.trim();
-
 
       // Filter students for THIS specific section
       final studentsInSection = allStudents.where((student) {
@@ -238,12 +239,10 @@ class _ClassesScreenState extends State<ClassesScreen> {
 
         final matches = studentGrade == gradeNum && studentSection == section;
 
-        if (matches) {
-        }
+        if (matches) {}
 
         return matches;
       }).toList();
-
 
       classes.add(
         ClassItem(
