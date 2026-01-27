@@ -88,8 +88,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 );
                 await r2Service.deleteFile(key: r2Key);
               }
-            } catch (e) {
-            }
+            } catch (e) {}
           }
 
           batch.delete(doc.reference);
@@ -133,8 +132,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 );
                 await r2Service.deleteFile(key: r2Key);
               }
-            } catch (e) {
-            }
+            } catch (e) {}
           }
 
           batch.delete(doc.reference);
@@ -1922,18 +1920,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           });
 
       // Debug log for visibility badge issues
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Delete an announcement (including image from Cloudflare R2)
   Future<void> _deleteAnnouncement(_AnnouncementItem item) async {
     try {
-
       // Check if user is the creator
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
-
 
       if (item.type == 'teacher') {
         final status = item.data as StatusModel;
@@ -1956,7 +1951,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           return;
         }
       }
-
 
       // Show confirmation dialog
       final confirmed = await showDialog<bool>(
@@ -1988,7 +1982,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         return;
       }
 
-
       try {
         String? imageUrl;
         String docId;
@@ -2001,7 +1994,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           imageUrl = status.imageUrl;
           role = 'teacher';
 
-
           // Delete from Firestore
           await FirebaseFirestore.instance
               .collection('class_highlights')
@@ -2012,7 +2004,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           docId = principal.id;
           imageUrl = principal.imageUrl;
           role = 'principal';
-
 
           // Delete from Firestore
           await FirebaseFirestore.instance
@@ -2025,12 +2016,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
         // Delete image from Cloudflare R2 if it exists
         if (imageUrl != null && imageUrl.isNotEmpty) {
-
           try {
             final r2Key = _extractR2KeyFromUrl(imageUrl);
 
             if (r2Key.isNotEmpty) {
-
               final r2Service = CloudflareR2Service(
                 accountId: CloudflareConfig.accountId,
                 bucketName: CloudflareConfig.bucketName,
@@ -2040,14 +2029,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               );
 
               await r2Service.deleteFile(key: r2Key);
-            } else {
-            }
+            } else {}
           } catch (r2Error) {
             // Continue anyway - metadata is already deleted
           }
-        } else {
-        }
-
+        } else {}
 
         if (mounted) {
           showSuccessSnackbar(
@@ -2062,7 +2048,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           }
         }
       } catch (e) {
-
         if (mounted) {
           showErrorSnackbar(
             context,
@@ -2071,8 +2056,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           );
         }
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Extract R2 key from public URL
@@ -2108,7 +2092,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             return path;
           }
         } catch (parseError) {
-
           // Fallback: extract using string split
           final parts = url.split('files.lenv1.tech/');
           if (parts.length > 1) {
@@ -2131,8 +2114,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           if (path.isNotEmpty) {
             return path;
           }
-        } catch (parseError) {
-        }
+        } catch (parseError) {}
       }
 
       return '';
@@ -3670,19 +3652,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
     return Column(
       children: [
-        // Header skeleton
+        const SizedBox(height: 48),
+        // Header skeleton without orange gradient
         Container(
-          padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Theme.of(context).primaryColor.withOpacity(0.3),
-                Theme.of(context).primaryColor.withOpacity(0.1),
-              ],
-            ),
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
