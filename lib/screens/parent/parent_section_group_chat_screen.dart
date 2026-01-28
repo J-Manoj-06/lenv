@@ -59,10 +59,20 @@ class ParentSectionGroupChatScreen extends StatefulWidget {
 class _ParentSectionGroupChatScreenState
     extends State<ParentSectionGroupChatScreen>
     with AutomaticKeepAliveClientMixin {
+  // ✅ NEW THEME COLORS - Modern dark design
+  static const Color primaryBackground = Color(0xFF0F1113);
+  static const Color secondaryBackground = Color(0xFF16181A);
+  static const Color userMessageBubble = Color(0xFF6C5CE7);
+  static const Color otherMessageBubble = Color(0xFF2B2F31);
+  static const Color primaryText = Color(0xFFFFFFFF);
+  static const Color mutedText = Color(0xFF9AA0A6);
+  static const Color dividerColor = Color(0xFF1E2123);
   static const Color parentGreen = Color(0xFF14A670);
   static const Color teacherViolet = Color(0xFF6366F1);
-  static const Color backgroundDark = Color(0xFF101214);
-  static const Color bubbleDark = Color(0xFF1A1C20);
+
+  // Legacy color constants for compatibility
+  static const Color backgroundDark = primaryBackground;
+  static const Color bubbleDark = secondaryBackground;
 
   // ✅ OPTIMIZATION: Pagination state
   static const int _messagesPerPage = 50;
@@ -477,15 +487,16 @@ class _ParentSectionGroupChatScreenState
         : parentGreen;
 
     return Scaffold(
-      backgroundColor: isDark ? backgroundDark : const Color(0xFFF6F7F8),
+      backgroundColor: primaryBackground,
       appBar: AppBar(
-        backgroundColor: isDark ? bubbleDark : Colors.white,
-        elevation: 0.5,
+        backgroundColor: secondaryBackground,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: Icon(
             _selectionMode ? Icons.close : Icons.arrow_back_ios_new_rounded,
           ),
-          color: isDark ? Colors.white : Colors.black,
+          color: primaryText,
           onPressed: () {
             if (_selectionMode) {
               setState(() => _selectionMode = false);
@@ -503,9 +514,10 @@ class _ParentSectionGroupChatScreenState
                 builder: (context, selectedSet, _) {
                   return Text(
                     '${selectedSet.length} selected',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black,
+                    style: const TextStyle(
+                      color: primaryText,
                       fontWeight: FontWeight.w600,
+                      fontSize: 16,
                     ),
                   );
                 },
@@ -515,19 +527,21 @@ class _ParentSectionGroupChatScreenState
                 children: [
                   Text(
                     widget.groupName,
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black,
-                      fontWeight: FontWeight.w700,
+                    style: const TextStyle(
+                      color: primaryText,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
-                    '${widget.className ?? ''}${widget.section != null ? ' - ${widget.section}' : ''} · ${widget.childName}',
-                    style: TextStyle(
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
-                      fontSize: 12,
+                    '${widget.className ?? ''}${widget.section != null ? ' - ${widget.section}' : ''}',
+                    style: const TextStyle(
+                      color: mutedText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.normal,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1168,54 +1182,73 @@ class _ParentSectionGroupChatScreenState
             ),
           ),
           _buildMessageInput(isDark),
+          // ✅ EMOJI PANEL - WhatsApp-style design with exact behavior
           if (_showEmojiPicker)
-            Padding(
-              padding: EdgeInsets.zero,
+            Container(
+              color: primaryBackground,
               child: EmojiPicker(
                 onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
                 onBackspacePressed: _onBackspacePressed,
                 config: Config(
-                  height: 280,
-                  checkPlatformCompatibility: false,
-                  viewOrderConfig: const ViewOrderConfig(
-                    top: EmojiPickerItem.categoryBar,
-                    middle: EmojiPickerItem.emojiView,
-                    bottom: EmojiPickerItem.searchBar,
-                  ),
+                  checkPlatformCompatibility: true,
                   emojiViewConfig: EmojiViewConfig(
-                    backgroundColor: isDark
-                        ? const Color(0xFF0B141A)
-                        : Colors.white,
-                    columns: 7,
-                    emojiSizeMax: 28,
-                    gridPadding: const EdgeInsets.symmetric(vertical: 8),
-                    verticalSpacing: 2,
-                    horizontalSpacing: 2,
+                    backgroundColor: primaryBackground,
+                    columns: 9,
+                    emojiSizeMax: 32,
+                    verticalSpacing: 0,
+                    horizontalSpacing: 0,
+                    gridPadding: EdgeInsets.zero,
+                    recentsLimit: 28,
+                    noRecents: Text(
+                      'No recently used emoji',
+                      style: TextStyle(color: mutedText, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    loadingIndicator: Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                      ),
+                    ),
+                    buttonMode: ButtonMode.MATERIAL,
+                  ),
+                  skinToneConfig: SkinToneConfig(
+                    enabled: true,
+                    dialogBackgroundColor: secondaryBackground,
+                    indicatorColor: primaryColor,
                   ),
                   categoryViewConfig: CategoryViewConfig(
-                    backgroundColor: isDark
-                        ? const Color(0xFF0B141A)
-                        : Colors.white,
+                    backgroundColor: primaryBackground,
                     iconColorSelected: primaryColor,
+                    iconColor: mutedText,
                     indicatorColor: primaryColor,
-                    recentTabBehavior: RecentTabBehavior.NONE,
-                    tabBarHeight: 50,
-                    initCategory: Category.SMILEYS,
+                    backspaceColor: mutedText,
+                    categoryIcons: const CategoryIcons(
+                      recentIcon: Icons.access_time,
+                      smileyIcon: Icons.emoji_emotions_outlined,
+                      animalIcon: Icons.pets_outlined,
+                      foodIcon: Icons.restaurant_outlined,
+                      activityIcon: Icons.sports_soccer_outlined,
+                      travelIcon: Icons.flight_outlined,
+                      objectIcon: Icons.lightbulb_outline,
+                      symbolIcon: Icons.tag_outlined,
+                      flagIcon: Icons.flag_outlined,
+                    ),
+                    recentTabBehavior: RecentTabBehavior.POPULAR,
+                    tabBarHeight: 46,
+                    tabIndicatorAnimDuration: const Duration(milliseconds: 300),
                   ),
                   bottomActionBarConfig: BottomActionBarConfig(
-                    backgroundColor: isDark
-                        ? const Color(0xFF0B141A)
-                        : Colors.white,
-                    buttonIconColor: primaryColor,
+                    enabled: true,
+                    backgroundColor: primaryBackground,
+                    buttonIconColor: mutedText,
                     showBackspaceButton: true,
                     showSearchViewButton: true,
                   ),
                   searchViewConfig: SearchViewConfig(
-                    backgroundColor: isDark
-                        ? const Color(0xFF0B141A)
-                        : Colors.white,
-                    buttonIconColor: primaryColor,
-                    hintText: 'Search emoji...',
+                    backgroundColor: primaryBackground,
+                    buttonIconColor: mutedText,
+                    hintText: 'Search emoji',
+                    inputTextStyle: TextStyle(color: primaryText, fontSize: 16),
                   ),
                 ),
               ),
@@ -1230,164 +1263,108 @@ class _ParentSectionGroupChatScreenState
         ? teacherViolet
         : parentGreen;
 
-    // Premium dark theme palette - integrated with chat screen
-    final backgroundColor = isDark
-        ? const Color(0xFF0D0E10) // Near-black, blends with chat
-        : const Color(0xFFF5F5F5);
-    final inputFieldColor = isDark
-        ? const Color(0xFF1E2024) // Slightly lighter for depth
-        : Colors.white;
-    final textColor = isDark
-        ? const Color(0xFFE8E8E8) // Bright, readable
-        : const Color(0xFF000000);
-    final hintColor = isDark
-        ? const Color(0xFF6B6B6B) // Subdued gray
-        : const Color(0xFF999999);
-    final iconColor = widget.senderRole == 'teacher'
-        ? teacherViolet
-        : parentGreen;
-    final iconColorDisplay = isDark ? iconColor.withOpacity(0.8) : iconColor;
-    final iconDisabledColor = isDark
-        ? const Color(0xFF3A3A3C)
-        : const Color(0xFFBBBBBB);
-
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          border: isDark
-              ? Border(
-                  top: BorderSide(
-                    color: Colors.white.withOpacity(0.05),
-                    width: 0.5,
-                  ),
-                )
-              : null,
-        ),
+        color: primaryBackground,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Input container - pill-shaped with subtle depth
+            // ✅ MAIN INPUT CONTAINER - Rounded 28px pill shape
             Expanded(
               child: Container(
-                constraints: const BoxConstraints(minHeight: 44),
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                height: 56,
                 decoration: BoxDecoration(
-                  color: inputFieldColor,
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: isDark
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                  color: secondaryBackground,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: dividerColor, width: 1),
                 ),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Emoji toggle - inside input, left side
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: GestureDetector(
-                        onTap: () {
-                          if (_showEmojiPicker) {
-                            // Hide emoji picker and show keyboard
-                            setState(() {
-                              _showEmojiPicker = false;
-                            });
-                            _focusNode.requestFocus();
-                          } else {
-                            // Hide keyboard and show emoji picker
-                            _focusNode.unfocus();
-                            FocusScope.of(context).unfocus();
-                            Future.delayed(
-                              const Duration(milliseconds: 100),
-                              () {
-                                if (mounted) {
-                                  setState(() {
-                                    _showEmojiPicker = true;
-                                  });
-                                }
-                              },
-                            );
-                          }
-                        },
-                        child: Icon(
-                          _showEmojiPicker
-                              ? Icons.keyboard_outlined
-                              : Icons.emoji_emotions_outlined,
-                          color: iconColorDisplay,
-                          size: 23,
+                    // ✅ EMOJI TOGGLE - Inside input, left side
+                    SizedBox(
+                      width: 44,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            if (_showEmojiPicker) {
+                              setState(() => _showEmojiPicker = false);
+                              _focusNode.requestFocus();
+                            } else {
+                              _focusNode.unfocus();
+                              FocusScope.of(context).unfocus();
+                              Future.delayed(
+                                const Duration(milliseconds: 100),
+                                () {
+                                  if (mounted) {
+                                    setState(() => _showEmojiPicker = true);
+                                  }
+                                },
+                              );
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(22),
+                          child: Icon(
+                            _showEmojiPicker
+                                ? Icons.keyboard_outlined
+                                : Icons.emoji_emotions_outlined,
+                            color: primaryColor,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    // Text input - primary focus
+                    // ✅ TEXT INPUT - Expandable
                     Expanded(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        switchInCurve: Curves.easeOut,
-                        switchOutCurve: Curves.easeIn,
-                        child: _isRecording
-                            ? _buildRecordingBar(isDark, primaryColor)
-                            : TextField(
-                                key: const ValueKey('input'),
-                                controller: _controller,
-                                minLines: 1,
-                                maxLines: 4,
-                                cursorColor: primaryColor,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 15,
-                                  height: 1.4,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: 'Message',
-                                  hintStyle: TextStyle(
-                                    color: hintColor,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  disabledBorder: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                ),
-                                keyboardType: TextInputType.multiline,
-                                textCapitalization:
-                                    TextCapitalization.sentences,
-                                readOnly: _isRecording,
-                              ),
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        minLines: 1,
+                        maxLines: 3,
+                        cursorColor: primaryColor,
+                        style: const TextStyle(
+                          color: primaryText,
+                          fontSize: 15,
+                          height: 1.4,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Message',
+                          hintStyle: const TextStyle(
+                            color: mutedText,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 4,
+                          ),
+                        ),
+                        keyboardType: TextInputType.multiline,
+                        textCapitalization: TextCapitalization.sentences,
+                        readOnly: _isRecording,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    // Attachment - inside input, right side (between input and mic)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: _isUploading ? null : _showAttachmentSheet,
-                        child: Icon(
-                          Icons.attach_file_rounded,
-                          color: _isUploading
-                              ? iconDisabledColor
-                              : iconColorDisplay,
-                          size: 23,
+                    // ✅ ATTACH ICON - Inside input, RIGHT side (before mic)
+                    SizedBox(
+                      width: 44,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _isUploading ? null : _showAttachmentSheet,
+                          borderRadius: BorderRadius.circular(22),
+                          child: Icon(
+                            Icons.attach_file_rounded,
+                            color: _isUploading ? mutedText : primaryColor,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ),
@@ -1396,7 +1373,7 @@ class _ParentSectionGroupChatScreenState
               ),
             ),
             const SizedBox(width: 8),
-            // Mic/Send button - balanced size, outside input
+            // ✅ MIC/SEND BUTTON - Circular 48px right side
             ValueListenableBuilder<bool>(
               valueListenable: _hasText,
               builder: (context, hasText, _) {
@@ -1405,37 +1382,38 @@ class _ParentSectionGroupChatScreenState
                       ? _stopAndSendRecording
                       : (hasText ? _sendMessage : _startRecording),
                   child: Container(
-                    width: 44,
-                    height: 44,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
-                      color: _isRecording
-                          ? primaryColor
-                          : (hasText
-                                ? primaryColor
-                                : primaryColor.withOpacity(0.85)),
+                      color: primaryColor,
                       shape: BoxShape.circle,
-                      boxShadow: isDark
-                          ? [
-                              BoxShadow(
-                                color: primaryColor.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ]
-                          : [
-                              BoxShadow(
-                                color: primaryColor.withOpacity(0.25),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryColor.withOpacity(0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    child: Icon(
-                      _isRecording
-                          ? Icons.send_rounded
-                          : (hasText ? Icons.send_rounded : Icons.mic),
-                      color: Colors.white,
-                      size: 20,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _isRecording
+                            ? _stopAndSendRecording
+                            : (hasText ? _sendMessage : _startRecording),
+                        borderRadius: BorderRadius.circular(24),
+                        child: Center(
+                          child: Icon(
+                            _isRecording
+                                ? Icons.send_rounded
+                                : (hasText
+                                      ? Icons.send_rounded
+                                      : Icons.mic_rounded),
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 );
