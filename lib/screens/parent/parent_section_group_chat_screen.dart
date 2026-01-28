@@ -100,6 +100,10 @@ class _ParentSectionGroupChatScreenState
       ValueNotifier<Set<String>>({});
   final ValueNotifier<bool> _hasText = ValueNotifier<bool>(false);
 
+  // ✅ NEW: Use ValueNotifier for loading state to avoid full rebuilds
+  final ValueNotifier<bool> _isLoadingMoreNotifier = ValueNotifier<bool>(false);
+  int _messageLoadCount = 0; // Debug counter
+
   @override
   bool get wantKeepAlive => true; // ✅ Prevent rebuild when switching tabs
 
@@ -110,6 +114,7 @@ class _ParentSectionGroupChatScreenState
     }
     _selectedMessages.dispose();
     _hasText.dispose();
+    _isLoadingMoreNotifier.dispose();
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -259,20 +264,35 @@ class _ParentSectionGroupChatScreenState
     // Higher threshold prevents premature loading when just scrolling up a bit
     final scrollPosition = _scrollController.position;
     if (scrollPosition.pixels >= scrollPosition.maxScrollExtent * 0.95) {
+      print(
+        '[CHAT_DEBUG] Scroll threshold reached - loading more messages. Current: ${scrollPosition.pixels}, Max: ${scrollPosition.maxScrollExtent}',
+      );
       _loadMoreMessages();
     }
   }
 
-  /// ✅ OPTIMIZATION: Load older messages with pagination
+  /// ✅ OPTIMIZATION: Load older messages with pagination - NO STATE CHANGES
   Future<void> _loadMoreMessages() async {
-    if (_isLoadingMore || !_hasMoreMessages) return;
+    if (_isLoadingMore || !_hasMoreMessages) {
+      print(
+        '[CHAT_DEBUG] Load skipped - isLoadingMore: $_isLoadingMore, hasMoreMessages: $_hasMoreMessages',
+      );
+      return;
+    }
 
     _isLoadingMore = true;
+    _isLoadingMoreNotifier.value = true;
+    print(
+      '[CHAT_DEBUG] [LOAD #${++_messageLoadCount}] Starting message load. Current older messages: ${_olderMessages.length}',
+    );
 
     // Save current scroll position before loading
     final savedPosition = _scrollController.hasClients
         ? _scrollController.position.pixels
         : 0.0;
+    print(
+      '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Saved scroll position: $savedPosition',
+    );
 
     try {
       final newMessages = await _service.getMessagesPaginated(
@@ -281,33 +301,110 @@ class _ParentSectionGroupChatScreenState
         startAfter: _lastDocument,
       );
 
+      print(
+        '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Fetched ${newMessages.length} messages from Firestore',
+      );
+
       if (newMessages.length < _messagesPerPage) {
         _hasMoreMessages = false;
+        print(
+          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] No more messages - reached end',
+        );
       }
 
       if (newMessages.isNotEmpty && mounted) {
+        // Disable scroll listener before adding messages
+        _isRestoringScroll = true;
+
+        // ✅ KEY FIX: Add messages directly WITHOUT calling setState
+        // This prevents triggering the StreamBuilder rebuild
         _olderMessages.addAll(newMessages);
         _lastDocument = newMessages.last.documentSnapshot;
 
-        // Single setState after all data is ready
-        setState(() {});
+        print(
+          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Added messages to _olderMessages. Total older messages now: ${_olderMessages.length}',
+        );
 
-        // Restore scroll position after rebuild, prevent scroll listener from interfering
-        _isRestoringScroll = true;
+        // ✅ KEY FIX: Update loading notifier AFTER messages are added
+        // This updates only the loading indicator, not the entire list
+        _isLoadingMoreNotifier.value = false;
+        print(
+          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Loading indicator updated to false',
+        );
+
+        // Restore scroll position after the next frame
+        print(
+          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Scheduling scroll restoration via addPostFrameCallback',
+        );
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients && savedPosition > 0) {
-            _scrollController.jumpTo(savedPosition);
-          }
-          // Re-enable scroll listener after a short delay
-          Future.delayed(const Duration(milliseconds: 150), () {
+          if (!mounted) {
+            print(
+              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Widget not mounted, skipping scroll restoration',
+            );
             _isRestoringScroll = false;
-          });
+            return;
+          }
+
+          if (!_scrollController.hasClients) {
+            print(
+              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] ScrollController has no clients',
+            );
+            _isRestoringScroll = false;
+            return;
+          }
+
+          try {
+            print(
+              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Restoring scroll to position: $savedPosition',
+            );
+            _scrollController.jumpTo(savedPosition);
+            print(
+              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Scroll restoration completed',
+            );
+          } catch (e) {
+            print(
+              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Scroll restoration failed: $e',
+            );
+            // If position is out of bounds, jump to safe position
+            try {
+              final safePosition =
+                  _scrollController.position.maxScrollExtent * 0.5;
+              print(
+                '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Attempting safe scroll to: $safePosition',
+              );
+              _scrollController.jumpTo(safePosition);
+            } catch (_) {
+              print(
+                '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Safe scroll also failed',
+              );
+            }
+          }
+
+          // Re-enable scroll listener after restoration is complete
+          if (mounted) {
+            Future.delayed(const Duration(milliseconds: 50), () {
+              if (mounted) {
+                _isRestoringScroll = false;
+                print(
+                  '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Scroll listener re-enabled',
+                );
+              }
+            });
+          }
         });
       } else {
         _hasMoreMessages = false;
+        print(
+          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] No new messages or widget not mounted',
+        );
+        _isLoadingMoreNotifier.value = false;
       }
+    } catch (e) {
+      print('[CHAT_DEBUG] [LOAD #$_messageLoadCount] ERROR: $e');
+      _isLoadingMoreNotifier.value = false;
     } finally {
       _isLoadingMore = false;
+      print('[CHAT_DEBUG] [LOAD #$_messageLoadCount] Load operation completed');
     }
   }
 
@@ -514,271 +611,320 @@ class _ParentSectionGroupChatScreenState
                   );
                 }
 
-                return ListView.builder(
-                  key: const PageStorageKey('parent_group_chat_list'),
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: allMessages.length,
-                  itemBuilder: (context, index) {
-                    final msg = allMessages[index];
-                    final isCurrentUser = msg.senderId == currentUserId;
+                return Stack(
+                  children: [
+                    // Main message list
+                    ListView.builder(
+                      key: const PageStorageKey('parent_group_chat_list'),
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: allMessages.length,
+                      itemBuilder: (context, index) {
+                        final msg = allMessages[index];
+                        final isCurrentUser = msg.senderId == currentUserId;
 
-                    // Day separator logic
-                    final isOldest = index == allMessages.length - 1;
-                    final currentDate = msg.createdAt;
-                    final nextDate = isOldest
-                        ? null
-                        : allMessages[index + 1].createdAt;
-                    final showDayDivider =
-                        isOldest ||
-                        _formatDayLabel(currentDate) !=
-                            _formatDayLabel(nextDate!);
+                        // Day separator logic
+                        final isOldest = index == allMessages.length - 1;
+                        final currentDate = msg.createdAt;
+                        final nextDate = isOldest
+                            ? null
+                            : allMessages[index + 1].createdAt;
+                        final showDayDivider =
+                            isOldest ||
+                            _formatDayLabel(currentDate) !=
+                                _formatDayLabel(nextDate!);
 
-                    final hasMedia = msg.mediaMetadata != null;
-                    final bubbleColor = hasMedia
-                        ? Colors.transparent
-                        : (isCurrentUser
-                              ? primaryColor
-                              : (isDark ? bubbleDark : Colors.grey[200]));
-                    final textColor = isCurrentUser
-                        ? Colors.white
-                        : (isDark ? Colors.white : Colors.black87);
-                    final isPending = msg.messageId.startsWith('pending:');
-                    final progressNotifier = isPending
-                        ? _pendingUploadNotifiers[msg.messageId]
-                        : null;
-                    final localPath =
-                        _localSenderMediaPaths[msg.messageId] ??
-                        (msg.mediaMetadata != null
-                            ? _localSenderMediaPaths[msg.mediaMetadata!.r2Key]
-                            : null);
+                        final hasMedia = msg.mediaMetadata != null;
+                        final bubbleColor = hasMedia
+                            ? Colors.transparent
+                            : (isCurrentUser
+                                  ? primaryColor
+                                  : (isDark ? bubbleDark : Colors.grey[200]));
+                        final textColor = isCurrentUser
+                            ? Colors.white
+                            : (isDark ? Colors.white : Colors.black87);
+                        final isPending = msg.messageId.startsWith('pending:');
+                        final progressNotifier = isPending
+                            ? _pendingUploadNotifiers[msg.messageId]
+                            : null;
+                        final localPath =
+                            _localSenderMediaPaths[msg.messageId] ??
+                            (msg.mediaMetadata != null
+                                ? _localSenderMediaPaths[msg
+                                      .mediaMetadata!
+                                      .r2Key]
+                                : null);
 
-                    if (msg.type == 'announcement') {
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (showDayDivider) _buildDayDivider(currentDate),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Center(
-                              child: InkWell(
-                                onTap: () {
-                                  final role = (msg.senderRole).toLowerCase();
-                                  final postedByLabel =
-                                      'Posted by ${msg.senderRole}';
-                                  openAnnouncementView(
-                                    context,
-                                    role: role,
-                                    title: msg.content.isNotEmpty
-                                        ? msg.content
-                                        : 'Announcement',
-                                    subtitle: '',
-                                    postedByLabel: postedByLabel,
-                                    avatarUrl: null,
-                                    postedAt: msg.createdAt,
-                                    expiresAt: msg.createdAt.add(
-                                      const Duration(hours: 24),
+                        if (msg.type == 'announcement') {
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (showDayDivider) _buildDayDivider(currentDate),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Center(
+                                  child: InkWell(
+                                    onTap: () {
+                                      final role = (msg.senderRole)
+                                          .toLowerCase();
+                                      final postedByLabel =
+                                          'Posted by ${msg.senderRole}';
+                                      openAnnouncementView(
+                                        context,
+                                        role: role,
+                                        title: msg.content.isNotEmpty
+                                            ? msg.content
+                                            : 'Announcement',
+                                        subtitle: '',
+                                        postedByLabel: postedByLabel,
+                                        avatarUrl: null,
+                                        postedAt: msg.createdAt,
+                                        expiresAt: msg.createdAt.add(
+                                          const Duration(hours: 24),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      msg.content,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? Colors.white70
+                                            : Colors.black54,
+                                        fontSize: 12,
+                                      ),
                                     ),
-                                  );
-                                },
-                                child: Text(
-                                  msg.content,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: isDark
-                                        ? Colors.white70
-                                        : Colors.black54,
-                                    fontSize: 12,
                                   ),
                                 ),
                               ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }
+                            ],
+                          );
+                        }
 
-                    // Skip deleted messages
-                    if (msg.isDeleted) {
-                      return const SizedBox.shrink();
-                    }
+                        // Skip deleted messages
+                        if (msg.isDeleted) {
+                          return const SizedBox.shrink();
+                        }
 
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (showDayDivider) _buildDayDivider(currentDate),
-                        ValueListenableBuilder<Set<String>>(
-                          valueListenable: _selectedMessages,
-                          builder: (context, selectedSet, _) {
-                            final isSelected = selectedSet.contains(
-                              msg.messageId,
-                            );
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (showDayDivider) _buildDayDivider(currentDate),
+                            ValueListenableBuilder<Set<String>>(
+                              valueListenable: _selectedMessages,
+                              builder: (context, selectedSet, _) {
+                                final isSelected = selectedSet.contains(
+                                  msg.messageId,
+                                );
 
-                            return Padding(
-                              key: ValueKey(msg.messageId),
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                mainAxisAlignment: isCurrentUser
-                                    ? MainAxisAlignment.end
-                                    : MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Flexible(
-                                    child: GestureDetector(
-                                      onLongPress: () {
-                                        if (!_selectionMode &&
-                                            !isPending &&
-                                            isCurrentUser) {
-                                          // Batch state updates to prevent flickering
-                                          _selectionMode = true;
-                                          setState(() {
-                                            _selectedMessages.value = {
-                                              msg.messageId,
-                                            };
-                                          });
-                                        }
-                                      },
-                                      onTap: _selectionMode && isCurrentUser
-                                          ? () {
-                                              if (!isPending) {
-                                                final selectedSet =
-                                                    _selectedMessages.value;
-                                                if (isSelected) {
-                                                  if (selectedSet.length > 1) {
-                                                    final updated = {
-                                                      ...selectedSet,
-                                                    };
-                                                    updated.remove(
-                                                      msg.messageId,
-                                                    );
-                                                    _selectedMessages.value =
-                                                        updated;
-                                                  } else {
-                                                    // Deselecting the last message exits selection mode
-                                                    setState(() {
-                                                      _selectionMode = false;
-                                                      _selectedMessages.value =
-                                                          {};
-                                                    });
-                                                  }
-                                                } else {
-                                                  _selectedMessages.value = {
-                                                    ...selectedSet,
-                                                    msg.messageId,
-                                                  };
-                                                }
-                                              }
+                                return Padding(
+                                  key: ValueKey(msg.messageId),
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    mainAxisAlignment: isCurrentUser
+                                        ? MainAxisAlignment.end
+                                        : MainAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Flexible(
+                                        child: GestureDetector(
+                                          onLongPress: () {
+                                            if (!_selectionMode &&
+                                                !isPending &&
+                                                isCurrentUser) {
+                                              // Batch state updates to prevent flickering
+                                              _selectionMode = true;
+                                              setState(() {
+                                                _selectedMessages.value = {
+                                                  msg.messageId,
+                                                };
+                                              });
                                             }
-                                          : null,
-                                      child: Column(
-                                        crossAxisAlignment: isCurrentUser
-                                            ? CrossAxisAlignment.end
-                                            : CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          // Show sender name outside the bubble
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              left: 12,
-                                              right: 12,
-                                              bottom: 4,
-                                            ),
-                                            child: Text(
-                                              isCurrentUser
-                                                  ? 'You'
-                                                  : msg.senderName,
-                                              style: TextStyle(
-                                                color: isDark
-                                                    ? Colors.grey[400]
-                                                    : Colors.grey[700],
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ),
-                                          ConstrainedBox(
-                                            constraints: BoxConstraints(
-                                              maxWidth:
-                                                  MediaQuery.of(
-                                                    context,
-                                                  ).size.width *
-                                                  0.7,
-                                            ),
-                                            child: DecoratedBox(
-                                              decoration: BoxDecoration(
-                                                color: isSelected
-                                                    ? primaryColor.withOpacity(
-                                                        0.2,
-                                                      )
-                                                    : bubbleColor,
-                                                border: hasMedia
-                                                    ? Border.all(
-                                                        color: isSelected
-                                                            ? primaryColor
-                                                                  .withOpacity(
-                                                                    0.8,
-                                                                  )
-                                                            : primaryColor,
-                                                        width: isSelected
-                                                            ? 2.5
-                                                            : 1.5,
-                                                      )
-                                                    : (isSelected
-                                                          ? Border.all(
-                                                              color:
-                                                                  primaryColor,
-                                                              width: 2.5,
-                                                            )
-                                                          : null),
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                      12,
-                                                    ).copyWith(
-                                                      bottomRight: isCurrentUser
-                                                          ? const Radius.circular(
-                                                              4,
-                                                            )
-                                                          : null,
-                                                      bottomLeft: !isCurrentUser
-                                                          ? const Radius.circular(
-                                                              4,
-                                                            )
-                                                          : null,
-                                                    ),
-                                              ),
-                                              child: Padding(
-                                                padding: EdgeInsets.symmetric(
-                                                  horizontal: hasMedia ? 4 : 12,
-                                                  vertical: hasMedia ? 4 : 8,
+                                          },
+                                          onTap: _selectionMode && isCurrentUser
+                                              ? () {
+                                                  if (!isPending) {
+                                                    final selectedSet =
+                                                        _selectedMessages.value;
+                                                    if (isSelected) {
+                                                      if (selectedSet.length >
+                                                          1) {
+                                                        final updated = {
+                                                          ...selectedSet,
+                                                        };
+                                                        updated.remove(
+                                                          msg.messageId,
+                                                        );
+                                                        _selectedMessages
+                                                                .value =
+                                                            updated;
+                                                      } else {
+                                                        // Deselecting the last message exits selection mode
+                                                        setState(() {
+                                                          _selectionMode =
+                                                              false;
+                                                          _selectedMessages
+                                                                  .value =
+                                                              {};
+                                                        });
+                                                      }
+                                                    } else {
+                                                      _selectedMessages.value =
+                                                          {
+                                                            ...selectedSet,
+                                                            msg.messageId,
+                                                          };
+                                                    }
+                                                  }
+                                                }
+                                              : null,
+                                          child: Column(
+                                            crossAxisAlignment: isCurrentUser
+                                                ? CrossAxisAlignment.end
+                                                : CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              // Show sender name outside the bubble
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  left: 12,
+                                                  right: 12,
+                                                  bottom: 4,
                                                 ),
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      isCurrentUser
-                                                      ? CrossAxisAlignment.end
-                                                      : CrossAxisAlignment
-                                                            .start,
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    if (msg.mediaMetadata !=
-                                                        null) ...[
-                                                      RepaintBoundary(
-                                                        child:
-                                                            progressNotifier !=
-                                                                null
-                                                            ? ValueListenableBuilder<
-                                                                double
-                                                              >(
-                                                                valueListenable:
-                                                                    progressNotifier,
-                                                                builder: (_, value, __) {
-                                                                  final progress =
-                                                                      ((value / 100).clamp(
-                                                                        0.0,
-                                                                        1.0,
-                                                                      )).toDouble();
-                                                                  return MediaPreviewCard(
+                                                child: Text(
+                                                  isCurrentUser
+                                                      ? 'You'
+                                                      : msg.senderName,
+                                                  style: TextStyle(
+                                                    color: isDark
+                                                        ? Colors.grey[400]
+                                                        : Colors.grey[700],
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ),
+                                              ConstrainedBox(
+                                                constraints: BoxConstraints(
+                                                  maxWidth:
+                                                      MediaQuery.of(
+                                                        context,
+                                                      ).size.width *
+                                                      0.7,
+                                                ),
+                                                child: DecoratedBox(
+                                                  decoration: BoxDecoration(
+                                                    color: isSelected
+                                                        ? primaryColor
+                                                              .withOpacity(0.2)
+                                                        : bubbleColor,
+                                                    border: hasMedia
+                                                        ? Border.all(
+                                                            color: isSelected
+                                                                ? primaryColor
+                                                                      .withOpacity(
+                                                                        0.8,
+                                                                      )
+                                                                : primaryColor,
+                                                            width: isSelected
+                                                                ? 2.5
+                                                                : 1.5,
+                                                          )
+                                                        : (isSelected
+                                                              ? Border.all(
+                                                                  color:
+                                                                      primaryColor,
+                                                                  width: 2.5,
+                                                                )
+                                                              : null),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ).copyWith(
+                                                          bottomRight:
+                                                              isCurrentUser
+                                                              ? const Radius.circular(
+                                                                  4,
+                                                                )
+                                                              : null,
+                                                          bottomLeft:
+                                                              !isCurrentUser
+                                                              ? const Radius.circular(
+                                                                  4,
+                                                                )
+                                                              : null,
+                                                        ),
+                                                  ),
+                                                  child: Padding(
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                          horizontal: hasMedia
+                                                              ? 4
+                                                              : 12,
+                                                          vertical: hasMedia
+                                                              ? 4
+                                                              : 8,
+                                                        ),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          isCurrentUser
+                                                          ? CrossAxisAlignment
+                                                                .end
+                                                          : CrossAxisAlignment
+                                                                .start,
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        if (msg.mediaMetadata !=
+                                                            null) ...[
+                                                          RepaintBoundary(
+                                                            child:
+                                                                progressNotifier !=
+                                                                    null
+                                                                ? ValueListenableBuilder<
+                                                                    double
+                                                                  >(
+                                                                    valueListenable:
+                                                                        progressNotifier,
+                                                                    builder: (_, value, __) {
+                                                                      final progress =
+                                                                          ((value / 100).clamp(
+                                                                            0.0,
+                                                                            1.0,
+                                                                          )).toDouble();
+                                                                      return MediaPreviewCard(
+                                                                        r2Key: msg
+                                                                            .mediaMetadata!
+                                                                            .r2Key,
+                                                                        fileName:
+                                                                            _getFileName(
+                                                                              msg,
+                                                                            ),
+                                                                        mimeType:
+                                                                            msg.mediaMetadata!.mimeType ??
+                                                                            'application/octet-stream',
+                                                                        fileSize:
+                                                                            msg.mediaMetadata!.fileSize ??
+                                                                            0,
+                                                                        thumbnailBase64: msg
+                                                                            .mediaMetadata!
+                                                                            .thumbnail,
+                                                                        localPath:
+                                                                            localPath,
+                                                                        isMe:
+                                                                            isCurrentUser,
+                                                                        uploading:
+                                                                            true,
+                                                                        uploadProgress:
+                                                                            progress,
+                                                                        selectionMode:
+                                                                            _selectionMode,
+                                                                      );
+                                                                    },
+                                                                  )
+                                                                : MediaPreviewCard(
                                                                     r2Key: msg
                                                                         .mediaMetadata!
                                                                         .r2Key,
@@ -804,185 +950,193 @@ class _ParentSectionGroupChatScreenState
                                                                     isMe:
                                                                         isCurrentUser,
                                                                     uploading:
-                                                                        true,
+                                                                        isPending,
                                                                     uploadProgress:
-                                                                        progress,
+                                                                        null,
                                                                     selectionMode:
                                                                         _selectionMode,
+                                                                  ),
+                                                          ),
+                                                          if (msg
+                                                              .content
+                                                              .isNotEmpty)
+                                                            const SizedBox(
+                                                              height: 8,
+                                                            ),
+                                                        ],
+                                                        if (msg
+                                                            .content
+                                                            .isNotEmpty)
+                                                          Linkify(
+                                                            onOpen: (link) async {
+                                                              final uri =
+                                                                  Uri.parse(
+                                                                    link.url,
                                                                   );
-                                                                },
-                                                              )
-                                                            : MediaPreviewCard(
-                                                                r2Key: msg
-                                                                    .mediaMetadata!
-                                                                    .r2Key,
-                                                                fileName:
-                                                                    _getFileName(
-                                                                      msg,
-                                                                    ),
-                                                                mimeType:
-                                                                    msg
-                                                                        .mediaMetadata!
-                                                                        .mimeType ??
-                                                                    'application/octet-stream',
-                                                                fileSize:
-                                                                    msg
-                                                                        .mediaMetadata!
-                                                                        .fileSize ??
-                                                                    0,
-                                                                thumbnailBase64: msg
-                                                                    .mediaMetadata!
-                                                                    .thumbnail,
-                                                                localPath:
-                                                                    localPath,
-                                                                isMe:
-                                                                    isCurrentUser,
-                                                                uploading:
-                                                                    isPending,
-                                                                uploadProgress:
-                                                                    null,
-                                                                selectionMode:
-                                                                    _selectionMode,
-                                                              ),
-                                                      ),
-                                                      if (msg
-                                                          .content
-                                                          .isNotEmpty)
-                                                        const SizedBox(
-                                                          height: 8,
-                                                        ),
-                                                    ],
-                                                    if (msg.content.isNotEmpty)
-                                                      Linkify(
-                                                        onOpen: (link) async {
-                                                          final uri = Uri.parse(
-                                                            link.url,
-                                                          );
-                                                          if (await canLaunchUrl(
-                                                            uri,
-                                                          )) {
-                                                            await launchUrl(
-                                                              uri,
-                                                              mode: LaunchMode
-                                                                  .externalApplication,
-                                                            );
-                                                          }
-                                                        },
-                                                        text:
-                                                            LinkUtils.addProtocolToBareUrls(
-                                                              msg.content,
+                                                              if (await canLaunchUrl(
+                                                                uri,
+                                                              )) {
+                                                                await launchUrl(
+                                                                  uri,
+                                                                  mode: LaunchMode
+                                                                      .externalApplication,
+                                                                );
+                                                              }
+                                                            },
+                                                            text:
+                                                                LinkUtils.addProtocolToBareUrls(
+                                                                  msg.content,
+                                                                ),
+                                                            options:
+                                                                const LinkifyOptions(
+                                                                  defaultToHttps:
+                                                                      true,
+                                                                ),
+                                                            style: TextStyle(
+                                                              color: textColor,
+                                                              fontSize: 15,
                                                             ),
-                                                        options:
-                                                            const LinkifyOptions(
-                                                              defaultToHttps:
-                                                                  true,
+                                                            linkStyle: TextStyle(
+                                                              color:
+                                                                  isCurrentUser
+                                                                  ? const Color(
+                                                                      0xFF0066CC,
+                                                                    )
+                                                                  : (widget.senderRole ==
+                                                                            'parent'
+                                                                        ? const Color(
+                                                                            0xFF14A670,
+                                                                          )
+                                                                        : const Color(
+                                                                            0xFF6366F1,
+                                                                          )),
+                                                              fontSize: 15,
+                                                              decoration:
+                                                                  TextDecoration
+                                                                      .underline,
                                                             ),
-                                                        style: TextStyle(
-                                                          color: textColor,
-                                                          fontSize: 15,
-                                                        ),
-                                                        linkStyle: TextStyle(
-                                                          color: isCurrentUser
-                                                              ? const Color(
-                                                                  0xFF0066CC,
-                                                                )
-                                                              : (widget.senderRole ==
-                                                                        'parent'
-                                                                    ? const Color(
-                                                                        0xFF14A670,
-                                                                      )
-                                                                    : const Color(
-                                                                        0xFF6366F1,
-                                                                      )),
-                                                          fontSize: 15,
-                                                          decoration:
-                                                              TextDecoration
-                                                                  .underline,
-                                                        ),
-                                                      ),
-                                                  ],
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Padding(
-                                            padding: EdgeInsets.only(
-                                              left: isCurrentUser ? 0 : 8,
-                                              right: isCurrentUser ? 8 : 0,
-                                            ),
-                                            child: Text(
-                                              _formatTime(msg.createdAt),
-                                              style: TextStyle(
-                                                color:
-                                                    (isDark
-                                                            ? Colors.white
-                                                            : Colors.black)
-                                                        .withOpacity(0.5),
-                                                fontSize: 10,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  if (_selectionMode && isCurrentUser)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        left: 8,
-                                        top: 8,
-                                      ),
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          if (isSelected) {
-                                            if (selectedSet.length > 2) {
-                                              final updated = {...selectedSet};
-                                              updated.remove(msg.messageId);
-                                              _selectedMessages.value = updated;
-                                            }
-                                          } else {
-                                            _selectedMessages.value = {
-                                              ...selectedSet,
-                                              msg.messageId,
-                                            };
-                                          }
-                                        },
-                                        child: Container(
-                                          width: 24,
-                                          height: 24,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: isSelected
-                                                  ? primaryColor
-                                                  : Colors.grey[400]!,
-                                              width: isSelected ? 2 : 1.5,
-                                            ),
-                                            color: isSelected
-                                                ? primaryColor
-                                                : Colors.transparent,
-                                          ),
-                                          child: isSelected
-                                              ? Center(
-                                                  child: Icon(
-                                                    Icons.check,
-                                                    size: 16,
-                                                    color: Colors.white,
+                                              const SizedBox(height: 2),
+                                              Padding(
+                                                padding: EdgeInsets.only(
+                                                  left: isCurrentUser ? 0 : 8,
+                                                  right: isCurrentUser ? 8 : 0,
+                                                ),
+                                                child: Text(
+                                                  _formatTime(msg.createdAt),
+                                                  style: TextStyle(
+                                                    color:
+                                                        (isDark
+                                                                ? Colors.white
+                                                                : Colors.black)
+                                                            .withOpacity(0.5),
+                                                    fontSize: 10,
                                                   ),
-                                                )
-                                              : null,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                ],
+                                      if (_selectionMode && isCurrentUser)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 8,
+                                            top: 8,
+                                          ),
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              if (isSelected) {
+                                                if (selectedSet.length > 2) {
+                                                  final updated = {
+                                                    ...selectedSet,
+                                                  };
+                                                  updated.remove(msg.messageId);
+                                                  _selectedMessages.value =
+                                                      updated;
+                                                }
+                                              } else {
+                                                _selectedMessages.value = {
+                                                  ...selectedSet,
+                                                  msg.messageId,
+                                                };
+                                              }
+                                            },
+                                            child: Container(
+                                              width: 24,
+                                              height: 24,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: isSelected
+                                                      ? primaryColor
+                                                      : Colors.grey[400]!,
+                                                  width: isSelected ? 2 : 1.5,
+                                                ),
+                                                color: isSelected
+                                                    ? primaryColor
+                                                    : Colors.transparent,
+                                              ),
+                                              child: isSelected
+                                                  ? Center(
+                                                      child: Icon(
+                                                        Icons.check,
+                                                        size: 16,
+                                                        color: Colors.white,
+                                                      ),
+                                                    )
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    // Loading indicator overlay using ValueListenableBuilder
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _isLoadingMoreNotifier,
+                      builder: (context, isLoading, _) {
+                        if (!isLoading) {
+                          return const SizedBox.shrink();
+                        }
+                        return Positioned(
+                          top: 16,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[200],
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            );
-                          },
-                        ),
-                      ],
-                    );
-                  },
+                              child: SizedBox(
+                                width: 30,
+                                height: 30,
+                                child: CircularProgressIndicator(
+                                  color: primaryColor,
+                                  strokeWidth: 2.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 );
               },
             ),

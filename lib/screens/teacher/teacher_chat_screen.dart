@@ -46,6 +46,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   String? _conversationId;
   // Track messages already scheduled for read marking to avoid re-scheduling.
   final Set<String> _scheduledReadIds = <String>{};
+  
+  // Track the last known message count to detect new data
+  int _lastMessageCount = 0;
 
   // Media handling
   final ImagePicker _imagePicker = ImagePicker();
@@ -201,12 +204,16 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                     stream: _chat.messagesStream(_conversationId!),
                     builder: (context, snapshot) {
                       final docs = snapshot.data?.docs ?? [];
-                      if (_conversationId != null && docs.isNotEmpty) {
-                        WidgetsBinding.instance.addPostFrameCallback(
-                          (_) => _batchUpdateIncoming(docs),
-                        );
+                      
+                      // Only update batch if message count changed (new messages arrived)
+                      if (_conversationId != null && docs.isNotEmpty && docs.length != _lastMessageCount) {
+                        _lastMessageCount = docs.length;
+                        // Schedule batch update without addPostFrameCallback to avoid flickering
+                        Future.microtask(() => _batchUpdateIncoming(docs));
                       }
+                      
                       return ListView.separated(
+                        reverse: true, // Show newest messages at bottom
                         padding: const EdgeInsets.all(16),
                         itemBuilder: (context, index) {
                           final msg = docs[index].data();
