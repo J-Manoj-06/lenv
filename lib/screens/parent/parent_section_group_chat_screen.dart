@@ -1170,19 +1170,27 @@ class _ParentSectionGroupChatScreenState
           _buildMessageInput(isDark),
           if (_showEmojiPicker)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: EdgeInsets.zero,
               child: EmojiPicker(
                 onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
                 onBackspacePressed: _onBackspacePressed,
                 config: Config(
-                  height: 250,
+                  height: 280,
                   checkPlatformCompatibility: false,
+                  viewOrderConfig: const ViewOrderConfig(
+                    top: EmojiPickerItem.categoryBar,
+                    middle: EmojiPickerItem.emojiView,
+                    bottom: EmojiPickerItem.searchBar,
+                  ),
                   emojiViewConfig: EmojiViewConfig(
                     backgroundColor: isDark
                         ? const Color(0xFF0B141A)
                         : Colors.white,
                     columns: 7,
                     emojiSizeMax: 28,
+                    gridPadding: const EdgeInsets.symmetric(vertical: 8),
+                    verticalSpacing: 2,
+                    horizontalSpacing: 2,
                   ),
                   categoryViewConfig: CategoryViewConfig(
                     backgroundColor: isDark
@@ -1190,11 +1198,24 @@ class _ParentSectionGroupChatScreenState
                         : Colors.white,
                     iconColorSelected: primaryColor,
                     indicatorColor: primaryColor,
+                    recentTabBehavior: RecentTabBehavior.NONE,
+                    tabBarHeight: 50,
+                    initCategory: Category.SMILEYS,
                   ),
                   bottomActionBarConfig: BottomActionBarConfig(
                     backgroundColor: isDark
                         ? const Color(0xFF0B141A)
                         : Colors.white,
+                    buttonIconColor: primaryColor,
+                    showBackspaceButton: true,
+                    showSearchViewButton: true,
+                  ),
+                  searchViewConfig: SearchViewConfig(
+                    backgroundColor: isDark
+                        ? const Color(0xFF0B141A)
+                        : Colors.white,
+                    buttonIconColor: primaryColor,
+                    hintText: 'Search emoji...',
                   ),
                 ),
               ),
