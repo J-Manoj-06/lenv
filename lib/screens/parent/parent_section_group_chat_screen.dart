@@ -428,6 +428,9 @@ class _ParentSectionGroupChatScreenState
         senderRole: widget.senderRole,
         content: text,
       );
+
+      // ✅ Auto-scroll to bottom to show latest message
+      _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -437,6 +440,29 @@ class _ParentSectionGroupChatScreenState
         ),
       );
     }
+  }
+
+  /// ✅ NEW: Instant scroll to bottom to show latest message
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) return;
+
+    print('[CHAT_DEBUG] Instant scrolling to bottom to show latest message');
+
+    // Schedule after frame to ensure ListView has laid out
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) {
+        print('[CHAT_DEBUG] ScrollController not ready for bottom scroll');
+        return;
+      }
+
+      try {
+        // Instant jump to bottom (0 in reverse list) - no animation
+        _scrollController.jumpTo(0.0);
+        print('[CHAT_DEBUG] Successfully jumped to bottom instantly');
+      } catch (e) {
+        print('[CHAT_DEBUG] Exception during instant scroll: $e');
+      }
+    });
   }
 
   @override
@@ -1590,6 +1616,9 @@ class _ParentSectionGroupChatScreenState
           _localSenderMediaPaths.remove(pendingId);
           _lastUploadPercent.remove(pendingId);
         });
+
+        // ✅ Scroll to bottom to show newly sent image
+        _scrollToBottom();
       }
     } catch (e) {
       if (mounted) {
@@ -1709,12 +1738,18 @@ class _ParentSectionGroupChatScreenState
         fileSize: await file.length(),
       );
 
+      // ✅ Scroll to bottom to show newly sent PDF
+      _scrollToBottom();
+
       if (mounted) {
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
           _pendingUploadNotifiers.remove(pendingId)?.dispose();
           _lastUploadPercent.remove(pendingId);
         });
+
+        // ✅ Scroll to bottom to show newly sent PDF
+        _scrollToBottom();
       }
     } catch (e) {
       if (mounted) {
@@ -1833,12 +1868,18 @@ class _ParentSectionGroupChatScreenState
         fileSize: fileSize,
       );
 
+      // ✅ Scroll to bottom to show newly sent audio
+      _scrollToBottom();
+
       if (mounted) {
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
           _pendingUploadNotifiers.remove(pendingId)?.dispose();
           _lastUploadPercent.remove(pendingId);
         });
+
+        // ✅ Scroll to bottom to show newly sent audio
+        _scrollToBottom();
       }
     } catch (e) {
       if (mounted) {
@@ -1935,6 +1976,9 @@ class _ParentSectionGroupChatScreenState
         mimeType: mediaMessage.fileType,
         fileSize: mediaMessage.fileSize,
       );
+
+      // ✅ Scroll to bottom to show newly sent voice message
+      _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
