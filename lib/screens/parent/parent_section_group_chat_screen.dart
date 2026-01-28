@@ -1222,9 +1222,10 @@ class _ParentSectionGroupChatScreenState
     final hintColor = isDark
         ? const Color(0xFF6B6B6B) // Subdued gray
         : const Color(0xFF999999);
-    final iconColor = isDark
-        ? parentGreen.withOpacity(0.8) // Soft muted green
+    final iconColor = widget.senderRole == 'teacher'
+        ? teacherViolet
         : parentGreen;
+    final iconColorDisplay = isDark ? iconColor.withOpacity(0.8) : iconColor;
     final iconDisabledColor = isDark
         ? const Color(0xFF3A3A3C)
         : const Color(0xFFBBBBBB);
@@ -1305,20 +1306,7 @@ class _ParentSectionGroupChatScreenState
                           _showEmojiPicker
                               ? Icons.keyboard_outlined
                               : Icons.emoji_emotions_outlined,
-                          color: iconColor,
-                          size: 23,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Attachment - inside input, left side
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: GestureDetector(
-                        onTap: _isUploading ? null : _showAttachmentSheet,
-                        child: Icon(
-                          Icons.attach_file_rounded,
-                          color: _isUploading ? iconDisabledColor : iconColor,
+                          color: iconColorDisplay,
                           size: 23,
                         ),
                       ),
@@ -1365,6 +1353,21 @@ class _ParentSectionGroupChatScreenState
                                     TextCapitalization.sentences,
                                 readOnly: _isRecording,
                               ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Attachment - inside input, right side (between input and mic)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: _isUploading ? null : _showAttachmentSheet,
+                        child: Icon(
+                          Icons.attach_file_rounded,
+                          color: _isUploading
+                              ? iconDisabledColor
+                              : iconColorDisplay,
+                          size: 23,
+                        ),
                       ),
                     ),
                   ],
