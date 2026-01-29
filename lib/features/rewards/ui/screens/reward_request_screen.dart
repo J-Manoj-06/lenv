@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/product_model.dart';
+import '../../models/reward_request_model.dart';
 import '../../providers/rewards_providers.dart';
 import '../../utils/points_calculator.dart';
 import 'dart:ui';
@@ -26,6 +27,43 @@ class RewardRequestScreen extends ConsumerStatefulWidget {
 
 class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
   bool _isRequesting = false;
+  bool _hasPendingRequest = false;
+  bool _isThisProductPending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPendingRequest();
+  }
+
+  Future<void> _checkPendingRequest() async {
+    if (widget.studentId == null || widget.studentId!.isEmpty) return;
+
+    try {
+      final repository = ref.read(rewardsRepositoryProvider);
+
+      // Get the latest pending request
+      final latestRequest = await repository.getLatestRewardRequest(
+        widget.studentId!,
+      );
+
+      if (latestRequest != null &&
+          latestRequest.status == RewardRequestStatus.pendingParentApproval) {
+        final hasPending = true;
+        final isThisProduct =
+            latestRequest.productSnapshot.productId == widget.productId;
+
+        if (mounted) {
+          setState(() {
+            _hasPendingRequest = hasPending;
+            _isThisProductPending = isThisProduct;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error checking pending request: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -434,18 +472,54 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
     int remainingPoints,
     bool isDark,
   ) {
+    String buttonText;
+    IconData buttonIcon;
+    bool isButtonEnabled;
+    Color? buttonColor;
+    Color? disabledColor;
+
+    if (_isThisProductPending) {
+      // This specific product has been requested
+      buttonText = 'Already Requested';
+      buttonIcon = Icons.schedule_outlined;
+      isButtonEnabled = false;
+      buttonColor = Colors.amber.shade700;
+      disabledColor = Colors.amber.shade700.withOpacity(0.6);
+    } else if (_hasPendingRequest) {
+      // Another product has been requested
+      buttonText = 'Confirm Request';
+      buttonIcon = Icons.check_circle;
+      isButtonEnabled = false;
+      buttonColor = _primaryOrange;
+      disabledColor = isDark ? Colors.grey[800] : Colors.grey[300];
+    } else if (!isEligible) {
+      // Not enough points
+      buttonText = 'Need $remainingPoints More Points';
+      buttonIcon = Icons.lock_outline;
+      isButtonEnabled = false;
+      buttonColor = _primaryOrange;
+      disabledColor = isDark ? Colors.grey[800] : Colors.grey[300];
+    } else {
+      // Can request
+      buttonText = 'Confirm Request';
+      buttonIcon = Icons.check_circle;
+      isButtonEnabled = !_isRequesting;
+      buttonColor = _primaryOrange;
+      disabledColor = isDark ? Colors.grey[800] : Colors.grey[300];
+    }
+
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: !isEligible || _isRequesting
-            ? null
-            : () => _showConfirmationDialog(context, product, pointsRequired),
+        onPressed: isButtonEnabled
+            ? () => _showConfirmationDialog(context, product, pointsRequired)
+            : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: _primaryOrange,
-          disabledBackgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
+          backgroundColor: buttonColor,
+          disabledBackgroundColor: disabledColor,
           foregroundColor: Colors.white,
-          elevation: isEligible ? 4 : 0,
+          elevation: isButtonEnabled ? 4 : 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -462,15 +536,10 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    isEligible ? Icons.check_circle : Icons.lock_outline,
-                    size: 22,
-                  ),
+                  Icon(buttonIcon, size: 22),
                   const SizedBox(width: 12),
                   Text(
-                    isEligible
-                        ? 'Confirm Request'
-                        : 'Need $remainingPoints More Points',
+                    buttonText,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -488,6 +557,20 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
     ProductModel product,
     int pointsRequired,
   ) {
+    // Double check for pending request before showing dialog
+    if (_hasPendingRequest) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '⏳ You have a pending reward request. Please wait for parent approval.',
+          ),
+          duration: Duration(seconds: 4),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
