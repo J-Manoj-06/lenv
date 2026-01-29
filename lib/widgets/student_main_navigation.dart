@@ -6,6 +6,7 @@ import '../screens/student/student_tests_screen.dart';
 import '../screens/student/student_leaderboard_screen.dart';
 import '../screens/student/student_messages_screen.dart';
 import '../features/rewards/rewards_screen_wrapper.dart';
+import 'student_bottom_nav.dart';
 
 /// Student Main Navigation Wrapper
 /// Uses IndexedStack to preserve state when switching tabs
@@ -76,101 +77,7 @@ class _StudentMainNavigationState extends State<StudentMainNavigation> {
       },
       child: Scaffold(
         body: IndexedStack(index: _currentIndex, children: _screens),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            border: Border(
-              top: BorderSide(color: theme.dividerColor, width: 1),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 64,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _NavItem(
-                    icon: Icons.home_outlined,
-                    label: 'Home',
-                    isSelected: _currentIndex == 0,
-                    onTap: () => _onTap(0),
-                  ),
-                  _NavItem(
-                    icon: Icons.assignment,
-                    label: 'Tests',
-                    isSelected: _currentIndex == 1,
-                    onTap: () => _onTap(1),
-                  ),
-                  _NavItem(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'Message',
-                    isSelected: _currentIndex == 2,
-                    onTap: () => _onTap(2),
-                  ),
-                  _NavItem(
-                    icon: Icons.workspace_premium_outlined,
-                    label: 'Rewards',
-                    isSelected: _currentIndex == 3,
-                    onTap: () => _onTap(3),
-                  ),
-                  _NavItem(
-                    icon: Icons.leaderboard,
-                    label: 'Leaderboard',
-                    isSelected: _currentIndex == 4,
-                    onTap: () => _onTap(4),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedColor = const Color(0xFFF27F0D);
-    final unselectedColor = Theme.of(context).textTheme.bodySmall?.color;
-
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? selectedColor : unselectedColor,
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? selectedColor : unselectedColor,
-              ),
-            ),
-          ],
-        ),
+        bottomNavigationBar: StudentBottomNav(currentIndex: _currentIndex),
       ),
     );
   }

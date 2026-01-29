@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'student_main_navigation.dart';
 
 class StudentBottomNav extends StatelessWidget {
@@ -20,48 +21,93 @@ class StudentBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        border: Border(top: BorderSide(color: theme.dividerColor, width: 1)),
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(16),
+        topRight: Radius.circular(16),
       ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E).withOpacity(0.70),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x4D000000),
+                blurRadius: 20,
+                spreadRadius: 0,
+                offset: Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Stack(
             children: [
-              _NavItem(
-                icon: Icons.home_outlined,
-                label: 'Home',
-                isSelected: currentIndex == 0,
-                onTap: () => _onTap(context, 0),
+              // Gradient separator line at the top edge
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 2,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Color(0x00F27F0D),
+                        Color(0x80F27F0D),
+                        Color(0x00F27F0D),
+                      ],
+                      stops: [0.0, 0.5, 1.0],
+                    ),
+                  ),
+                ),
               ),
-              _NavItem(
-                icon: Icons.assignment,
-                label: 'Tests',
-                isSelected: currentIndex == 1,
-                onTap: () => _onTap(context, 1),
-              ),
-              _NavItem(
-                icon: Icons.workspace_premium_outlined,
-                label: 'Rewards',
-                isSelected: currentIndex == 2,
-                onTap: () => _onTap(context, 2),
-              ),
-              _NavItem(
-                icon: Icons.leaderboard,
-                label: 'Leaderboard',
-                isSelected: currentIndex == 3,
-                onTap: () => _onTap(context, 3),
-              ),
-              _NavItem(
-                icon: Icons.person_outline,
-                label: 'Profile',
-                isSelected: currentIndex == 4,
-                onTap: () => _onTap(context, 4),
+              SafeArea(
+                top: false,
+                child: SizedBox(
+                  height: 66,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _NavItem(
+                        icon: Icons.home_outlined,
+                        selectedIcon: Icons.home,
+                        label: 'Home',
+                        isSelected: currentIndex == 0,
+                        onTap: () => _onTap(context, 0),
+                      ),
+                      _NavItem(
+                        icon: Icons.assignment_outlined,
+                        selectedIcon: Icons.assignment,
+                        label: 'Tests',
+                        isSelected: currentIndex == 1,
+                        onTap: () => _onTap(context, 1),
+                      ),
+                      _NavItem(
+                        icon: Icons.chat_bubble_outline,
+                        selectedIcon: Icons.chat_bubble,
+                        label: 'Message',
+                        isSelected: currentIndex == 2,
+                        onTap: () => _onTap(context, 2),
+                      ),
+                      _NavItem(
+                        icon: Icons.workspace_premium_outlined,
+                        selectedIcon: Icons.workspace_premium,
+                        label: 'Rewards',
+                        isSelected: currentIndex == 3,
+                        onTap: () => _onTap(context, 3),
+                      ),
+                      _NavItem(
+                        icon: Icons.leaderboard_outlined,
+                        selectedIcon: Icons.leaderboard,
+                        label: 'Leaderboard',
+                        isSelected: currentIndex == 4,
+                        onTap: () => _onTap(context, 4),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -73,12 +119,14 @@ class StudentBottomNav extends StatelessWidget {
 
 class _NavItem extends StatelessWidget {
   final IconData icon;
+  final IconData selectedIcon;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _NavItem({
     required this.icon,
+    required this.selectedIcon,
     required this.label,
     required this.isSelected,
     required this.onTap,
@@ -86,31 +134,33 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedColor = const Color(0xFFF27F0D);
-    final unselectedColor = Theme.of(context).textTheme.bodySmall?.color;
+    const selectedColor = Color(0xFFF27F0D);
+    final unselectedColor = Colors.grey[400];
 
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? selectedColor : unselectedColor,
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 66,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isSelected ? selectedIcon : icon,
                 color: isSelected ? selectedColor : unselectedColor,
+                size: 24,
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? selectedColor : unselectedColor,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
