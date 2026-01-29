@@ -614,8 +614,23 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           }
 
           // Show regular groups after Staff Room
+          final group = displayGroups[index - 1];
+          // Remove lastMessage and lastMessageTime to hide message preview
+          final groupWithoutPreview = MessageGroup(
+            groupId: group.groupId,
+            subjectId: group.subjectId,
+            subjectName: group.subjectName,
+            className: group.className,
+            sectionName: group.sectionName,
+            teacherId: group.teacherId,
+            studentCount: group.studentCount,
+            unreadCount: group.unreadCount,
+            lastMessage: null, // Remove message preview
+            lastMessageTime: null, // Remove timestamp
+            classId: group.classId,
+          );
           return MessageGroupTile(
-            group: displayGroups[index - 1],
+            group: groupWithoutPreview,
             isDark: isDark,
             onTap: () => _openGroupChat(displayGroups[index - 1]),
           );
