@@ -539,21 +539,6 @@ class _RequestDetailsCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final details = [
-      _DetailTile(
-        label: 'Order Date',
-        value: reward_date_utils.DateUtils.formatDateTime(
-          request.timestamps.requestedAt,
-        ),
-        icon: Icons.calendar_today,
-      ),
-      _DetailTile(
-        label: 'Product ID',
-        value: request.productSnapshot.productId,
-        icon: Icons.qr_code_2_rounded,
-      ),
-    ];
-
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF27272a) : Colors.white,
@@ -571,17 +556,12 @@ class _RequestDetailsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.8,
+          _DetailTile(
+            label: 'Order Date',
+            value: reward_date_utils.DateUtils.formatDateTime(
+              request.timestamps.requestedAt,
             ),
-            itemCount: details.length,
-            itemBuilder: (context, index) => details[index],
+            icon: Icons.calendar_today,
           ),
         ],
       ),

@@ -474,7 +474,7 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
   ) {
     String buttonText;
     IconData buttonIcon;
-    bool isButtonEnabled;
+    VoidCallback? onPressed;
     Color? buttonColor;
     Color? disabledColor;
 
@@ -482,28 +482,30 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
       // This specific product has been requested
       buttonText = 'Already Requested';
       buttonIcon = Icons.schedule_outlined;
-      isButtonEnabled = false;
+      onPressed = null;
       buttonColor = Colors.amber.shade700;
       disabledColor = Colors.amber.shade700.withOpacity(0.6);
     } else if (_hasPendingRequest) {
-      // Another product has been requested
+      // Another product has been requested - show popup on tap
       buttonText = 'Confirm Request';
       buttonIcon = Icons.check_circle;
-      isButtonEnabled = false;
+      onPressed = () => _showPendingRequestWarning(context);
       buttonColor = _primaryOrange;
       disabledColor = isDark ? Colors.grey[800] : Colors.grey[300];
     } else if (!isEligible) {
       // Not enough points
       buttonText = 'Need $remainingPoints More Points';
       buttonIcon = Icons.lock_outline;
-      isButtonEnabled = false;
+      onPressed = null;
       buttonColor = _primaryOrange;
       disabledColor = isDark ? Colors.grey[800] : Colors.grey[300];
     } else {
       // Can request
       buttonText = 'Confirm Request';
       buttonIcon = Icons.check_circle;
-      isButtonEnabled = !_isRequesting;
+      onPressed = _isRequesting
+          ? null
+          : () => _showConfirmationDialog(context, product, pointsRequired);
       buttonColor = _primaryOrange;
       disabledColor = isDark ? Colors.grey[800] : Colors.grey[300];
     }
@@ -512,14 +514,12 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: isButtonEnabled
-            ? () => _showConfirmationDialog(context, product, pointsRequired)
-            : null,
+        onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: buttonColor,
           disabledBackgroundColor: disabledColor,
           foregroundColor: Colors.white,
-          elevation: isButtonEnabled ? 4 : 0,
+          elevation: onPressed != null ? 4 : 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -598,6 +598,33 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
 
         return ScaleTransition(
           scale: Tween<double>(begin: 0.8, end: 1.0).animate(curvedAnimation),
+          child: FadeTransition(opacity: curvedAnimation, child: child),
+        );
+      },
+    );
+  }
+
+  void _showPendingRequestWarning(BuildContext context) {
+    HapticFeedback.mediumImpact();
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withOpacity(0.7),
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Center(child: _PendingRequestWarningDialog());
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+
+        return ScaleTransition(
+          scale: Tween<double>(begin: 0.9, end: 1.0).animate(curvedAnimation),
           child: FadeTransition(opacity: curvedAnimation, child: child),
         );
       },
@@ -1021,6 +1048,126 @@ class _ModernConfirmationDialogState extends State<_ModernConfirmationDialog> {
                           ),
                         ),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Pending Request Warning Dialog Widget
+class _PendingRequestWarningDialog extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 32),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E).withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Warning Icon
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.info_outline_rounded,
+                        color: Colors.orange.shade400,
+                        size: 48,
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Title
+                    const Text(
+                      'Request Pending',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFF5F5F5),
+                        letterSpacing: -0.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Message
+                    Text(
+                      'You have already requested another reward. Please wait for parent approval or cancellation before requesting a new reward.',
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.6,
+                        color: Colors.white.withOpacity(0.75),
+                        letterSpacing: 0.2,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // OK Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Got it',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
