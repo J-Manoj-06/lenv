@@ -7,6 +7,7 @@ import '../../utils/chat_type_config.dart';
 import '../../widgets/unread_badge_widget.dart';
 import '../../models/group_subject.dart';
 import '../../services/group_messaging_service.dart';
+import '../../services/offline_data_service.dart';
 import 'group_chat_page.dart';
 import '../../providers/auth_provider.dart';
 
@@ -25,8 +26,11 @@ class _GroupsListPageState extends State<GroupsListPage>
         WidgetsBindingObserver,
         UnreadCountMixin<GroupsListPage> {
   final GroupMessagingService _messagingService = GroupMessagingService();
+  final OfflineDataService _offlineService = OfflineDataService();
   List<GroupSubject> _subjects = [];
   bool _isLoading = true;
+  bool _isLoadingFromCache = false;
+  bool _showingCachedData = false;
   String? _classId;
   bool _hasAttemptedLoad = false;
   final Map<String, int> _lastMessageTs = {}; // chatId -> latest timestamp
@@ -157,7 +161,57 @@ class _GroupsListPageState extends State<GroupsListPage>
     // If we already have a classId, don't refetch it unnecessarily
     final shouldRefetchClassId = _classId == null;
 
-    setState(() => _isLoading = true);
+    // ✅ Load cached classId first if we don't have it
+    if (_classId == null) {
+      final cachedClassId = _offlineService.getCachedStudentClassId(
+        widget.studentId,
+      );
+      if (cachedClassId != null) {
+        _classId = cachedClassId;
+      }
+    }
+
+    // ✅ Try loading from cache first for instant display
+    final cachedSubjects = _offlineService.getCachedGroupSubjects(
+      widget.studentId,
+    );
+    if (cachedSubjects != null && cachedSubjects.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _subjects = cachedSubjects;
+          _showingCachedData = true;
+          _isLoadingFromCache = true;
+          _isLoading =
+              false; // ✅ Don't show loading spinner if we have cached data
+        });
+
+        // Load cached timestamps for sorting
+        for (final s in cachedSubjects) {
+          if (_classId != null) {
+            final chatId = '$_classId|${s.id}';
+            final cachedTs = _offlineService.getCachedLastMessageTimestamp(
+              chatId,
+            );
+            if (cachedTs != null) {
+              _lastMessageTs[chatId] = cachedTs;
+            }
+          }
+        }
+
+        // Sort by cached timestamps
+        _subjects.sort((a, b) {
+          if (_classId == null) return 0;
+          final at = _lastMessageTs['$_classId|${a.id}'] ?? 0;
+          final bt = _lastMessageTs['$_classId|${b.id}'] ?? 0;
+          return bt.compareTo(at);
+        });
+      }
+      debugPrint('✅ Loaded ${cachedSubjects.length} groups from cache');
+    } else {
+      // Only show loading if we don't have cached data
+      setState(() => _isLoading = true);
+    }
+
     _hasAttemptedLoad = true;
 
     try {
@@ -179,9 +233,10 @@ class _GroupsListPageState extends State<GroupsListPage>
       if (studentUid.isEmpty) {
         if (!mounted) return;
         setState(() {
-          _subjects = [];
+          _subjects = cachedSubjects ?? [];
           _isLoading = false;
           _classId = null;
+          _showingCachedData = cachedSubjects != null;
         });
         return;
       }
@@ -190,15 +245,29 @@ class _GroupsListPageState extends State<GroupsListPage>
       String? classId = _classId;
 
       if (shouldRefetchClassId || classId == null) {
-        classId = await _messagingService.getStudentClassId(studentUid);
+        // Try cached classId first
+        classId = _offlineService.getCachedStudentClassId(studentUid);
+
+        // If not in cache, fetch from network
+        if (classId == null) {
+          classId = await _messagingService.getStudentClassId(studentUid);
+          // Cache it for offline use
+          if (classId != null) {
+            await _offlineService.cacheStudentClassId(
+              studentId: studentUid,
+              classId: classId,
+            );
+          }
+        }
       }
 
       if (!mounted) return;
 
       if (classId == null) {
         setState(() {
-          _subjects = [];
+          _subjects = cachedSubjects ?? [];
           _isLoading = false;
+          _showingCachedData = cachedSubjects != null;
           // Don't reset _classId to null if we already had one
           // This preserves it across navigation
         });
@@ -212,10 +281,37 @@ class _GroupsListPageState extends State<GroupsListPage>
 
       if (!mounted) return;
 
-      setState(() {
-        _subjects = subjects;
-        _isLoading = false;
-      });
+      // ✅ Only cache if we actually got subjects from the network
+      // Don't overwrite good cached data with empty results
+      if (subjects.isNotEmpty) {
+        await _offlineService.cacheGroupSubjects(
+          studentId: widget.studentId,
+          subjects: subjects,
+        );
+
+        // Only update UI if we got valid data from network
+        setState(() {
+          _subjects = subjects;
+          _isLoading = false;
+          _showingCachedData = false;
+          _isLoadingFromCache = false;
+        });
+      } else if (_subjects.isEmpty) {
+        // No network data AND no cached data - show empty state
+        setState(() {
+          _subjects = [];
+          _isLoading = false;
+          _showingCachedData = false;
+          _isLoadingFromCache = false;
+        });
+      } else {
+        // Network returned empty but we have cached data - keep showing it
+        setState(() {
+          _isLoading = false;
+          _showingCachedData = true; // Keep showing cached data
+          _isLoadingFromCache = false;
+        });
+      }
 
       // Load unread counts for these subjects
       final chatIds = subjects.map((s) => '$_classId|${s.id}').toList();
@@ -240,6 +336,11 @@ class _GroupsListPageState extends State<GroupsListPage>
           if (snap.docs.isNotEmpty) {
             final ts = (snap.docs.first.data()['timestamp'] as int?) ?? 0;
             _lastMessageTs[chatId] = ts;
+            // ✅ Cache timestamp for offline sorting
+            await _offlineService.cacheLastMessageTimestamp(
+              chatId: chatId,
+              timestamp: ts,
+            );
           } else {
             _lastMessageTs[chatId] = 0;
           }
@@ -275,7 +376,42 @@ class _GroupsListPageState extends State<GroupsListPage>
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isLoading = false);
+      debugPrint('Error loading groups from network: $e');
+
+      // ✅ If network fails but we have cached data, keep showing it
+      // If _subjects is already populated from cache, keep it as is
+      // Otherwise, try to load from cache now
+      setState(() {
+        if (_subjects.isEmpty) {
+          final cachedData = _offlineService.getCachedGroupSubjects(
+            widget.studentId,
+          );
+          if (cachedData != null && cachedData.isNotEmpty) {
+            _subjects = cachedData;
+            _showingCachedData = true;
+
+            // Load cached timestamps
+            if (_classId != null) {
+              for (final s in cachedData) {
+                final chatId = '$_classId|${s.id}';
+                final cachedTs = _offlineService.getCachedLastMessageTimestamp(
+                  chatId,
+                );
+                if (cachedTs != null) {
+                  _lastMessageTs[chatId] = cachedTs;
+                }
+              }
+            }
+          }
+        }
+        _isLoading = false;
+        _isLoadingFromCache = false;
+
+        // If we still have data, show offline indicator
+        if (_subjects.isNotEmpty) {
+          _showingCachedData = true;
+        }
+      });
     }
   }
 
@@ -285,7 +421,8 @@ class _GroupsListPageState extends State<GroupsListPage>
     final theme = Theme.of(context);
     const orange = Color(0xFFF97316);
 
-    if (_isLoading) {
+    // ✅ Don't show loading if we have cached data
+    if (_isLoading && !_isLoadingFromCache) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -304,7 +441,7 @@ class _GroupsListPageState extends State<GroupsListPage>
       );
     }
 
-    if (_classId == null) {
+    if (_classId == null && _subjects.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -369,52 +506,83 @@ class _GroupsListPageState extends State<GroupsListPage>
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      itemCount: _subjects.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 14),
-      itemBuilder: (context, index) {
-        final subject = _subjects[index];
-        final chatId = '$_classId|${subject.id}';
-
-        return _SubjectGroupCard(
-          subject: subject,
-          chatId: chatId,
-          onTap: () async {
-            // Capture context before any async operations
-            final navContext = context;
-
-            // Navigate and wait for return
-            await Navigator.push(
-              navContext,
-              MaterialPageRoute(
-                builder: (context) => GroupChatPage(
-                  classId: _classId!,
-                  subjectId: subject.id,
-                  subjectName: subject.name,
-                  teacherName: subject.teacherName,
-                  icon: subject.icon,
+    return Column(
+      children: [
+        // ✅ Show offline indicator when displaying cached data
+        if (_showingCachedData)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.orange.withOpacity(0.1),
+            child: Row(
+              children: [
+                Icon(Icons.cloud_off, size: 16, color: Colors.orange[700]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Showing offline data - Tap refresh to update',
+                    style: TextStyle(fontSize: 12, color: Colors.orange[700]),
+                  ),
                 ),
-              ),
-            );
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  onPressed: _loadClassSubjects,
+                  color: Colors.orange[700],
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            itemCount: _subjects.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 14),
+            itemBuilder: (context, index) {
+              final subject = _subjects[index];
+              final chatId = '$_classId|${subject.id}';
 
-            // Refresh unread count after returning - only if widget still mounted
-            if (mounted) {
-              try {
-                final unreadProvider = Provider.of<UnreadCountProvider>(
-                  navContext,
-                  listen: false,
-                );
-                unreadProvider.refreshChat(chatId);
-                unreadProvider.loadUnreadCount(
-                  chatId: chatId,
-                  chatType: ChatTypeConfig.groupChat,
-                );
-              } catch (e) {}
-            }
-          },
-        );
-      },
+              return _SubjectGroupCard(
+                subject: subject,
+                chatId: chatId,
+                onTap: () async {
+                  // Capture context before any async operations
+                  final navContext = context;
+
+                  // Navigate and wait for return
+                  await Navigator.push(
+                    navContext,
+                    MaterialPageRoute(
+                      builder: (context) => GroupChatPage(
+                        classId: _classId!,
+                        subjectId: subject.id,
+                        subjectName: subject.name,
+                        teacherName: subject.teacherName,
+                        icon: subject.icon,
+                      ),
+                    ),
+                  );
+
+                  // Refresh unread count after returning - only if widget still mounted
+                  if (mounted) {
+                    try {
+                      final unreadProvider = Provider.of<UnreadCountProvider>(
+                        navContext,
+                        listen: false,
+                      );
+                      unreadProvider.refreshChat(chatId);
+                      unreadProvider.loadUnreadCount(
+                        chatId: chatId,
+                        chatType: ChatTypeConfig.groupChat,
+                      );
+                    } catch (e) {}
+                  }
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

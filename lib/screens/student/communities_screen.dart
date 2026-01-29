@@ -7,6 +7,7 @@ import '../../utils/chat_type_config.dart';
 import '../../models/community_model.dart';
 import '../../providers/student_provider.dart';
 import '../../services/community_service.dart';
+import '../../services/offline_data_service.dart';
 import 'community_explore_screen.dart';
 import 'community_chat_screen.dart';
 
@@ -20,7 +21,9 @@ class CommunitiesScreen extends StatefulWidget {
 class _CommunitiesScreenState extends State<CommunitiesScreen>
     with UnreadCountMixin<CommunitiesScreen>, AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
+  final OfflineDataService _offlineService = OfflineDataService();
   bool _isLoading = true;
+  bool _showingCachedData = false;
   List<CommunityModel> _myCommunities = [];
   final Map<String, int> _lastMessageTs = {}; // communityId -> latest timestamp
   final Map<String, dynamic> _messageListeners =
@@ -118,7 +121,28 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
 
     if (student == null) return;
 
-    setState(() => _isLoading = true);
+    debugPrint('📦 Loading communities for student: ${student.uid}');
+
+    // ✅ Try loading from cache first for instant display
+    final cachedData = _offlineService.getCachedCommunities(student.uid);
+    if (cachedData != null && cachedData.isNotEmpty) {
+      final cachedCommunities = cachedData
+          .map((data) => CommunityModel.fromJson(data))
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _myCommunities = cachedCommunities;
+          _showingCachedData = true;
+          _isLoading = false; // ✅ Don't show loading if we have cached data
+        });
+      }
+      debugPrint('✅ Loaded ${cachedCommunities.length} communities from cache');
+    } else {
+      debugPrint('📭 No cached communities found');
+      // Only show loading if we don't have cached data
+      setState(() => _isLoading = true);
+    }
 
     // Ensure unread provider has user (fallback to student uid if Auth not ready)
     try {
@@ -129,59 +153,112 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
       }
     } catch (_) {}
 
-    final communities = await _communityService.getMyComm(student.uid);
+    try {
+      final communities = await _communityService.getMyComm(student.uid);
 
-    // Fetch latest message timestamp for each community
-    for (final c in communities) {
-      try {
-        final snap = await FirebaseFirestore.instance
-            .collection('communities')
-            .doc(c.id)
-            .collection('messages')
-            .orderBy('createdAt', descending: true)
-            .limit(1)
-            .get();
-        if (snap.docs.isNotEmpty) {
-          final ts =
-              (snap.docs.first.data()['createdAt'] as Timestamp?)
-                  ?.millisecondsSinceEpoch ??
-              0;
-          _lastMessageTs[c.id] = ts;
-        } else {
+      // ✅ Only cache if we actually got communities from the network
+      // Don't overwrite good cached data with empty results
+      if (communities.isNotEmpty) {
+        final communitiesData = communities.map((c) => c.toJson()).toList();
+        await _offlineService.cacheCommunities(
+          studentId: student.uid,
+          communities: communitiesData,
+        );
+      }
+
+      // Fetch latest message timestamp for each community
+      for (final c in communities) {
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('communities')
+              .doc(c.id)
+              .collection('messages')
+              .orderBy('createdAt', descending: true)
+              .limit(1)
+              .get();
+          if (snap.docs.isNotEmpty) {
+            final ts =
+                (snap.docs.first.data()['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            _lastMessageTs[c.id] = ts;
+          } else {
+            _lastMessageTs[c.id] = 0;
+          }
+        } catch (_) {
           _lastMessageTs[c.id] = 0;
         }
-      } catch (_) {
-        _lastMessageTs[c.id] = 0;
       }
-    }
 
-    setState(() {
-      _myCommunities = communities;
-      // Sort by latest message
-      _myCommunities.sort((a, b) {
-        final at = _lastMessageTs[a.id] ?? 0;
-        final bt = _lastMessageTs[b.id] ?? 0;
-        return bt.compareTo(at);
+      // ✅ Only update UI if we got valid data from network
+      if (communities.isNotEmpty) {
+        setState(() {
+          _myCommunities = communities;
+          _showingCachedData = false;
+          // Sort by latest message
+          _myCommunities.sort((a, b) {
+            final at = _lastMessageTs[a.id] ?? 0;
+            final bt = _lastMessageTs[b.id] ?? 0;
+            return bt.compareTo(at);
+          });
+          _isLoading = false;
+        });
+      } else if (_myCommunities.isEmpty) {
+        // No network data AND no cached data - show empty state
+        setState(() {
+          _myCommunities = [];
+          _isLoading = false;
+          _showingCachedData = false;
+        });
+      } else {
+        // Network returned empty but we have cached data - keep showing it
+        setState(() {
+          _isLoading = false;
+          _showingCachedData = true; // Keep showing cached data
+        });
+      }
+
+      // Load unread counts for all joined communities
+      final chatIds = communities.map((c) => c.id).toList();
+      final chatTypes = {
+        for (final c in communities) c.id: ChatTypeConfig.communityChat,
+      };
+      await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
+
+      // Cancel old listeners before setting up new ones
+      for (final listener in _messageListeners.values) {
+        listener?.cancel?.call();
+      }
+      _messageListeners.clear();
+
+      // Set up real-time listeners for all communities to resort on new messages
+      for (final c in communities) {
+        _listenForCommunityMessageUpdates(c.id);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('Error loading communities from network: $e');
+
+      // ✅ If network fails but we have cached data, keep showing it
+      // If _myCommunities is already populated from cache, keep it as is
+      // Otherwise, try to load from cache now
+      setState(() {
+        if (_myCommunities.isEmpty) {
+          final cachedData = _offlineService.getCachedCommunities(student.uid);
+          if (cachedData != null && cachedData.isNotEmpty) {
+            _myCommunities = cachedData
+                .map((data) => CommunityModel.fromJson(data))
+                .toList();
+            _showingCachedData = true;
+          }
+        }
+        _isLoading = false;
+
+        // If we still have data, show offline indicator
+        if (_myCommunities.isNotEmpty) {
+          _showingCachedData = true;
+        }
       });
-      _isLoading = false;
-    });
-
-    // Load unread counts for all joined communities
-    final chatIds = communities.map((c) => c.id).toList();
-    final chatTypes = {
-      for (final c in communities) c.id: ChatTypeConfig.communityChat,
-    };
-    await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
-
-    // Cancel old listeners before setting up new ones
-    for (final listener in _messageListeners.values) {
-      listener?.cancel?.call();
-    }
-    _messageListeners.clear();
-
-    // Set up real-time listeners for all communities to resort on new messages
-    for (final c in communities) {
-      _listenForCommunityMessageUpdates(c.id);
     }
   }
 
@@ -191,24 +268,55 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
     final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _myCommunities.isEmpty
-          ? _buildEmptyState()
-          : RefreshIndicator(
-              onRefresh: _loadMyCommunities,
-              color: theme.colorScheme.primary,
-              backgroundColor: theme.cardColor,
-              child: ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: _myCommunities.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final community = _myCommunities[index];
-                  return _buildCommunityCard(community);
-                },
+      body: Column(
+        children: [
+          // ✅ Show offline indicator when displaying cached data
+          if (_showingCachedData)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.orange.withOpacity(0.1),
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_off, size: 16, color: Colors.orange[700]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Showing offline data - Tap refresh to update',
+                      style: TextStyle(fontSize: 12, color: Colors.orange[700]),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 20),
+                    onPressed: _loadMyCommunities,
+                    color: Colors.orange[700],
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
               ),
             ),
+          Expanded(
+            child: _isLoading && _myCommunities.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : _myCommunities.isEmpty
+                ? _buildEmptyState()
+                : RefreshIndicator(
+                    onRefresh: _loadMyCommunities,
+                    color: theme.colorScheme.primary,
+                    backgroundColor: theme.cardColor,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _myCommunities.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final community = _myCommunities[index];
+                        return _buildCommunityCard(community);
+                      },
+                    ),
+                  ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'student_communities_explore_fab',
         onPressed: () async {

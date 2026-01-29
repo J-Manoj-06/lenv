@@ -19,6 +19,7 @@ import 'routes/app_router.dart';
 import 'services/local_cache_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/offline_cache_manager.dart';
+import 'services/offline_data_service.dart';
 import 'share/share_controller.dart';
 import 'share/share_receiver_service.dart';
 
@@ -66,6 +67,7 @@ Future<void> _initializeServicesAsync() async {
     await Future.wait([
       LocalCacheService().initialize(),
       OfflineCacheManager().initialize(),
+      OfflineDataService().initialize(), // ✅ Added new offline service
       ConnectivityService().initialize(),
       ShareReceiverService().initialize(),
     ], eagerError: false); // Continue even if one fails
