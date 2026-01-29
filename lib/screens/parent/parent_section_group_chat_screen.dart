@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -93,7 +94,6 @@ class _ParentSectionGroupChatScreenState
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
   bool _isRecording = false;
-  bool _showEmojiPicker = false;
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   Timer? _recordingTimer;
@@ -139,13 +139,6 @@ class _ParentSectionGroupChatScreenState
 
     // ✅ OPTIMIZATION: Setup scroll listener for pagination
     _scrollController.addListener(_onScroll);
-
-    // Hide emoji picker when keyboard shows
-    _focusNode.addListener(() {
-      if (_focusNode.hasFocus && _showEmojiPicker) {
-        setState(() => _showEmojiPicker = false);
-      }
-    });
 
     // ✅ OPTIMIZATION: Listen to text changes without rebuilding
     _controller.addListener(() {
@@ -1182,77 +1175,7 @@ class _ParentSectionGroupChatScreenState
             ),
           ),
           _buildMessageInput(isDark),
-          // ✅ EMOJI PANEL - WhatsApp-style design with exact behavior
-          if (_showEmojiPicker)
-            Container(
-              color: primaryBackground,
-              child: EmojiPicker(
-                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-                onBackspacePressed: _onBackspacePressed,
-                config: Config(
-                  checkPlatformCompatibility: true,
-                  emojiViewConfig: EmojiViewConfig(
-                    backgroundColor: primaryBackground,
-                    columns: 9,
-                    emojiSizeMax: 32,
-                    verticalSpacing: 0,
-                    horizontalSpacing: 0,
-                    gridPadding: EdgeInsets.zero,
-                    recentsLimit: 28,
-                    noRecents: Text(
-                      'No recently used emoji',
-                      style: TextStyle(color: mutedText, fontSize: 14),
-                      textAlign: TextAlign.center,
-                    ),
-                    loadingIndicator: Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-                      ),
-                    ),
-                    buttonMode: ButtonMode.MATERIAL,
-                  ),
-                  skinToneConfig: SkinToneConfig(
-                    enabled: true,
-                    dialogBackgroundColor: secondaryBackground,
-                    indicatorColor: primaryColor,
-                  ),
-                  categoryViewConfig: CategoryViewConfig(
-                    backgroundColor: primaryBackground,
-                    iconColorSelected: primaryColor,
-                    iconColor: mutedText,
-                    indicatorColor: primaryColor,
-                    backspaceColor: mutedText,
-                    categoryIcons: const CategoryIcons(
-                      recentIcon: Icons.access_time,
-                      smileyIcon: Icons.emoji_emotions_outlined,
-                      animalIcon: Icons.pets_outlined,
-                      foodIcon: Icons.restaurant_outlined,
-                      activityIcon: Icons.sports_soccer_outlined,
-                      travelIcon: Icons.flight_outlined,
-                      objectIcon: Icons.lightbulb_outline,
-                      symbolIcon: Icons.tag_outlined,
-                      flagIcon: Icons.flag_outlined,
-                    ),
-                    recentTabBehavior: RecentTabBehavior.POPULAR,
-                    tabBarHeight: 46,
-                    tabIndicatorAnimDuration: const Duration(milliseconds: 300),
-                  ),
-                  bottomActionBarConfig: BottomActionBarConfig(
-                    enabled: true,
-                    backgroundColor: primaryBackground,
-                    buttonIconColor: mutedText,
-                    showBackspaceButton: true,
-                    showSearchViewButton: true,
-                  ),
-                  searchViewConfig: SearchViewConfig(
-                    backgroundColor: primaryBackground,
-                    buttonIconColor: mutedText,
-                    hintText: 'Search emoji',
-                    inputTextStyle: TextStyle(color: primaryText, fontSize: 16),
-                  ),
-                ),
-              ),
-            ),
+          // ✅ EMOJI PANEL - WhatsApp-style with custom search
         ],
       ),
     );
@@ -1263,156 +1186,112 @@ class _ParentSectionGroupChatScreenState
         ? teacherViolet
         : parentGreen;
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        color: primaryBackground,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    return Container(
+      color: primaryBackground,
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      child: SafeArea(
+        top: false,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // ✅ MAIN INPUT CONTAINER - Rounded 28px pill shape
+            // Attachment button - outside input
+            Container(
+              width: 42,
+              height: 42,
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: secondaryBackground,
+                shape: BoxShape.circle,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _isUploading ? null : _showAttachmentSheet,
+                  borderRadius: BorderRadius.circular(21),
+                  child: Icon(
+                    Icons.add_rounded,
+                    color: _isUploading ? mutedText : primaryColor,
+                    size: 24,
+                  ),
+                ),
+              ),
+            ),
+            // Main input field - compact pill shape
             Expanded(
               child: Container(
-                height: 56,
+                constraints: const BoxConstraints(
+                  minHeight: 42,
+                  maxHeight: 100,
+                ),
                 decoration: BoxDecoration(
                   color: secondaryBackground,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: dividerColor, width: 1),
+                  borderRadius: BorderRadius.circular(21),
                 ),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // ✅ EMOJI TOGGLE - Inside input, left side
-                    SizedBox(
-                      width: 44,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            if (_showEmojiPicker) {
-                              setState(() => _showEmojiPicker = false);
-                              _focusNode.requestFocus();
-                            } else {
-                              _focusNode.unfocus();
-                              FocusScope.of(context).unfocus();
-                              Future.delayed(
-                                const Duration(milliseconds: 100),
-                                () {
-                                  if (mounted) {
-                                    setState(() => _showEmojiPicker = true);
-                                  }
-                                },
-                              );
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(22),
-                          child: Icon(
-                            _showEmojiPicker
-                                ? Icons.keyboard_outlined
-                                : Icons.emoji_emotions_outlined,
-                            color: primaryColor,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // ✅ TEXT INPUT - Expandable
                     Expanded(
                       child: TextField(
                         controller: _controller,
                         focusNode: _focusNode,
                         minLines: 1,
-                        maxLines: 3,
+                        maxLines: 4,
                         cursorColor: primaryColor,
                         style: const TextStyle(
                           color: primaryText,
                           fontSize: 15,
                           height: 1.4,
-                          fontWeight: FontWeight.w400,
                         ),
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           hintText: 'Message',
-                          hintStyle: const TextStyle(
-                            color: mutedText,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w400,
-                          ),
+                          hintStyle: TextStyle(color: mutedText, fontSize: 15),
                           border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.fromLTRB(16, 11, 8, 11),
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                            horizontal: 4,
-                          ),
                         ),
                         keyboardType: TextInputType.multiline,
                         textCapitalization: TextCapitalization.sentences,
                         readOnly: _isRecording,
                       ),
                     ),
-                    // ✅ ATTACH ICON - Inside input, RIGHT side (before mic)
-                    SizedBox(
-                      width: 44,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _isUploading ? null : _showAttachmentSheet,
-                          borderRadius: BorderRadius.circular(22),
-                          child: Icon(
-                            Icons.attach_file_rounded,
-                            color: _isUploading ? mutedText : primaryColor,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            // ✅ MIC/SEND BUTTON - Circular 48px right side
+            const SizedBox(width: 6),
+            // Send/Mic button - circular FAB
             ValueListenableBuilder<bool>(
               valueListenable: _hasText,
               builder: (context, hasText, _) {
-                return GestureDetector(
-                  onTap: _isRecording
-                      ? _stopAndSendRecording
-                      : (hasText ? _sendMessage : _startRecording),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: primaryColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withOpacity(0.4),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _isRecording
-                            ? _stopAndSendRecording
-                            : (hasText ? _sendMessage : _startRecording),
-                        borderRadius: BorderRadius.circular(24),
-                        child: Center(
-                          child: Icon(
-                            _isRecording
-                                ? Icons.send_rounded
-                                : (hasText
-                                      ? Icons.send_rounded
-                                      : Icons.mic_rounded),
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
+                return Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _isRecording
+                          ? _stopAndSendRecording
+                          : (hasText ? _sendMessage : _startRecording),
+                      borderRadius: BorderRadius.circular(21),
+                      child: Icon(
+                        _isRecording
+                            ? Icons.send_rounded
+                            : (hasText
+                                  ? Icons.send_rounded
+                                  : Icons.mic_rounded),
+                        color: Colors.white,
+                        size: 20,
                       ),
                     ),
                   ),
