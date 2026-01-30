@@ -2,33 +2,18 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class DeepSeekService {
-  static const String _apiUrl = 'https://api.deepseek.com/v1/chat/completions';
-  static const String _apiKey =
-      'sk-ecd0161142054f39bb8b2d40545232c1'; // Add your DeepSeek API key here: sk-...
+  /// Cloudflare Worker endpoint - API key is secured on the server
+  static const String _workerUrl =
+      'https://deepseek-ai.giridharannj.workers.dev/chat';
+
+  /// No API key needed in Flutter app anymore - handled by Cloudflare Worker
+  /// This keeps the API key secure and prevents theft
 
   Future<String> chat(String userMessage) async {
-    // Check if API key is configured
-    if (_apiKey.isEmpty || _apiKey == 'YOUR_DEEPSEEK_API_KEY') {
-      return '''⚠️ **API Key Not Configured**
-
-To use the AI Tutor, you need a DeepSeek API key:
-
-1. Visit: https://platform.deepseek.com/
-2. Sign up and get your API key
-3. Add it to: lib/services/deepseek_service.dart (line 6)
-
-**For now, here's a helpful response about "$userMessage":**
-
-${_getFallbackResponse(userMessage)}''';
-    }
-
     try {
       final response = await http.post(
-        Uri.parse(_apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
-        },
+        Uri.parse(_workerUrl),
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'model': 'deepseek-chat',
           'messages': [
@@ -50,24 +35,11 @@ ${_getFallbackResponse(userMessage)}''';
         return _toPlainAndTrim(raw);
       } else {
         final errorData = jsonDecode(response.body);
-        return '⚠️ API Error: ${errorData['error']?['message'] ?? response.body}\n\nPlease check your API key in lib/services/deepseek_service.dart';
+        return '⚠️ AI Service Error: ${errorData['message'] ?? 'Please try again later'}';
       }
     } catch (e) {
-      return '⚠️ Connection failed: $e\n\nFallback answer:\n${_getFallbackResponse(userMessage)}';
+      return '⚠️ Connection failed: Unable to reach AI service. Please check your internet connection and try again.';
     }
-  }
-
-  String _getFallbackResponse(String question) {
-    return '''I understand you're asking about: "$question"
-
-To answer this properly, I need an active API connection. Here's a general approach:
-
-1. **Identify key concepts** - Break down what you're asking
-2. **Research the topic** - Look for reliable sources
-3. **Apply step-by-step logic** - Work through the problem systematically
-4. **Verify your answer** - Check if it makes sense
-
-💡 Tip: Try searching educational resources for detailed explanations!''';
   }
 
   // Streamed chat: emits partial content as it arrives for typewriter effect
@@ -75,11 +47,6 @@ To answer this properly, I need an active API connection. Here's a general appro
     String userMessage,
     void Function(String delta) onChunk,
   ) async {
-    if (_apiKey.isEmpty || _apiKey == 'YOUR_DEEPSEEK_API_KEY') {
-      onChunk(_toPlainAndTrim(_getFallbackResponse(userMessage)));
-      return;
-    }
-
     try {
       final requestBody = jsonEncode({
         'model': 'deepseek-chat',
@@ -93,14 +60,10 @@ To answer this properly, I need an active API connection. Here's a general appro
         ],
         'temperature': 0.7,
         'max_tokens': 200,
-        'stream': true,
       });
 
-      final request = http.Request('POST', Uri.parse(_apiUrl));
-      request.headers.addAll({
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_apiKey',
-      });
+      final request = http.Request('POST', Uri.parse(_workerUrl));
+      request.headers.addAll({'Content-Type': 'application/json'});
       request.body = requestBody;
 
       final response = await request.send();
@@ -167,11 +130,6 @@ To answer this properly, I need an active API connection. Here's a general appro
     String topic,
     int numQuestions,
   ) async {
-    // Check if API key is configured
-    if (_apiKey.isEmpty || _apiKey == 'YOUR_DEEPSEEK_API_KEY') {
-      return _getFallbackQuiz(topic, numQuestions);
-    }
-
     try {
       final prompt =
           '''Generate a quiz on "$topic" with $numQuestions multiple choice questions.
@@ -189,11 +147,8 @@ Format your response as JSON:
 Only return valid JSON, no extra text.''';
 
       final response = await http.post(
-        Uri.parse(_apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
-        },
+        Uri.parse(_workerUrl),
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'model': 'deepseek-chat',
           'messages': [

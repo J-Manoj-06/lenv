@@ -741,15 +741,68 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         };
       } else {
         final principal = data as InstituteAnnouncementModel;
+
+        // DEBUG: Log principal announcement data
+        print('📢 Student Dashboard - Principal Announcement Debug:');
+        print('  ID: ${principal.id}');
+        print('  Principal: ${principal.principalName}');
+        print('  hasImage: ${principal.hasImage}');
+        print('  hasText: ${principal.hasText}');
+        print('  text: "${principal.text}"');
+        print('  imageUrl: ${principal.imageUrl}');
+        print('  imageCaptions: ${principal.imageCaptions}');
+        if (principal.imageCaptions != null) {
+          print('  imageCaptions count: ${principal.imageCaptions!.length}');
+          for (int i = 0; i < principal.imageCaptions!.length; i++) {
+            print('    [$i] url: ${principal.imageCaptions![i]['url']}');
+            print(
+              '    [$i] caption: ${principal.imageCaptions![i]['caption']}',
+            );
+          }
+        }
+
+        // Get image URL - prefer imageCaptions[0] if available, fallback to imageUrl
+        String? displayImageUrl;
+        String? displayText;
+
+        if (principal.imageCaptions != null &&
+            principal.imageCaptions!.isNotEmpty) {
+          final urlFromCaptions = principal.imageCaptions![0]['url'];
+          // Validate URL is not empty
+          displayImageUrl =
+              (urlFromCaptions != null && urlFromCaptions.isNotEmpty)
+              ? urlFromCaptions
+              : null;
+          displayText = principal.imageCaptions![0]['caption'];
+          // If no caption but has text field, use that
+          if (displayText == null || displayText.isEmpty) {
+            displayText = principal.text.isNotEmpty
+                ? principal.text
+                : 'Principal Announcement';
+          }
+        } else if (principal.imageUrl != null &&
+            principal.imageUrl!.isNotEmpty) {
+          displayImageUrl = principal.imageUrl;
+          displayText = principal.text.isNotEmpty
+              ? principal.text
+              : 'Principal Announcement';
+        } else {
+          displayImageUrl = null;
+          displayText = principal.text.isNotEmpty
+              ? principal.text
+              : 'Principal Announcement';
+        }
+
         return {
           'role': 'principal',
-          'title': principal.text,
+          'title': displayText,
           'subtitle': '',
           'postedByLabel': 'Posted by ${principal.principalName}',
-          'avatarUrl': null,
+          'avatarUrl': displayImageUrl, // Now passes the actual image URL
           'postedAt': principal.createdAt,
           'expiresAt': principal.expiresAt,
           '_originalData': item, // Keep reference for marking viewed
+          '_principalData': principal, // Pass full principal data
         };
       }
     }).toList();

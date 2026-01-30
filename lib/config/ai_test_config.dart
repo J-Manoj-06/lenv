@@ -1,28 +1,27 @@
-/// AI Testing Configuration - Direct API Key
+/// AI Testing Configuration - Cloudflare Worker Proxy
 ///
-/// ⚠️ FOR TESTING ONLY! ⚠️
-/// This file allows you to test with a direct API key without Firebase setup.
+/// ✅ SECURE IMPLEMENTATION ✅
+/// All API requests are routed through Cloudflare Worker
+/// API key is stored securely on the server - never exposed to client
 ///
-/// SETUP:
-/// 1. Get your DeepSeek API key from: https://platform.deepseek.com/api_keys
-/// 2. Paste it below in line 15 (replace 'PASTE_YOUR_API_KEY_HERE')
-/// 3. Set useDirectAPI = true in line 18
-/// 4. Run your app and test
-///
-/// SECURITY WARNING:
-/// ⚠️ Never commit this file with a real API key to Git!
-/// ⚠️ For production, use Firebase Cloud Functions (set useDirectAPI = false)
+/// Features:
+/// - Zero API key exposure in Flutter app
+/// - Cloudflare edge caching and DDoS protection
+/// - Automatic retry with exponential backoff
+/// - Comprehensive error handling
 ///
 library;
 
 class AITestConfig {
-  // 📝 PASTE YOUR DEEPSEEK API KEY HERE:
-  static const String directApiKey = 'sk-ecd0161142054f39bb8b2d40545232c1';
+  // 🔒 SECURE: Cloudflare Worker endpoint (API key stored on server)
+  static const String workerUrl =
+      'https://deepseek-ai.giridharannj.workers.dev/generate';
 
-  // 🔧 TESTING MODE: Set to true to use direct API (for testing)
-  static const bool useDirectAPI = true; // Change to true for testing
+  // 🎯 DEPRECATED: Direct API mode removed for security
+  // All requests now go through the secure Cloudflare Worker
+  static const bool useDirectAPI = false; // Always false - using secure worker
 
-  // Firebase Cloud Function URL (for production)
+  // Firebase Cloud Function URL (legacy - keeping for backward compatibility)
   static const String firebaseFunctionUrl =
       'https://us-central1-new-reward-38e46.cloudfunctions.net/generateQuestions';
 
@@ -30,72 +29,21 @@ class AITestConfig {
   // DON'T MODIFY BELOW THIS LINE
   // ============================================================
 
-  /// Check if direct API is configured
-  static bool get isDirectApiConfigured {
-    return directApiKey.isNotEmpty &&
-        directApiKey != 'PASTE_YOUR_API_KEY_HERE' &&
-        directApiKey.startsWith('sk-');
-  }
+  /// Configuration is always valid with Cloudflare Worker
+  static bool get isConfigured => true;
 
-  /// Check if Firebase function is configured
-  static bool get isFirebaseConfigured {
-    return firebaseFunctionUrl.isNotEmpty;
-  }
-
-  /// Get the appropriate API endpoint
-  static String get apiEndpoint {
-    if (useDirectAPI) {
-      return 'https://api.deepseek.com/v1/chat/completions';
-    } else {
-      return firebaseFunctionUrl;
-    }
-  }
-
-  /// Get the API key (only for direct API mode)
-  static String? get apiKey {
-    if (useDirectAPI) {
-      return isDirectApiConfigured ? directApiKey : null;
-    }
-    return null; // Firebase function handles the key
-  }
-
-  /// Check if configuration is valid
-  static bool get isConfigured {
-    if (useDirectAPI) {
-      return isDirectApiConfigured;
-    } else {
-      return isFirebaseConfigured;
-    }
-  }
+  /// Get the API endpoint - always returns Cloudflare Worker URL
+  static String get apiEndpoint => workerUrl;
 
   /// Get configuration status message
-  static String get statusMessage {
-    if (useDirectAPI) {
-      if (!isDirectApiConfigured) {
-        return '❌ Direct API key not configured. Please paste your DeepSeek API key in lib/config/ai_test_config.dart';
-      }
-      return '✅ Direct API mode enabled (Testing)';
-    } else {
-      if (!isFirebaseConfigured) {
-        return '❌ Firebase function URL not configured';
-      }
-      return '✅ Firebase Cloud Function mode enabled (Production)';
-    }
-  }
+  static String get statusMessage => '✅ Secure Cloudflare Worker mode enabled';
 
-  /// Get headers for API request
+  /// Get headers for API request - no authentication needed (handled by worker)
   static Map<String, String> get headers {
-    if (useDirectAPI) {
-      return {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${apiKey ?? ''}',
-      };
-    } else {
-      return {
-        'Content-Type': 'application/json',
-        // Firebase function handles authorization
-      };
-    }
+    return {
+      'Content-Type': 'application/json',
+      // No Authorization header - API key is on the server
+    };
   }
 
   /// AI Model Configuration
@@ -132,6 +80,5 @@ class AITestConfig {
   };
 
   /// Print configuration status
-  static void printStatus() {
-  }
+  static void printStatus() {}
 }

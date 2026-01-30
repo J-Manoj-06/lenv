@@ -1765,8 +1765,40 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         final principal = item.data as InstituteAnnouncementModel;
         role = 'principal';
         postedByLabel = 'Posted by ${principal.principalName}';
-        title = principal.text;
-        imageUrl = principal.imageUrl;
+
+        // Get image URL - prefer imageCaptions[0] if available, fallback to imageUrl
+        String? displayImageUrl;
+        String displayText;
+
+        if (principal.imageCaptions != null &&
+            principal.imageCaptions!.isNotEmpty) {
+          final urlFromCaptions = principal.imageCaptions![0]['url'];
+          // Validate URL is not empty
+          displayImageUrl =
+              (urlFromCaptions != null && urlFromCaptions.isNotEmpty)
+              ? urlFromCaptions
+              : null;
+          final caption = principal.imageCaptions![0]['caption'];
+          displayText = (caption != null && caption.isNotEmpty)
+              ? caption
+              : (principal.text.isNotEmpty
+                    ? principal.text
+                    : 'Principal Announcement');
+        } else if (principal.imageUrl != null &&
+            principal.imageUrl!.isNotEmpty) {
+          displayImageUrl = principal.imageUrl;
+          displayText = principal.text.isNotEmpty
+              ? principal.text
+              : 'Principal Announcement';
+        } else {
+          displayImageUrl = null;
+          displayText = principal.text.isNotEmpty
+              ? principal.text
+              : 'Principal Announcement';
+        }
+
+        title = displayText;
+        imageUrl = displayImageUrl;
         createdAt = principal.createdAt;
         expiresAt = principal.expiresAt;
         creatorId = principal.principalId;

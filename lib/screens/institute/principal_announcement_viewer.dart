@@ -266,6 +266,27 @@ class _PrincipalAnnouncementViewerState
               const theme = Color(0xFF146D7A); // Teal for principal
               const bgColor = Colors.black; // Changed to black background
 
+              // Debug logging
+              print('🔍 Announcement Debug:');
+              print('  - hasImage: ${announcement.hasImage}');
+              print('  - hasText: ${announcement.hasText}');
+              print('  - text: ${announcement.text}');
+              print('  - imageUrl: ${announcement.imageUrl}');
+              print('  - imageCaptions: ${announcement.imageCaptions}');
+              if (announcement.imageCaptions != null) {
+                print(
+                  '  - imageCaptions count: ${announcement.imageCaptions!.length}',
+                );
+                for (int i = 0; i < announcement.imageCaptions!.length; i++) {
+                  print(
+                    '    [$i] url: ${announcement.imageCaptions![i]['url']}',
+                  );
+                  print(
+                    '    [$i] caption: ${announcement.imageCaptions![i]['caption']}',
+                  );
+                }
+              }
+
               return Scaffold(
                 backgroundColor: bgColor,
                 body: GestureDetector(
@@ -473,8 +494,46 @@ class _PrincipalAnnouncementViewerState
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
+                                    // DEBUG: Show what data we have
+                                    if (announcement.imageCaptions == null &&
+                                        (announcement.imageUrl == null ||
+                                            announcement.imageUrl!.isEmpty) &&
+                                        announcement.text.isEmpty)
+                                      Center(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.error_outline,
+                                              color: Colors.red,
+                                              size: 64,
+                                            ),
+                                            const SizedBox(height: 16),
+                                            const Text(
+                                              'No content found',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'imageCaptions: ${announcement.imageCaptions}\n'
+                                              'imageUrl: ${announcement.imageUrl}\n'
+                                              'text: ${announcement.text}',
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
                                     // Show images with captions if available
-                                    if (announcement.imageCaptions != null &&
+                                    else if (announcement.imageCaptions !=
+                                            null &&
                                         announcement.imageCaptions!.isNotEmpty)
                                       // Horizontal PageView for multiple images
                                       PageView.builder(
@@ -492,6 +551,27 @@ class _PrincipalAnnouncementViewerState
                                               Image.network(
                                                 imageCaption['url']!,
                                                 fit: BoxFit.contain,
+                                                loadingBuilder: (context, child, loadingProgress) {
+                                                  if (loadingProgress == null)
+                                                    return child;
+                                                  return Container(
+                                                    color: Colors.black,
+                                                    child: Center(
+                                                      child: CircularProgressIndicator(
+                                                        value:
+                                                            loadingProgress
+                                                                    .expectedTotalBytes !=
+                                                                null
+                                                            ? loadingProgress
+                                                                      .cumulativeBytesLoaded /
+                                                                  loadingProgress
+                                                                      .expectedTotalBytes!
+                                                            : null,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
                                                 errorBuilder:
                                                     (
                                                       context,
@@ -560,6 +640,93 @@ class _PrincipalAnnouncementViewerState
                                           );
                                         },
                                       )
+                                    // Fallback: Show single image if imageUrl exists
+                                    else if (announcement.imageUrl != null &&
+                                        announcement.imageUrl!.isNotEmpty)
+                                      Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Image.network(
+                                            announcement.imageUrl!,
+                                            fit: BoxFit.contain,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null)
+                                                return child;
+                                              return Container(
+                                                color: Colors.black,
+                                                child: Center(
+                                                  child: CircularProgressIndicator(
+                                                    value:
+                                                        loadingProgress
+                                                                .expectedTotalBytes !=
+                                                            null
+                                                        ? loadingProgress
+                                                                  .cumulativeBytesLoaded /
+                                                              loadingProgress
+                                                                  .expectedTotalBytes!
+                                                        : null,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                                  return Container(
+                                                    color: Colors.black,
+                                                    child: const Center(
+                                                      child: Icon(
+                                                        Icons.broken_image,
+                                                        size: 64,
+                                                        color: Colors.white54,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                          ),
+                                          // Show text overlay if text exists
+                                          if (announcement.text.isNotEmpty)
+                                            Positioned(
+                                              bottom: 0,
+                                              left: 0,
+                                              right: 0,
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.topCenter,
+                                                    end: Alignment.bottomCenter,
+                                                    colors: [
+                                                      Colors.transparent,
+                                                      Colors.black.withOpacity(
+                                                        0.3,
+                                                      ),
+                                                      Colors.black.withOpacity(
+                                                        0.7,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.fromLTRB(
+                                                      24,
+                                                      80,
+                                                      24,
+                                                      24,
+                                                    ),
+                                                child: Text(
+                                                  announcement.text,
+                                                  textAlign: TextAlign.center,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.w600,
+                                                    height: 1.4,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      )
                                     else
                                       // Text-only announcement (centered)
                                       Center(
@@ -575,7 +742,7 @@ class _PrincipalAnnouncementViewerState
                                               ),
                                               const SizedBox(height: 20),
                                               Text(
-                                                announcement.hasText
+                                                announcement.text.isNotEmpty
                                                     ? announcement.text
                                                     : 'Principal Announcement',
                                                 textAlign: TextAlign.center,

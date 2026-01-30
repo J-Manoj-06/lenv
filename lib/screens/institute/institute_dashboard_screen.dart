@@ -600,6 +600,22 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                   .toList()
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
+          // DEBUG: Log announcements data
+          print('📢 Institute Dashboard - Announcements Debug:');
+          print('  Total announcements: ${allAnnouncements.length}');
+          for (var ann in allAnnouncements) {
+            print('  - ID: ${ann.id}');
+            print('    Principal: ${ann.principalName}');
+            print('    hasImage: ${ann.hasImage}');
+            print('    hasText: ${ann.hasText}');
+            print('    text: "${ann.text}"');
+            print('    imageUrl: ${ann.imageUrl}');
+            print('    imageCaptions: ${ann.imageCaptions}');
+            if (ann.imageCaptions != null) {
+              print('    imageCaptions count: ${ann.imageCaptions!.length}');
+            }
+          }
+
           // Segregate: My announcements vs Other Principals
           final myAnnouncements = allAnnouncements
               .where((a) => a.principalId == currentUserId)

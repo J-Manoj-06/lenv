@@ -1,23 +1,22 @@
-/// AI Configuration for DeepSeek API - Direct Access
+/// AI Configuration for DeepSeek API - Cloudflare Worker Proxy
 ///
-/// Simple direct API configuration for testing without Firebase billing.
+/// ✅ SECURE IMPLEMENTATION - All requests go through Cloudflare Worker
+/// API key is stored securely on the server and never exposed to clients
 ///
-/// ⚠️ SECURITY WARNING: API key is stored in app code!
-/// This is OK for testing, but for production you should use Firebase proxy.
+/// Previous direct API access has been removed for security
+/// All features now use the secure Cloudflare Worker endpoint
 ///
-/// SETUP: Add your DeepSeek API key on line 14 below
 library;
 
 class AIConfig {
   // Private constructor to prevent instantiation
   AIConfig._();
 
-  // ⚠️ ADD YOUR DEEPSEEK API KEY HERE (Get it from https://platform.deepseek.com/)
-  static const String apiKey = 'sk-your-deepseek-api-key-here';
+  // 🔒 SECURE: Cloudflare Worker endpoint (no API key needed in app)
+  static const String workerUrl =
+      'https://deepseek-ai.giridharannj.workers.dev/generate';
 
-  // DeepSeek API Configuration
-  static const String baseUrl = 'https://api.deepseek.com';
-  static const String apiVersion = 'v1';
+  // DeepSeek Model Configuration
   static const String model = 'deepseek-chat';
 
   // Request settings
@@ -27,11 +26,11 @@ class AIConfig {
   static const double temperature = 0.7;
   static const int maxTokens = 4000;
 
-  // Validation
-  static bool get isConfigured => apiKey.isNotEmpty && apiKey.startsWith('sk-');
+  // Configuration is always valid with Cloudflare Worker
+  static bool get isConfigured => true;
 
-  // Get full API URL
-  static String get apiUrl => '$baseUrl/$apiVersion/chat/completions';
+  // Get full API URL - returns Cloudflare Worker endpoint
+  static String get apiUrl => workerUrl;
 
   /// System message for AI test generation
   static const String systemMessage =
