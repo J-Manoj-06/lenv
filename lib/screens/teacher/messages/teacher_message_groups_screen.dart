@@ -257,23 +257,15 @@ class MessageGroupsService {
   }
 
   Future<List<MessageGroup>> getTeacherMessageGroups(String teacherId) async {
-    // ✅ NEW: Return cached results if valid (no Firestore queries!)
-    if (_isCacheValid()) {
-      return _groupCache.values.toList();
-    }
-
+    // Always fetch fresh data (cache disabled to prevent stale groups)
     final contexts = await getTeacherTeachingContexts(teacherId);
     final groups = <MessageGroup>[];
 
-    // ✅ OPTIMIZATION: Load groups in parallel where possible
+    // Load groups in parallel where possible
     for (var context in contexts) {
       final group = await convertToMessageGroup(context);
       groups.add(group);
-      _groupCache[group.groupId] = group; // ✅ NEW: Cache as we go
     }
-
-    // ✅ NEW: Update cache timestamp
-    _cacheTimestamp = DateTime.now();
 
     // Sort by last message time (most recent first), then by subject name
     groups.sort((a, b) {
@@ -316,6 +308,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   StreamSubscription<DocumentSnapshot>? _groupsStreamSubscription;
+  Timer? _refreshTimer;
 
   @override
   bool get wantKeepAlive => true; // ✅ Preserve state when switching tabs
@@ -332,6 +325,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   void dispose() {
     _searchController.dispose();
     _groupsStreamSubscription?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
@@ -382,6 +376,10 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     // Cancel previous subscription if exists
     _groupsStreamSubscription?.cancel();
 
+    // Load groups initially
+    _loadGroupsFromFirestore(teacherId);
+
+    // Listen to teacher_groups document for structural changes
     _groupsStreamSubscription = FirebaseFirestore.instance
         .collection('teacher_groups')
         .doc(teacherId)
@@ -390,35 +388,11 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           (snapshot) async {
             if (!mounted) return;
 
-            // Load groups fresh from the updated teacher_groups doc
-            try {
-              final groups = await _service.getTeacherMessageGroups(teacherId);
+            // Always force refresh to get latest message timestamps
+            _service.clearCache();
 
-              if (mounted) {
-                setState(() {
-                  _groups = groups;
-                  // Reapply search filter if active
-                  if (_isSearching) {
-                    final query = _searchController.text.toLowerCase();
-                    _filteredGroups = groups.where((group) {
-                      return group.subjectName.toLowerCase().contains(query) ||
-                          group.className.toLowerCase().contains(query) ||
-                          group.sectionName.toLowerCase().contains(query) ||
-                          group.displayName.toLowerCase().contains(query);
-                    }).toList();
-                  } else {
-                    _filteredGroups = groups;
-                  }
-                  _isLoading = false;
-                });
-              }
-            } catch (e) {
-              if (mounted) {
-                setState(() {
-                  _errorMessage = 'Error loading groups: $e';
-                });
-              }
-            }
+            // Load groups fresh from the updated teacher_groups doc
+            await _loadGroupsFromFirestore(teacherId);
           },
           onError: (error) {
             if (mounted) {
@@ -429,6 +403,48 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
             }
           },
         );
+
+    // Set up periodic refresh every 10 seconds to catch new messages
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      _service.clearCache();
+      _loadGroupsFromFirestore(teacherId);
+    });
+  }
+
+  Future<void> _loadGroupsFromFirestore(String teacherId) async {
+    try {
+      final groups = await _service.getTeacherMessageGroups(teacherId);
+
+      if (mounted) {
+        setState(() {
+          _groups = groups;
+          // Reapply search filter if active
+          if (_isSearching) {
+            final query = _searchController.text.toLowerCase();
+            _filteredGroups = groups.where((group) {
+              return group.subjectName.toLowerCase().contains(query) ||
+                  group.className.toLowerCase().contains(query) ||
+                  group.sectionName.toLowerCase().contains(query) ||
+                  group.displayName.toLowerCase().contains(query);
+            }).toList();
+          } else {
+            _filteredGroups = groups;
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error loading groups: $e';
+        });
+      }
+    }
   }
 
   Future<void> _loadGroups({bool forceRefresh = false}) async {
