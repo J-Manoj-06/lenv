@@ -152,7 +152,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     super.initState();
     // ✅ NEW: Ensure auth is initialized before loading data
     _initializeAndLoad();
-    _preloadViewedStatus();
     // Defer non-critical cleanup to after page loads
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -329,6 +328,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
       // Load section group for initial selection
       await _loadSectionGroupForSelection();
+
+      // Preload viewed status for instant orange border updates
+      await _preloadViewedStatus();
 
       // Fetch students in background after UI is shown
       _fetchStudentsInBackground(user, teacherData, sections, classes);
@@ -1562,40 +1564,16 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     final teacherUnread = allAnnouncements.any(
       (a) => a.type == 'teacher' && !a.isViewed,
     );
-    final principalAnnouncements = allAnnouncements
-        .where((a) => a.type == 'principal')
-        .toList();
+    final principalUnread = allAnnouncements.any(
+      (a) => a.type == 'principal' && !a.isViewed,
+    );
+    final bool hasUnviewed = teacherUnread || principalUnread;
 
-    if (principalAnnouncements.isEmpty) {
-      final bool hasUnviewed =
-          teacherUnread ||
-          allAnnouncements.any((a) => a.type == 'principal' && !a.isViewed);
-
-      return _buildOtherAnnouncementAvatarBody(
-        theme: theme,
-        latestAnnouncement: latestAnnouncement,
-        allAnnouncements: allAnnouncements,
-        hasUnviewed: hasUnviewed,
-      );
-    }
-
-    return StreamBuilder<List<bool>>(
-      stream: _streamPrincipalAnnouncementsViewStatus(
-        principalAnnouncements,
-        currentUserId,
-      ),
-      builder: (context, snapshot) {
-        final statuses = snapshot.data ?? const <bool>[];
-        final principalUnread = statuses.isEmpty || statuses.any((v) => !v);
-        final bool hasUnviewed = teacherUnread || principalUnread;
-
-        return _buildOtherAnnouncementAvatarBody(
-          theme: theme,
-          latestAnnouncement: latestAnnouncement,
-          allAnnouncements: allAnnouncements,
-          hasUnviewed: hasUnviewed,
-        );
-      },
+    return _buildOtherAnnouncementAvatarBody(
+      theme: theme,
+      latestAnnouncement: latestAnnouncement,
+      allAnnouncements: allAnnouncements,
+      hasUnviewed: hasUnviewed,
     );
   }
 
