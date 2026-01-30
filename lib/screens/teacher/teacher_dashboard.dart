@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../../utils/feedback_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -48,6 +49,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   String? _error;
   // Cache viewed principal announcement ids to avoid re-marking and stale badges
   final Set<String> _viewedPrincipalAnnouncements = <String>{};
+  // Cache for instant viewed status display (both teacher and principal)
+  final Map<String, bool> _viewedCache = {};
   final MediaRepository _mediaRepository = MediaRepository();
 
   // Highlights: best-effort cleanup on load
@@ -149,6 +152,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     super.initState();
     // ✅ NEW: Ensure auth is initialized before loading data
     _initializeAndLoad();
+    _preloadViewedStatus();
     // Defer non-critical cleanup to after page loads
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -157,6 +161,60 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         _autoPublishTests();
       }
     });
+  }
+
+  /// Preload all viewed statuses at startup for instant display
+  Future<void> _preloadViewedStatus() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.uid;
+
+      if (userId == null) return;
+
+      final instituteId = _teacherData?['instituteId'] as String?;
+      if (instituteId == null) return;
+
+      // Preload teacher highlights viewed status
+      final highlightsSnapshot = await FirebaseFirestore.instance
+          .collection('class_highlights')
+          .where('instituteId', isEqualTo: instituteId)
+          .get();
+
+      for (final doc in highlightsSnapshot.docs) {
+        final viewedBy =
+            (doc.data()['viewedBy'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [];
+        if (viewedBy.contains(userId)) {
+          _viewedCache[doc.id] = true;
+        }
+      }
+
+      // Preload principal announcements viewed status
+      final announcementsSnapshot = await FirebaseFirestore.instance
+          .collection('institutes')
+          .doc(instituteId)
+          .collection('institute_announcements')
+          .get();
+
+      for (final doc in announcementsSnapshot.docs) {
+        final viewDoc = await doc.reference
+            .collection('views')
+            .doc(userId)
+            .get();
+
+        if (viewDoc.exists) {
+          _viewedCache[doc.id] = true;
+        }
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error preloading viewed status: $e');
+    }
   }
 
   /// Initialize auth and load teacher data
@@ -1037,9 +1095,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     doc['snapshot'] as DocumentSnapshot,
                   );
                   if (status.isValid && status.instituteId == instituteId) {
-                    final isViewed = status.hasBeenViewedBy(
-                      currentUserId ?? '',
-                    );
+                    // Check cache first for instant status, fallback to viewedBy
+                    final isViewed =
+                        _viewedCache[status.id] == true ||
+                        status.hasBeenViewedBy(currentUserId ?? '');
                     allAnnouncements.add(
                       _AnnouncementItem(
                         id: status.id,
@@ -1067,7 +1126,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           ?.map((e) => e.toString())
                           .toList() ??
                       const <String>[];
+                  // Check cache first for instant status
                   final isViewed =
+                      _viewedCache[announcement.id] == true ||
                       viewedBy.contains(currentUserId) ||
                       _viewedPrincipalAnnouncements.contains(announcement.id);
                   if (announcement.instituteId == instituteId) {
@@ -1305,6 +1366,38 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 ),
               ),
 
+              // Count badge (top-right)
+              if (myAnnouncements.length > 1)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7B61FF),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.scaffoldBackgroundColor,
+                        width: 2,
+                      ),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Text(
+                      '${myAnnouncements.length}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+
               // Add (+) Icon Overlay
               Positioned(
                 right: -2,
@@ -1387,21 +1480,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return FutureBuilder<String?>(
       future: _getAnnouncementImagePath(imageUrl, fileName),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          // Show loading while checking cache/downloading
-          return Container(
-            color: const Color(0xFF7E57C2).withOpacity(0.3),
-            child: const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7E57C2)),
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.hasError || snapshot.data == null) {
-          // Show fallback avatar if download failed
+        // Show fallback immediately instead of loading indicator
+        if (snapshot.connectionState == ConnectionState.waiting ||
+            snapshot.hasError ||
+            snapshot.data == null) {
           if (theme != null) {
             return _buildDefaultAvatar(fallbackName, theme);
           } else {
@@ -1534,63 +1616,105 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 68,
-            height: 68,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: hasUnviewed
-                  ? const LinearGradient(
-                      colors: [Color(0xFFF27F0D), Color(0xFFFF9F40)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : LinearGradient(
-                      colors: [
-                        Colors.grey.withOpacity(containsPrincipal ? 0.25 : 0.4),
-                        Colors.grey.withOpacity(containsPrincipal ? 0.2 : 0.3),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-              boxShadow: hasUnviewed
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFFF27F0D).withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: hasUnviewed
+                      ? const LinearGradient(
+                          colors: [Color(0xFFF27F0D), Color(0xFFFF9F40)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : LinearGradient(
+                          colors: [
+                            Colors.grey.withOpacity(
+                              containsPrincipal ? 0.25 : 0.4,
+                            ),
+                            Colors.grey.withOpacity(
+                              containsPrincipal ? 0.2 : 0.3,
+                            ),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                  boxShadow: hasUnviewed
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFFF27F0D).withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: latestAnnouncement.hasImage
+                        ? Colors.transparent
+                        : const Color(0xFF7E57C2),
+                  ),
+                  child: ClipOval(
+                    child: latestAnnouncement.hasImage
+                        ? _buildCachedAnnouncementAvatar(
+                            latestAnnouncement.imageUrl!,
+                            'announcement_${latestAnnouncement.id}.jpg',
+                            latestAnnouncement.creatorName,
+                            null,
+                            hasUnviewed
+                                ? const ColorFilter.mode(
+                                    Colors.transparent,
+                                    BlendMode.multiply,
+                                  )
+                                : ColorFilter.mode(
+                                    Colors.grey.withOpacity(0.5),
+                                    BlendMode.saturation,
+                                  ),
+                          )
+                        : _buildTeacherInitial(latestAnnouncement.creatorName),
+                  ),
+                ),
+              ),
+              // Count badge
+              if (allAnnouncements.length > 1)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: hasUnviewed
+                          ? const Color(0xFFF27F0D)
+                          : Colors.grey[600],
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.scaffoldBackgroundColor,
+                        width: 2,
                       ),
-                    ]
-                  : null,
-            ),
-            padding: const EdgeInsets.all(3),
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: latestAnnouncement.hasImage
-                    ? Colors.transparent
-                    : const Color(0xFF7E57C2),
-              ),
-              child: ClipOval(
-                child: latestAnnouncement.hasImage
-                    ? _buildCachedAnnouncementAvatar(
-                        latestAnnouncement.imageUrl!,
-                        'announcement_${latestAnnouncement.id}.jpg',
-                        latestAnnouncement.creatorName,
-                        null,
-                        hasUnviewed
-                            ? const ColorFilter.mode(
-                                Colors.transparent,
-                                BlendMode.multiply,
-                              )
-                            : ColorFilter.mode(
-                                Colors.grey.withOpacity(0.5),
-                                BlendMode.saturation,
-                              ),
-                      )
-                    : _buildTeacherInitial(latestAnnouncement.creatorName),
-              ),
-            ),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Text(
+                      '${allAnnouncements.length}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 6),
           SizedBox(
@@ -1829,9 +1953,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       initialIndex: 0,
       currentUserId: authProvider.currentUser?.uid,
       onAnnouncementViewed: (index) {
-        // Mark principal announcements as viewed
+        // Mark announcements as viewed
         if (index < allAnnouncements.length) {
           final item = allAnnouncements[index];
+
+          // Update cache immediately for instant UI update
+          _viewedCache[item.id] = true;
+
           if (item.type == 'principal') {
             final authProvider = Provider.of<AuthProvider>(
               context,
@@ -1841,11 +1969,34 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             if (userId.isNotEmpty) {
               final principal = item.data as InstituteAnnouncementModel;
               _markPrincipalAnnouncementAsViewed(principal.id, userId);
-              WidgetsBinding.instance.addPostFrameCallback((_) {
+              SchedulerBinding.instance.addPostFrameCallback((_) {
                 if (mounted) {
                   setState(() {
                     _viewedPrincipalAnnouncements.add(principal.id);
                   });
+                }
+              });
+            }
+          } else if (item.type == 'teacher') {
+            // Mark teacher announcement as viewed
+            final status = item.data as StatusModel;
+            final authProvider = Provider.of<AuthProvider>(
+              context,
+              listen: false,
+            );
+            final userId = authProvider.currentUser?.uid ?? '';
+            if (userId.isNotEmpty) {
+              FirebaseFirestore.instance
+                  .collection('class_highlights')
+                  .doc(status.id)
+                  .update({
+                    'viewedBy': FieldValue.arrayUnion([userId]),
+                  })
+                  .catchError((e) {});
+
+              SchedulerBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() {});
                 }
               });
             }

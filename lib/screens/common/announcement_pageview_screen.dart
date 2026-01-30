@@ -1,7 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../services/media_repository.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 /// Multi-announcement viewer with swipe navigation
 /// Supports navigating through multiple announcements left/right
@@ -40,8 +39,9 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
   bool _showTapHints = true;
   double _verticalDragOffset = 0.0;
   bool _isLongPressing = false;
-  final MediaRepository _mediaRepository = MediaRepository();
-  final Map<String, String?> _cachedImagePaths = {};
+  final Map<int, bool> _imageLoadedState = {}; // Track which images are loaded
+  bool _isPreloadingImages = true; // Show loading while preloading
+  bool _hasPreloadedImages = false; // Track if preloading has been initiated
 
   @override
   void initState() {
@@ -62,12 +62,14 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     _progressController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         // Auto-advance to next announcement when progress completes
-        if (_currentIndex < widget.announcements.length - 1) {
+        // Only if PageController is attached and has positions
+        if (_pageController.hasClients &&
+            _currentIndex < widget.announcements.length - 1) {
           _pageController.nextPage(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,
           );
-        } else {
+        } else if (_currentIndex >= widget.announcements.length - 1) {
           // Finished last announcement, close viewer
           if (mounted) Navigator.of(context).maybePop();
         }
@@ -86,6 +88,66 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
         });
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Preload images after context is fully available
+    if (!_hasPreloadedImages) {
+      _hasPreloadedImages = true;
+      _preloadImages();
+    }
+  }
+
+  /// Preload all announcement images to ensure smooth display
+  Future<void> _preloadImages() async {
+    final imagesToPreload = <Future<void>>[];
+
+    for (int i = 0; i < widget.announcements.length; i++) {
+      final announcement = widget.announcements[i];
+      final imageUrl = announcement['avatarUrl'] as String?;
+
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        // Precache network image
+        imagesToPreload.add(
+          precacheImage(CachedNetworkImageProvider(imageUrl), context)
+              .then((_) {
+                if (mounted) {
+                  setState(() {
+                    _imageLoadedState[i] = true;
+                  });
+                }
+              })
+              .catchError((error) {
+                // Mark as loaded even on error so UI doesn't hang
+                if (mounted) {
+                  setState(() {
+                    _imageLoadedState[i] = true;
+                  });
+                }
+              }),
+        );
+      } else {
+        // No image to load
+        _imageLoadedState[i] = true;
+      }
+    }
+
+    // Wait for all images to preload (or at least the first one)
+    if (imagesToPreload.isNotEmpty) {
+      // Wait for first image at minimum
+      await Future.any([
+        imagesToPreload.first,
+        Future.delayed(const Duration(seconds: 3)), // Timeout after 3s
+      ]);
+    }
+
+    if (mounted) {
+      setState(() {
+        _isPreloadingImages = false;
+      });
+    }
   }
 
   @override
@@ -130,6 +192,19 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Show circular loading while preloading images
+    if (_isPreloadingImages) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            strokeWidth: 3,
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
@@ -355,78 +430,52 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                       if (announcement['avatarUrl'] != null &&
                                           (announcement['avatarUrl'] as String)
                                               .isNotEmpty)
-                                        _buildCachedImage(
-                                          announcement['avatarUrl']!,
-                                          'announcement_${announcement['id'] ?? _currentIndex}.jpg',
-                                        )
-                                      else
-                                        Container(color: Colors.black),
-
-                                      // Text overlay (centered if no image, at bottom if image)
-                                      if ((announcement['title'] as String?)
-                                              ?.isNotEmpty ??
-                                          false)
-                                        if (announcement['avatarUrl'] != null &&
-                                            (announcement['avatarUrl']
-                                                    as String)
-                                                .isNotEmpty)
-                                          // Text at bottom if image exists
-                                          Positioned(
-                                            bottom: 0,
-                                            left: 0,
-                                            right: 0,
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.topCenter,
-                                                  end: Alignment.bottomCenter,
-                                                  colors: [
-                                                    Colors.transparent,
-                                                    Colors.black.withOpacity(
-                                                      0.3,
-                                                    ),
-                                                    Colors.black.withOpacity(
-                                                      0.7,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                    24,
-                                                    80,
-                                                    24,
-                                                    24,
-                                                  ),
-                                              child: Text(
-                                                announcement['title'] ?? '',
-                                                textAlign: TextAlign.center,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 28,
-                                                  fontWeight: FontWeight.w800,
-                                                  height: 1.3,
-                                                ),
-                                              ),
-                                            ),
-                                          )
-                                        else
-                                          // Text centered if no image
-                                          Center(
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(32),
-                                              child: Text(
-                                                announcement['title'] ?? '',
-                                                textAlign: TextAlign.center,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 32,
-                                                  fontWeight: FontWeight.w800,
-                                                  height: 1.4,
-                                                ),
+                                        CachedNetworkImage(
+                                          imageUrl: announcement['avatarUrl']!,
+                                          fit: BoxFit.contain,
+                                          placeholder: (context, url) => Container(
+                                            color: Colors.black,
+                                            child: const Center(
+                                              child: CircularProgressIndicator(
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                      Color
+                                                    >(Colors.white54),
                                               ),
                                             ),
                                           ),
+                                          errorWidget: (context, url, error) =>
+                                              Container(
+                                                color: Colors.grey.shade900,
+                                                child: const Icon(
+                                                  Icons.image_not_supported,
+                                                  size: 64,
+                                                  color: Colors.white54,
+                                                ),
+                                              ),
+                                        )
+                                      else if ((announcement['title']
+                                                  as String?)
+                                              ?.isNotEmpty ??
+                                          false)
+                                        // Show text only if no image
+                                        Center(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(32),
+                                            child: Text(
+                                              announcement['title'] ?? '',
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 32,
+                                                fontWeight: FontWeight.w800,
+                                                height: 1.4,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        Container(color: Colors.black),
                                     ],
                                   ),
                                 ),
@@ -592,128 +641,6 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
         ),
       ),
     );
-  }
-
-  /// Build cached image widget - downloads and caches on first view
-  Widget _buildCachedImage(String imageUrl, String fileName) {
-    // Check if we already have the path cached
-    if (_cachedImagePaths.containsKey(imageUrl)) {
-      final cachedPath = _cachedImagePaths[imageUrl];
-      if (cachedPath != null) {
-        // Show cached image directly without FutureBuilder
-        return Image.file(
-          File(cachedPath),
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              color: Colors.grey.shade900,
-              child: const Icon(
-                Icons.image_not_supported,
-                size: 64,
-                color: Colors.white54,
-              ),
-            );
-          },
-        );
-      } else {
-        // Failed to load before, show error
-        return Container(
-          color: Colors.grey.shade900,
-          child: const Icon(
-            Icons.image_not_supported,
-            size: 64,
-            color: Colors.white54,
-          ),
-        );
-      }
-    }
-
-    // First time loading - use FutureBuilder
-    return FutureBuilder<String?>(
-      future: _getImagePath(imageUrl, fileName),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          // Show loading while checking cache/downloading
-          return Container(
-            color: Colors.grey.shade900,
-            child: const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-          );
-        }
-
-        // Cache the result (success or failure)
-        if (!_cachedImagePaths.containsKey(imageUrl)) {
-          _cachedImagePaths[imageUrl] = snapshot.data;
-        }
-
-        if (snapshot.hasError || snapshot.data == null) {
-          // Show error if download failed
-          return Container(
-            color: Colors.grey.shade900,
-            child: const Icon(
-              Icons.image_not_supported,
-              size: 64,
-              color: Colors.white54,
-            ),
-          );
-        }
-
-        // Show cached image
-        return Image.file(
-          File(snapshot.data!),
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              color: Colors.grey.shade900,
-              child: const Icon(
-                Icons.image_not_supported,
-                size: 64,
-                color: Colors.white54,
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  /// Get image path - from cache or download if needed
-  Future<String?> _getImagePath(String imageUrl, String fileName) async {
-    try {
-      // Extract R2 key from URL (if it's a Cloudflare R2 URL)
-      String r2Key;
-      if (imageUrl.contains('files.lenv1.tech')) {
-        final uri = Uri.parse(imageUrl);
-        r2Key = uri.path.substring(1); // Remove leading /
-      } else {
-        // For other URLs, use a hash or simple key
-        r2Key = 'announcements/${imageUrl.hashCode}_$fileName';
-      }
-
-      // Check if already cached
-      final localPath = await _mediaRepository.getLocalFilePath(r2Key);
-      if (localPath != null) {
-        return localPath;
-      }
-
-      // Download and cache
-      final result = await _mediaRepository.downloadMedia(
-        r2Key: r2Key,
-        fileName: fileName,
-        mimeType: 'image/jpeg',
-      );
-
-      if (result.success && result.localPath != null) {
-        return result.localPath;
-      }
-
-      return null;
-    } catch (e) {
-      return null;
-    }
   }
 }
 

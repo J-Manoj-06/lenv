@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Badge;
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -45,10 +46,61 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   bool _isLoading = true;
   String? _error;
 
+  // Cache viewed status for immediate UI updates - key: announcementId, value: isViewed
+  final Map<String, bool> _viewedCache = {};
+
   @override
   void initState() {
     super.initState();
     _loadDashboardData();
+    _preloadViewedStatus();
+  }
+
+  /// Preload all viewed statuses at startup for instant display
+  /// Optimized: Direct query to institute_announcements instead of collectionGroup
+  Future<void> _preloadViewedStatus() async {
+    try {
+      final authProvider = Provider.of<app_auth.AuthProvider>(
+        context,
+        listen: false,
+      );
+      final userId = authProvider.currentUser?.uid;
+
+      if (userId == null) return;
+
+      final studentProvider = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      );
+      final instituteId = studentProvider.currentStudent?.schoolId;
+
+      if (instituteId == null) return;
+
+      // Direct query to institute_announcements - much faster
+      final announcementsSnapshot = await FirebaseFirestore.instance
+          .collection('institutes')
+          .doc(instituteId)
+          .collection('institute_announcements')
+          .get();
+
+      // Check each announcement's views subcollection for this user
+      for (final doc in announcementsSnapshot.docs) {
+        final viewDoc = await doc.reference
+            .collection('views')
+            .doc(userId)
+            .get();
+
+        if (viewDoc.exists) {
+          _viewedCache[doc.id] = true;
+        }
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error preloading viewed status: $e');
+    }
   }
 
   Future<void> _loadDashboardData() async {
@@ -567,32 +619,24 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   );
                 }, count: creatorAnnouncements.length);
               } else {
-                // For principal announcements, use StreamBuilder for real-time updates
+                // For principal announcements, check cached viewed status
                 final principalAnnouncements = creatorAnnouncements
                     .where((a) => a['type'] == 'principal')
                     .map((a) => a['data'] as InstituteAnnouncementModel)
                     .toList();
 
-                return StreamBuilder<List<bool>>(
-                  stream: _streamPrincipalAnnouncementsViewStatus(
-                    principalAnnouncements,
-                    currentUserId,
-                  ),
-                  builder: (context, snapshot) {
-                    final viewStatuses = snapshot.data ?? [];
-                    final hasUnread =
-                        viewStatuses.isEmpty ||
-                        viewStatuses.any((isViewed) => !isViewed);
-
-                    return _buildAnnouncementAvatar('Principal', hasUnread, () {
-                      _openCrossPersonAnnouncementViewer(
-                        creatorGroups,
-                        index,
-                        currentUserId,
-                      );
-                    }, count: creatorAnnouncements.length);
-                  },
+                // Check cache immediately - no delay
+                final hasUnread = principalAnnouncements.any(
+                  (announcement) => _viewedCache[announcement.id] != true,
                 );
+
+                return _buildAnnouncementAvatar('Principal', hasUnread, () {
+                  _openCrossPersonAnnouncementViewer(
+                    creatorGroups,
+                    index,
+                    currentUserId,
+                  );
+                }, count: creatorAnnouncements.length);
               }
             },
           ),
@@ -835,6 +879,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             } else if (type == 'principal') {
               final principalAnnouncement =
                   originalData['data'] as InstituteAnnouncementModel;
+
+              // Mark as viewed in local cache immediately for instant UI update
+              _viewedCache[principalAnnouncement.id] = true;
+
+              // Trigger UI rebuild after current frame to avoid setState during build
+              SchedulerBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() {});
+                }
+              });
+
+              // Mark in Firestore for persistence
               _markPrincipalAnnouncementAsViewed(
                 principalAnnouncement.id,
                 currentUserId,
@@ -854,80 +910,19 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     String userId,
   ) async {
     try {
-      // Add user to views subcollection (no instituteId check needed)
+      // Add user to views subcollection
       await FirebaseFirestore.instance
           .collection('institute_announcements')
           .doc(announcementId)
           .collection('views')
           .doc(userId)
           .set({'viewedAt': FieldValue.serverTimestamp()});
-
-      // StreamBuilder will automatically update the UI
     } catch (e) {
       debugPrint('Error marking announcement as viewed: $e');
     }
   }
 
-  /// Stream real-time view status for principal announcements
-  Stream<List<bool>> _streamPrincipalAnnouncementsViewStatus(
-    List<InstituteAnnouncementModel> announcements,
-    String userId,
-  ) {
-    for (var i = 0; i < announcements.length; i++) {}
-
-    if (announcements.isEmpty) {
-      return Stream.value([]);
-    }
-
-    // For single announcement, simple stream
-    if (announcements.length == 1) {
-      return FirebaseFirestore.instance
-          .collection('institute_announcements')
-          .doc(announcements.first.id)
-          .collection('views')
-          .doc(userId)
-          .snapshots()
-          .map((doc) {
-            return [doc.exists];
-          })
-          .distinct(
-            (prev, next) => prev[0] == next[0],
-          ); // Prevent duplicate emissions
-    }
-
-    // For multiple announcements, use snapshot listener instead of polling
-    // Listen to the first announcement and check all when it changes
-    return FirebaseFirestore.instance
-        .collection('institute_announcements')
-        .doc(announcements.first.id)
-        .collection('views')
-        .doc(userId)
-        .snapshots()
-        .asyncMap((_) async {
-          final results = <bool>[];
-          for (final announcement in announcements) {
-            final doc = await FirebaseFirestore.instance
-                .collection('institute_announcements')
-                .doc(announcement.id)
-                .collection('views')
-                .doc(userId)
-                .get();
-            results.add(doc.exists);
-          }
-          return results;
-        })
-        .distinct((prev, next) {
-          // Only emit if the results actually changed
-          if (prev.length != next.length) return false;
-          for (var i = 0; i < prev.length; i++) {
-            if (prev[i] != next[i]) return false;
-          }
-          return true;
-        });
-  }
-
-  /// Check if a principal announcement has been viewed by the current user
-  // Combine announcements from both teachers and principals
+  /// Combine announcements from both teachers and principals
   Stream<List<Map<String, dynamic>>> _combineAnnouncementStreams(
     String instituteId,
   ) async* {

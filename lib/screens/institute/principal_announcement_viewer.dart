@@ -552,8 +552,9 @@ class _PrincipalAnnouncementViewerState
                                                 imageCaption['url']!,
                                                 fit: BoxFit.contain,
                                                 loadingBuilder: (context, child, loadingProgress) {
-                                                  if (loadingProgress == null)
+                                                  if (loadingProgress == null) {
                                                     return child;
+                                                  }
                                                   return Container(
                                                     color: Colors.black,
                                                     child: Center(
@@ -650,8 +651,9 @@ class _PrincipalAnnouncementViewerState
                                             announcement.imageUrl!,
                                             fit: BoxFit.contain,
                                             loadingBuilder: (context, child, loadingProgress) {
-                                              if (loadingProgress == null)
+                                              if (loadingProgress == null) {
                                                 return child;
+                                              }
                                               return Container(
                                                 color: Colors.black,
                                                 child: Center(
