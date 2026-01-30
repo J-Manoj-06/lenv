@@ -71,7 +71,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
       // Invalidate the current request provider to refresh the data
       ref.invalidate(currentRequestProvider(widget.requestId));
-      
+
       // Wait a moment for the provider to refresh
       await Future.delayed(const Duration(milliseconds: 100));
 
