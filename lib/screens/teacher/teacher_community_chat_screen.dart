@@ -6,7 +6,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
@@ -29,6 +31,7 @@ import '../../config/cloudflare_config.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../models/media_metadata.dart';
 import '../../widgets/media_preview_card.dart';
+import '../../widgets/multi_image_message_bubble.dart';
 
 class TeacherCommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -55,7 +58,7 @@ class _TeacherCommunityChatScreenState
   String? _teacherName;
   String? _teacherId;
   bool _showEmojiPicker = false;
-  final bool _isUploading = false;
+  bool _isUploading = false;
 
   // Multi-select functionality
   bool _selectionMode = false;
@@ -65,6 +68,21 @@ class _TeacherCommunityChatScreenState
   // Optimistic pending messages and per-upload progress
   final List<CommunityMessageModel> _pendingMessages = [];
   final Map<String, double> _pendingUploadProgress = {};
+  final Map<String, String> _localSenderMediaPaths = {};
+
+  // Tracking for message location and highlight
+  final Map<String, GlobalKey> _messageKeys = {};
+  Set<String> _visibleMessageIds = {};
+  String? _highlightMessageId;
+  Timer? _highlightResetTimer;
+
+  // Audio recording
+  bool _isRecording = false;
+  String? _recordingPath;
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  late Timer _recordingTimer;
+  double _slideOffsetX = 0;
+  bool _isCancelled = false;
 
   @override
   void initState() {
@@ -95,24 +113,278 @@ class _TeacherCommunityChatScreenState
     );
 
     // Bridge background upload progress to UI (optimistic pending messages)
-    BackgroundUploadService().onUploadProgress =
-        (String messageId, bool isUploading, double progress) {
-          if (!mounted) return;
-          setState(() {
-            if (isUploading) {
-              _pendingUploadProgress[messageId] = progress;
-            } else {
-              // Upload complete - only remove progress, keep pending visible
-              // Dedup logic will remove pending when server message arrives
-              _pendingUploadProgress.remove(messageId);
-            }
-          });
-        };
+    BackgroundUploadService()
+        .onUploadProgress = (String messageId, bool isUploading, double progress) {
+      if (!mounted) return;
+      setState(() {
+        if (isUploading) {
+          _pendingUploadProgress[messageId] = progress;
+        } else {
+          // Upload complete - remove from progress tracking
+          _pendingUploadProgress.remove(messageId);
+
+          // For multi-image messages: remove completed image from pending immediately
+          _removeCompletedImageFromPending(messageId);
+        }
+      });
+    };
+
+    // Sync existing upload progress when screen initializes
+    _syncUploadProgress();
 
     _loadTeacherData();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToBottom(force: true),
     );
+
+    // Load persisted pending messages on init
+    _loadPendingMessages();
+  }
+
+  // Sync upload progress from BackgroundUploadService
+  void _syncUploadProgress() {
+    final uploadService = BackgroundUploadService();
+    final uploads = uploadService.uploads;
+
+    if (uploads.isEmpty) return;
+
+    setState(() {
+      for (final item in uploads) {
+        // Only sync progress for items in this community
+        if (_pendingUploadProgress.containsKey(item.id)) {
+          _pendingUploadProgress[item.id] = item.progress;
+        }
+      }
+    });
+  }
+
+  Future<void> _loadPendingMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'pending_messages_teacher_${widget.community.id}';
+      final data = prefs.getStringList(key) ?? [];
+
+      if (data.isEmpty) return;
+
+      if (_teacherId == null || _teacherName == null) {
+        await _loadTeacherData();
+      }
+      if (_teacherId == null || _teacherName == null) return;
+
+      debugPrint('📂 Loading ${data.length} pending messages from cache');
+
+      for (final json in data) {
+        try {
+          final map = jsonDecode(json) as Map<String, dynamic>;
+          final mid = map['messageId'] as String?;
+          if (mid == null || !mid.startsWith('pending:')) continue;
+
+          // Reconstruct multipleMedia if present
+          List<MediaMetadata>? multipleMedia;
+          if (map['multipleMedia'] is List) {
+            multipleMedia = (map['multipleMedia'] as List)
+                .map((m) => _mediaFromJsonSafe(m))
+                .toList();
+          }
+
+          final msg = CommunityMessageModel(
+            messageId: mid,
+            communityId: widget.community.id,
+            senderId: _teacherId!,
+            senderName: map['senderName'] as String? ?? _teacherName!,
+            senderRole: 'Teacher',
+            senderAvatar: '',
+            type: 'image',
+            content: map['content'] as String? ?? '',
+            imageUrl: '',
+            fileUrl: '',
+            fileName: '',
+            mediaMetadata: map['mediaMetadata'] != null
+                ? _mediaFromJsonSafe(map['mediaMetadata'])
+                : null,
+            multipleMedia: multipleMedia,
+            createdAt: DateTime.now(),
+            updatedAt: null,
+            isEdited: false,
+            isDeleted: false,
+            isPinned: false,
+            reactions: {},
+            replyTo: '',
+            replyCount: 0,
+            isReported: false,
+            reportCount: 0,
+            deletedFor: const [],
+            documentSnapshot: null,
+          );
+
+          setState(() {
+            _pendingMessages.add(msg);
+            // Track progress only if not already tracked
+            if (msg.multipleMedia != null) {
+              for (final mm in msg.multipleMedia!) {
+                if (!_pendingUploadProgress.containsKey(mm.messageId)) {
+                  _pendingUploadProgress[mm.messageId] = 0.0;
+                }
+              }
+            }
+            if (msg.mediaMetadata != null) {
+              if (!_pendingUploadProgress.containsKey(
+                msg.mediaMetadata!.messageId,
+              )) {
+                _pendingUploadProgress[msg.mediaMetadata!.messageId] = 0.0;
+              }
+            }
+          });
+
+          debugPrint('📥 Restored: $mid');
+        } catch (e) {
+          debugPrint('⚠️ Failed to restore pending message: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load pending messages: $e');
+    }
+  }
+
+  Future<void> _cachePendingMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'pending_messages_teacher_${widget.community.id}';
+
+      if (_pendingMessages.isEmpty) {
+        await prefs.remove(key);
+        debugPrint('🗑️ Cleared cache (no pending messages)');
+        return;
+      }
+
+      final data = _pendingMessages
+          .where((m) => m.messageId.startsWith('pending:'))
+          .map(
+            (m) => jsonEncode({
+              'messageId': m.messageId,
+              'senderName': m.senderName,
+              'content': m.content,
+              'mediaMetadata': m.mediaMetadata != null
+                  ? _mediaToJsonSafe(m.mediaMetadata!)
+                  : null,
+              'multipleMedia': m.multipleMedia
+                  ?.map((mm) => _mediaToJsonSafe(mm))
+                  .toList(),
+            }),
+          )
+          .toList();
+
+      await prefs.setStringList(key, data);
+      debugPrint('💾 Cached ${data.length} pending messages');
+    } catch (e) {
+      debugPrint('⚠️ Failed to cache pending messages: $e');
+    }
+  }
+
+  Map<String, dynamic> _mediaToJsonSafe(MediaMetadata media) {
+    return {
+      'messageId': media.messageId,
+      'r2Key': media.r2Key,
+      'publicUrl': media.publicUrl,
+      'localPath': media.localPath,
+      'thumbnail': media.thumbnail,
+      'deletedLocally': media.deletedLocally,
+      'serverStatus': media.serverStatus.toString(),
+      'expiresAt': media.expiresAt.millisecondsSinceEpoch,
+      'uploadedAt': media.uploadedAt.millisecondsSinceEpoch,
+      'fileSize': media.fileSize,
+      'mimeType': media.mimeType,
+      'originalFileName': media.originalFileName,
+    };
+  }
+
+  MediaMetadata _mediaFromJsonSafe(Map<String, dynamic> json) {
+    return MediaMetadata(
+      messageId: json['messageId'] as String,
+      r2Key: json['r2Key'] as String,
+      publicUrl: json['publicUrl'] as String? ?? '',
+      localPath: json['localPath'] as String?,
+      thumbnail: json['thumbnail'] as String? ?? '',
+      deletedLocally: json['deletedLocally'] as bool? ?? false,
+      serverStatus: ServerStatus.values.firstWhere(
+        (e) => e.toString() == json['serverStatus'],
+        orElse: () => ServerStatus.available,
+      ),
+      expiresAt: DateTime.fromMillisecondsSinceEpoch(json['expiresAt'] as int),
+      uploadedAt: DateTime.fromMillisecondsSinceEpoch(
+        json['uploadedAt'] as int,
+      ),
+      fileSize: json['fileSize'] as int?,
+      mimeType: json['mimeType'] as String?,
+      originalFileName: json['originalFileName'] as String?,
+    );
+  }
+
+  void _removeCompletedImageFromPending(String completedMessageId) {
+    // Find pending message containing this media ID
+    for (int i = 0; i < _pendingMessages.length; i++) {
+      final pending = _pendingMessages[i];
+
+      // Check if this pending has multiple media
+      if (pending.multipleMedia != null && pending.multipleMedia!.length > 1) {
+        // Check if completed image is in this pending
+        final hasCompleted = pending.multipleMedia!.any(
+          (m) => m.messageId == completedMessageId,
+        );
+
+        if (hasCompleted) {
+          // Remove the completed image
+          final remainingMedia = pending.multipleMedia!
+              .where((m) => m.messageId != completedMessageId)
+              .toList();
+
+          debugPrint(
+            '🗑️ Removed completed image from pending: $completedMessageId (${remainingMedia.length} remaining)',
+          );
+
+          if (remainingMedia.isEmpty) {
+            // All images uploaded - remove entire pending
+            _pendingMessages.removeAt(i);
+            debugPrint(
+              '✅ All images uploaded - removed pending: ${pending.messageId}',
+            );
+          } else {
+            // Update pending with remaining images
+            _pendingMessages[i] = CommunityMessageModel(
+              messageId: pending.messageId,
+              communityId: pending.communityId,
+              senderId: pending.senderId,
+              senderName: pending.senderName,
+              senderRole: pending.senderRole,
+              senderAvatar: pending.senderAvatar,
+              type: pending.type,
+              content: pending.content,
+              imageUrl: pending.imageUrl,
+              fileUrl: pending.fileUrl,
+              fileName: pending.fileName,
+              mediaMetadata: remainingMedia.first,
+              multipleMedia: remainingMedia.length > 1 ? remainingMedia : null,
+              createdAt: pending.createdAt,
+              updatedAt: pending.updatedAt,
+              isEdited: pending.isEdited,
+              isDeleted: pending.isDeleted,
+              isPinned: pending.isPinned,
+              reactions: pending.reactions,
+              replyTo: pending.replyTo,
+              replyCount: pending.replyCount,
+              isReported: pending.isReported,
+              reportCount: pending.reportCount,
+              deletedFor: pending.deletedFor,
+              documentSnapshot: pending.documentSnapshot,
+            );
+          }
+
+          // Update cache
+          _cachePendingMessages();
+          break;
+        }
+      }
+    }
   }
 
   @override
@@ -123,6 +395,10 @@ class _TeacherCommunityChatScreenState
     _audioRecorder.dispose();
     _messageText.dispose();
     _selectedMessages.dispose();
+    _highlightResetTimer?.cancel();
+    _recordingTimer?.cancel();
+    _recordingDuration.dispose();
+    _messageKeys.clear();
     super.dispose();
   }
 
@@ -181,6 +457,46 @@ class _TeacherCommunityChatScreenState
     }
   }
 
+  Future<void> _locateMessage(CommunityMessageModel message) async {
+    final targetId = message.messageId;
+    if (targetId.isEmpty) return;
+
+    if (!_visibleMessageIds.contains(targetId)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message is outside the currently loaded window'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _highlightMessageId = targetId;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 30));
+
+    final contextForTarget = _messageKeys[targetId]?.currentContext;
+    if (contextForTarget != null && mounted) {
+      await Scrollable.ensureVisible(
+        contextForTarget,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeInOut,
+      );
+    }
+
+    _highlightResetTimer?.cancel();
+    _highlightResetTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted && _highlightMessageId == targetId) {
+        setState(() => _highlightMessageId = null);
+      }
+    });
+  }
+
   void _scrollToBottom({bool force = false}) {
     if (_scrollController.hasClients) {
       // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
@@ -229,6 +545,232 @@ class _TeacherCommunityChatScreenState
     }
   }
 
+  Future<void> _deleteRecording() async {
+    // Stop recording if active
+    if (_isRecording) {
+      await _audioRecorder.stop();
+      try {
+        _recordingTimer.cancel();
+      } catch (e) {
+        // Timer might not be initialized
+      }
+    }
+
+    // Delete the file
+    if (_recordingPath != null) {
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {}
+    }
+
+    // Clear state
+    setState(() {
+      _isRecording = false;
+      _recordingPath = null;
+      _recordingDuration.value = 0;
+      _slideOffsetX = 0;
+      _isCancelled = false;
+    });
+  }
+
+  Future<void> _sendRecording() async {
+    if (_recordingPath == null) return;
+
+    if (_teacherId == null || _teacherName == null) return;
+
+    // Stop recording FIRST - this is critical
+    if (_isRecording) {
+      try {
+        await _audioRecorder.stop();
+      } catch (e) {}
+
+      try {
+        _recordingTimer.cancel();
+      } catch (e) {}
+    }
+
+    // IMMEDIATELY update UI to show we're not recording anymore
+    setState(() {
+      _isRecording = false;
+      _isUploading = true;
+    });
+
+    final messageId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    // Pending metadata/message for optimistic render
+    final pendingMetadata = MediaMetadata(
+      messageId: messageId,
+      r2Key: 'pending/$messageId',
+      publicUrl: '',
+      localPath: _recordingPath,
+      thumbnail: '',
+      deletedLocally: false,
+      serverStatus: ServerStatus.available,
+      expiresAt: DateTime.now().add(const Duration(days: 365)),
+      uploadedAt: DateTime.now(),
+      fileSize: _recordingPath != null
+          ? await File(_recordingPath!).length()
+          : null,
+      mimeType: 'audio/aac',
+      originalFileName: _recordingPath != null
+          ? Uri.file(_recordingPath!).pathSegments.last
+          : null,
+    );
+
+    final pendingMessage = CommunityMessageModel(
+      messageId: 'pending:$messageId',
+      communityId: widget.community.id,
+      senderId: _teacherId!,
+      senderName: _teacherName!,
+      senderRole: 'Teacher',
+      senderAvatar: '',
+      type: 'audio',
+      content: '',
+      imageUrl: '',
+      fileUrl: '',
+      fileName: pendingMetadata.originalFileName ?? '',
+      mediaMetadata: pendingMetadata,
+      createdAt: DateTime.now(),
+      updatedAt: null,
+      isEdited: false,
+      isDeleted: false,
+      isPinned: false,
+      reactions: {},
+      replyTo: '',
+      replyCount: 0,
+      isReported: false,
+      reportCount: 0,
+      deletedFor: const [],
+    );
+
+    setState(() {
+      _pendingMessages.insert(0, pendingMessage);
+      _pendingUploadProgress[messageId] = 0.0;
+    });
+    _scrollToBottom(force: true);
+
+    try {
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: File(_recordingPath!),
+        conversationId: widget.community.id,
+        senderId: _teacherId!,
+        senderRole: 'Teacher',
+        mediaType: 'community',
+        onProgress: (progress) {
+          final doubleVal = (progress as num).toDouble();
+          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
+          setState(() {
+            _pendingUploadProgress[messageId] = normalized;
+          });
+        },
+      );
+
+      // Copy recorded audio to cache for local playback before deleting temp
+      String? cachedPath;
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        final cacheDir = Directory('${appDir.path}/audio_cache');
+        if (!await cacheDir.exists()) {
+          await cacheDir.create(recursive: true);
+        }
+        final fileName = mediaMessage.r2Url.split('/').last;
+        final cachedFile = File('${cacheDir.path}/$fileName');
+        await File(_recordingPath!).copy(cachedFile.path);
+        cachedPath = cachedFile.path;
+      } catch (e) {}
+
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
+      );
+
+      // Cache the uploaded audio using MediaRepository for proper download management
+      if (cachedPath != null) {
+        await _mediaRepository.cacheUploadedMedia(
+          r2Key: r2Key,
+          localPath: cachedPath,
+          fileName: mediaMessage.fileName,
+          mimeType: mediaMessage.fileType,
+          fileSize: mediaMessage.fileSize,
+        );
+      }
+
+      await _communityService.sendMessage(
+        communityId: widget.community.id,
+        senderId: _teacherId!,
+        senderName: _teacherName!,
+        senderRole: 'Teacher',
+        content: '',
+        mediaType: 'audio',
+        mediaMetadata: metadata,
+      );
+
+      // Remove pending and progress
+      setState(() {
+        _pendingMessages.removeWhere(
+          (m) => m.mediaMetadata?.messageId == messageId,
+        );
+        _pendingUploadProgress.remove(messageId);
+      });
+
+      // Delete the temporary recording file
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {}
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Audio sent successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _recordingPath = null;
+          _recordingDuration.value = 0;
+          _slideOffsetX = 0;
+          _isCancelled = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _isRecording = false;
+          _pendingMessages.removeWhere(
+            (m) => m.messageId.startsWith('pending:'),
+          );
+          _pendingUploadProgress.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   bool _containsUrl(String text) {
     final urlPattern = RegExp(
       r'(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)',
@@ -240,11 +782,152 @@ class _TeacherCommunityChatScreenState
   void _showMediaOptions() {
     showModernAttachmentSheet(
       context,
-      onImageTap: _pickAndSendImage,
+      onImageTap: _pickAndSendImages,
       onPdfTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
       imageEnabled: widget.community.allowImages,
     );
+  }
+
+  Future<void> _pickAndSendImages() async {
+    if (_teacherId == null || _teacherName == null) return;
+
+    try {
+      debugPrint('🖼️ Starting image picker (multi)...');
+      List<XFile> images = [];
+      try {
+        images = await _imagePicker.pickMultiImage(
+          limit: 5,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          imageQuality: 85,
+        );
+        debugPrint('📸 Picked ${images.length} images via pickMultiImage');
+      } catch (e) {
+        debugPrint('⚠️ pickMultiImage failed: $e');
+      }
+
+      if (images.isEmpty) {
+        debugPrint('↪️ Fallback to single pickImage');
+        final XFile? single = await _imagePicker.pickImage(
+          source: ImageSource.gallery,
+        );
+        if (single != null) {
+          images = [single];
+          debugPrint('📸 Picked 1 image via pickImage');
+        }
+      }
+
+      if (images.isEmpty) {
+        debugPrint('⚠️ No images selected');
+        return;
+      }
+
+      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final groupMessageId = 'upload_${baseTimestamp}_${_teacherId.hashCode}';
+      final List<MediaMetadata> mediaList = [];
+      final List<String> localPaths = [];
+
+      for (int i = 0; i < images.length; i++) {
+        final image = images[i];
+        final file = File(image.path);
+        if (!file.existsSync()) {
+          debugPrint('⚠️ File does not exist: ${image.path}');
+          continue;
+        }
+
+        final messageId = '${groupMessageId}_$i';
+        localPaths.add(file.path);
+
+        mediaList.add(
+          MediaMetadata(
+            messageId: messageId,
+            r2Key: 'pending/$messageId',
+            publicUrl: '',
+            thumbnail: file.path,
+            localPath: file.path,
+            expiresAt: DateTime.now().add(const Duration(days: 30)),
+            uploadedAt: DateTime.now(),
+            originalFileName: file.path.split('/').last,
+            fileSize: await file.length(),
+            mimeType: 'image/jpeg',
+          ),
+        );
+      }
+
+      if (mediaList.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No valid images found')));
+        return;
+      }
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: 'pending:$groupMessageId',
+        communityId: widget.community.id,
+        senderId: _teacherId!,
+        senderName: _teacherName!,
+        senderRole: 'Teacher',
+        senderAvatar: '',
+        type: 'image',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: '',
+        mediaMetadata: mediaList.first,
+        multipleMedia: mediaList.length > 1 ? mediaList : null,
+        createdAt: DateTime.now(),
+        updatedAt: null,
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+        deletedFor: const [],
+        documentSnapshot: null,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        for (int i = 0; i < mediaList.length; i++) {
+          final mid = mediaList[i].messageId;
+          _pendingUploadProgress[mid] = 0.0;
+          _localSenderMediaPaths[mid] = localPaths[i];
+        }
+      });
+
+      // Persist pending state immediately so uploads survive screen dismissal
+      await _cachePendingMessages();
+
+      // Queue uploads in background (worker will create server messages)
+      for (int i = 0; i < images.length; i++) {
+        final file = File(images[i].path);
+        if (!file.existsSync()) continue;
+        final messageId = '${groupMessageId}_$i';
+
+        await BackgroundUploadService().queueUpload(
+          file: file,
+          conversationId: widget.community.id,
+          senderId: _teacherId!,
+          senderRole: 'teacher',
+          mediaType: 'message',
+          chatType: 'community',
+          senderName: _teacherName,
+          messageId: messageId,
+          groupId: groupMessageId,
+        );
+      }
+
+      _scrollToBottom(force: true);
+    } catch (e) {
+      debugPrint('❌ Error in _pickAndSendImages: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send images: $e')));
+    }
   }
 
   Future<void> _pickAndSendImage() async {
@@ -348,17 +1031,15 @@ class _TeacherCommunityChatScreenState
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        withReadStream: true,
+        allowMultiple: false,
       );
 
       if (result == null || result.files.isEmpty) return;
-
-      final file = File(result.files.single.path!);
-      if (!file.existsSync()) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('PDF file not found')));
-        return;
-      }
+      final platformFile = result.files.single;
+      // Ensure we have a readable local File even if path is null
+      final file = await _ensureLocalPickedFile(platformFile);
+      final fileName = platformFile.name;
 
       final messageId =
           'upload_${DateTime.now().millisecondsSinceEpoch}_${_teacherId.hashCode}';
@@ -376,7 +1057,7 @@ class _TeacherCommunityChatScreenState
         uploadedAt: DateTime.now(),
         fileSize: await file.length(),
         mimeType: 'application/pdf',
-        originalFileName: result.files.single.name,
+        originalFileName: fileName,
       );
 
       final pending = CommunityMessageModel(
@@ -390,7 +1071,7 @@ class _TeacherCommunityChatScreenState
         content: '',
         imageUrl: '',
         fileUrl: '',
-        fileName: pendingMeta.originalFileName ?? 'Document.pdf',
+        fileName: fileName,
         mediaMetadata: pendingMeta,
         createdAt: DateTime.now(),
         updatedAt: null,
@@ -438,17 +1119,17 @@ class _TeacherCommunityChatScreenState
     if (_teacherId == null || _teacherName == null) return;
 
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['mp3', 'm4a', 'wav', 'aac', 'ogg'],
+        withReadStream: true,
+        allowMultiple: false,
+      );
 
       if (result == null || result.files.isEmpty) return;
-
-      final file = File(result.files.single.path!);
-      if (!file.existsSync()) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Audio file not found')));
-        return;
-      }
+      final platformFile = result.files.single;
+      final file = await _ensureLocalPickedFile(platformFile);
+      final fileName = platformFile.name;
 
       final messageId =
           'upload_${DateTime.now().millisecondsSinceEpoch}_${_teacherId.hashCode}';
@@ -464,12 +1145,8 @@ class _TeacherCommunityChatScreenState
         expiresAt: DateTime.now().add(const Duration(days: 365)),
         uploadedAt: DateTime.now(),
         fileSize: await file.length(),
-        mimeType:
-            result.files.single.extension != null &&
-                result.files.single.extension!.toLowerCase() == 'm4a'
-            ? 'audio/aac'
-            : 'audio/mpeg',
-        originalFileName: result.files.single.name,
+        mimeType: _guessMimeType(fileName),
+        originalFileName: fileName,
       );
 
       final pending = CommunityMessageModel(
@@ -483,7 +1160,7 @@ class _TeacherCommunityChatScreenState
         content: '',
         imageUrl: '',
         fileUrl: '',
-        fileName: pendingMeta.originalFileName ?? 'Audio',
+        fileName: fileName,
         mediaMetadata: pendingMeta,
         createdAt: DateTime.now(),
         updatedAt: null,
@@ -562,6 +1239,40 @@ class _TeacherCommunityChatScreenState
     return 'file';
   }
 
+  String _guessMimeType(String fileName) {
+    final ext = fileName.toLowerCase().split('.').last;
+    switch (ext) {
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'm4a':
+        return 'audio/aac';
+      case 'wav':
+        return 'audio/wav';
+      case 'aac':
+        return 'audio/aac';
+      case 'ogg':
+        return 'audio/ogg';
+      default:
+        return 'audio/mpeg';
+    }
+  }
+
+  Future<File> _ensureLocalPickedFile(PlatformFile platformFile) async {
+    if (platformFile.path != null) {
+      final f = File(platformFile.path!);
+      if (f.existsSync()) return f;
+    }
+    if (platformFile.readStream == null) {
+      throw Exception('Selected file is not accessible');
+    }
+    final tmpDir = await Directory.systemTemp.createTemp('lenv_attach_');
+    final dest = File('${tmpDir.path}/${platformFile.name}');
+    final sink = dest.openWrite();
+    await platformFile.readStream!.pipe(sink);
+    await sink.close();
+    return dest;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -579,152 +1290,321 @@ class _TeacherCommunityChatScreenState
     return Scaffold(
       backgroundColor: bgColor,
       appBar: _buildAppBar(),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: StreamBuilder<List<CommunityMessageModel>>(
-              stream: _communityService.getMessagesStream(widget.community.id),
-              builder: (context, snapshot) {
-                // Render pending optimistic messages immediately; avoid blocking on stream connect.
+          Column(
+            children: [
+              Expanded(
+                child: StreamBuilder<List<CommunityMessageModel>>(
+                  stream: _communityService.getMessagesStream(
+                    widget.community.id,
+                  ),
+                  builder: (context, snapshot) {
+                    // Render pending optimistic messages immediately; avoid blocking on stream connect.
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error loading messages',
-                      style: TextStyle(color: Colors.red[300]),
-                    ),
-                  );
-                }
-
-                // Merge server messages with optimistic pending ones
-                final messagesFromServer = List<CommunityMessageModel>.from(
-                  snapshot.data ?? <CommunityMessageModel>[],
-                )..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-                final seenIds = messagesFromServer
-                    .map((m) => m.mediaMetadata?.messageId ?? m.messageId)
-                    .toSet();
-
-                final combined = <CommunityMessageModel>[
-                  ...messagesFromServer,
-                  ..._pendingMessages.where((p) {
-                    final key = p.mediaMetadata?.messageId ?? p.messageId;
-                    return !seenIds.contains(key);
-                  }),
-                ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-                if (combined.isEmpty) {
-                  // Show loader only if still connecting and nothing to render.
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF6A4FF7),
-                      ),
-                    );
-                  }
-
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 80,
-                          color: Colors.white.withValues(alpha: 0.1),
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          'Error loading messages',
+                          style: TextStyle(color: Colors.red[300]),
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No messages yet',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Be the first to start a conversation!',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: combined.length,
-                  itemBuilder: (context, index) {
-                    final message = combined[index];
-
-                    if (message.isDeleted) {
-                      return const SizedBox.shrink();
+                      );
                     }
 
-                    final isCurrentUser = message.senderId == _teacherId;
-                    final isPending =
-                        message.messageId.startsWith('pending:') ||
-                        (message.mediaMetadata?.r2Key.startsWith('pending/') ??
-                            false);
-                    final metaId =
-                        message.mediaMetadata?.messageId ?? message.messageId;
-                    final uploadProgress = isPending
-                        ? _pendingUploadProgress[metaId]
-                        : null;
+                    // Merge server messages with optimistic pending ones
+                    final messagesFromServer = List<CommunityMessageModel>.from(
+                      snapshot.data ?? <CommunityMessageModel>[],
+                    )..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-                    final showDateDivider =
-                        index == combined.length - 1 ||
-                        _formatDate(message.createdAt) !=
-                            _formatDate(combined[index + 1].createdAt);
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (message.type == 'announcement')
-                          _buildAnnouncement(message)
-                        else
-                          _buildMessageBubble(
-                            message,
-                            isCurrentUser,
-                            _teacherName!,
-                            isPending,
-                            uploadProgress,
+                    // Build set of seen media IDs from server messages
+                    final seenMediaIds = <String>{};
+                    for (final m in messagesFromServer) {
+                      if (m.multipleMedia != null) {
+                        seenMediaIds.addAll(
+                          m.multipleMedia!.map((mm) => mm.messageId),
+                        );
+                      }
+                      final singleId = m.mediaMetadata?.messageId;
+                      if (singleId != null) seenMediaIds.add(singleId);
+                    }
+
+                    final combined = <CommunityMessageModel>[];
+                    combined.addAll(messagesFromServer);
+
+                    final confirmedPendingIds = <String>[];
+                    final pendingsToUpdate = <String, List<MediaMetadata>>{};
+
+                    for (final pending in _pendingMessages) {
+                      final pendingIds = <String>{};
+                      if (pending.multipleMedia != null) {
+                        pendingIds.addAll(
+                          pending.multipleMedia!.map((mm) => mm.messageId),
+                        );
+                      }
+                      final singleId = pending.mediaMetadata?.messageId;
+                      if (singleId != null) pendingIds.add(singleId);
+
+                      // Check for partial completion (multi-image messages)
+                      if (pending.multipleMedia != null &&
+                          pending.multipleMedia!.length > 1) {
+                        // Filter out completed media items
+                        final remainingMedia = pending.multipleMedia!
+                            .where((mm) => !seenMediaIds.contains(mm.messageId))
+                            .toList();
+
+                        if (remainingMedia.isEmpty) {
+                          // All media uploaded - remove entire pending
+                          confirmedPendingIds.add(pending.messageId);
+                          debugPrint(
+                            '✅ All media confirmed: ${pending.messageId}',
+                          );
+                        } else if (remainingMedia.length <
+                            pending.multipleMedia!.length) {
+                          // Partial completion - update the pending
+                          pendingsToUpdate[pending.messageId] = remainingMedia;
+                          combined.add(pending);
+                          debugPrint(
+                            '⏳ Partial upload: ${remainingMedia.length}/${pending.multipleMedia!.length} remaining',
+                          );
+                        } else {
+                          // No uploads completed yet
+                          combined.add(pending);
+                        }
+                      } else {
+                        // Single image or no media - old logic
+                        final shouldAdd =
+                            pendingIds.isEmpty ||
+                            !pendingIds.any(seenMediaIds.contains);
+                        if (shouldAdd) {
+                          combined.add(pending);
+                        } else {
+                          confirmedPendingIds.add(pending.messageId);
+                          debugPrint(
+                            '✅ Pending confirmed: ${pending.messageId}',
+                          );
+                        }
+                      }
+                    }
+
+                    // Update pendings and remove confirmed ones in post-frame callback
+                    if (confirmedPendingIds.isNotEmpty ||
+                        pendingsToUpdate.isNotEmpty) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        setState(() {
+                          // Remove fully completed pendings
+                          _pendingMessages.removeWhere(
+                            (m) => confirmedPendingIds.contains(m.messageId),
+                          );
+
+                          // Update partially completed pendings
+                          for (final entry in pendingsToUpdate.entries) {
+                            final idx = _pendingMessages.indexWhere(
+                              (m) => m.messageId == entry.key,
+                            );
+                            if (idx != -1) {
+                              final old = _pendingMessages[idx];
+                              _pendingMessages[idx] = CommunityMessageModel(
+                                messageId: old.messageId,
+                                communityId: old.communityId,
+                                senderId: old.senderId,
+                                senderName: old.senderName,
+                                senderRole: old.senderRole,
+                                senderAvatar: old.senderAvatar,
+                                type: old.type,
+                                content: old.content,
+                                imageUrl: old.imageUrl,
+                                fileUrl: old.fileUrl,
+                                fileName: old.fileName,
+                                mediaMetadata: old.mediaMetadata,
+                                multipleMedia: entry.value, // Updated list
+                                createdAt: old.createdAt,
+                                updatedAt: old.updatedAt,
+                                isEdited: old.isEdited,
+                                isDeleted: old.isDeleted,
+                                isPinned: old.isPinned,
+                                reactions: old.reactions,
+                                replyTo: old.replyTo,
+                                replyCount: old.replyCount,
+                                isReported: old.isReported,
+                                reportCount: old.reportCount,
+                                deletedFor: old.deletedFor,
+                                documentSnapshot: old.documentSnapshot,
+                              );
+                            }
+                          }
+                        });
+                        _cachePendingMessages();
+                      });
+                    }
+
+                    combined.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+                    if (combined.isEmpty) {
+                      // Show loader only if still connecting and nothing to render.
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF6A4FF7),
                           ),
-                        if (showDateDivider)
-                          _buildDateDivider(message.createdAt),
-                      ],
+                        );
+                      }
+
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline,
+                              size: 80,
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No messages yet',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.5),
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Be the first to start a conversation!',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final theme = Theme.of(context);
+                    final isDark = theme.brightness == Brightness.dark;
+
+                    final currentIds = combined.map((m) => m.messageId).toSet();
+                    _visibleMessageIds = currentIds;
+                    _messageKeys.removeWhere(
+                      (key, _) => !currentIds.contains(key),
+                    );
+
+                    return ListView.builder(
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: combined.length,
+                      itemBuilder: (context, index) {
+                        final message = combined[index];
+
+                        if (message.isDeleted) {
+                          return const SizedBox.shrink();
+                        }
+
+                        final isCurrentUser = message.senderId == _teacherId;
+                        final isPending =
+                            message.messageId.startsWith('pending:') ||
+                            (message.mediaMetadata?.r2Key.startsWith(
+                                  'pending/',
+                                ) ??
+                                false);
+                        final metaId =
+                            message.mediaMetadata?.messageId ??
+                            message.messageId;
+                        final uploadProgress = isPending
+                            ? _pendingUploadProgress[metaId]
+                            : null;
+
+                        final isOldest = index == combined.length - 1;
+                        final older = isOldest ? null : combined[index + 1];
+                        final showDateDivider =
+                            isOldest ||
+                            _formatDate(message.createdAt) !=
+                                _formatDate(older!.createdAt);
+
+                        final msgKey = _messageKeys.putIfAbsent(
+                          message.messageId,
+                          () => GlobalKey(),
+                        );
+                        final isHighlighted =
+                            _highlightMessageId == message.messageId;
+                        final highlightColor = isDark
+                            ? theme.colorScheme.primary.withOpacity(0.16)
+                            : theme.colorScheme.primary.withOpacity(0.12);
+
+                        final content = message.type == 'announcement'
+                            ? _buildAnnouncement(message)
+                            : _buildMessageBubble(
+                                message,
+                                isCurrentUser,
+                                _teacherName!,
+                                isPending,
+                                uploadProgress,
+                              );
+
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (showDateDivider)
+                              _buildDateDivider(message.createdAt),
+                            TweenAnimationBuilder<double>(
+                              key: msgKey,
+                              tween: Tween<double>(
+                                begin: 0,
+                                end: isHighlighted ? 1 : 0,
+                              ),
+                              duration: const Duration(milliseconds: 240),
+                              curve: Curves.easeInOut,
+                              builder: (context, value, child) {
+                                return AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  curve: Curves.easeOut,
+                                  decoration: BoxDecoration(
+                                    color: Color.lerp(
+                                      Colors.transparent,
+                                      highlightColor,
+                                      value,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: child,
+                                );
+                              },
+                              child: content,
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
-          ),
-          _buildMessageInput(),
-          if (_showEmojiPicker)
-            EmojiPicker(
-              onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-              onBackspacePressed: _onBackspacePressed,
-              config: Config(
-                height: 250,
-                checkPlatformCompatibility: false,
-                emojiViewConfig: EmojiViewConfig(
-                  backgroundColor: const Color(0xFF0B141A),
-                  columns: 7,
-                  emojiSizeMax: 28,
-                ),
-                categoryViewConfig: CategoryViewConfig(
-                  backgroundColor: const Color(0xFF0B141A),
-                  iconColorSelected: const Color(0xFF6A4FF7),
-                  indicatorColor: const Color(0xFF6A4FF7),
-                ),
-                bottomActionBarConfig: BottomActionBarConfig(
-                  backgroundColor: const Color(0xFF0B141A),
                 ),
               ),
-            ),
+              _buildMessageInput(),
+              if (_showEmojiPicker)
+                EmojiPicker(
+                  onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                  onBackspacePressed: _onBackspacePressed,
+                  config: Config(
+                    height: 250,
+                    checkPlatformCompatibility: false,
+                    emojiViewConfig: EmojiViewConfig(
+                      backgroundColor: const Color(0xFF0B141A),
+                      columns: 7,
+                      emojiSizeMax: 28,
+                    ),
+                    categoryViewConfig: CategoryViewConfig(
+                      backgroundColor: const Color(0xFF0B141A),
+                      iconColorSelected: const Color(0xFF6A4FF7),
+                      indicatorColor: const Color(0xFF6A4FF7),
+                    ),
+                    bottomActionBarConfig: BottomActionBarConfig(
+                      backgroundColor: const Color(0xFF0B141A),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (_isRecording) _buildRecordingOverlay(),
         ],
       ),
     );
@@ -1005,19 +1885,33 @@ class _TeacherCommunityChatScreenState
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
+                        padding: EdgeInsets.symmetric(
+                          horizontal:
+                              message.multipleMedia != null &&
+                                  message.multipleMedia!.isNotEmpty
+                              ? 0
+                              : 5,
+                          vertical:
+                              message.multipleMedia != null &&
+                                  message.multipleMedia!.isNotEmpty
+                              ? 0
+                              : 5,
                         ),
                         decoration: BoxDecoration(
-                          color: isCurrentUser
-                              ? (isDark
-                                    ? const Color(0xFF1A1C20)
-                                    : theme.colorScheme.surfaceContainerHighest
-                                          .withOpacity(0.6))
-                              : (isDark
-                                    ? const Color(0xFF14171B)
-                                    : theme.cardColor),
+                          color:
+                              message.multipleMedia != null &&
+                                  message.multipleMedia!.isNotEmpty
+                              ? Colors.transparent
+                              : (isCurrentUser
+                                    ? (isDark
+                                          ? const Color(0xFF1A1C20)
+                                          : theme
+                                                .colorScheme
+                                                .surfaceContainerHighest
+                                                .withOpacity(0.6))
+                                    : (isDark
+                                          ? const Color(0xFF14171B)
+                                          : theme.cardColor)),
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(12),
                             topRight: const Radius.circular(12),
@@ -1026,15 +1920,65 @@ class _TeacherCommunityChatScreenState
                               isCurrentUser ? 6 : 12,
                             ),
                           ),
-                          border: Border.all(
-                            color: theme.dividerColor.withOpacity(0.4),
-                          ),
+                          border:
+                              message.multipleMedia != null &&
+                                  message.multipleMedia!.isNotEmpty
+                              ? null
+                              : Border.all(
+                                  color: theme.dividerColor.withOpacity(0.4),
+                                  width: 0.1,
+                                ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Media with metadata (images, PDFs, audio)
-                            if (message.mediaMetadata != null) ...[
+                            // Multi-image bubble (new WhatsApp-style)
+                            if (message.multipleMedia != null &&
+                                message.multipleMedia!.isNotEmpty) ...[
+                              IgnorePointer(
+                                ignoring: _selectionMode,
+                                child: Opacity(
+                                  opacity: _selectionMode ? 0.6 : 1.0,
+                                  child: MultiImageMessageBubble(
+                                    imageUrls: message.multipleMedia!.map((m) {
+                                      // Prefer local path for sender's own images
+                                      final localPath =
+                                          m.localPath ??
+                                          _localSenderMediaPaths[m.messageId];
+                                      if (localPath != null &&
+                                          localPath.isNotEmpty &&
+                                          File(localPath).existsSync()) {
+                                        return localPath;
+                                      }
+                                      // Fallback to public URL
+                                      return m.publicUrl.isNotEmpty
+                                          ? m.publicUrl
+                                          : m.thumbnail;
+                                    }).toList(),
+                                    isMe: isCurrentUser,
+                                    uploadProgress: message.multipleMedia!
+                                        .map(
+                                          (m) =>
+                                              _pendingUploadProgress[m
+                                                  .messageId],
+                                        )
+                                        .toList(),
+                                    onImageTap: (index) {
+                                      if (_selectionMode) return;
+                                      _showImageGalleryViewer(
+                                        message.multipleMedia!,
+                                        index,
+                                        isCurrentUser,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              if (message.content.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ]
+                            // Single media with metadata (images, PDFs, audio)
+                            else if (message.mediaMetadata != null) ...[
                               IgnorePointer(
                                 ignoring: _selectionMode,
                                 child: Opacity(
@@ -1321,37 +2265,112 @@ class _TeacherCommunityChatScreenState
                 ),
                 const SizedBox(width: 8),
                 // Mic/Send button - balanced size, outside input
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: accentColor,
-                    shape: BoxShape.circle,
-                    boxShadow: isDark
-                        ? [
-                            BoxShadow(
-                              color: accentColor.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : [
-                            BoxShadow(
-                              color: accentColor.withOpacity(0.25),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      hasText ? Icons.send_rounded : Icons.mic,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: hasText ? _sendMessage : () {},
-                  ),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _messageController,
+                  builder: (context, value, child) {
+                    final hasText = value.text.trim().isNotEmpty;
+                    return GestureDetector(
+                      onTap: () async {
+                        if (hasText && !_isUploading) {
+                          _sendMessage();
+                        } else if (!_isRecording && !hasText && !_isUploading) {
+                          // Single tap to start recording
+                          final hasPermission = await _audioRecorder
+                              .hasPermission();
+                          if (!hasPermission) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Microphone permission denied. Please enable it in Settings.',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                            return;
+                          }
+                          final tempDir = await getTemporaryDirectory();
+                          final path =
+                              '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                          await _audioRecorder.start(
+                            const RecordConfig(encoder: AudioEncoder.aacLc),
+                            path: path,
+                          );
+                          setState(() {
+                            _isRecording = true;
+                            _recordingPath = path;
+                            _recordingDuration.value = 0;
+                            _slideOffsetX = 0;
+                            _isCancelled = false;
+                          });
+                          _recordingTimer = Timer.periodic(
+                            const Duration(seconds: 1),
+                            (_) {
+                              _recordingDuration.value++;
+                            },
+                          );
+                        }
+                      },
+                      onHorizontalDragUpdate: (details) {
+                        if (!_isRecording) return;
+                        setState(() {
+                          _slideOffsetX += details.delta.dx;
+                          _isCancelled = _slideOffsetX < -80;
+                        });
+                      },
+                      onHorizontalDragEnd: (details) {
+                        if (!_isRecording) return;
+                        if (_isCancelled) {
+                          _deleteRecording();
+                        }
+                        setState(() {
+                          _slideOffsetX = 0;
+                          _isCancelled = false;
+                        });
+                      },
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: _isRecording
+                              ? theme.colorScheme.error
+                              : accentColor,
+                          shape: BoxShape.circle,
+                          boxShadow: isDark
+                              ? [
+                                  BoxShadow(
+                                    color:
+                                        (_isRecording
+                                                ? theme.colorScheme.error
+                                                : accentColor)
+                                            .withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : [
+                                  BoxShadow(
+                                    color:
+                                        (_isRecording
+                                                ? theme.colorScheme.error
+                                                : accentColor)
+                                            .withOpacity(0.25),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                        ),
+                        child: Icon(
+                          _isRecording
+                              ? Icons.mic
+                              : (hasText ? Icons.send_rounded : Icons.mic),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             );
@@ -1361,14 +2380,109 @@ class _TeacherCommunityChatScreenState
     );
   }
 
+  Widget _buildRecordingOverlay() {
+    if (!_isRecording) return const SizedBox();
+
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        color: const Color(0xFF2A2A2A),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              // Delete button
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: _deleteRecording,
+              ),
+              Expanded(
+                child: Center(
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _recordingDuration,
+                    builder: (context, duration, child) {
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Red pulse indicator
+                          Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          // Recording duration
+                          Text(
+                            _formatDuration(duration),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+              // Send button
+              IconButton(
+                icon: const Icon(Icons.send, color: Color(0xFF00BFA5)),
+                onPressed: _sendRecording,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
   void _openSearch() {
     if (_teacherId == null) return;
+    Navigator.of(context)
+        .push<CommunityMessageModel?>(
+          MaterialPageRoute(
+            builder: (_) => MessageSearchScreen(
+              communityId: widget.community.id,
+              communityService: _communityService,
+              currentUserId: _teacherId!,
+            ),
+          ),
+        )
+        .then((selected) {
+          if (selected != null) {
+            _locateMessage(selected);
+          }
+        });
+  }
+
+  void _showImageGalleryViewer(
+    List<MediaMetadata> mediaList,
+    int initialIndex,
+    bool isMe,
+  ) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MessageSearchScreen(
-          communityId: widget.community.id,
-          communityService: _communityService,
-          currentUserId: _teacherId!,
+        fullscreenDialog: true,
+        builder: (_) => _ImageGalleryViewer(
+          mediaList: mediaList,
+          initialIndex: initialIndex,
+          localSenderMediaPaths: _localSenderMediaPaths,
+          isMe: isMe,
         ),
       ),
     );
@@ -2640,5 +3754,163 @@ class _AudioPlayerModalState extends State<AudioPlayerModal> {
     final minutes = d.inMinutes;
     final seconds = d.inSeconds % 60;
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+}
+
+// Image Gallery Viewer with swipe navigation
+class _ImageGalleryViewer extends StatefulWidget {
+  final List<MediaMetadata> mediaList;
+  final int initialIndex;
+  final Map<String, String> localSenderMediaPaths;
+  final bool isMe;
+
+  const _ImageGalleryViewer({
+    required this.mediaList,
+    required this.initialIndex,
+    required this.localSenderMediaPaths,
+    required this.isMe,
+  });
+
+  @override
+  State<_ImageGalleryViewer> createState() => _ImageGalleryViewerState();
+}
+
+class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.mediaList.length}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        centerTitle: true,
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        itemCount: widget.mediaList.length,
+        itemBuilder: (context, index) {
+          final metadata = widget.mediaList[index];
+          final localPath =
+              metadata.localPath ??
+              widget.localSenderMediaPaths[metadata.messageId];
+
+          return _buildImageViewer(metadata, localPath);
+        },
+      ),
+    );
+  }
+
+  Widget _buildImageViewer(MediaMetadata metadata, String? localPath) {
+    Widget imageWidget;
+    final file = (localPath != null && localPath.isNotEmpty)
+        ? File(localPath)
+        : null;
+    final hasLocalFile = file != null && file.existsSync();
+    final hasNetwork = metadata.publicUrl.isNotEmpty;
+
+    if (hasLocalFile) {
+      imageWidget = Image.file(
+        file,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      );
+    } else if (hasNetwork) {
+      imageWidget = Image.network(
+        metadata.publicUrl,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(
+            child: SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+          );
+        },
+        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      );
+    } else if (metadata.thumbnail.isNotEmpty) {
+      if (metadata.thumbnail.startsWith('/')) {
+        imageWidget = Image.file(
+          File(metadata.thumbnail),
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+        );
+      } else {
+        try {
+          final bytes = base64Decode(metadata.thumbnail);
+          imageWidget = Image.memory(
+            bytes,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          );
+        } catch (e) {
+          imageWidget = _buildFallbackImage(metadata);
+        }
+      }
+    } else {
+      imageWidget = _buildFallbackImage(metadata);
+    }
+
+    return InteractiveViewer(
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: Center(child: imageWidget),
+    );
+  }
+
+  Widget _buildFallbackImage(MediaMetadata metadata) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.image, size: 64, color: Colors.white54),
+          const SizedBox(height: 16),
+          const Text(
+            'Image not available locally',
+            style: TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            metadata.originalFileName ?? 'image.jpg',
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
   }
 }

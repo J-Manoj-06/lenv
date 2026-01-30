@@ -159,12 +159,26 @@ async function handleAIRequest(request: Request, env: Env): Promise<Response> {
 
       clearTimeout(timeoutId);
 
+      // Parse response body once (can only be read once!)
+      let responseData: any;
+      try {
+        responseData = await response.json();
+      } catch (parseError) {
+        console.error('❌ Failed to parse response body');
+        return jsonResponse(
+          {
+            error: 'Invalid API Response',
+            message: 'Failed to parse response from AI service',
+          },
+          502
+        );
+      }
+
       // Handle API errors
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
         console.error('❌ DeepSeek API Error:', {
           status: response.status,
-          error: errorData,
+          error: responseData,
         });
 
         // Rate limit
@@ -194,24 +208,23 @@ async function handleAIRequest(request: Request, env: Env): Promise<Response> {
         return jsonResponse(
           {
             error: 'AI Service Error',
-            message: errorData.error?.message || 'DeepSeek API returned an error',
+            message: (responseData?.error?.message || responseData?.message) || 'DeepSeek API returned an error',
             status: response.status,
           },
           502
         );
       }
 
-      // Success - forward response
-      const data = await response.json();
+      // Success - use already-parsed response data
       const duration = Date.now() - startTime;
 
       console.log('✅ AI Response:', {
         status: 'success',
         duration: `${duration}ms`,
-        tokensUsed: data.usage?.total_tokens || 'unknown',
+        tokensUsed: responseData?.usage?.total_tokens || 'unknown',
       });
 
-      return new Response(JSON.stringify(data), {
+      return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: {
           ...corsHeaders,
