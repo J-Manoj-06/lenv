@@ -200,6 +200,10 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                     itemCount: filteredRequests.length,
                     itemBuilder: (context, index) {
                       final request = filteredRequests[index];
+                      final canDelete = request.status == RewardRequestStatus.cancelled ||
+                          request.status == RewardRequestStatus.expiredOrAutoResolved ||
+                          request.status == RewardRequestStatus.completed;
+                      
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16),
                         child: RequestCard(
@@ -214,8 +218,9 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
                           actionLabel: _getActionLabel(request.status),
                           onActionPressed: () =>
                               _handleAction(context, request),
-                          onDeletePressed: () =>
-                              _confirmDelete(context, request),
+                          onDeletePressed: canDelete
+                              ? () => _confirmDelete(context, request)
+                              : null,
                         ),
                       );
                     },

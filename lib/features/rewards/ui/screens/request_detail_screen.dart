@@ -69,6 +69,12 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         userId: 'current_user',
       );
 
+      // Invalidate the current request provider to refresh the data
+      ref.invalidate(currentRequestProvider(widget.requestId));
+      
+      // Wait a moment for the provider to refresh
+      await Future.delayed(const Duration(milliseconds: 100));
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Request updated successfully')),
@@ -743,6 +749,7 @@ class _ActionButtons extends StatelessWidget {
       );
     }
 
+    // No buttons for cancelled, completed, or expired statuses
     if (buttons.isEmpty) {
       return const SizedBox.shrink();
     }
