@@ -822,11 +822,14 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   }
 
   Widget _buildDefaultAvatar(String name) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+
     return Center(
       child: Text(
         name.isNotEmpty ? name[0].toUpperCase() : 'P',
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: textColor,
           fontWeight: FontWeight.bold,
           fontSize: 24,
         ),
