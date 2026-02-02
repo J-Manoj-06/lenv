@@ -459,91 +459,132 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           widget.isTeacher ? 'Teacher Group Chat' : 'Staff Room',
           style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.search, color: textColor),
+            onPressed: () => _showSearchDialog(context, theme, primaryColor),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('staff_rooms')
-                  .doc(widget.instituteId)
-                  .collection('messages')
-                  .orderBy('createdAt', descending: true)
-                  .limit(100)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: CircularProgressIndicator(color: primaryColor),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-
-                final messages = snapshot.data?.docs ?? [];
-
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 64,
-                          color: theme.iconTheme.color?.withOpacity(0.3),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No messages yet',
-                          style: TextStyle(
-                            color: theme.textTheme.bodyMedium?.color
-                                ?.withOpacity(0.6),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Start the conversation!',
-                          style: TextStyle(
-                            color: theme.textTheme.bodyMedium?.color
-                                ?.withOpacity(0.4),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message =
-                        messages[index].data() as Map<String, dynamic>;
-                    final authProvider = Provider.of<AuthProvider>(
-                      context,
-                      listen: false,
-                    );
-                    final isMe =
-                        message['senderId'] == authProvider.currentUser?.uid;
-
-                    return _MessageBubble(
-                      message: message,
-                      isMe: isMe,
-                      primaryColor: primaryColor,
-                    );
-                  },
-                );
-              },
-            ),
-          ),
+          Expanded(child: _buildNormalMessages(theme, primaryColor)),
           _buildMessageInput(theme, primaryColor),
         ],
       ),
+    );
+  }
+
+  void _showSearchDialog(
+    BuildContext context,
+    ThemeData theme,
+    Color primaryColor,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => SearchStaffRoomDialog(
+        instituteId: widget.instituteId,
+        primaryColor: primaryColor,
+        theme: theme,
+        onMessageSelected: (message) {
+          Navigator.pop(context); // Close dialog
+          _scrollToMessage(message);
+        },
+      ),
+    );
+  }
+
+  Future<void> _scrollToMessage(Map<String, dynamic> message) async {
+    // Scroll to bottom first to load all messages
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeOut,
+      );
+    }
+
+    // Highlight effect can be added here if needed
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Message from ${message['senderName']}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildNormalMessages(ThemeData theme, Color primaryColor) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('staff_rooms')
+          .doc(widget.instituteId)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(100)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator(color: primaryColor));
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        final messages = snapshot.data?.docs ?? [];
+
+        if (messages.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.chat_bubble_outline,
+                  size: 64,
+                  color: theme.iconTheme.color?.withOpacity(0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No messages yet',
+                  style: TextStyle(
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Start the conversation!',
+                  style: TextStyle(
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.4),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          controller: _scrollController,
+          reverse: true,
+          padding: const EdgeInsets.all(16),
+          itemCount: messages.length,
+          itemBuilder: (context, index) {
+            final message = messages[index].data() as Map<String, dynamic>;
+            final authProvider = Provider.of<AuthProvider>(
+              context,
+              listen: false,
+            );
+            final isMe = message['senderId'] == authProvider.currentUser?.uid;
+
+            return _MessageBubble(
+              message: message,
+              isMe: isMe,
+              primaryColor: primaryColor,
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1017,5 +1058,303 @@ class _MessageBubble extends StatelessWidget {
     } catch (_) {
       return 'file';
     }
+  }
+}
+
+class SearchStaffRoomDialog extends StatefulWidget {
+  final String instituteId;
+  final Color primaryColor;
+  final ThemeData theme;
+  final Function(Map<String, dynamic>) onMessageSelected;
+
+  const SearchStaffRoomDialog({
+    Key? key,
+    required this.instituteId,
+    required this.primaryColor,
+    required this.theme,
+    required this.onMessageSelected,
+  }) : super(key: key);
+
+  @override
+  State<SearchStaffRoomDialog> createState() => _SearchStaffRoomDialogState();
+}
+
+class _SearchStaffRoomDialogState extends State<SearchStaffRoomDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  List<DocumentSnapshot> _searchResults = [];
+  bool _isLoading = false;
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _searchQuery = '';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _searchQuery = query.toLowerCase();
+    });
+
+    try {
+      // Get messages and search through them
+      final messagesSnapshot = await FirebaseFirestore.instance
+          .collection('staff_rooms')
+          .doc(widget.instituteId)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(500) // Search in recent messages
+          .get();
+
+      final results = <DocumentSnapshot>[];
+
+      for (final doc in messagesSnapshot.docs) {
+        try {
+          final message = doc.data();
+
+          // Search in message text
+          final text = (message['text'] ?? '').toString().toLowerCase();
+          if (text.contains(_searchQuery)) {
+            results.add(doc);
+            if (results.length >= 25) break;
+            continue;
+          }
+
+          // Search in sender name
+          final senderName = (message['senderName'] ?? '')
+              .toString()
+              .toLowerCase();
+          if (senderName.contains(_searchQuery)) {
+            results.add(doc);
+            if (results.length >= 25) break;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error searching: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final hintColor = isDark ? Colors.grey[400] : Colors.grey[600];
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: widget.theme.cardColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Search Input
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _performSearch,
+                decoration: InputDecoration(
+                  hintText: 'Search messages...',
+                  hintStyle: TextStyle(color: hintColor),
+                  prefixIcon: Icon(Icons.search, color: widget.primaryColor),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            _searchController.clear();
+                            _performSearch('');
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: widget.primaryColor.withOpacity(0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: widget.primaryColor.withOpacity(0.3),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: widget.primaryColor),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                style: TextStyle(color: textColor),
+                autofocus: true,
+              ),
+            ),
+            // Search Results
+            Expanded(child: _buildSearchResultsList()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchResultsList() {
+    if (_searchQuery.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search,
+              size: 48,
+              color: widget.theme.iconTheme.color?.withOpacity(0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Start typing to search',
+              style: TextStyle(
+                color: widget.theme.textTheme.bodyMedium?.color?.withOpacity(
+                  0.6,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(color: widget.primaryColor),
+      );
+    }
+
+    if (_searchResults.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 48,
+              color: widget.theme.iconTheme.color?.withOpacity(0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No messages found',
+              style: TextStyle(
+                color: widget.theme.textTheme.bodyMedium?.color?.withOpacity(
+                  0.6,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Try different keywords',
+              style: TextStyle(
+                color: widget.theme.textTheme.bodyMedium?.color?.withOpacity(
+                  0.4,
+                ),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: _searchResults.length,
+      itemBuilder: (context, index) {
+        final message = _searchResults[index].data() as Map<String, dynamic>;
+        final senderName = message['senderName'] ?? 'Unknown';
+        final text = message['text'] ?? '';
+        final timestamp = message['createdAt'] as int?;
+
+        String timeStr = '';
+        if (timestamp != null) {
+          final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+          timeStr = DateFormat('HH:mm').format(date);
+        }
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              widget.onMessageSelected(message);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: widget.theme.colorScheme.surfaceContainerHighest
+                      .withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          senderName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: widget.theme.textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                        Text(
+                          timeStr,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: widget.theme.textTheme.bodyMedium?.color
+                                ?.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      text,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: widget.theme.textTheme.bodySmall?.color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
