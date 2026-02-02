@@ -410,6 +410,190 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     }
   }
 
+  Future<void> _pickCamera() async {
+    try {
+      print('📷 Starting camera...');
+
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (image == null) {
+        print('⚠️ No image captured');
+        return;
+      }
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) {
+        print('❌ User not authenticated');
+        return;
+      }
+
+      final conversationId = widget.communityId;
+      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final groupMessageId =
+          'upload_${baseTimestamp}_${currentUser.uid.hashCode}';
+      final messageId = '${groupMessageId}_0';
+      final file = File(image.path);
+
+      if (!file.existsSync()) {
+        print('⚠️ File does not exist: ${image.path}');
+        return;
+      }
+
+      final mediaList = [
+        MediaMetadata(
+          messageId: messageId,
+          r2Key: 'pending/$messageId',
+          publicUrl: '',
+          thumbnail: file.path,
+          localPath: file.path,
+          expiresAt: DateTime.now().add(const Duration(days: 30)),
+          uploadedAt: DateTime.now(),
+          originalFileName: file.path.split('/').last,
+          fileSize: await file.length(),
+          mimeType: 'image/jpeg',
+        ),
+      ];
+
+      print('✅ Created pending message with camera image');
+      final pendingMessage = GroupChatMessage(
+        id: 'pending:$groupMessageId',
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
+        message: '',
+        timestamp: baseTimestamp,
+        mediaMetadata: mediaList.first,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.0;
+        _localSenderMediaPaths[messageId] = file.path;
+      });
+
+      print('📤 Queueing camera upload for $messageId');
+      await BackgroundUploadService().queueUpload(
+        file: file,
+        conversationId: conversationId,
+        senderId: currentUser.uid,
+        senderRole: 'student',
+        mediaType: 'message',
+        chatType: 'community',
+        senderName: currentUser.name,
+        messageId: messageId,
+        groupId: groupMessageId,
+      );
+
+      print('✅ Camera upload queued, scrolling to bottom');
+      _scrollToBottom(force: true);
+    } catch (e) {
+      print('❌ Error in _pickCamera: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send camera image: $e')),
+        );
+      }
+    }
+  }
+
+  void _showAttachmentPicker() {
+    final primaryColor = const Color(0xFF00A884); // Community chat green
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark
+        ? const Color(0xFF222222)
+        : const Color(0xFFFFFFFF);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Send Attachment',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildAttachmentOption(
+                  icon: Icons.image,
+                  label: 'Gallery',
+                  color: primaryColor,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickAndSendImages();
+                  },
+                ),
+                _buildAttachmentOption(
+                  icon: Icons.camera_alt,
+                  label: 'Camera',
+                  color: primaryColor,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickCamera();
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttachmentOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -854,7 +1038,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
             IconButton(
               icon: Icon(Icons.attach_file, color: hintColor, size: 26),
               padding: const EdgeInsets.all(8),
-              onPressed: _pickAndSendImages,
+              onPressed: _showAttachmentPicker,
             ),
             const SizedBox(width: 8),
             // Mic/Send Button

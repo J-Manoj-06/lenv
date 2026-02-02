@@ -1107,21 +1107,6 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              image: const DecorationImage(
-                image: NetworkImage(
-                  'https://lh3.googleusercontent.com/aida-public/AB6AXuC4rLa-okXKewTcUXRfoGDRTz_zPBMuwI1SrwYIn89cU3YlQu5KQne8DGaF4rcKRVUOr-yBGxx6pEr30ZiC-a2D16o5r8svt6AFFJ5b9nAaZdR4CYbHVTbVCQEHD6G1nV8NnrRKY97DY-VuBfzWgJ5kpSR1-H9RNXvtMNT43Sr1_seTS53O9b4EfnIal8WIURyhqQpSu3uIL124NWamYDjuMknLmg3_HYhouqKgcLuwmU6KlxgMzkv8QmcS78Ckj9k-nIyon8gixkYi',
-                ),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Good Morning, Principal',
@@ -1132,10 +1117,6 @@ class _TopBar extends StatelessWidget {
               ),
               overflow: TextOverflow.ellipsis,
             ),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: Icon(Icons.account_circle, color: textColor, size: 32),
           ),
         ],
       ),
