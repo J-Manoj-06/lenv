@@ -37,6 +37,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
   double _uploadProgress = 0;
+  String? _selectedMessageId;
+  Timer? _highlightTimer;
 
   // Recording variables
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -73,6 +75,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     _scrollController.dispose();
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
+    _highlightTimer?.cancel();
     _recordingDuration.dispose();
     super.dispose();
   }
@@ -495,23 +498,42 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   }
 
   Future<void> _scrollToMessage(Map<String, dynamic> message) async {
-    // Scroll to bottom first to load all messages
-    await Future.delayed(const Duration(milliseconds: 300));
+    // Generate a unique ID for this message based on timestamp and sender
+    final messageId = '${message['createdAt']}_${message['senderId']}';
+
+    // Set the selected message for highlighting
+    setState(() {
+      _selectedMessageId = messageId;
+    });
+
+    // Give time for the widget to build with highlighted state
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    // The ListView is reversed, so messages are displayed bottom-up
+    // We need to scroll to ensure the message is visible
     if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 800),
-        curve: Curves.easeOut,
-      );
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final currentScroll = _scrollController.offset;
+
+      // If we're not at the bottom, scroll there to show the highlighted message
+      if (currentScroll < maxScroll) {
+        await _scrollController.animateTo(
+          maxScroll,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      }
     }
 
-    // Highlight effect can be added here if needed
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Message from ${message['senderName']}'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    // Auto-remove highlight after 3 seconds
+    _highlightTimer?.cancel();
+    _highlightTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _selectedMessageId = null;
+        });
+      }
+    });
   }
 
   Widget _buildNormalMessages(ThemeData theme, Color primaryColor) {
@@ -577,10 +599,14 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
             );
             final isMe = message['senderId'] == authProvider.currentUser?.uid;
 
+            final messageId = '${message['createdAt']}_${message['senderId']}';
+            final isHighlighted = messageId == _selectedMessageId;
+
             return _MessageBubble(
               message: message,
               isMe: isMe,
               primaryColor: primaryColor,
+              isHighlighted: isHighlighted,
             );
           },
         );
@@ -860,11 +886,13 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
   final bool isMe;
   final Color primaryColor;
+  final bool isHighlighted;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
     required this.primaryColor,
+    required this.isHighlighted,
   });
 
   @override
@@ -894,135 +922,143 @@ class _MessageBubble extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Align(
-        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.75,
-          ),
-          child: Column(
-            crossAxisAlignment: isMe
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: [
-              if (!isMe) ...[
-                Padding(
-                  padding: const EdgeInsets.only(left: 12, bottom: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isHighlighted
+              ? const Color(0xFFFDD835).withOpacity(0.4)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Align(
+          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.75,
+            ),
+            child: Column(
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                if (!isMe) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12, bottom: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: roleColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            senderRole == 'principal' ? 'Principal' : 'Teacher',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: roleColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            senderName,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.8),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: hasAttachment && text.isEmpty ? 4 : 16,
+                    vertical: hasAttachment && text.isEmpty ? 4 : 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isMe
+                        ? primaryColor
+                        : theme.colorScheme.surfaceContainerHighest.withOpacity(
+                            0.7,
+                          ),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isMe ? 16 : 4),
+                      bottomRight: Radius.circular(isMe ? 4 : 16),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
+                      if (isForwarded) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.forward,
+                              size: 14,
+                              color: isMe ? Colors.white70 : Colors.black54,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Forwarded',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
                         ),
-                        decoration: BoxDecoration(
-                          color: roleColor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
+                        const SizedBox(height: 6),
+                      ],
+                      if (hasAttachment) ...[
+                        _buildAttachmentWidget(
+                          attachmentUrl,
+                          attachmentType ?? 'application/octet-stream',
+                          attachmentName,
+                          thumbnailUrl,
                         ),
-                        child: Text(
-                          senderRole == 'principal' ? 'Principal' : 'Teacher',
+                        if (text.isNotEmpty) const SizedBox(height: 8),
+                      ],
+                      if (text.isNotEmpty)
+                        Text(
+                          text,
                           style: TextStyle(
-                            fontSize: 10,
-                            color: roleColor,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                            color: isMe
+                                ? Colors.white
+                                : theme.textTheme.bodyLarge?.color,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          senderName,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: theme.textTheme.bodyMedium?.color
-                                ?.withOpacity(0.8),
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 4),
+                      Text(
+                        timeStr,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isMe
+                              ? Colors.white.withOpacity(0.7)
+                              : theme.textTheme.bodyMedium?.color?.withOpacity(
+                                  0.5,
+                                ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ],
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: hasAttachment && text.isEmpty ? 4 : 16,
-                  vertical: hasAttachment && text.isEmpty ? 4 : 10,
-                ),
-                decoration: BoxDecoration(
-                  color: isMe
-                      ? primaryColor
-                      : theme.colorScheme.surfaceContainerHighest.withOpacity(
-                          0.7,
-                        ),
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isMe ? 16 : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : 16),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (isForwarded) ...[
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.forward,
-                            size: 14,
-                            color: isMe ? Colors.white70 : Colors.black54,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Forwarded',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontStyle: FontStyle.italic,
-                              color: isMe ? Colors.white70 : Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                    ],
-                    if (hasAttachment) ...[
-                      _buildAttachmentWidget(
-                        attachmentUrl,
-                        attachmentType ?? 'application/octet-stream',
-                        attachmentName,
-                        thumbnailUrl,
-                      ),
-                      if (text.isNotEmpty) const SizedBox(height: 8),
-                    ],
-                    if (text.isNotEmpty)
-                      Text(
-                        text,
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: isMe
-                              ? Colors.white
-                              : theme.textTheme.bodyLarge?.color,
-                        ),
-                      ),
-                    const SizedBox(height: 4),
-                    Text(
-                      timeStr,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isMe
-                            ? Colors.white.withOpacity(0.7)
-                            : theme.textTheme.bodyMedium?.color?.withOpacity(
-                                0.5,
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
