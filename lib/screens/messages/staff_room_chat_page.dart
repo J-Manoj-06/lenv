@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:record/record.dart';
+import 'dart:async';
 import 'dart:io';
 import '../../providers/auth_provider.dart';
 import '../../services/cloudflare_r2_service.dart';
@@ -36,6 +38,13 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   bool _isUploading = false;
   double _uploadProgress = 0;
 
+  // Recording variables
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  bool _isRecording = false;
+  String? _recordingPath;
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  Timer? _recordingTimer;
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +71,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _audioRecorder.dispose();
+    _recordingTimer?.cancel();
+    _recordingDuration.dispose();
     super.dispose();
   }
 
@@ -324,6 +336,101 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     );
   }
 
+  Future<void> _sendRecording() async {
+    try {
+      print('🎤 Sending recording...');
+      _recordingTimer?.cancel();
+      final path = await _audioRecorder.stop();
+      
+      if (path != null) {
+        final file = File(path);
+        if (await file.exists()) {
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final currentUser = authProvider.currentUser;
+          if (currentUser == null) return;
+
+          try {
+            setState(() => _isUploading = true);
+            
+            // Upload audio using MediaUploadService
+            final mediaMessage = await _mediaUploadService.uploadMedia(
+              file: file,
+              conversationId: widget.instituteId,
+              senderId: currentUser.uid,
+              senderRole: currentUser.role.toString().split('.').last,
+              mediaType: 'message',
+              onProgress: (progress) {
+                setState(() => _uploadProgress = progress.toDouble());
+              },
+            );
+
+            // Send message with attachment
+            await FirebaseFirestore.instance
+                .collection('staff_rooms')
+                .doc(widget.instituteId)
+                .collection('messages')
+                .add({
+                  'text': '',
+                  'senderId': currentUser.uid,
+                  'senderName': currentUser.name,
+                  'senderRole': currentUser.role.toString().split('.').last,
+                  'timestamp': FieldValue.serverTimestamp(),
+                  'createdAt': DateTime.now().millisecondsSinceEpoch,
+                  'attachmentUrl': mediaMessage.r2Url,
+                  'attachmentType': 'audio/m4a',
+                  'attachmentName': mediaMessage.fileName,
+                  'thumbnailUrl': mediaMessage.thumbnailUrl,
+                });
+
+            setState(() {
+              _isUploading = false;
+              _isRecording = false;
+              _recordingPath = null;
+              _recordingDuration.value = 0;
+              _uploadProgress = 0;
+            });
+
+            // Scroll to bottom
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (_scrollController.hasClients) {
+                _scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                );
+              }
+            });
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Audio sent successfully'),
+                  duration: Duration(milliseconds: 800),
+                ),
+              );
+            }
+          } catch (e) {
+            print('❌ Error uploading audio: $e');
+            setState(() => _isUploading = false);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to send audio: $e')),
+              );
+            }
+          }
+        }
+      }
+      
+      setState(() {
+        _isRecording = false;
+        _recordingPath = null;
+        _recordingDuration.value = 0;
+      });
+    } catch (e) {
+      print('❌ Error sending recording: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -438,6 +545,129 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   }
 
   Widget _buildMessageInput(ThemeData theme, Color primaryColor) {
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Recording UI
+    if (_isRecording)
+      return ValueListenableBuilder<int>(
+        valueListenable: _recordingDuration,
+        builder: (context, duration, _) {
+          final minutes = duration ~/ 60;
+          final seconds = duration % 60;
+          final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            color: isDark ? const Color(0xFF222222) : Colors.white,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Delete button
+                GestureDetector(
+                  onTap: () async {
+                    try {
+                      print('🗑️ Deleting recording...');
+                      _recordingTimer?.cancel();
+                      await _audioRecorder.stop();
+                      
+                      if (_recordingPath != null) {
+                        final file = File(_recordingPath!);
+                        if (await file.exists()) {
+                          await file.delete();
+                        }
+                      }
+                      
+                      setState(() {
+                        _isRecording = false;
+                        _recordingPath = null;
+                        _recordingDuration.value = 0;
+                      });
+                      
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Recording discarded'),
+                            duration: Duration(milliseconds: 800),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      print('❌ Error deleting recording: $e');
+                    }
+                  },
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.delete,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(width: 12),
+                
+                // Recording indicator dot
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                
+                const SizedBox(width: 16),
+                
+                // Timer
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.all(Radius.circular(18)),
+                  ),
+                  child: Text(
+                    timeStr,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                
+                const Spacer(),
+                
+                // Send button
+                GestureDetector(
+                  onTap: _sendRecording,
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.send,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+    // Normal input UI
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -492,6 +722,73 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
+                // Mic button
+                GestureDetector(
+                  onTap: _isUploading ? null : () async {
+                    try {
+                      if (!_isRecording) {
+                        // Start recording
+                        final permission = await _audioRecorder.hasPermission();
+                        if (!permission) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Microphone permission required'),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
+                        final directory = Directory.systemTemp;
+                        final timestamp = DateTime.now().millisecondsSinceEpoch;
+                        final recordingPath = '${directory.path}/audio_$timestamp.m4a';
+
+                        await _audioRecorder.start(
+                          const RecordConfig(
+                            encoder: AudioEncoder.aacLc,
+                            sampleRate: 44100,
+                            numChannels: 2,
+                            bitRate: 128000,
+                          ),
+                          path: recordingPath,
+                        );
+
+                        setState(() {
+                          _isRecording = true;
+                          _recordingPath = recordingPath;
+                          _recordingDuration.value = 0;
+                        });
+
+                        _recordingTimer = Timer.periodic(
+                          const Duration(seconds: 1),
+                          (_) {
+                            _recordingDuration.value++;
+                          },
+                        );
+
+                        print('🎤 Recording started: $recordingPath');
+                      }
+                    } catch (e) {
+                      print('❌ Error starting recording: $e');
+                    }
+                  },
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _isUploading ? Colors.grey : primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.mic,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Send button
                 GestureDetector(
                   onTap: _isUploading ? null : _sendMessage,
                   child: Container(
@@ -540,7 +837,6 @@ class _MessageBubble extends StatelessWidget {
     final attachmentName = message['attachmentName'] as String?;
     final thumbnailUrl = message['thumbnailUrl'] as String?;
     final isForwarded = message['isForwarded'] == true;
-    final forwardedFrom = message['forwardedFrom'] as String?;
 
     String timeStr = '';
     if (timestamp != null) {

@@ -1145,9 +1145,128 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
             ),
           ),
 
-          // Input Bar
-          _buildInputBar(
-            cardColor: cardColor,
+          // Input Bar with Recording UI
+          if (_isRecording)
+            ValueListenableBuilder<int>(
+              valueListenable: _recordingDuration,
+              builder: (context, duration, _) {
+                final minutes = duration ~/ 60;
+                final seconds = duration % 60;
+                final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  color: isDark ? const Color(0xFF222222) : Colors.white,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Delete button
+                      GestureDetector(
+                        onTap: () async {
+                          try {
+                            print('🗑️ Deleting recording...');
+                            _recordingTimer?.cancel();
+                            await _audioRecorder.stop();
+                            
+                            if (_recordingPath != null) {
+                              final file = File(_recordingPath!);
+                              if (await file.exists()) {
+                                await file.delete();
+                              }
+                            }
+                            
+                            setState(() {
+                              _isRecording = false;
+                              _recordingPath = null;
+                              _recordingDuration.value = 0;
+                            });
+                            
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Recording discarded'),
+                                  duration: Duration(milliseconds: 800),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            print('❌ Error deleting recording: $e');
+                          }
+                        },
+                        child: Container(
+                          width: 52,
+                          height: 52,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.delete,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                      
+                      const SizedBox(width: 12),
+                      
+                      // Recording indicator dot
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      
+                      const SizedBox(width: 16),
+                      
+                      // Timer
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.all(Radius.circular(18)),
+                        ),
+                        child: Text(
+                          timeStr,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                      
+                      const Spacer(),
+                      
+                      // Send button
+                      GestureDetector(
+                        onTap: _sendRecording,
+                        child: Container(
+                          width: 52,
+                          height: 52,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF00A884),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.send,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            )
+          else
+            _buildInputBar(
+              cardColor: cardColor,
             inputBgColor: inputBgColor,
             textColor: textColor,
             hintColor: hintColor,
