@@ -1152,10 +1152,14 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
               builder: (context, duration, _) {
                 final minutes = duration ~/ 60;
                 final seconds = duration % 60;
-                final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+                final timeStr =
+                    '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
 
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
                   color: isDark ? const Color(0xFF222222) : Colors.white,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1167,20 +1171,20 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                             print('🗑️ Deleting recording...');
                             _recordingTimer?.cancel();
                             await _audioRecorder.stop();
-                            
+
                             if (_recordingPath != null) {
                               final file = File(_recordingPath!);
                               if (await file.exists()) {
                                 await file.delete();
                               }
                             }
-                            
+
                             setState(() {
                               _isRecording = false;
                               _recordingPath = null;
                               _recordingDuration.value = 0;
                             });
-                            
+
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -1207,9 +1211,9 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(width: 12),
-                      
+
                       // Recording indicator dot
                       Container(
                         width: 14,
@@ -1219,12 +1223,15 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                           shape: BoxShape.circle,
                         ),
                       ),
-                      
+
                       const SizedBox(width: 16),
-                      
+
                       // Timer
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: const BoxDecoration(
                           color: Colors.red,
                           borderRadius: BorderRadius.all(Radius.circular(18)),
@@ -1239,9 +1246,9 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                           ),
                         ),
                       ),
-                      
+
                       const Spacer(),
-                      
+
                       // Send button
                       GestureDetector(
                         onTap: _sendRecording,
@@ -1267,12 +1274,12 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
           else
             _buildInputBar(
               cardColor: cardColor,
-            inputBgColor: inputBgColor,
-            textColor: textColor,
-            hintColor: hintColor,
-            primaryColor: primaryColor,
-            isDark: isDark,
-          ),
+              inputBgColor: inputBgColor,
+              textColor: textColor,
+              hintColor: hintColor,
+              primaryColor: primaryColor,
+              isDark: isDark,
+            ),
           if (_showEmojiPicker)
             EmojiPicker(
               onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
@@ -1376,6 +1383,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                         maxLines: null,
                         textCapitalization: TextCapitalization.sentences,
                         textInputAction: TextInputAction.send,
+                        onChanged: (_) => setState(() {}),
                         onSubmitted: (_) {
                           _sendMessage();
                           Future.delayed(const Duration(milliseconds: 50), () {

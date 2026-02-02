@@ -341,17 +341,20 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
       print('🎤 Sending recording...');
       _recordingTimer?.cancel();
       final path = await _audioRecorder.stop();
-      
+
       if (path != null) {
         final file = File(path);
         if (await file.exists()) {
-          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final authProvider = Provider.of<AuthProvider>(
+            context,
+            listen: false,
+          );
           final currentUser = authProvider.currentUser;
           if (currentUser == null) return;
 
           try {
             setState(() => _isUploading = true);
-            
+
             // Upload audio using MediaUploadService
             final mediaMessage = await _mediaUploadService.uploadMedia(
               file: file,
@@ -420,7 +423,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           }
         }
       }
-      
+
       setState(() {
         _isRecording = false;
         _recordingPath = null;
@@ -554,7 +557,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         builder: (context, duration, _) {
           final minutes = duration ~/ 60;
           final seconds = duration % 60;
-          final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+          final timeStr =
+              '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
 
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
@@ -569,20 +573,20 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                       print('🗑️ Deleting recording...');
                       _recordingTimer?.cancel();
                       await _audioRecorder.stop();
-                      
+
                       if (_recordingPath != null) {
                         final file = File(_recordingPath!);
                         if (await file.exists()) {
                           await file.delete();
                         }
                       }
-                      
+
                       setState(() {
                         _isRecording = false;
                         _recordingPath = null;
                         _recordingDuration.value = 0;
                       });
-                      
+
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -609,9 +613,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(width: 12),
-                
+
                 // Recording indicator dot
                 Container(
                   width: 14,
@@ -621,12 +625,15 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                     shape: BoxShape.circle,
                   ),
                 ),
-                
+
                 const SizedBox(width: 16),
-                
+
                 // Timer
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: const BoxDecoration(
                     color: Colors.red,
                     borderRadius: BorderRadius.all(Radius.circular(18)),
@@ -641,9 +648,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                     ),
                   ),
                 ),
-                
+
                 const Spacer(),
-                
+
                 // Send button
                 GestureDetector(
                   onTap: _sendRecording,
@@ -719,60 +726,70 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                     enabled: !_isUploading,
                     textCapitalization: TextCapitalization.sentences,
                     onSubmitted: (_) => _sendMessage(),
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Mic button
+                // Show send button when text is typed, otherwise mic button
                 GestureDetector(
-                  onTap: _isUploading ? null : () async {
-                    try {
-                      if (!_isRecording) {
-                        // Start recording
-                        final permission = await _audioRecorder.hasPermission();
-                        if (!permission) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Microphone permission required'),
-                              ),
-                            );
+                  onTap: _isUploading
+                      ? null
+                      : _messageController.text.trim().isNotEmpty
+                      ? _sendMessage
+                      : () async {
+                          try {
+                            if (!_isRecording) {
+                              // Start recording
+                              final permission = await _audioRecorder
+                                  .hasPermission();
+                              if (!permission) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Microphone permission required',
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+
+                              final directory = Directory.systemTemp;
+                              final timestamp =
+                                  DateTime.now().millisecondsSinceEpoch;
+                              final recordingPath =
+                                  '${directory.path}/audio_$timestamp.m4a';
+
+                              await _audioRecorder.start(
+                                const RecordConfig(
+                                  encoder: AudioEncoder.aacLc,
+                                  sampleRate: 44100,
+                                  numChannels: 2,
+                                  bitRate: 128000,
+                                ),
+                                path: recordingPath,
+                              );
+
+                              setState(() {
+                                _isRecording = true;
+                                _recordingPath = recordingPath;
+                                _recordingDuration.value = 0;
+                              });
+
+                              _recordingTimer = Timer.periodic(
+                                const Duration(seconds: 1),
+                                (_) {
+                                  _recordingDuration.value++;
+                                },
+                              );
+
+                              print('🎤 Recording started: $recordingPath');
+                            }
+                          } catch (e) {
+                            print('❌ Error starting recording: $e');
                           }
-                          return;
-                        }
-
-                        final directory = Directory.systemTemp;
-                        final timestamp = DateTime.now().millisecondsSinceEpoch;
-                        final recordingPath = '${directory.path}/audio_$timestamp.m4a';
-
-                        await _audioRecorder.start(
-                          const RecordConfig(
-                            encoder: AudioEncoder.aacLc,
-                            sampleRate: 44100,
-                            numChannels: 2,
-                            bitRate: 128000,
-                          ),
-                          path: recordingPath,
-                        );
-
-                        setState(() {
-                          _isRecording = true;
-                          _recordingPath = recordingPath;
-                          _recordingDuration.value = 0;
-                        });
-
-                        _recordingTimer = Timer.periodic(
-                          const Duration(seconds: 1),
-                          (_) {
-                            _recordingDuration.value++;
-                          },
-                        );
-
-                        print('🎤 Recording started: $recordingPath');
-                      }
-                    } catch (e) {
-                      print('❌ Error starting recording: $e');
-                    }
-                  },
+                        },
                   child: Container(
                     width: 48,
                     height: 48,
@@ -780,26 +797,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                       color: _isUploading ? Colors.grey : primaryColor,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.mic,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Send button
-                GestureDetector(
-                  onTap: _isUploading ? null : _sendMessage,
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: _isUploading ? Colors.grey : primaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.send,
+                    child: Icon(
+                      _messageController.text.trim().isNotEmpty
+                          ? Icons.send
+                          : Icons.mic,
                       color: Colors.white,
                       size: 22,
                     ),
