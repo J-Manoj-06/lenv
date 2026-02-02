@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
+import 'package:path_provider/path_provider.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -41,6 +45,11 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final ScrollController _scrollController = ScrollController();
   late Stream<Timestamp?> _lastReadAtStream;
   final bool _showUnreadDivider = true;
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  bool _isRecording = false;
+  String? _recordingPath;
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  Timer? _recordingTimer;
 
   // ===== Date helpers for day separators =====
   String _formatDayLabel(DateTime dt) {
@@ -136,12 +145,11 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
     // Setup last read stream for unread divider
     _setupLastReadStream();
-    // Mark as read on entry and refresh unread counts
-    _markAsRead();
-    // Scroll to bottom on initial load only
+    // Scroll to bottom on initial load only and mark as read after frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom(force: true);
-      // Refresh unread counts after marking as read
+      // Mark as read and refresh unread counts after frame
+      _markAsRead();
       try {
         final unread = Provider.of<UnreadCountProvider>(context, listen: false);
         unread.refreshChat(widget.communityId);
@@ -207,6 +215,9 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
+    _audioRecorder.dispose();
+    _recordingTimer?.cancel();
+    _recordingDuration.dispose();
     super.dispose();
   }
 
@@ -556,6 +567,24 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                     _pickCamera();
                   },
                 ),
+                _buildAttachmentOption(
+                  icon: Icons.picture_as_pdf,
+                  label: 'Document',
+                  color: primaryColor,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickDocument();
+                  },
+                ),
+                _buildAttachmentOption(
+                  icon: Icons.audiotrack,
+                  label: 'Audio',
+                  color: primaryColor,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickAudio();
+                  },
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -592,6 +621,212 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickDocument() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        await _sendFileMessage(File(result.files.single.path!));
+      }
+    } catch (e) {
+      print('❌ Error picking document: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send document: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickAudio() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['mp3', 'm4a', 'wav', 'aac'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        await _sendFileMessage(File(result.files.single.path!));
+      }
+    } catch (e) {
+      print('❌ Error picking audio: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send audio: $e')));
+      }
+    }
+  }
+
+  Future<void> _sendFileMessage(File file) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) return;
+
+      final conversationId = widget.communityId;
+      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final groupMessageId =
+          'upload_${baseTimestamp}_${currentUser.uid.hashCode}';
+      final messageId = '${groupMessageId}_0';
+
+      final fileSize = await file.length();
+      final fileName = file.path.split('/').last;
+
+      final mediaList = [
+        MediaMetadata(
+          messageId: messageId,
+          r2Key: 'pending/$messageId',
+          publicUrl: '',
+          thumbnail: file.path,
+          localPath: file.path,
+          expiresAt: DateTime.now().add(const Duration(days: 30)),
+          uploadedAt: DateTime.now(),
+          originalFileName: fileName,
+          fileSize: fileSize,
+          mimeType: _getMimeType(file.path),
+        ),
+      ];
+
+      final pendingMessage = GroupChatMessage(
+        id: 'pending:$groupMessageId',
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
+        message: '',
+        timestamp: baseTimestamp,
+        mediaMetadata: mediaList.first,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.0;
+        _localSenderMediaPaths[messageId] = file.path;
+      });
+
+      print('📤 Queueing file upload for $messageId');
+      await BackgroundUploadService().queueUpload(
+        file: file,
+        conversationId: conversationId,
+        senderId: currentUser.uid,
+        senderRole: 'student',
+        mediaType: 'message',
+        chatType: 'community',
+        senderName: currentUser.name,
+        messageId: messageId,
+        groupId: groupMessageId,
+      );
+
+      print('✅ File upload queued, scrolling to bottom');
+      _scrollToBottom(force: true);
+    } catch (e) {
+      print('❌ Error sending file: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send file: $e')));
+      }
+    }
+  }
+
+  String _getMimeType(String filePath) {
+    final lower = filePath.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.doc') || lower.endsWith('.docx'))
+      return 'application/msword';
+    if (lower.endsWith('.ppt') || lower.endsWith('.pptx'))
+      return 'application/vnd.ms-powerpoint';
+    if (lower.endsWith('.m4a') || lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    return 'application/octet-stream';
+  }
+
+  Future<void> _sendRecording() async {
+    try {
+      if (_recordingPath == null) return;
+
+      final file = File(_recordingPath!);
+      if (!file.existsSync()) {
+        print('⚠️ Recording file does not exist');
+        return;
+      }
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) return;
+
+      final conversationId = widget.communityId;
+      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final groupMessageId =
+          'upload_${baseTimestamp}_${currentUser.uid.hashCode}';
+      final messageId = '${groupMessageId}_0';
+
+      final fileSize = await file.length();
+
+      final mediaList = [
+        MediaMetadata(
+          messageId: messageId,
+          r2Key: 'pending/$messageId',
+          publicUrl: '',
+          thumbnail: file.path,
+          localPath: file.path,
+          expiresAt: DateTime.now().add(const Duration(days: 30)),
+          uploadedAt: DateTime.now(),
+          originalFileName:
+              'audio_${DateTime.now().millisecondsSinceEpoch}.m4a',
+          fileSize: fileSize,
+          mimeType: 'audio/aac',
+        ),
+      ];
+
+      final pendingMessage = GroupChatMessage(
+        id: 'pending:$groupMessageId',
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
+        message: '',
+        timestamp: baseTimestamp,
+        mediaMetadata: mediaList.first,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.0;
+        _localSenderMediaPaths[messageId] = file.path;
+        _isRecording = false;
+        _recordingPath = null;
+        _recordingDuration.value = 0;
+      });
+
+      print('📤 Queueing voice message upload for $messageId');
+      await BackgroundUploadService().queueUpload(
+        file: file,
+        conversationId: conversationId,
+        senderId: currentUser.uid,
+        senderRole: 'student',
+        mediaType: 'message',
+        chatType: 'community',
+        senderName: currentUser.name,
+        messageId: messageId,
+        groupId: groupMessageId,
+      );
+
+      print('✅ Voice message queued, scrolling to bottom');
+      _scrollToBottom(force: true);
+    } catch (e) {
+      print('❌ Error sending recording: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send voice message: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -1041,29 +1276,117 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
               onPressed: _showAttachmentPicker,
             ),
             const SizedBox(width: 8),
-            // Mic/Send Button
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: primaryColor,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: Icon(
-                  _messageController.text.trim().isNotEmpty
-                      ? Icons.send_rounded
-                      : Icons.mic,
-                  color: Colors.white,
-                  size: 24,
-                ),
-                padding: EdgeInsets.zero,
-                onPressed: _messageController.text.trim().isNotEmpty
-                    ? () => _sendMessage()
-                    : () {
-                        // Handle mic recording
-                      },
-              ),
+            // Mic/Send Button - Tap to record, tap to send
+            ValueListenableBuilder<int>(
+              valueListenable: _recordingDuration,
+              builder: (context, duration, _) {
+                final micPrimaryColor = const Color(0xFF00A884);
+                return GestureDetector(
+                  onTap: () async {
+                    if (_messageController.text.trim().isNotEmpty) {
+                      _sendMessage();
+                      return;
+                    }
+
+                    if (_isRecording) {
+                      // Stop recording and send
+                      try {
+                        print('⏹️ Stopping recording...');
+                        _recordingTimer?.cancel();
+
+                        final result = await _audioRecorder.stop();
+                        print('✅ Recording stopped: $result');
+
+                        if (mounted) {
+                          await _sendRecording();
+                        }
+                      } catch (e) {
+                        print('❌ Error stopping recording: $e');
+                        if (mounted) {
+                          setState(() {
+                            _isRecording = false;
+                            _recordingPath = null;
+                            _recordingDuration.value = 0;
+                          });
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
+                      }
+                    } else {
+                      // Start recording
+                      try {
+                        final hasPermission = await _audioRecorder
+                            .hasPermission();
+                        if (!hasPermission) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Microphone permission denied'),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
+                        final tempDir = await getTemporaryDirectory();
+                        final path =
+                            '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+                        print('🎤 Starting recording at: $path');
+
+                        await _audioRecorder.start(
+                          const RecordConfig(encoder: AudioEncoder.aacLc),
+                          path: path,
+                        );
+
+                        setState(() {
+                          _isRecording = true;
+                          _recordingPath = path;
+                          _recordingDuration.value = 0;
+                        });
+
+                        _recordingTimer = Timer.periodic(
+                          const Duration(seconds: 1),
+                          (_) {
+                            if (mounted) {
+                              _recordingDuration.value++;
+                            }
+                          },
+                        );
+
+                        print('✅ Recording started successfully');
+                      } catch (e) {
+                        print('❌ Error starting recording: $e');
+                        if (mounted) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
+                      }
+                    }
+                  },
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _isRecording ? Colors.red : micPrimaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        _messageController.text.trim().isNotEmpty
+                            ? Icons.send_rounded
+                            : (_isRecording ? Icons.send_rounded : Icons.mic),
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      padding: EdgeInsets.zero,
+                      onPressed: null,
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),
