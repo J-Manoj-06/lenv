@@ -396,7 +396,7 @@ class _TeacherCommunityChatScreenState
     _messageText.dispose();
     _selectedMessages.dispose();
     _highlightResetTimer?.cancel();
-    _recordingTimer?.cancel();
+    _recordingTimer.cancel();
     _recordingDuration.dispose();
     _messageKeys.clear();
     super.dispose();

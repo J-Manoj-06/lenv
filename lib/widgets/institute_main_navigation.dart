@@ -7,6 +7,7 @@ import '../screens/institute/institute_staff_screen.dart';
 import '../screens/institute/institute_messages_screen.dart';
 import '../screens/institute/institute_insights_screen.dart';
 import '../screens/institute/institute_profile_screen.dart';
+import '../utils/share_handler_mixin.dart';
 
 class InstituteMainNavigation extends StatefulWidget {
   const InstituteMainNavigation({super.key, this.initialIndex = 0});
@@ -18,7 +19,8 @@ class InstituteMainNavigation extends StatefulWidget {
       _InstituteMainNavigationState();
 }
 
-class _InstituteMainNavigationState extends State<InstituteMainNavigation> {
+class _InstituteMainNavigationState extends State<InstituteMainNavigation>
+    with ShareHandlerMixin, WidgetsBindingObserver {
   late int _currentIndex;
   late final List<Widget> _screens;
 
@@ -28,6 +30,7 @@ class _InstituteMainNavigationState extends State<InstituteMainNavigation> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    WidgetsBinding.instance.addObserver(this);
     _screens = [
       const InstituteDashboardScreen(),
       const InstituteStaffScreen(),
@@ -35,6 +38,19 @@ class _InstituteMainNavigationState extends State<InstituteMainNavigation> {
       const InstituteInsightsScreen(),
       const InstituteProfileScreen(),
     ];
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      handleAppResume();
+    }
   }
 
   void _onTap(int index) {

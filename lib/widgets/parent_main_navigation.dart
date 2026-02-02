@@ -5,6 +5,7 @@ import '../screens/parent/parent_rewards_screen.dart';
 import '../screens/parent/parent_messages_screen.dart';
 import '../screens/parent/parent_tests_screen.dart';
 import '../screens/parent/parent_profile_screen.dart';
+import '../utils/share_handler_mixin.dart';
 
 /// Parent Main Navigation Wrapper
 /// Provides 5 tabs: Dashboard, Rewards, Messages, Tests, Profile
@@ -17,7 +18,8 @@ class ParentMainNavigation extends StatefulWidget {
   State<ParentMainNavigation> createState() => _ParentMainNavigationState();
 }
 
-class _ParentMainNavigationState extends State<ParentMainNavigation> {
+class _ParentMainNavigationState extends State<ParentMainNavigation>
+    with ShareHandlerMixin, WidgetsBindingObserver {
   static const Color parentGreen = Color(0xFF14A670);
   late int _currentIndex;
   bool _initialized = false;
@@ -35,6 +37,20 @@ class _ParentMainNavigationState extends State<ParentMainNavigation> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      handleAppResume();
+    }
   }
 
   @override

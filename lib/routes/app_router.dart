@@ -30,6 +30,8 @@ import '../screens/teacher/teacher_groups_screen.dart';
 import '../screens/teacher/profile_screen.dart';
 import '../screens/teacher/theme_settings_screen.dart';
 import '../screens/parent/parent_section_group_chat_screen.dart';
+import '../share/share_target_screen.dart';
+import '../share/incoming_share_data.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -247,6 +249,18 @@ class AppRouter {
 
       case '/teacher-groups':
         return MaterialPageRoute(builder: (_) => const TeacherGroupsScreen());
+
+      case '/share-target':
+        final shareData = settings.arguments as IncomingShareData?;
+        if (shareData == null) {
+          return MaterialPageRoute(
+            builder: (_) =>
+                const Scaffold(body: Center(child: Text('Missing share data'))),
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => ShareTargetScreen(shareData: shareData),
+        );
 
       // YouTube feature removed
 

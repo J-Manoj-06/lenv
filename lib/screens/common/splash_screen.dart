@@ -4,9 +4,8 @@ import '../../utils/session_manager.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../share/share_controller.dart';
-import '../../share/select_forward_chat_page.dart';
+import '../../share/share_target_screen.dart';
 import '../../providers/auth_provider.dart' as local_auth;
-import '../../models/user_model.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -36,7 +35,10 @@ class _SplashScreenState extends State<SplashScreen>
     _animationController.forward();
 
     // Decide the next route based on stored session and restored auth
-    _resolveAndNavigate();
+    // Use post-frame callback to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resolveAndNavigate();
+    });
   }
 
   @override
@@ -170,6 +172,15 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _resolveAndNavigate() async {
     try {
+      // Initialize auth provider first
+      final authProvider = Provider.of<local_auth.AuthProvider>(
+        context,
+        listen: false,
+      );
+
+      // Ensure auth is initialized before checking user
+      await authProvider.ensureInitialized();
+
       // Parallelize auth check and session retrieval for faster startup
       final results = await Future.wait([
         _getFirebaseUser(),
@@ -188,54 +199,41 @@ class _SplashScreenState extends State<SplashScreen>
         context,
         listen: false,
       );
-      if (shareController.hasShareData) {
+
+      // Check if we have share data BEFORE checking user
+      final hasShare = shareController.hasShareData;
+      final shareData = shareController.shareData;
+
+      if (hasShare && shareData != null) {
         // Get current user to check role
-        final authProvider = Provider.of<local_auth.AuthProvider>(
-          context,
-          listen: false,
-        );
         final currentUser = authProvider.currentUser;
 
         if (currentUser == null) {
-          // User not logged in - go to login, share data will be handled after login
+          // User not logged in - clear share data and go to login
+          shareController.clearShareData();
           Navigator.pushReplacementNamed(context, '/role-selection');
           return;
         }
 
-        // Check if user is principal
-        if (currentUser.role == UserRole.institute) {
-          // Navigate to forward page
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  SelectForwardChatPage(shareData: shareController.shareData!),
-            ),
-          );
-          return;
-        } else {
-          // Not principal - show message and clear share data
-          shareController.clearShareData();
+        print('Navigating to share screen with data: ${shareData.type}');
+        // Clear from controller AFTER we have the data
+        shareController.clearShareData();
 
-          // Show message after a brief delay
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('⚠️ Forwarding allowed only for Principal'),
-                  duration: Duration(seconds: 3),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-            }
-          });
-        }
+        // Navigate to comprehensive share target screen for all roles
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ShareTargetScreen(shareData: shareData),
+          ),
+        );
+        return;
       }
 
       // Normal navigation
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, initialRoute);
-    } catch (_) {
+    } catch (e) {
+      print('Error in _resolveAndNavigate: $e');
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/role-selection');
     }

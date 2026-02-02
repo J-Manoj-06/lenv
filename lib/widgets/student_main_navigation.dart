@@ -7,6 +7,7 @@ import '../screens/student/student_leaderboard_screen.dart';
 import '../screens/student/student_messages_screen.dart';
 import '../features/rewards/rewards_screen_wrapper.dart';
 import 'student_bottom_nav.dart';
+import '../utils/share_handler_mixin.dart';
 
 /// Student Main Navigation Wrapper
 /// Uses IndexedStack to preserve state when switching tabs
@@ -20,7 +21,8 @@ class StudentMainNavigation extends StatefulWidget {
   State<StudentMainNavigation> createState() => _StudentMainNavigationState();
 }
 
-class _StudentMainNavigationState extends State<StudentMainNavigation> {
+class _StudentMainNavigationState extends State<StudentMainNavigation>
+    with ShareHandlerMixin, WidgetsBindingObserver {
   late int _currentIndex;
   final List<Widget> _screens = [];
   bool _initialized = false;
@@ -29,6 +31,20 @@ class _StudentMainNavigationState extends State<StudentMainNavigation> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      handleAppResume();
+    }
   }
 
   @override

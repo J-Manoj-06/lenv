@@ -30,8 +30,8 @@ class AuthProvider with ChangeNotifier {
     if (_initialized) return;
 
     _isLoading = true;
-    // Defer notification to avoid setState during build
-    _safeNotifyListeners();
+    // Don't notify during initialization to avoid setState during build
+    // notifyListeners() will be called once at the end
 
     try {
       final firebaseUser = FirebaseAuth.instance.currentUser;

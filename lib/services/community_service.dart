@@ -355,6 +355,77 @@ class CommunityService {
     }
   }
 
+  /// Get communities for any role (used in share functionality)
+  Future<List<CommunityModel>> getMyCommunitiesForRole({
+    required String userId,
+    required String role,
+  }) async {
+    try {
+      // Try optimized index first
+      final indexDoc = await _firestore
+          .collection('user_communities')
+          .doc(userId)
+          .get();
+
+      if (indexDoc.exists) {
+        final data = indexDoc.data();
+        final communityIds =
+            (data?['communityIds'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [];
+
+        final communities = <CommunityModel>[];
+        for (final id in communityIds) {
+          final doc = await _firestore.collection('communities').doc(id).get();
+          if (doc.exists) {
+            communities.add(CommunityModel.fromFirestore(doc));
+          }
+        }
+
+        communities.sort((a, b) {
+          final aTime = a.lastMessageAt ?? a.createdAt;
+          final bTime = b.lastMessageAt ?? b.createdAt;
+          return bTime.compareTo(aTime);
+        });
+
+        return communities;
+      }
+
+      // Fallback to collectionGroup query
+      final memberQuery = await _firestore
+          .collectionGroup('members')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'active')
+          .get();
+
+      if (memberQuery.docs.isEmpty) return <CommunityModel>[];
+
+      final communityIds = memberQuery.docs
+          .map((doc) => doc.reference.parent.parent!.id)
+          .toSet()
+          .toList();
+
+      final communities = <CommunityModel>[];
+      for (final id in communityIds) {
+        final doc = await _firestore.collection('communities').doc(id).get();
+        if (doc.exists) {
+          communities.add(CommunityModel.fromFirestore(doc));
+        }
+      }
+
+      communities.sort((a, b) {
+        final aTime = a.lastMessageAt ?? a.createdAt;
+        final bTime = b.lastMessageAt ?? b.createdAt;
+        return bTime.compareTo(aTime);
+      });
+
+      return communities;
+    } catch (e) {
+      return [];
+    }
+  }
+
   /// Join a community (for students)
   Future<bool> joinCommunity(String communityId, StudentModel student) async {
     try {

@@ -288,76 +288,116 @@ class _CommunityCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
+        constraints: const BoxConstraints(minHeight: 80),
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 0.7),
+          border: Border.all(color: borderColor, width: 0.8),
           boxShadow: isDark
-              ? null
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 4,
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
                 ],
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _LeadingLetter(
-              letter: community.getCategoryIcon(),
-              primaryColor: primaryColor,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    community.name,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.16),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      community.category,
-                      style: TextStyle(
-                        color: tagTextColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    community.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: subtitleColor, fontSize: 13),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${community.memberCount} members • ${community.scope == 'global' ? 'Global' : 'School'}',
-                    style: TextStyle(color: hintColor, fontSize: 12),
-                  ),
-                ],
+            // Left accent bar
+            Container(
+              width: 5,
+              decoration: BoxDecoration(
+                color: primaryColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
+                ),
               ),
             ),
-            Icon(Icons.chevron_right, color: hintColor),
+            const SizedBox(width: 12),
+            // Icon
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: _LeadingLetter(
+                letter: community.getCategoryIcon(),
+                primaryColor: primaryColor,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Info
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            community.name,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Icon(Icons.chevron_right, color: hintColor, size: 20),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        // Category tag
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            community.category,
+                            style: TextStyle(
+                              color: tagTextColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Member count
+                        Icon(Icons.people, size: 14, color: hintColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${community.memberCount} members',
+                          style: TextStyle(
+                            color: hintColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
           ],
         ),
       ),
@@ -374,22 +414,13 @@ class _LeadingLetter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 48,
-      height: 48,
+      width: 56,
+      height: 56,
       decoration: BoxDecoration(
-        color: primaryColor.withOpacity(0.16),
+        color: primaryColor.withOpacity(0.15),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Center(
-        child: Text(
-          letter,
-          style: TextStyle(
-            color: primaryColor,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
+      child: Center(child: Text(letter, style: const TextStyle(fontSize: 28))),
     );
   }
 }
