@@ -118,6 +118,10 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final Map<String, String> _localSenderMediaPaths = {};
   DateTime? _lastMarkedMessageAt;
 
+  // Selection mode for delete (ValueNotifiers for flicker-free updates)
+  final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
+  final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
+
   @override
   void initState() {
     super.initState();
@@ -218,6 +222,11 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
     _recordingDuration.dispose();
+
+    // Dispose selection notifiers
+    _selectedMessages.dispose();
+    _isSelectionMode.dispose();
+
     super.dispose();
   }
 
@@ -895,38 +904,99 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       appBar: AppBar(
         backgroundColor: appBarColor,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new,
-            color: isDark ? Colors.white70 : const Color(0xFF475569),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            Text(widget.icon, style: const TextStyle(fontSize: 24)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.communityName,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'Open Community',
-                    style: TextStyle(color: subtitleColor, fontSize: 12),
-                  ),
-                ],
+        leading: ValueListenableBuilder<bool>(
+          valueListenable: _isSelectionMode,
+          builder: (context, isSelectionMode, _) {
+            return IconButton(
+              icon: Icon(
+                isSelectionMode ? Icons.close : Icons.arrow_back_ios_new,
+                color: isDark ? Colors.white70 : const Color(0xFF475569),
               ),
-            ),
-          ],
+              onPressed: () {
+                if (isSelectionMode) {
+                  _isSelectionMode.value = false;
+                  _selectedMessages.value = {};
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+            );
+          },
         ),
+        title: ValueListenableBuilder<bool>(
+          valueListenable: _isSelectionMode,
+          builder: (context, isSelectionMode, _) {
+            return ValueListenableBuilder<Set<String>>(
+              valueListenable: _selectedMessages,
+              builder: (context, selectedMessages, _) {
+                return isSelectionMode
+                    ? Text(
+                        '${selectedMessages.length} selected',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    : Row(
+                        children: [
+                          Text(
+                            widget.icon,
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.communityName,
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'Open Community',
+                                  style: TextStyle(
+                                    color: subtitleColor,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+              },
+            );
+          },
+        ),
+        actions: [
+          ValueListenableBuilder<bool>(
+            valueListenable: _isSelectionMode,
+            builder: (context, isSelectionMode, _) {
+              return ValueListenableBuilder<Set<String>>(
+                valueListenable: _selectedMessages,
+                builder: (context, selectedMessages, _) {
+                  return isSelectionMode
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.redAccent,
+                            size: 24,
+                          ),
+                          onPressed: selectedMessages.isEmpty
+                              ? null
+                              : _showDeleteDialog,
+                        )
+                      : const SizedBox.shrink();
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -1159,24 +1229,76 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                                   ?.messageId]
                             : null;
 
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_showUnreadDivider &&
-                                hasValidData &&
-                                unreadDividerIndex == index)
-                              _buildUnreadDivider(),
-                            if (showDayDivider) _buildDayDivider(currentDate),
-                            _MessageBubble(
-                              message: message,
-                              isMe: isMe,
-                              uploading: isPending,
-                              uploadProgress: uploadProgress,
-                              localSenderMediaPaths: _localSenderMediaPaths,
-                              uploadingMessageIds: _uploadingMessageIds,
-                              pendingUploadProgress: _pendingUploadProgress,
-                            ),
-                          ],
+                        return ValueListenableBuilder<bool>(
+                          valueListenable: _isSelectionMode,
+                          builder: (context, isSelectionMode, _) {
+                            return ValueListenableBuilder<Set<String>>(
+                              valueListenable: _selectedMessages,
+                              builder: (context, selectedMessages, _) {
+                                final isSelected = selectedMessages.contains(
+                                  message.id,
+                                );
+
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (_showUnreadDivider &&
+                                        hasValidData &&
+                                        unreadDividerIndex == index)
+                                      _buildUnreadDivider(),
+                                    if (showDayDivider)
+                                      _buildDayDivider(currentDate),
+                                    GestureDetector(
+                                      onLongPress: isMe
+                                          ? () {
+                                              _isSelectionMode.value = true;
+                                              _selectedMessages.value = {
+                                                ...selectedMessages,
+                                                message.id,
+                                              };
+                                            }
+                                          : null,
+                                      onTap: isSelectionMode && isMe
+                                          ? () {
+                                              if (isSelected) {
+                                                final newSelection =
+                                                    Set<String>.from(
+                                                      selectedMessages,
+                                                    )..remove(message.id);
+                                                _selectedMessages.value =
+                                                    newSelection;
+                                                if (newSelection.isEmpty) {
+                                                  _isSelectionMode.value =
+                                                      false;
+                                                }
+                                              } else {
+                                                _selectedMessages.value = {
+                                                  ...selectedMessages,
+                                                  message.id,
+                                                };
+                                              }
+                                            }
+                                          : null,
+                                      child: _MessageBubble(
+                                        message: message,
+                                        isMe: isMe,
+                                        uploading: isPending,
+                                        uploadProgress: uploadProgress,
+                                        localSenderMediaPaths:
+                                            _localSenderMediaPaths,
+                                        uploadingMessageIds:
+                                            _uploadingMessageIds,
+                                        pendingUploadProgress:
+                                            _pendingUploadProgress,
+                                        selectionMode: isSelectionMode,
+                                        isSelected: isSelected,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
                         );
                       },
                     );
@@ -1561,6 +1683,120 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
       ),
     );
   }
+
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete Messages',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Delete message for everyone?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteMessages();
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteMessages() async {
+    final messagesToDelete = _selectedMessages.value.toList();
+    if (messagesToDelete.isEmpty) return;
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
+      if (currentUserId == null) {
+        throw Exception('User not found');
+      }
+
+      // Verify ownership and collect media to delete
+      final validMessages = <String>[];
+      final batch = FirebaseFirestore.instance.batch();
+
+      for (final messageId in messagesToDelete) {
+        final messageRef = FirebaseFirestore.instance
+            .collection('communities')
+            .doc(widget.communityId)
+            .collection('messages')
+            .doc(messageId);
+
+        final docSnapshot = await messageRef.get();
+        if (!docSnapshot.exists) continue;
+
+        final data = docSnapshot.data();
+        final senderId = data?['senderId'] as String?;
+
+        if (senderId == null || senderId != currentUserId) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('You can only delete your own messages'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          continue;
+        }
+
+        validMessages.add(messageId);
+
+        // Add to batch
+        batch.update(messageRef, {
+          'isDeleted': true,
+          'message': '',
+          'imageUrl': null,
+          'mediaMetadata': null,
+          'multipleMedia': null,
+        });
+      }
+
+      // Execute batch delete - all messages deleted instantly
+      if (validMessages.isNotEmpty) {
+        await batch.commit();
+      }
+
+      _selectedMessages.value = {};
+      _isSelectionMode.value = false;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${validMessages.length} message(s) deleted'),
+            backgroundColor: const Color(0xFF4CAF50),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 }
 
 class _MessageBubble extends StatelessWidget {
@@ -1571,6 +1807,8 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, String> localSenderMediaPaths;
   final Set<String> uploadingMessageIds;
   final Map<String, double> pendingUploadProgress;
+  final bool selectionMode;
+  final bool isSelected;
 
   const _MessageBubble({
     required this.message,
@@ -1580,6 +1818,8 @@ class _MessageBubble extends StatelessWidget {
     required this.localSenderMediaPaths,
     required this.uploadingMessageIds,
     required this.pendingUploadProgress,
+    this.selectionMode = false,
+    this.isSelected = false,
   });
 
   @override
@@ -1727,6 +1967,15 @@ class _MessageBubble extends StatelessWidget {
               ],
             ),
           ),
+          if (selectionMode && isMe)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Icon(
+                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: isSelected ? const Color(0xFFFF8800) : Colors.grey,
+                size: 24,
+              ),
+            ),
         ],
       ),
     );
@@ -1768,6 +2017,7 @@ class _MessageBubble extends StatelessWidget {
       localPath:
           metadata.localPath ?? localSenderMediaPaths[metadata.messageId],
       isMe: isMe,
+      selectionMode: selectionMode,
       uploading: isUploading,
       uploadProgress: uploadProgressVal,
     );
@@ -1786,6 +2036,7 @@ class _MessageBubble extends StatelessWidget {
       mimeType: mimeType,
       fileSize: 0,
       isMe: isMe,
+      selectionMode: selectionMode,
       uploading: uploading,
       uploadProgress: uploadProgress,
     );
