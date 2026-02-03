@@ -51,6 +51,12 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   Timer? _recordingTimer;
 
+  // Pending uploads tracking (like community chat)
+  final List<Map<String, dynamic>> _pendingMessages = [];
+  final Set<String> _uploadingMessageIds = {};
+  final Map<String, double> _pendingUploadProgress = {};
+  final Map<String, String> _localFilePaths = {};
+
   @override
   void initState() {
     super.initState();
@@ -181,15 +187,56 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     final currentUser = authProvider.currentUser;
     if (currentUser == null) return;
 
+    // Get file info
+    final fileSize = await file.length();
+    final fileName = file.path.split('/').last;
+    final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+    final messageId = 'pending_${baseTimestamp}_${currentUser.uid.hashCode}';
+
+    // Determine mime type
+    String mimeType = 'application/octet-stream';
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf'))
+      mimeType = 'application/pdf';
+    else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg'))
+      mimeType = 'image/jpeg';
+    else if (lower.endsWith('.png'))
+      mimeType = 'image/png';
+    else if (lower.endsWith('.m4a') || lower.endsWith('.aac'))
+      mimeType = 'audio/aac';
+    else if (lower.endsWith('.mp3'))
+      mimeType = 'audio/mpeg';
+    else if (lower.endsWith('.doc'))
+      mimeType = 'application/msword';
+    else if (lower.endsWith('.docx'))
+      mimeType =
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    else if (lower.endsWith('.odt'))
+      mimeType = 'application/vnd.oasis.opendocument.text';
+
+    // Add pending message
+    final pendingMessage = {
+      'id': messageId,
+      'text': '',
+      'senderId': currentUser.uid,
+      'senderName': currentUser.name,
+      'senderRole': currentUser.role.toString().split('.').last,
+      'createdAt': baseTimestamp,
+      'attachmentUrl': 'pending',
+      'attachmentType': mimeType,
+      'attachmentName': fileName,
+      'attachmentSize': fileSize,
+      'isPending': true,
+    };
+
     setState(() {
-      _isUploading = true;
-      _uploadProgress = 0;
+      _pendingMessages.insert(0, pendingMessage);
+      _uploadingMessageIds.add(messageId);
+      _pendingUploadProgress[messageId] = 0.0;
+      _localFilePaths[messageId] = file.path;
     });
 
     try {
-      // Get file size
-      final fileSize = await file.length();
-
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: file,
         conversationId: widget.instituteId,
@@ -197,11 +244,13 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         senderRole: currentUser.role.toString(),
         mediaType: 'staff_room',
         onProgress: (progress) {
-          setState(() => _uploadProgress = progress.toDouble());
+          setState(() {
+            _pendingUploadProgress[messageId] = progress.toDouble();
+          });
         },
       );
 
-      // Create message with attachment
+      // Create actual message with attachment
       await FirebaseFirestore.instance
           .collection('staff_rooms')
           .doc(widget.instituteId)
@@ -220,11 +269,13 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
             'thumbnailUrl': mediaMessage.thumbnailUrl,
           });
 
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('File sent successfully')));
-      }
+      // Remove pending message
+      setState(() {
+        _pendingMessages.removeWhere((m) => m['id'] == messageId);
+        _uploadingMessageIds.remove(messageId);
+        _pendingUploadProgress.remove(messageId);
+        _localFilePaths.remove(messageId);
+      });
 
       // Scroll to bottom
       Future.delayed(const Duration(milliseconds: 100), () {
@@ -237,15 +288,19 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         }
       });
     } catch (e) {
+      // Remove failed pending message
+      setState(() {
+        _pendingMessages.removeWhere((m) => m['id'] == messageId);
+        _uploadingMessageIds.remove(messageId);
+        _pendingUploadProgress.remove(messageId);
+        _localFilePaths.remove(messageId);
+      });
+
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send file: $e')));
       }
-    } finally {
-      setState(() {
-        _isUploading = false;
-      });
     }
   }
 
@@ -580,7 +635,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           .limit(300)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            _pendingMessages.isEmpty) {
           return Center(child: CircularProgressIndicator(color: primaryColor));
         }
 
@@ -588,17 +644,40 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
 
-        final messages = snapshot.data?.docs ?? [];
+        final firestoreMessages = snapshot.data?.docs ?? [];
+
+        // Merge pending and Firestore messages
+        final allMessages = <Map<String, dynamic>>[];
+
+        // Add pending messages first
+        allMessages.addAll(_pendingMessages);
+
+        // Add Firestore messages
+        for (final doc in firestoreMessages) {
+          final data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id;
+          data['isPending'] = false;
+          allMessages.add(data);
+        }
+
+        // Sort by timestamp
+        allMessages.sort((a, b) {
+          final aTime = a['createdAt'] as int? ?? 0;
+          final bTime = b['createdAt'] as int? ?? 0;
+          return bTime.compareTo(aTime);
+        });
 
         // Store messages for index-based scrolling
-        _currentMessages = messages;
+        _currentMessages = firestoreMessages;
 
         // Track which messages are currently visible - use doc IDs directly
-        final currentMessageIds = messages.map((doc) => doc.id).toSet();
+        final currentMessageIds = firestoreMessages
+            .map((doc) => doc.id)
+            .toSet();
 
         _messageKeys.removeWhere((key, _) => !currentMessageIds.contains(key));
 
-        if (messages.isEmpty) {
+        if (allMessages.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -632,24 +711,25 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           controller: _scrollController,
           reverse: true,
           padding: const EdgeInsets.all(16),
-          itemCount: messages.length,
+          itemCount: allMessages.length,
           itemBuilder: (context, index) {
-            final doc = messages[index];
-            final message = doc.data() as Map<String, dynamic>;
-            final messageId = doc.id;
+            final message = allMessages[index];
+            final messageId = message['id'] as String? ?? '';
+            final isPending = message['isPending'] == true;
 
             final authProvider = Provider.of<AuthProvider>(
               context,
               listen: false,
             );
             final isMe = message['senderId'] == authProvider.currentUser?.uid;
-            final isHighlighted = messageId == _highlightMessageId;
+            final isHighlighted =
+                messageId == _highlightMessageId && !isPending;
 
-            // Create or get GlobalKey for this message
-            final msgKey = _messageKeys.putIfAbsent(
-              messageId,
-              () => GlobalKey(),
-            );
+            // Create or get GlobalKey for this message (only for non-pending)
+            GlobalKey? msgKey;
+            if (!isPending) {
+              msgKey = _messageKeys.putIfAbsent(messageId, () => GlobalKey());
+            }
 
             final isDark = theme.brightness == Brightness.dark;
             final highlightColor = isDark
@@ -682,6 +762,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   message: message,
                   isMe: isMe,
                   primaryColor: primaryColor,
+                  uploadingMessageIds: _uploadingMessageIds,
+                  pendingUploadProgress: _pendingUploadProgress,
+                  localFilePaths: _localFilePaths,
                 ),
               ),
             );
@@ -964,11 +1047,17 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
   final bool isMe;
   final Color primaryColor;
+  final Set<String> uploadingMessageIds;
+  final Map<String, double> pendingUploadProgress;
+  final Map<String, String> localFilePaths;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
     required this.primaryColor,
+    required this.uploadingMessageIds,
+    required this.pendingUploadProgress,
+    required this.localFilePaths,
   });
 
   @override
@@ -984,6 +1073,8 @@ class _MessageBubble extends StatelessWidget {
     final attachmentSize = message['attachmentSize'] as int?;
     final thumbnailUrl = message['thumbnailUrl'] as String?;
     final isForwarded = message['isForwarded'] == true;
+    final isPending = message['isPending'] == true;
+    final messageId = message['id'] as String? ?? '';
 
     String timeStr = '';
     if (timestamp != null) {
@@ -1100,6 +1191,8 @@ class _MessageBubble extends StatelessWidget {
                       attachmentName,
                       attachmentSize ?? 0,
                       thumbnailUrl,
+                      isPending,
+                      messageId,
                     ),
                     if (text.isNotEmpty) const SizedBox(height: 8),
                   ],
@@ -1133,26 +1226,42 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildAttachmentWidget(
-    String url,
+    String? url,
     String type,
     String? name,
     int fileSize,
     String? thumbnailUrl,
+    bool isPending,
+    String messageId,
   ) {
-    // Extract R2 key from URL
-    final uri = Uri.tryParse(url);
-    if (uri == null) return const SizedBox();
+    // For pending messages, use local path
+    String? localPath;
+    String r2Key = '';
 
-    final r2Key = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+    if (isPending) {
+      localPath = localFilePaths[messageId];
+      r2Key = 'pending/$messageId';
+    } else {
+      // Extract R2 key from URL
+      final uri = Uri.tryParse(url ?? '');
+      if (uri == null) return const SizedBox();
+      r2Key = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+    }
+
+    final isUploading = uploadingMessageIds.contains(messageId);
+    final uploadProgress = pendingUploadProgress[messageId];
 
     return MediaPreviewCard(
       r2Key: r2Key,
-      fileName: name ?? _fileNameFromUrl(url),
+      fileName: name ?? _fileNameFromUrl(url ?? ''),
       mimeType: type,
       fileSize: fileSize,
       thumbnailBase64: thumbnailUrl,
+      localPath: localPath,
       isMe: isMe,
       selectionMode: false,
+      uploading: isUploading,
+      uploadProgress: uploadProgress,
     );
   }
 
