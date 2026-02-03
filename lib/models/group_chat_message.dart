@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'media_metadata.dart';
 
 class GroupChatMessage {
@@ -27,6 +28,17 @@ class GroupChatMessage {
   });
 
   factory GroupChatMessage.fromFirestore(Map<String, dynamic> data, String id) {
+    // Handle timestamp - can be either int or Timestamp
+    int timestampValue;
+    final timestampData = data['timestamp'];
+    if (timestampData is Timestamp) {
+      timestampValue = timestampData.toDate().millisecondsSinceEpoch;
+    } else if (timestampData is int) {
+      timestampValue = timestampData;
+    } else {
+      timestampValue = DateTime.now().millisecondsSinceEpoch;
+    }
+
     return GroupChatMessage(
       id: id,
       senderId: data['senderId'] ?? '',
@@ -41,7 +53,7 @@ class GroupChatMessage {
                 .map((m) => MediaMetadata.fromFirestore(m))
                 .toList()
           : null,
-      timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+      timestamp: timestampValue,
       deletedFor: data['deletedFor'] != null
           ? List<String>.from(data['deletedFor'])
           : null,

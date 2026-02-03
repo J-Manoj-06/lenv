@@ -776,12 +776,15 @@ class CommunityService {
         'senderName': senderName,
         'senderRole': senderRole,
         'content': content,
+        'message': content, // Add for GroupChatMessage compatibility
         'type': messageType,
         'imageUrl': imageUrl ?? '',
         'fileUrl': fileUrl ?? '',
         'fileName': fileName ?? '',
         'mediaMetadata': mediaMetadata?.toFirestore(),
         'multipleMedia': multipleMedia?.map((m) => m.toFirestore()).toList(),
+        'timestamp': DateTime.now()
+            .millisecondsSinceEpoch, // Add for GroupChatMessage compatibility
         'createdAt': FieldValue.serverTimestamp(),
         'editedAt': null,
         'deletedAt': null,

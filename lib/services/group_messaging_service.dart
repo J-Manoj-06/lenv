@@ -366,14 +366,24 @@ class GroupMessagingService {
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs
-              .where((doc) {
-                // Filter out documents with invalid data
-                final data = doc.data();
-                return data['timestamp'] != null;
-              })
-              .map((doc) => GroupChatMessage.fromFirestore(doc.data(), doc.id))
-              .toList();
+          final messages = <GroupChatMessage>[];
+
+          for (final doc in snapshot.docs) {
+            try {
+              final data = doc.data();
+
+              // Filter out documents with invalid data
+              if (data['timestamp'] == null) continue;
+              if (data['isDeleted'] == true) continue;
+
+              messages.add(GroupChatMessage.fromFirestore(data, doc.id));
+            } catch (e) {
+              debugPrint('⚠️ Failed to parse community message ${doc.id}: $e');
+              // Skip this message but continue with others
+            }
+          }
+
+          return messages;
         });
   }
 

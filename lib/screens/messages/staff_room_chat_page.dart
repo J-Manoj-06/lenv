@@ -187,6 +187,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     });
 
     try {
+      // Get file size
+      final fileSize = await file.length();
+
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: file,
         conversationId: widget.instituteId,
@@ -213,6 +216,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
             'attachmentUrl': mediaMessage.r2Url,
             'attachmentType': mediaMessage.fileType,
             'attachmentName': mediaMessage.fileName,
+            'attachmentSize': fileSize,
             'thumbnailUrl': mediaMessage.thumbnailUrl,
           });
 
@@ -372,6 +376,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           try {
             setState(() => _isUploading = true);
 
+            // Get audio file size
+            final fileSize = await file.length();
+
             // Upload audio using MediaUploadService
             final mediaMessage = await _mediaUploadService.uploadMedia(
               file: file,
@@ -399,6 +406,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   'attachmentUrl': mediaMessage.r2Url,
                   'attachmentType': 'audio/m4a',
                   'attachmentName': mediaMessage.fileName,
+                  'attachmentSize': fileSize,
                   'thumbnailUrl': mediaMessage.thumbnailUrl,
                 });
 
@@ -973,6 +981,7 @@ class _MessageBubble extends StatelessWidget {
     final attachmentUrl = message['attachmentUrl'] as String?;
     final attachmentType = message['attachmentType'] as String?;
     final attachmentName = message['attachmentName'] as String?;
+    final attachmentSize = message['attachmentSize'] as int?;
     final thumbnailUrl = message['thumbnailUrl'] as String?;
     final isForwarded = message['isForwarded'] == true;
 
@@ -1089,6 +1098,7 @@ class _MessageBubble extends StatelessWidget {
                       attachmentUrl,
                       attachmentType ?? 'application/octet-stream',
                       attachmentName,
+                      attachmentSize ?? 0,
                       thumbnailUrl,
                     ),
                     if (text.isNotEmpty) const SizedBox(height: 8),
@@ -1126,6 +1136,7 @@ class _MessageBubble extends StatelessWidget {
     String url,
     String type,
     String? name,
+    int fileSize,
     String? thumbnailUrl,
   ) {
     // Extract R2 key from URL
@@ -1138,7 +1149,7 @@ class _MessageBubble extends StatelessWidget {
       r2Key: r2Key,
       fileName: name ?? _fileNameFromUrl(url),
       mimeType: type,
-      fileSize: 0, // Unknown for existing messages
+      fileSize: fileSize,
       thumbnailBase64: thumbnailUrl,
       isMe: isMe,
       selectionMode: false,
