@@ -57,7 +57,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   final Map<String, double> _pendingUploadProgress = {};
   final Map<String, String> _localFilePaths = {};
   final Map<String, ValueNotifier<double>> _progressNotifiers = {};
-  DateTime? _lastProgressUpdate;
+
+  // Selection mode for delete
+  final Set<String> _selectedMessages = {};
+  bool _isSelectionMode = false;
 
   @override
   void initState() {
@@ -551,19 +554,54 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         backgroundColor: bgColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.chevron_left, color: textColor, size: 32),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          widget.isTeacher ? 'Teacher Group Chat' : 'Staff Room',
-          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.search, color: textColor),
-            onPressed: () => _openSearch(context, theme, primaryColor),
+          icon: Icon(
+            _isSelectionMode ? Icons.close : Icons.chevron_left,
+            color: textColor,
+            size: _isSelectionMode ? 24 : 32,
           ),
-        ],
+          onPressed: () {
+            if (_isSelectionMode) {
+              setState(() {
+                _isSelectionMode = false;
+                _selectedMessages.clear();
+              });
+            } else {
+              Navigator.pop(context);
+            }
+          },
+        ),
+        title: _isSelectionMode
+            ? Text(
+                '${_selectedMessages.length} selected',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              )
+            : Text(
+                widget.isTeacher ? 'Teacher Group Chat' : 'Staff Room',
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+              ),
+        actions: _isSelectionMode
+            ? [
+                IconButton(
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.redAccent,
+                    size: 24,
+                  ),
+                  onPressed: _selectedMessages.isEmpty
+                      ? null
+                      : _showDeleteDialog,
+                ),
+              ]
+            : [
+                IconButton(
+                  icon: Icon(Icons.search, color: textColor),
+                  onPressed: () => _openSearch(context, theme, primaryColor),
+                ),
+              ],
       ),
       body: Column(
         children: [
@@ -674,6 +712,12 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         // Add Firestore messages
         for (final doc in firestoreMessages) {
           final data = doc.data() as Map<String, dynamic>;
+
+          // Skip deleted messages
+          if (data['isDeleted'] == true) {
+            continue;
+          }
+
           data['id'] = doc.id;
           data['isPending'] = false;
           allMessages.add(data);
@@ -741,6 +785,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
               listen: false,
             );
             final isMe = message['senderId'] == authProvider.currentUser?.uid;
+            final isSelected = _selectedMessages.contains(messageId);
             final isHighlighted =
                 messageId == _highlightMessageId && !isPending;
 
@@ -770,22 +815,59 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   pendingUploadProgress: _pendingUploadProgress,
                   localFilePaths: _localFilePaths,
                   progressNotifiers: _progressNotifiers,
+                  selectionMode: _isSelectionMode,
+                  isSelected: isSelected,
                 ),
               );
             }
 
             // Full featured container with animations for non-pending messages
-            return Container(
-              key: _messageKeys[messageId],
-              child: isHighlighted
-                  ? AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                      decoration: BoxDecoration(
-                        color: highlightColor,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: _MessageBubble(
+            return GestureDetector(
+              onLongPress: isMe
+                  ? () {
+                      setState(() {
+                        _isSelectionMode = true;
+                        _selectedMessages.add(messageId);
+                      });
+                    }
+                  : null,
+              onTap: _isSelectionMode && isMe
+                  ? () {
+                      setState(() {
+                        if (isSelected) {
+                          _selectedMessages.remove(messageId);
+                          if (_selectedMessages.isEmpty) {
+                            _isSelectionMode = false;
+                          }
+                        } else {
+                          _selectedMessages.add(messageId);
+                        }
+                      });
+                    }
+                  : null,
+              child: Container(
+                key: _messageKeys[messageId],
+                child: isHighlighted
+                    ? AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                        decoration: BoxDecoration(
+                          color: highlightColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: _MessageBubble(
+                          message: message,
+                          isMe: isMe,
+                          primaryColor: primaryColor,
+                          uploadingMessageIds: _uploadingMessageIds,
+                          pendingUploadProgress: _pendingUploadProgress,
+                          localFilePaths: _localFilePaths,
+                          progressNotifiers: _progressNotifiers,
+                          selectionMode: _isSelectionMode,
+                          isSelected: isSelected,
+                        ),
+                      )
+                    : _MessageBubble(
                         message: message,
                         isMe: isMe,
                         primaryColor: primaryColor,
@@ -793,17 +875,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                         pendingUploadProgress: _pendingUploadProgress,
                         localFilePaths: _localFilePaths,
                         progressNotifiers: _progressNotifiers,
+                        selectionMode: _isSelectionMode,
+                        isSelected: isSelected,
                       ),
-                    )
-                  : _MessageBubble(
-                      message: message,
-                      isMe: isMe,
-                      primaryColor: primaryColor,
-                      uploadingMessageIds: _uploadingMessageIds,
-                      pendingUploadProgress: _pendingUploadProgress,
-                      localFilePaths: _localFilePaths,
-                      progressNotifiers: _progressNotifiers,
-                    ),
+              ),
             );
           },
         );
@@ -1078,6 +1153,140 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
       ),
     );
   }
+
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete Messages',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Delete message for everyone?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteMessages();
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteMessages() async {
+    final messagesToDelete = _selectedMessages.toList();
+    if (messagesToDelete.isEmpty) return;
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
+      if (currentUserId == null) {
+        throw Exception('User not found');
+      }
+
+      for (final messageId in messagesToDelete) {
+        final messageRef = FirebaseFirestore.instance
+            .collection('staff_rooms')
+            .doc(widget.instituteId)
+            .collection('messages')
+            .doc(messageId);
+
+        // Get message to check sender and media
+        final docSnapshot = await messageRef.get();
+
+        if (!docSnapshot.exists) {
+          continue;
+        }
+
+        final data = docSnapshot.data();
+        final senderId = data?['senderId'] as String?;
+        if (senderId == null || senderId != currentUserId) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('You can only delete your own messages'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          continue;
+        }
+
+        // Delete media from Cloudflare if exists
+        if (data?['attachmentUrl'] != null &&
+            data!['attachmentUrl'].toString().contains(
+              'r2.cloudflarestorage.com',
+            )) {
+          try {
+            // Extract key from URL
+            final url = data['attachmentUrl'] as String;
+            final uri = Uri.parse(url);
+            final key = uri.pathSegments.last;
+
+            final r2Service = CloudflareR2Service(
+              accountId: CloudflareConfig.accountId,
+              bucketName: CloudflareConfig.bucketName,
+              accessKeyId: CloudflareConfig.accessKeyId,
+              secretAccessKey: CloudflareConfig.secretAccessKey,
+              r2Domain: CloudflareConfig.r2Domain,
+            );
+            await r2Service.deleteFile(key: key);
+          } catch (e) {
+            // Ignore media deletion errors
+          }
+        }
+
+        // Mark message as deleted instead of completely deleting
+        await messageRef.update({
+          'isDeleted': true,
+          'text': '', // Clear content
+          'attachmentUrl': null,
+          'attachmentType': null,
+          'attachmentName': null,
+          'attachmentSize': null,
+          'thumbnailUrl': null,
+        });
+      }
+
+      setState(() {
+        _selectedMessages.clear();
+        _isSelectionMode = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message deleted'),
+            backgroundColor: Color(0xFF4CAF50),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 }
 
 class _MessageBubble extends StatelessWidget {
@@ -1088,6 +1297,8 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, double> pendingUploadProgress;
   final Map<String, String> localFilePaths;
   final Map<String, ValueNotifier<double>> progressNotifiers;
+  final bool selectionMode;
+  final bool isSelected;
 
   const _MessageBubble({
     super.key,
@@ -1098,6 +1309,8 @@ class _MessageBubble extends StatelessWidget {
     required this.pendingUploadProgress,
     required this.localFilePaths,
     required this.progressNotifiers,
+    this.selectionMode = false,
+    this.isSelected = false,
   });
 
   @override
@@ -1131,136 +1344,153 @@ class _MessageBubble extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        child: Column(
-          crossAxisAlignment: isMe
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
-          children: [
-            if (!isMe) ...[
-              Padding(
-                padding: const EdgeInsets.only(left: 12, bottom: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: roleColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        senderRole == 'principal' ? 'Principal' : 'Teacher',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: roleColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        senderName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textTheme.bodyMedium?.color?.withOpacity(
-                            0.8,
+      child: Row(
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        children: [
+          Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.75,
+            ),
+            child: Column(
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                if (!isMe) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12, bottom: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: roleColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            senderRole == 'principal' ? 'Principal' : 'Teacher',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: roleColor,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: hasAttachment && text.isEmpty ? 4 : 16,
-                vertical: hasAttachment && text.isEmpty ? 4 : 10,
-              ),
-              decoration: BoxDecoration(
-                color: isMe
-                    ? primaryColor
-                    : theme.colorScheme.surfaceContainerHighest.withOpacity(
-                        0.7,
-                      ),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isMe ? 16 : 4),
-                  bottomRight: Radius.circular(isMe ? 4 : 16),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isForwarded) ...[
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.forward,
-                          size: 14,
-                          color: isMe ? Colors.white70 : Colors.black54,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Forwarded',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontStyle: FontStyle.italic,
-                            color: isMe ? Colors.white70 : Colors.black54,
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            senderName,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.8),
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                  ],
-                  if (hasAttachment) ...[
-                    _buildAttachmentWidget(
-                      attachmentUrl,
-                      attachmentType ?? 'application/octet-stream',
-                      attachmentName,
-                      attachmentSize ?? 0,
-                      thumbnailUrl,
-                      isPending,
-                      messageId,
-                    ),
-                    if (text.isNotEmpty) const SizedBox(height: 8),
-                  ],
-                  if (text.isNotEmpty)
-                    Text(
-                      text,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: isMe
-                            ? Colors.white
-                            : theme.textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                  const SizedBox(height: 4),
-                  Text(
-                    timeStr,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isMe
-                          ? Colors.white.withOpacity(0.7)
-                          : theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
-                    ),
                   ),
                 ],
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: hasAttachment && text.isEmpty ? 4 : 16,
+                    vertical: hasAttachment && text.isEmpty ? 4 : 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isMe
+                        ? primaryColor
+                        : theme.colorScheme.surfaceContainerHighest.withOpacity(
+                            0.7,
+                          ),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isMe ? 16 : 4),
+                      bottomRight: Radius.circular(isMe ? 4 : 16),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (isForwarded) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.forward,
+                              size: 14,
+                              color: isMe ? Colors.white70 : Colors.black54,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Forwarded',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      if (hasAttachment) ...[
+                        _buildAttachmentWidget(
+                          attachmentUrl,
+                          attachmentType ?? 'application/octet-stream',
+                          attachmentName,
+                          attachmentSize ?? 0,
+                          thumbnailUrl,
+                          isPending,
+                          messageId,
+                        ),
+                        if (text.isNotEmpty) const SizedBox(height: 8),
+                      ],
+                      if (text.isNotEmpty)
+                        Text(
+                          text,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: isMe
+                                ? Colors.white
+                                : theme.textTheme.bodyLarge?.color,
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      Text(
+                        timeStr,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isMe
+                              ? Colors.white.withOpacity(0.7)
+                              : theme.textTheme.bodyMedium?.color?.withOpacity(
+                                  0.5,
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (selectionMode && isMe)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Icon(
+                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: isSelected ? primaryColor : Colors.grey,
+                size: 24,
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
