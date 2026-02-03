@@ -58,9 +58,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   final Map<String, String> _localFilePaths = {};
   final Map<String, ValueNotifier<double>> _progressNotifiers = {};
 
-  // Selection mode for delete
-  final Set<String> _selectedMessages = {};
-  bool _isSelectionMode = false;
+  // Selection mode for delete (ValueNotifiers for flicker-free updates)
+  final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
+  final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
 
   @override
   void initState() {
@@ -98,6 +98,11 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
       notifier.dispose();
     }
     _progressNotifiers.clear();
+
+    // Dispose selection notifiers
+    _selectedMessages.dispose();
+    _isSelectionMode.dispose();
+
     super.dispose();
   }
 
@@ -553,55 +558,80 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
       appBar: AppBar(
         backgroundColor: bgColor,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            _isSelectionMode ? Icons.close : Icons.chevron_left,
-            color: textColor,
-            size: _isSelectionMode ? 24 : 32,
-          ),
-          onPressed: () {
-            if (_isSelectionMode) {
-              setState(() {
-                _isSelectionMode = false;
-                _selectedMessages.clear();
-              });
-            } else {
-              Navigator.pop(context);
-            }
+        leading: ValueListenableBuilder<bool>(
+          valueListenable: _isSelectionMode,
+          builder: (context, isSelectionMode, _) {
+            return IconButton(
+              icon: Icon(
+                isSelectionMode ? Icons.close : Icons.chevron_left,
+                color: textColor,
+                size: isSelectionMode ? 24 : 32,
+              ),
+              onPressed: () {
+                if (isSelectionMode) {
+                  _isSelectionMode.value = false;
+                  _selectedMessages.value = {};
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+            );
           },
         ),
-        title: _isSelectionMode
-            ? Text(
-                '${_selectedMessages.length} selected',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              )
-            : Text(
-                widget.isTeacher ? 'Teacher Group Chat' : 'Staff Room',
-                style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
-              ),
-        actions: _isSelectionMode
-            ? [
-                IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.redAccent,
-                    size: 24,
-                  ),
-                  onPressed: _selectedMessages.isEmpty
-                      ? null
-                      : _showDeleteDialog,
-                ),
-              ]
-            : [
-                IconButton(
-                  icon: Icon(Icons.search, color: textColor),
-                  onPressed: () => _openSearch(context, theme, primaryColor),
-                ),
-              ],
+        title: ValueListenableBuilder<bool>(
+          valueListenable: _isSelectionMode,
+          builder: (context, isSelectionMode, _) {
+            return ValueListenableBuilder<Set<String>>(
+              valueListenable: _selectedMessages,
+              builder: (context, selectedMessages, _) {
+                return isSelectionMode
+                    ? Text(
+                        '${selectedMessages.length} selected',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    : Text(
+                        widget.isTeacher ? 'Teacher Group Chat' : 'Staff Room',
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      );
+              },
+            );
+          },
+        ),
+        actions: [
+          ValueListenableBuilder<bool>(
+            valueListenable: _isSelectionMode,
+            builder: (context, isSelectionMode, _) {
+              return ValueListenableBuilder<Set<String>>(
+                valueListenable: _selectedMessages,
+                builder: (context, selectedMessages, _) {
+                  return isSelectionMode
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.redAccent,
+                            size: 24,
+                          ),
+                          onPressed: selectedMessages.isEmpty
+                              ? null
+                              : _showDeleteDialog,
+                        )
+                      : IconButton(
+                          icon: Icon(Icons.search, color: textColor),
+                          onPressed: () =>
+                              _openSearch(context, theme, primaryColor),
+                        );
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -785,17 +815,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
               listen: false,
             );
             final isMe = message['senderId'] == authProvider.currentUser?.uid;
-            final isSelected = _selectedMessages.contains(messageId);
-            final isHighlighted =
-                messageId == _highlightMessageId && !isPending;
 
             // Create stable key for all items (pending and non-pending)
             final itemKey = ValueKey(messageId);
-
-            final isDark = theme.brightness == Brightness.dark;
-            final highlightColor = isDark
-                ? primaryColor.withOpacity(0.16)
-                : primaryColor.withOpacity(0.12);
 
             // For non-pending messages, create GlobalKey for scroll detection
             if (!isPending && !_messageKeys.containsKey(messageId)) {
@@ -804,58 +826,16 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
 
             // Simplified container without heavy animations for pending messages
             if (isPending) {
-              return Container(
-                key: itemKey,
-                child: _MessageBubble(
-                  key: itemKey,
-                  message: message,
-                  isMe: isMe,
-                  primaryColor: primaryColor,
-                  uploadingMessageIds: _uploadingMessageIds,
-                  pendingUploadProgress: _pendingUploadProgress,
-                  localFilePaths: _localFilePaths,
-                  progressNotifiers: _progressNotifiers,
-                  selectionMode: _isSelectionMode,
-                  isSelected: isSelected,
-                ),
-              );
-            }
-
-            // Full featured container with animations for non-pending messages
-            return GestureDetector(
-              onLongPress: isMe
-                  ? () {
-                      setState(() {
-                        _isSelectionMode = true;
-                        _selectedMessages.add(messageId);
-                      });
-                    }
-                  : null,
-              onTap: _isSelectionMode && isMe
-                  ? () {
-                      setState(() {
-                        if (isSelected) {
-                          _selectedMessages.remove(messageId);
-                          if (_selectedMessages.isEmpty) {
-                            _isSelectionMode = false;
-                          }
-                        } else {
-                          _selectedMessages.add(messageId);
-                        }
-                      });
-                    }
-                  : null,
-              child: Container(
-                key: _messageKeys[messageId],
-                child: isHighlighted
-                    ? AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                        decoration: BoxDecoration(
-                          color: highlightColor,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+              return ValueListenableBuilder<bool>(
+                valueListenable: _isSelectionMode,
+                builder: (context, isSelectionMode, _) {
+                  return ValueListenableBuilder<Set<String>>(
+                    valueListenable: _selectedMessages,
+                    builder: (context, selectedMessages, _) {
+                      return Container(
+                        key: itemKey,
                         child: _MessageBubble(
+                          key: itemKey,
                           message: message,
                           isMe: isMe,
                           primaryColor: primaryColor,
@@ -863,22 +843,92 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                           pendingUploadProgress: _pendingUploadProgress,
                           localFilePaths: _localFilePaths,
                           progressNotifiers: _progressNotifiers,
-                          selectionMode: _isSelectionMode,
-                          isSelected: isSelected,
+                          selectionMode: isSelectionMode,
+                          isSelected: selectedMessages.contains(messageId),
                         ),
-                      )
-                    : _MessageBubble(
-                        message: message,
-                        isMe: isMe,
-                        primaryColor: primaryColor,
-                        uploadingMessageIds: _uploadingMessageIds,
-                        pendingUploadProgress: _pendingUploadProgress,
-                        localFilePaths: _localFilePaths,
-                        progressNotifiers: _progressNotifiers,
-                        selectionMode: _isSelectionMode,
-                        isSelected: isSelected,
+                      );
+                    },
+                  );
+                },
+              );
+            }
+
+            // Full featured container with animations for non-pending messages
+            return ValueListenableBuilder<bool>(
+              valueListenable: _isSelectionMode,
+              builder: (context, isSelectionMode, _) {
+                return ValueListenableBuilder<Set<String>>(
+                  valueListenable: _selectedMessages,
+                  builder: (context, selectedMessages, _) {
+                    final isSelected = selectedMessages.contains(messageId);
+                    final isHighlighted = messageId == _highlightMessageId;
+
+                    return GestureDetector(
+                      onLongPress: isMe
+                          ? () {
+                              _isSelectionMode.value = true;
+                              _selectedMessages.value = {
+                                ...selectedMessages,
+                                messageId,
+                              };
+                            }
+                          : null,
+                      onTap: isSelectionMode && isMe
+                          ? () {
+                              if (isSelected) {
+                                final newSelection = Set<String>.from(
+                                  selectedMessages,
+                                )..remove(messageId);
+                                _selectedMessages.value = newSelection;
+                                if (newSelection.isEmpty) {
+                                  _isSelectionMode.value = false;
+                                }
+                              } else {
+                                _selectedMessages.value = {
+                                  ...selectedMessages,
+                                  messageId,
+                                };
+                              }
+                            }
+                          : null,
+                      child: Container(
+                        key: _messageKeys[messageId],
+                        child: isHighlighted
+                            ? AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeOut,
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: _MessageBubble(
+                                  message: message,
+                                  isMe: isMe,
+                                  primaryColor: primaryColor,
+                                  uploadingMessageIds: _uploadingMessageIds,
+                                  pendingUploadProgress: _pendingUploadProgress,
+                                  localFilePaths: _localFilePaths,
+                                  progressNotifiers: _progressNotifiers,
+                                  selectionMode: isSelectionMode,
+                                  isSelected: isSelected,
+                                ),
+                              )
+                            : _MessageBubble(
+                                message: message,
+                                isMe: isMe,
+                                primaryColor: primaryColor,
+                                uploadingMessageIds: _uploadingMessageIds,
+                                pendingUploadProgress: _pendingUploadProgress,
+                                localFilePaths: _localFilePaths,
+                                progressNotifiers: _progressNotifiers,
+                                selectionMode: isSelectionMode,
+                                isSelected: isSelected,
+                              ),
                       ),
-              ),
+                    );
+                  },
+                );
+              },
             );
           },
         );
@@ -1189,7 +1239,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   }
 
   Future<void> _deleteMessages() async {
-    final messagesToDelete = _selectedMessages.toList();
+    final messagesToDelete = _selectedMessages.value.toList();
     if (messagesToDelete.isEmpty) return;
 
     try {
@@ -1199,6 +1249,12 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         throw Exception('User not found');
       }
 
+      // First, verify ownership and collect media to delete
+      final mediaToDelete = <String>[];
+      final validMessages = <String>[];
+
+      final batch = FirebaseFirestore.instance.batch();
+
       for (final messageId in messagesToDelete) {
         final messageRef = FirebaseFirestore.instance
             .collection('staff_rooms')
@@ -1206,15 +1262,13 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
             .collection('messages')
             .doc(messageId);
 
-        // Get message to check sender and media
         final docSnapshot = await messageRef.get();
 
-        if (!docSnapshot.exists) {
-          continue;
-        }
+        if (!docSnapshot.exists) continue;
 
         final data = docSnapshot.data();
         final senderId = data?['senderId'] as String?;
+
         if (senderId == null || senderId != currentUserId) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -1227,34 +1281,27 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           continue;
         }
 
-        // Delete media from Cloudflare if exists
+        validMessages.add(messageId);
+
+        // Collect media for deletion
         if (data?['attachmentUrl'] != null &&
             data!['attachmentUrl'].toString().contains(
               'r2.cloudflarestorage.com',
             )) {
           try {
-            // Extract key from URL
             final url = data['attachmentUrl'] as String;
             final uri = Uri.parse(url);
             final key = uri.pathSegments.last;
-
-            final r2Service = CloudflareR2Service(
-              accountId: CloudflareConfig.accountId,
-              bucketName: CloudflareConfig.bucketName,
-              accessKeyId: CloudflareConfig.accessKeyId,
-              secretAccessKey: CloudflareConfig.secretAccessKey,
-              r2Domain: CloudflareConfig.r2Domain,
-            );
-            await r2Service.deleteFile(key: key);
+            mediaToDelete.add(key);
           } catch (e) {
-            // Ignore media deletion errors
+            // Ignore parsing errors
           }
         }
 
-        // Mark message as deleted instead of completely deleting
-        await messageRef.update({
+        // Add to batch
+        batch.update(messageRef, {
           'isDeleted': true,
-          'text': '', // Clear content
+          'text': '',
           'attachmentUrl': null,
           'attachmentType': null,
           'attachmentName': null,
@@ -1263,16 +1310,24 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         });
       }
 
-      setState(() {
-        _selectedMessages.clear();
-        _isSelectionMode = false;
-      });
+      // Execute batch delete - all messages deleted instantly
+      if (validMessages.isNotEmpty) {
+        await batch.commit();
+
+        // Delete media files in background (don't wait)
+        if (mediaToDelete.isNotEmpty) {
+          _deleteMediaFiles(mediaToDelete);
+        }
+      }
+
+      _selectedMessages.value = {};
+      _isSelectionMode.value = false;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Message deleted'),
-            backgroundColor: Color(0xFF4CAF50),
+          SnackBar(
+            content: Text('${validMessages.length} message(s) deleted'),
+            backgroundColor: const Color(0xFF4CAF50),
           ),
         );
       }
@@ -1285,6 +1340,28 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           ),
         );
       }
+    }
+  }
+
+  void _deleteMediaFiles(List<String> keys) async {
+    try {
+      final r2Service = CloudflareR2Service(
+        accountId: CloudflareConfig.accountId,
+        bucketName: CloudflareConfig.bucketName,
+        accessKeyId: CloudflareConfig.accessKeyId,
+        secretAccessKey: CloudflareConfig.secretAccessKey,
+        r2Domain: CloudflareConfig.r2Domain,
+      );
+
+      for (final key in keys) {
+        try {
+          await r2Service.deleteFile(key: key);
+        } catch (e) {
+          // Ignore individual file deletion errors
+        }
+      }
+    } catch (e) {
+      // Ignore media deletion errors
     }
   }
 }
@@ -1534,7 +1611,7 @@ class _MessageBubble extends StatelessWidget {
             thumbnailBase64: thumbnailUrl,
             localPath: localPath,
             isMe: isMe,
-            selectionMode: false,
+            selectionMode: selectionMode,
             uploading: true,
             uploadProgress: progress,
           );
@@ -1550,7 +1627,7 @@ class _MessageBubble extends StatelessWidget {
       thumbnailBase64: thumbnailUrl,
       localPath: localPath,
       isMe: isMe,
-      selectionMode: false,
+      selectionMode: selectionMode,
       uploading: false,
     );
   }
