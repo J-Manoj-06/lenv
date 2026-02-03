@@ -89,7 +89,9 @@ class CommunityMessageModel {
                 .map((m) => MediaMetadata.fromFirestore(m))
                 .toList()
           : null,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      createdAt: data['createdAt'] != null
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
       updatedAt: data['updatedAt'] != null
           ? (data['updatedAt'] as Timestamp).toDate()
           : null,

@@ -168,13 +168,31 @@ class MediaUploadService {
       );
     }
 
-    // Check file type (images, PDFs, or audio)
+    // Check file type (images, documents, or audio)
     final isImage = mimeType.startsWith('image/');
-    final isPdf = mimeType == 'application/pdf';
     final isAudio = mimeType.startsWith('audio/');
 
-    if (!isImage && !isPdf && !isAudio) {
-      throw Exception('Only images, PDFs, and audio files are supported');
+    // Document types: Word, Excel, PowerPoint, etc.
+    final isDocument =
+        mimeType == 'application/pdf' ||
+        mimeType == 'application/msword' || // .doc
+        mimeType ==
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || // .docx
+        mimeType == 'application/vnd.ms-excel' || // .xls
+        mimeType ==
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || // .xlsx
+        mimeType == 'application/vnd.ms-powerpoint' || // .ppt
+        mimeType ==
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation' || // .pptx
+        mimeType == 'text/plain' || // .txt
+        mimeType == 'text/csv' || // .csv
+        mimeType == 'application/rtf' || // .rtf
+        mimeType == 'application/vnd.oasis.opendocument.text' || // .odt
+        mimeType == 'application/vnd.oasis.opendocument.spreadsheet' || // .ods
+        mimeType == 'application/vnd.oasis.opendocument.presentation'; // .odp
+
+    if (!isImage && !isDocument && !isAudio) {
+      throw Exception('Only images, documents, and audio files are supported');
     }
 
     // Check file name

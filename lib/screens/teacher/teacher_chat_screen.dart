@@ -46,7 +46,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   String? _conversationId;
   // Track messages already scheduled for read marking to avoid re-scheduling.
   final Set<String> _scheduledReadIds = <String>{};
-  
+
   // Track the last known message count to detect new data
   int _lastMessageCount = 0;
 
@@ -204,14 +204,16 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                     stream: _chat.messagesStream(_conversationId!),
                     builder: (context, snapshot) {
                       final docs = snapshot.data?.docs ?? [];
-                      
+
                       // Only update batch if message count changed (new messages arrived)
-                      if (_conversationId != null && docs.isNotEmpty && docs.length != _lastMessageCount) {
+                      if (_conversationId != null &&
+                          docs.isNotEmpty &&
+                          docs.length != _lastMessageCount) {
                         _lastMessageCount = docs.length;
                         // Schedule batch update without addPostFrameCallback to avoid flickering
                         Future.microtask(() => _batchUpdateIncoming(docs));
                       }
-                      
+
                       return ListView.separated(
                         reverse: true, // Show newest messages at bottom
                         padding: const EdgeInsets.all(16),
@@ -399,10 +401,57 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   void _showMediaOptions() {
     showModernAttachmentSheet(
       context,
+      onCameraTap: _pickAndSendCamera,
       onImageTap: _pickAndSendImage,
-      onPdfTap: _pickAndSendPDF,
+      onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
     );
+  }
+
+  Future<void> _pickAndSendCamera() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 70,
+      );
+      if (image == null) return;
+
+      final file = File(image.path);
+      if (!file.existsSync()) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Image file not found')));
+        return;
+      }
+
+      if (_conversationId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Initializing conversation...')),
+        );
+        return;
+      }
+
+      // Queue upload in background service
+      final uploadId = await BackgroundUploadService().queueUpload(
+        file: file,
+        conversationId: _conversationId!,
+        senderId: widget.teacherId,
+        senderRole: 'teacher',
+        mediaType: 'message',
+      );
+
+      // Show confirmation
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Image queued for upload'),
+          action: SnackBarAction(label: 'View', onPressed: () {}),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to queue image: $e')));
+    }
   }
 
   Future<void> _sendMessage({Map<String, dynamic>? mediaMetadata}) async {
@@ -483,15 +532,29 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'ppt',
+          'pptx',
+          'txt',
+          'csv',
+          'rtf',
+          'odt',
+          'ods',
+          'odp',
+        ],
       );
       if (result == null || result.files.isEmpty) return;
 
       final file = File(result.files.single.path!);
       if (!file.existsSync()) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('PDF file not found')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Document file not found')),
+        );
         return;
       }
 

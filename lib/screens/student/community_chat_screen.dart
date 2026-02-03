@@ -406,9 +406,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   void _showMediaOptions() {
     showModernAttachmentSheet(
       context,
+      onCameraTap: _pickAndSendCamera,
       onImageTap: _pickAndSendImages,
-      onPdfTap: _pickAndSendPDF,
+      onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
+      cameraEnabled: widget.community.allowImages,
       imageEnabled: widget.community.allowImages,
     );
   }
@@ -543,6 +545,58 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickAndSendCamera() async {
+    if (!widget.community.allowImages) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Images are not allowed in this community'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final student = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    ).currentStudent;
+    if (student == null) return;
+
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      final file = File(image.path);
+      await BackgroundUploadService().queueUpload(
+        file: file,
+        conversationId: widget.community.id,
+        senderId: student.uid,
+        senderRole: 'student',
+        mediaType: 'message',
+        chatType: 'community',
+        senderName: student.name,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image queued for upload')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+      }
+    }
   }
 
   // ignore: unused_element
@@ -959,7 +1013,21 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'ppt',
+          'pptx',
+          'txt',
+          'csv',
+          'rtf',
+          'odt',
+          'ods',
+          'odp',
+        ],
         withReadStream: true,
         allowMultiple: false,
       );

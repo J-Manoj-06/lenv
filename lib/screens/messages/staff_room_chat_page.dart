@@ -41,7 +41,6 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   String? _highlightMessageId;
   Timer? _highlightResetTimer;
   final Map<String, GlobalKey> _messageKeys = {};
-  Set<String> _visibleMessageIds = {};
   List<QueryDocumentSnapshot> _currentMessages =
       []; // Store messages for index lookup
 
@@ -149,7 +148,16 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   Future<void> _pickDocument() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx'],
+      allowedExtensions: [
+        'pdf', // PDF
+        'doc', 'docx', // Word
+        'xls', 'xlsx', // Excel
+        'ppt', 'pptx', // PowerPoint
+        'txt', // Text
+        'csv', // CSV
+        'rtf', // Rich Text Format
+        'odt', 'ods', 'odp', // OpenDocument formats
+      ],
     );
 
     if (result != null && result.files.single.path != null) {
@@ -580,7 +588,6 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         // Track which messages are currently visible - use doc IDs directly
         final currentMessageIds = messages.map((doc) => doc.id).toSet();
 
-        _visibleMessageIds = currentMessageIds;
         _messageKeys.removeWhere((key, _) => !currentMessageIds.contains(key));
 
         if (messages.isEmpty) {

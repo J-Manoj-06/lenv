@@ -1361,10 +1361,111 @@ class _ParentSectionGroupChatScreenState
   void _showAttachmentSheet() {
     showModernAttachmentSheet(
       context,
+      onCameraTap: _pickAndSendCamera,
       onImageTap: _pickAndSendImage,
-      onPdfTap: _pickAndSendPDF,
+      onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudioFile,
     );
+  }
+
+  Future<void> _pickAndSendCamera() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final picked = await _imagePicker.pickImage(source: ImageSource.camera);
+      if (picked == null) return;
+
+      final file = File(picked.path);
+      final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
+
+      // Create optimistic pending message
+      final pendingMetadata = MediaMetadata(
+        messageId: pendingId,
+        r2Key: 'pending/${file.path.split('/').last}',
+        publicUrl: '',
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType: 'image/jpeg',
+        originalFileName: file.path.split('/').last,
+      );
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: pendingId,
+        communityId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name,
+        senderRole: widget.senderRole,
+        senderAvatar: user.profileImage ?? '',
+        type: 'image',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: file.path.split('/').last,
+        mediaMetadata: pendingMetadata,
+        createdAt: DateTime.now(),
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0);
+        _localSenderMediaPaths[pendingId] = file.path;
+        _lastUploadPercent[pendingId] = -1;
+      });
+
+      // Scroll to bottom to show new message
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
+      });
+
+      // Upload in background
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: widget.groupId,
+        senderId: user.uid,
+        senderRole: widget.senderRole,
+        mediaType: 'community',
+        onProgress: (progress) {
+          if (!mounted) return;
+          final percent = progress.toInt().clamp(0, 100);
+          final last = _lastUploadPercent[pendingId] ?? -1;
+          final shouldUpdate =
+              (last == -1) || (percent == 100) || (percent - last >= 5);
+          if (shouldUpdate) {
+            _lastUploadPercent[pendingId] = percent;
+            _pendingUploadNotifiers[pendingId]?.value = progress.toDouble();
+          }
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.messageId == pendingId);
+          _pendingUploadNotifiers.remove(pendingId)?.dispose();
+          _localSenderMediaPaths.remove(pendingId);
+          _lastUploadPercent.remove(pendingId);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+      }
+    }
   }
 
   Future<void> _pickAndSendImage() async {
@@ -1517,7 +1618,21 @@ class _ParentSectionGroupChatScreenState
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'ppt',
+          'pptx',
+          'txt',
+          'csv',
+          'rtf',
+          'odt',
+          'ods',
+          'odp',
+        ],
       );
       if (result == null || result.files.single.path == null) return;
 
@@ -1525,6 +1640,39 @@ class _ParentSectionGroupChatScreenState
       final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
       final fileName = file.path.split('/').last;
       final fileSize = await file.length();
+      final fileExtension = fileName.split('.').last.toLowerCase();
+
+      // Determine MIME type based on extension
+      String mimeType = 'application/pdf';
+      if (fileExtension == 'doc') {
+        mimeType = 'application/msword';
+      } else if (fileExtension == 'docx') {
+        mimeType =
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      } else if (fileExtension == 'xls') {
+        mimeType = 'application/vnd.ms-excel';
+      } else if (fileExtension == 'xlsx') {
+        mimeType =
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      } else if (fileExtension == 'ppt') {
+        mimeType = 'application/vnd.ms-powerpoint';
+      } else if (fileExtension == 'pptx') {
+        mimeType =
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      } else if (fileExtension == 'txt') {
+        mimeType = 'text/plain';
+      } else if (fileExtension == 'csv') {
+        mimeType = 'text/csv';
+      } else if (fileExtension == 'rtf') {
+        mimeType = 'application/rtf';
+      } else if (fileExtension == 'odt') {
+        mimeType = 'application/vnd.oasis.opendocument.text';
+      } else if (fileExtension == 'ods') {
+        mimeType = 'application/vnd.oasis.opendocument.spreadsheet';
+      } else if (fileExtension == 'odp') {
+        mimeType = 'application/vnd.oasis.opendocument.presentation';
+      }
+
       final pendingMetadata = MediaMetadata(
         messageId: pendingId,
         r2Key: 'pending/$fileName',
@@ -1533,7 +1681,7 @@ class _ParentSectionGroupChatScreenState
         expiresAt: DateTime.now().add(const Duration(days: 365)),
         uploadedAt: DateTime.now(),
         fileSize: fileSize,
-        mimeType: 'application/pdf',
+        mimeType: mimeType,
         originalFileName: fileName,
       );
 

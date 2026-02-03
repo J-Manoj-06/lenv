@@ -912,16 +912,20 @@ class CommunityService {
         .limit(limit)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs
-              .where((doc) {
-                // Filter out documents with invalid timestamp data
-                final data = doc.data();
-                // ✅ FIXED: Also filter out deleted messages
-                return data['createdAt'] != null &&
-                    !(data['isDeleted'] ?? false);
-              })
-              .map((doc) => CommunityMessageModel.fromFirestore(doc))
-              .toList();
+          final messages = <CommunityMessageModel>[];
+          for (final doc in snapshot.docs) {
+            try {
+              final data = doc.data();
+              // Filter out documents with invalid timestamp data or deleted messages
+              if (data['createdAt'] != null && !(data['isDeleted'] ?? false)) {
+                messages.add(CommunityMessageModel.fromFirestore(doc));
+              }
+            } catch (e) {
+              // Skip messages that fail to parse (e.g., corrupted data)
+              print('⚠️ Failed to parse message ${doc.id}: $e');
+            }
+          }
+          return messages;
         });
   }
 

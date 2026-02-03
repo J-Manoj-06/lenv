@@ -172,16 +172,22 @@ class ParentTeacherGroupService {
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) {
-                final data = doc.data();
-                if (data['createdAt'] == null) return null;
-                return CommunityMessageModel.fromFirestore(doc);
-              })
-              .whereType<CommunityMessageModel>()
-              .toList(),
-        );
+        .map((snapshot) {
+          final messages = <CommunityMessageModel>[];
+          for (final doc in snapshot.docs) {
+            try {
+              final data = doc.data();
+              // Filter out documents with invalid timestamp data or deleted messages
+              if (data['createdAt'] != null && !(data['isDeleted'] ?? false)) {
+                messages.add(CommunityMessageModel.fromFirestore(doc));
+              }
+            } catch (e) {
+              // Skip messages that fail to parse (e.g., corrupted data)
+              print('⚠️ Failed to parse message ${doc.id}: $e');
+            }
+          }
+          return messages;
+        });
   }
 
   /// ✅ OPTIMIZED: Paginated message fetching for loading older messages

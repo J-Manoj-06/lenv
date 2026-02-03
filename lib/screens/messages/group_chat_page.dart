@@ -893,6 +893,56 @@ class _GroupChatPageState extends State<GroupChatPage> {
         });
   }
 
+  Future<void> _pickAndSendCamera() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
+      final currentUserName = authProvider.currentUser?.name ?? 'You';
+
+      if (currentUserId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User not authenticated')),
+          );
+        }
+        return;
+      }
+
+      // Queue upload in background service
+      final file = File(image.path);
+      await BackgroundUploadService().queueUpload(
+        file: file,
+        conversationId: '${widget.classId}_${widget.subjectId}',
+        senderId: currentUserId,
+        senderRole: 'teacher',
+        mediaType: 'message',
+        chatType: 'group',
+        senderName: currentUserName,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image queued for upload')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to capture image: $e')));
+      }
+    }
+  }
+
   Future<void> _pickAndSendImage() async {
     try {
       final List<XFile> images = await _imagePicker.pickMultiImage(
@@ -1020,7 +1070,21 @@ class _GroupChatPageState extends State<GroupChatPage> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'ppt',
+          'pptx',
+          'txt',
+          'csv',
+          'rtf',
+          'odt',
+          'ods',
+          'odp',
+        ],
         withReadStream: true,
         allowMultiple: false,
       );
@@ -1044,9 +1108,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       if (!file.existsSync()) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('PDF file not found')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Document file not found')),
+          );
         }
         return;
       }
@@ -2184,8 +2248,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
   void _showMediaOptions() {
     showModernAttachmentSheet(
       context,
+      onCameraTap: _pickAndSendCamera,
       onImageTap: _pickAndSendImage,
-      onPdfTap: _pickAndSendPDF,
+      onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
     );
   }

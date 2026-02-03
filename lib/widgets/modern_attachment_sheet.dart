@@ -3,20 +3,24 @@ import 'package:flutter/material.dart';
 /// Modern, minimal attachment picker bottom sheet
 /// Dark-first design with rounded icon buttons
 class ModernAttachmentSheet extends StatelessWidget {
+  final VoidCallback? onCameraTap;
   final VoidCallback? onImageTap;
-  final VoidCallback? onPdfTap;
+  final VoidCallback? onDocumentTap;
   final VoidCallback? onAudioTap;
+  final bool cameraEnabled;
   final bool imageEnabled;
-  final bool pdfEnabled;
+  final bool documentEnabled;
   final bool audioEnabled;
 
   const ModernAttachmentSheet({
     super.key,
+    this.onCameraTap,
     this.onImageTap,
-    this.onPdfTap,
+    this.onDocumentTap,
     this.onAudioTap,
+    this.cameraEnabled = true,
     this.imageEnabled = true,
-    this.pdfEnabled = true,
+    this.documentEnabled = true,
     this.audioEnabled = true,
   });
 
@@ -49,16 +53,22 @@ class ModernAttachmentSheet extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _AttachmentOption(
+                  icon: Icons.camera_alt_outlined,
+                  label: 'Camera',
+                  enabled: cameraEnabled,
+                  onTap: onCameraTap,
+                ),
+                _AttachmentOption(
                   icon: Icons.image_outlined,
-                  label: 'Image',
+                  label: 'Gallery',
                   enabled: imageEnabled,
                   onTap: onImageTap,
                 ),
                 _AttachmentOption(
-                  icon: Icons.picture_as_pdf_outlined,
-                  label: 'PDF',
-                  enabled: pdfEnabled,
-                  onTap: onPdfTap,
+                  icon: Icons.description_outlined,
+                  label: 'Document',
+                  enabled: documentEnabled,
+                  onTap: onDocumentTap,
                 ),
                 _AttachmentOption(
                   icon: Icons.mic_outlined,
@@ -154,13 +164,23 @@ class _AttachmentOptionState extends State<_AttachmentOption> {
 /// Helper function to show the attachment sheet
 Future<void> showModernAttachmentSheet(
   BuildContext context, {
+  VoidCallback? onCameraTap,
   VoidCallback? onImageTap,
-  VoidCallback? onPdfTap,
+  VoidCallback? onDocumentTap,
   VoidCallback? onAudioTap,
+  // Legacy support for old parameter names
+  @Deprecated('Use onDocumentTap instead') VoidCallback? onPdfTap,
+  bool cameraEnabled = true,
   bool imageEnabled = true,
-  bool pdfEnabled = true,
+  bool documentEnabled = true,
   bool audioEnabled = true,
+  // Legacy support for old parameter names
+  @Deprecated('Use documentEnabled instead') bool? pdfEnabled,
 }) {
+  // Use new parameter if provided, otherwise fall back to legacy
+  final effectiveDocumentTap = onDocumentTap ?? onPdfTap;
+  final effectiveDocumentEnabled = documentEnabled && (pdfEnabled ?? true);
+
   return showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
@@ -168,16 +188,22 @@ Future<void> showModernAttachmentSheet(
     isDismissible: true,
     enableDrag: true,
     builder: (context) => ModernAttachmentSheet(
+      onCameraTap: onCameraTap != null
+          ? () {
+              Navigator.pop(context);
+              onCameraTap();
+            }
+          : null,
       onImageTap: onImageTap != null
           ? () {
               Navigator.pop(context);
               onImageTap();
             }
           : null,
-      onPdfTap: onPdfTap != null
+      onDocumentTap: effectiveDocumentTap != null
           ? () {
               Navigator.pop(context);
-              onPdfTap();
+              effectiveDocumentTap();
             }
           : null,
       onAudioTap: onAudioTap != null
@@ -186,8 +212,9 @@ Future<void> showModernAttachmentSheet(
               onAudioTap();
             }
           : null,
+      cameraEnabled: cameraEnabled,
       imageEnabled: imageEnabled,
-      pdfEnabled: pdfEnabled,
+      documentEnabled: effectiveDocumentEnabled,
       audioEnabled: audioEnabled,
     ),
   );

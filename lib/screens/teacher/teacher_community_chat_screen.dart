@@ -782,11 +782,61 @@ class _TeacherCommunityChatScreenState
   void _showMediaOptions() {
     showModernAttachmentSheet(
       context,
+      onCameraTap: _pickAndSendCamera,
       onImageTap: _pickAndSendImages,
-      onPdfTap: _pickAndSendPDF,
+      onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
+      cameraEnabled: widget.community.allowImages,
       imageEnabled: widget.community.allowImages,
     );
+  }
+
+  Future<void> _pickAndSendCamera() async {
+    if (_teacherId == null || _teacherName == null) return;
+
+    if (!widget.community.allowImages) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Images are not allowed in this community'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      final file = File(image.path);
+      await BackgroundUploadService().queueUpload(
+        file: file,
+        conversationId: widget.community.id,
+        senderId: _teacherId!,
+        senderRole: 'teacher',
+        mediaType: 'message',
+        chatType: 'community',
+        senderName: _teacherName!,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image queued for upload')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+      }
+    }
   }
 
   Future<void> _pickAndSendImages() async {
@@ -1030,7 +1080,21 @@ class _TeacherCommunityChatScreenState
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'ppt',
+          'pptx',
+          'txt',
+          'csv',
+          'rtf',
+          'odt',
+          'ods',
+          'odp',
+        ],
         withReadStream: true,
         allowMultiple: false,
       );

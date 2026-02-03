@@ -627,7 +627,16 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx'],
+        allowedExtensions: [
+          'pdf', // PDF
+          'doc', 'docx', // Word
+          'xls', 'xlsx', // Excel
+          'ppt', 'pptx', // PowerPoint
+          'txt', // Text
+          'csv', // CSV
+          'rtf', // Rich Text Format
+          'odt', 'ods', 'odp', // OpenDocument formats
+        ],
       );
 
       if (result != null && result.files.single.path != null) {
@@ -736,16 +745,46 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
   String _getMimeType(String filePath) {
     final lower = filePath.toLowerCase();
+
+    // PDF
     if (lower.endsWith('.pdf')) return 'application/pdf';
-    if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
-      return 'application/msword';
+
+    // Word
+    if (lower.endsWith('.doc')) return 'application/msword';
+    if (lower.endsWith('.docx')) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
-    if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) {
-      return 'application/vnd.ms-powerpoint';
+
+    // Excel
+    if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
+    if (lower.endsWith('.xlsx')) {
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     }
+
+    // PowerPoint
+    if (lower.endsWith('.ppt')) return 'application/vnd.ms-powerpoint';
+    if (lower.endsWith('.pptx')) {
+      return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    }
+
+    // Text formats
+    if (lower.endsWith('.txt')) return 'text/plain';
+    if (lower.endsWith('.csv')) return 'text/csv';
+    if (lower.endsWith('.rtf')) return 'application/rtf';
+
+    // OpenDocument
+    if (lower.endsWith('.odt'))
+      return 'application/vnd.oasis.opendocument.text';
+    if (lower.endsWith('.ods'))
+      return 'application/vnd.oasis.opendocument.spreadsheet';
+    if (lower.endsWith('.odp'))
+      return 'application/vnd.oasis.opendocument.presentation';
+
+    // Audio
     if (lower.endsWith('.m4a') || lower.endsWith('.aac')) return 'audio/aac';
     if (lower.endsWith('.mp3')) return 'audio/mpeg';
     if (lower.endsWith('.wav')) return 'audio/wav';
+
     return 'application/octet-stream';
   }
 

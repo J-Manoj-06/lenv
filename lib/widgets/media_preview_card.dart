@@ -144,9 +144,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   void _open() {
     if (_localPath == null) return;
 
-    if (_isPdf) {
-      // Open with system app picker (Drive, Adobe, etc.)
-      OpenFilex.open(_localPath!, type: 'application/pdf');
+    if (_isDocument) {
+      // Open documents with system app picker
+      OpenFilex.open(_localPath!, type: widget.mimeType);
     } else if (_isAudio) {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -168,15 +168,15 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     }
   }
 
-  /// Open PDF - checks if downloaded first, otherwise downloads
+  /// Open PDF/Document - checks if downloaded first, otherwise downloads
   Future<void> _openFromR2() async {
-    if (!_isPdf && !_isAudio) return;
+    if (!_isDocument && !_isAudio) return;
 
     // Check if already downloaded locally
     if (_isDownloaded && _localPath != null) {
       // Open immediately without downloading
-      if (_isPdf) {
-        await OpenFilex.open(_localPath!, type: 'application/pdf');
+      if (_isDocument) {
+        await OpenFilex.open(_localPath!, type: widget.mimeType);
       } else if (_isAudio) {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -192,11 +192,11 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
     // Not downloaded yet - download first then open
     try {
-      // Show loading indicator only for PDFs
-      if (mounted && _isPdf) {
+      // Show loading indicator
+      if (mounted && _isDocument) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Preparing PDF...'),
+            content: Text('Preparing document...'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -210,7 +210,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         onProgress: (progress) {},
       );
 
-      if (mounted && _isPdf) {
+      if (mounted && _isDocument) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
       }
 
@@ -223,8 +223,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         });
 
         // Open with appropriate viewer
-        if (_isPdf) {
-          await OpenFilex.open(result.localPath!, type: 'application/pdf');
+        if (_isDocument) {
+          await OpenFilex.open(result.localPath!, type: widget.mimeType);
         } else if (_isAudio) {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -298,6 +298,27 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   bool get _isAudio => widget.mimeType.startsWith('audio/');
   bool get _isImage => widget.mimeType.startsWith('image/');
   bool get _isVideo => widget.mimeType.startsWith('video/');
+
+  // Check if it's a document (PDF or Office files)
+  bool get _isDocument =>
+      widget.mimeType == 'application/pdf' ||
+      widget.mimeType == 'application/msword' || // .doc
+      widget.mimeType ==
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || // .docx
+      widget.mimeType == 'application/vnd.ms-excel' || // .xls
+      widget.mimeType ==
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || // .xlsx
+      widget.mimeType == 'application/vnd.ms-powerpoint' || // .ppt
+      widget.mimeType ==
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation' || // .pptx
+      widget.mimeType == 'text/plain' || // .txt
+      widget.mimeType == 'text/csv' || // .csv
+      widget.mimeType == 'application/rtf' || // .rtf
+      widget.mimeType == 'application/vnd.oasis.opendocument.text' || // .odt
+      widget.mimeType ==
+          'application/vnd.oasis.opendocument.spreadsheet' || // .ods
+      widget.mimeType ==
+          'application/vnd.oasis.opendocument.presentation'; // .odp
 
   IconData get _icon {
     if (_isPdf) return Icons.picture_as_pdf;
@@ -407,15 +428,31 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: widget.selectionMode ? null : _open,
-                  icon: Icon(_isPdf ? Icons.open_in_new : Icons.play_arrow),
-                  label: Text(_isPdf ? 'View PDF' : 'Play Audio'),
+                  icon: Icon(
+                    _isDocument
+                        ? Icons.open_in_new
+                        : _isAudio
+                        ? Icons.play_arrow
+                        : _isImage
+                        ? Icons.image
+                        : Icons.play_arrow,
+                  ),
+                  label: Text(
+                    _isDocument
+                        ? 'View Document'
+                        : _isAudio
+                        ? 'Play Audio'
+                        : _isImage
+                        ? 'View Image'
+                        : 'View',
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: (_isPdf || _isAudio)
+                    backgroundColor: (_isDocument || _isAudio)
                         ? _accentColor
                         : (isDark
                               ? _accentColor
                               : _accentColor.withOpacity(0.12)),
-                    foregroundColor: (_isPdf || _isAudio)
+                    foregroundColor: (_isDocument || _isAudio)
                         ? Colors.white
                         : (isDark ? Colors.white : const Color(0xFF1A1D21)),
                     shape: RoundedRectangleBorder(
@@ -452,8 +489,24 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: widget.selectionMode ? null : () => _openFromR2(),
-                  icon: Icon(_isPdf ? Icons.open_in_new : Icons.play_arrow),
-                  label: Text(_isPdf ? 'View PDF' : 'Play Audio'),
+                  icon: Icon(
+                    _isDocument
+                        ? Icons.open_in_new
+                        : _isAudio
+                        ? Icons.play_arrow
+                        : _isImage
+                        ? Icons.image
+                        : Icons.play_arrow,
+                  ),
+                  label: Text(
+                    _isDocument
+                        ? 'View Document'
+                        : _isAudio
+                        ? 'Play Audio'
+                        : _isImage
+                        ? 'View Image'
+                        : 'View',
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _accentColor,
                     foregroundColor: Colors.white,
