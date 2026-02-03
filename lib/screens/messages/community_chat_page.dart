@@ -737,10 +737,12 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   String _getMimeType(String filePath) {
     final lower = filePath.toLowerCase();
     if (lower.endsWith('.pdf')) return 'application/pdf';
-    if (lower.endsWith('.doc') || lower.endsWith('.docx'))
+    if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
       return 'application/msword';
-    if (lower.endsWith('.ppt') || lower.endsWith('.pptx'))
+    }
+    if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) {
       return 'application/vnd.ms-powerpoint';
+    }
     if (lower.endsWith('.m4a') || lower.endsWith('.aac')) return 'audio/aac';
     if (lower.endsWith('.mp3')) return 'audio/mpeg';
     if (lower.endsWith('.wav')) return 'audio/wav';

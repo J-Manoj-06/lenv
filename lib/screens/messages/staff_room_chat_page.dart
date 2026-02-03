@@ -13,6 +13,7 @@ import '../../config/cloudflare_config.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../widgets/media_preview_card.dart';
+import '../../models/staff_room_message.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
 class StaffRoomChatPage extends StatefulWidget {
@@ -37,8 +38,12 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
   double _uploadProgress = 0;
-  String? _selectedMessageId;
-  Timer? _highlightTimer;
+  String? _highlightMessageId;
+  Timer? _highlightResetTimer;
+  final Map<String, GlobalKey> _messageKeys = {};
+  Set<String> _visibleMessageIds = {};
+  List<QueryDocumentSnapshot> _currentMessages =
+      []; // Store messages for index lookup
 
   // Recording variables
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -75,8 +80,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     _scrollController.dispose();
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
-    _highlightTimer?.cancel();
+    _highlightResetTimer?.cancel();
     _recordingDuration.dispose();
+    _messageKeys.clear();
     super.dispose();
   }
 
@@ -465,7 +471,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         actions: [
           IconButton(
             icon: Icon(Icons.search, color: textColor),
-            onPressed: () => _showSearchDialog(context, theme, primaryColor),
+            onPressed: () => _openSearch(context, theme, primaryColor),
           ),
         ],
       ),
@@ -478,60 +484,72 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     );
   }
 
-  void _showSearchDialog(
-    BuildContext context,
-    ThemeData theme,
-    Color primaryColor,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => SearchStaffRoomDialog(
-        instituteId: widget.instituteId,
-        primaryColor: primaryColor,
-        theme: theme,
-        onMessageSelected: (message) {
-          Navigator.pop(context); // Close dialog
-          _scrollToMessage(message);
-        },
-      ),
-    );
+  void _openSearch(BuildContext context, ThemeData theme, Color primaryColor) {
+    Navigator.of(context)
+        .push<StaffRoomMessage?>(
+          MaterialPageRoute(
+            builder: (_) => SearchStaffRoomScreen(
+              instituteId: widget.instituteId,
+              primaryColor: primaryColor,
+              theme: theme,
+            ),
+          ),
+        )
+        .then((selectedMessage) {
+          if (selectedMessage != null) {
+            _locateMessageInList(selectedMessage);
+          }
+        });
   }
 
-  Future<void> _scrollToMessage(Map<String, dynamic> message) async {
-    // Generate a unique ID for this message based on timestamp and sender
-    final messageId = '${message['createdAt']}_${message['senderId']}';
+  Future<void> _locateMessageInList(StaffRoomMessage message) async {
+    final targetId = message.id;
+    if (targetId.isEmpty) return;
 
-    // Set the selected message for highlighting
-    setState(() {
-      _selectedMessageId = messageId;
-    });
+    // Find the message index in the current list
+    final messageIndex = _currentMessages.indexWhere(
+      (doc) => doc.id == targetId,
+    );
 
-    // Give time for the widget to build with highlighted state
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    // The ListView is reversed, so messages are displayed bottom-up
-    // We need to scroll to ensure the message is visible
-    if (_scrollController.hasClients) {
-      final maxScroll = _scrollController.position.maxScrollExtent;
-      final currentScroll = _scrollController.offset;
-
-      // If we're not at the bottom, scroll there to show the highlighted message
-      if (currentScroll < maxScroll) {
-        await _scrollController.animateTo(
-          maxScroll,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
+    if (messageIndex == -1) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message not found in current view'),
+            duration: Duration(seconds: 2),
+          ),
         );
       }
+      return;
     }
 
-    // Auto-remove highlight after 3 seconds
-    _highlightTimer?.cancel();
-    _highlightTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _selectedMessageId = null;
-        });
+    // Set highlight
+    setState(() {
+      _highlightMessageId = targetId;
+    });
+
+    // Wait for rebuild
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    if (!_scrollController.hasClients || !mounted) return;
+
+    // Calculate approximate scroll position
+    // Estimate 100 pixels per message (adjust as needed)
+    const estimatedItemHeight = 100.0;
+    final scrollPosition = messageIndex * estimatedItemHeight;
+
+    // Scroll to approximate position
+    await _scrollController.animateTo(
+      scrollPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+
+    // Clear highlight after delay
+    _highlightResetTimer?.cancel();
+    _highlightResetTimer = Timer(const Duration(milliseconds: 2000), () {
+      if (mounted && _highlightMessageId == targetId) {
+        setState(() => _highlightMessageId = null);
       }
     });
   }
@@ -543,7 +561,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           .doc(widget.instituteId)
           .collection('messages')
           .orderBy('createdAt', descending: true)
-          .limit(100)
+          .limit(300)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -555,6 +573,15 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         }
 
         final messages = snapshot.data?.docs ?? [];
+
+        // Store messages for index-based scrolling
+        _currentMessages = messages;
+
+        // Track which messages are currently visible - use doc IDs directly
+        final currentMessageIds = messages.map((doc) => doc.id).toSet();
+
+        _visibleMessageIds = currentMessageIds;
+        _messageKeys.removeWhere((key, _) => !currentMessageIds.contains(key));
 
         if (messages.isEmpty) {
           return Center(
@@ -592,21 +619,56 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           padding: const EdgeInsets.all(16),
           itemCount: messages.length,
           itemBuilder: (context, index) {
-            final message = messages[index].data() as Map<String, dynamic>;
+            final doc = messages[index];
+            final message = doc.data() as Map<String, dynamic>;
+            final messageId = doc.id;
+
             final authProvider = Provider.of<AuthProvider>(
               context,
               listen: false,
             );
             final isMe = message['senderId'] == authProvider.currentUser?.uid;
+            final isHighlighted = messageId == _highlightMessageId;
 
-            final messageId = '${message['createdAt']}_${message['senderId']}';
-            final isHighlighted = messageId == _selectedMessageId;
+            // Create or get GlobalKey for this message
+            final msgKey = _messageKeys.putIfAbsent(
+              messageId,
+              () => GlobalKey(),
+            );
 
-            return _MessageBubble(
-              message: message,
-              isMe: isMe,
-              primaryColor: primaryColor,
-              isHighlighted: isHighlighted,
+            final isDark = theme.brightness == Brightness.dark;
+            final highlightColor = isDark
+                ? primaryColor.withOpacity(0.16)
+                : primaryColor.withOpacity(0.12);
+
+            // Wrap in a Container with the key for scroll detection
+            return Container(
+              key: msgKey,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: isHighlighted ? 1 : 0),
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeInOut,
+                builder: (context, value, child) {
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    decoration: BoxDecoration(
+                      color: Color.lerp(
+                        Colors.transparent,
+                        highlightColor,
+                        value,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: child,
+                  );
+                },
+                child: _MessageBubble(
+                  message: message,
+                  isMe: isMe,
+                  primaryColor: primaryColor,
+                ),
+              ),
             );
           },
         );
@@ -618,7 +680,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     final isDark = theme.brightness == Brightness.dark;
 
     // Recording UI
-    if (_isRecording)
+    if (_isRecording) {
       return ValueListenableBuilder<int>(
         valueListenable: _recordingDuration,
         builder: (context, duration, _) {
@@ -740,6 +802,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           );
         },
       );
+    }
 
     // Normal input UI
     return Container(
@@ -886,13 +949,11 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
   final bool isMe;
   final Color primaryColor;
-  final bool isHighlighted;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
     required this.primaryColor,
-    required this.isHighlighted,
   });
 
   @override
@@ -920,146 +981,135 @@ class _MessageBubble extends StatelessWidget {
 
     final hasAttachment = attachmentUrl != null && attachmentUrl.isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        decoration: BoxDecoration(
-          color: isHighlighted
-              ? const Color(0xFFFDD835).withOpacity(0.4)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
-        child: Align(
-          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
-            ),
-            child: Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                if (!isMe) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12, bottom: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: roleColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            senderRole == 'principal' ? 'Principal' : 'Teacher',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: roleColor,
-                              fontWeight: FontWeight.w600,
-                            ),
+        child: Column(
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            if (!isMe) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 12, bottom: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: roleColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        senderRole == 'principal' ? 'Principal' : 'Teacher',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: roleColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        senderName,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyMedium?.color?.withOpacity(
+                            0.8,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            senderName,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: theme.textTheme.bodyMedium?.color
-                                  ?.withOpacity(0.8),
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: hasAttachment && text.isEmpty ? 4 : 16,
+                vertical: hasAttachment && text.isEmpty ? 4 : 10,
+              ),
+              decoration: BoxDecoration(
+                color: isMe
+                    ? primaryColor
+                    : theme.colorScheme.surfaceContainerHighest.withOpacity(
+                        0.7,
+                      ),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(isMe ? 16 : 4),
+                  bottomRight: Radius.circular(isMe ? 4 : 16),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isForwarded) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.forward,
+                          size: 14,
+                          color: isMe ? Colors.white70 : Colors.black54,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Forwarded',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: isMe ? Colors.white70 : Colors.black54,
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (hasAttachment) ...[
+                    _buildAttachmentWidget(
+                      attachmentUrl,
+                      attachmentType ?? 'application/octet-stream',
+                      attachmentName,
+                      thumbnailUrl,
+                    ),
+                    if (text.isNotEmpty) const SizedBox(height: 8),
+                  ],
+                  if (text.isNotEmpty)
+                    Text(
+                      text,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isMe
+                            ? Colors.white
+                            : theme.textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    timeStr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isMe
+                          ? Colors.white.withOpacity(0.7)
+                          : theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
                     ),
                   ),
                 ],
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: hasAttachment && text.isEmpty ? 4 : 16,
-                    vertical: hasAttachment && text.isEmpty ? 4 : 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isMe
-                        ? primaryColor
-                        : theme.colorScheme.surfaceContainerHighest.withOpacity(
-                            0.7,
-                          ),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 16),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (isForwarded) ...[
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.forward,
-                              size: 14,
-                              color: isMe ? Colors.white70 : Colors.black54,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Forwarded',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontStyle: FontStyle.italic,
-                                color: isMe ? Colors.white70 : Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                      ],
-                      if (hasAttachment) ...[
-                        _buildAttachmentWidget(
-                          attachmentUrl,
-                          attachmentType ?? 'application/octet-stream',
-                          attachmentName,
-                          thumbnailUrl,
-                        ),
-                        if (text.isNotEmpty) const SizedBox(height: 8),
-                      ],
-                      if (text.isNotEmpty)
-                        Text(
-                          text,
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: isMe
-                                ? Colors.white
-                                : theme.textTheme.bodyLarge?.color,
-                          ),
-                        ),
-                      const SizedBox(height: 4),
-                      Text(
-                        timeStr,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isMe
-                              ? Colors.white.withOpacity(0.7)
-                              : theme.textTheme.bodyMedium?.color?.withOpacity(
-                                  0.5,
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -1097,27 +1147,25 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-class SearchStaffRoomDialog extends StatefulWidget {
+class SearchStaffRoomScreen extends StatefulWidget {
   final String instituteId;
   final Color primaryColor;
   final ThemeData theme;
-  final Function(Map<String, dynamic>) onMessageSelected;
 
-  const SearchStaffRoomDialog({
-    Key? key,
+  const SearchStaffRoomScreen({
+    super.key,
     required this.instituteId,
     required this.primaryColor,
     required this.theme,
-    required this.onMessageSelected,
-  }) : super(key: key);
+  });
 
   @override
-  State<SearchStaffRoomDialog> createState() => _SearchStaffRoomDialogState();
+  State<SearchStaffRoomScreen> createState() => _SearchStaffRoomScreenState();
 }
 
-class _SearchStaffRoomDialogState extends State<SearchStaffRoomDialog> {
+class _SearchStaffRoomScreenState extends State<SearchStaffRoomScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<DocumentSnapshot> _searchResults = [];
+  List<StaffRoomMessage> _searchResults = [];
   bool _isLoading = false;
   String _searchQuery = '';
 
@@ -1151,27 +1199,33 @@ class _SearchStaffRoomDialogState extends State<SearchStaffRoomDialog> {
           .limit(500) // Search in recent messages
           .get();
 
-      final results = <DocumentSnapshot>[];
+      final results = <StaffRoomMessage>[];
 
       for (final doc in messagesSnapshot.docs) {
         try {
-          final message = doc.data();
+          final message = StaffRoomMessage.fromFirestore(doc.data(), doc.id);
 
           // Search in message text
-          final text = (message['text'] ?? '').toString().toLowerCase();
-          if (text.contains(_searchQuery)) {
-            results.add(doc);
+          if (message.text.toLowerCase().contains(_searchQuery)) {
+            results.add(message);
             if (results.length >= 25) break;
             continue;
           }
 
           // Search in sender name
-          final senderName = (message['senderName'] ?? '')
-              .toString()
-              .toLowerCase();
-          if (senderName.contains(_searchQuery)) {
-            results.add(doc);
+          if (message.senderName.toLowerCase().contains(_searchQuery)) {
+            results.add(message);
             if (results.length >= 25) break;
+          }
+
+          // Search in PDF file names
+          if (message.mediaMetadata != null) {
+            final fileName =
+                message.mediaMetadata?.originalFileName?.toLowerCase() ?? '';
+            if (fileName.contains(_searchQuery)) {
+              results.add(message);
+              if (results.length >= 25) break;
+            }
           }
         } catch (e) {
           continue;
@@ -1185,7 +1239,6 @@ class _SearchStaffRoomDialogState extends State<SearchStaffRoomDialog> {
         });
       }
     } catch (e) {
-      print('❌ Error searching: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -1194,66 +1247,118 @@ class _SearchStaffRoomDialogState extends State<SearchStaffRoomDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.theme.brightness == Brightness.dark;
+    final theme = widget.theme;
+    final isDark = theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final hintColor = isDark ? Colors.grey[400] : Colors.grey[600];
 
-    return Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: widget.theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: theme.iconTheme.color,
+          ),
+          onPressed: () => Navigator.pop(context),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Search Input
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextField(
-                controller: _searchController,
-                onChanged: _performSearch,
-                decoration: InputDecoration(
-                  hintText: 'Search messages...',
-                  hintStyle: TextStyle(color: hintColor),
-                  prefixIcon: Icon(Icons.search, color: widget.primaryColor),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () {
-                            _searchController.clear();
-                            _performSearch('');
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                      color: widget.primaryColor.withOpacity(0.3),
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                      color: widget.primaryColor.withOpacity(0.3),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: widget.primaryColor),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        titleSpacing: 0,
+        title: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'Search Messages',
+            style: TextStyle(
+              color: theme.textTheme.bodyLarge?.color,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(72),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF0F1419)
+                    : theme.colorScheme.surfaceContainerHighest.withOpacity(
+                        0.8,
+                      ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: widget.primaryColor.withOpacity(0.15),
+                  width: 1.5,
                 ),
-                style: TextStyle(color: textColor),
-                autofocus: true,
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.primaryColor.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _performSearch,
+                      autofocus: true,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Search staff room messages...',
+                        hintStyle: TextStyle(
+                          color: hintColor?.withOpacity(0.7),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: IconButton(
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    size: 18,
+                                    color: hintColor?.withOpacity(0.6),
+                                  ),
+                                  padding: const EdgeInsets.all(4),
+                                  splashRadius: 16,
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _performSearch('');
+                                  },
+                                ),
+                              )
+                            : null,
+                      ),
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) =>
+                          _performSearch(_searchController.text),
+                    ),
+                  ),
+                ],
               ),
             ),
-            // Search Results
-            Expanded(child: _buildSearchResultsList()),
-          ],
+          ),
         ),
       ),
+      body: _buildSearchResultsList(),
     );
   }
 
@@ -1263,17 +1368,62 @@ class _SearchStaffRoomDialogState extends State<SearchStaffRoomDialog> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search,
-              size: 48,
-              color: widget.theme.iconTheme.color?.withOpacity(0.3),
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: widget.primaryColor.withOpacity(0.1),
+              ),
+              child: Icon(
+                Icons.search_rounded,
+                size: 50,
+                color: widget.primaryColor.withOpacity(0.3),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 24),
             Text(
-              'Start typing to search',
+              'Search Messages',
               style: TextStyle(
-                color: widget.theme.textTheme.bodyMedium?.color?.withOpacity(
-                  0.6,
+                color: widget.theme.textTheme.bodyLarge?.color,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                'Find messages from staff members',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: widget.theme.textTheme.bodyMedium?.color?.withOpacity(
+                    0.6,
+                  ),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  height: 1.4,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: widget.primaryColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: widget.primaryColor.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                'Type to search messages',
+                style: TextStyle(
+                  color: widget.primaryColor.withOpacity(0.7),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -1293,28 +1443,36 @@ class _SearchStaffRoomDialogState extends State<SearchStaffRoomDialog> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search_off,
-              size: 48,
-              color: widget.theme.iconTheme.color?.withOpacity(0.3),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.red.withOpacity(0.1),
+              ),
+              child: Icon(
+                Icons.search_off_rounded,
+                size: 40,
+                color: Colors.red.withOpacity(0.3),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
-              'No messages found',
+              'No matches found',
+              style: TextStyle(
+                color: widget.theme.textTheme.bodyLarge?.color,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try searching with different keywords',
               style: TextStyle(
                 color: widget.theme.textTheme.bodyMedium?.color?.withOpacity(
                   0.6,
                 ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Try different keywords',
-              style: TextStyle(
-                color: widget.theme.textTheme.bodyMedium?.color?.withOpacity(
-                  0.4,
-                ),
-                fontSize: 12,
+                fontSize: 13,
               ),
             ),
           ],
@@ -1326,62 +1484,92 @@ class _SearchStaffRoomDialogState extends State<SearchStaffRoomDialog> {
       padding: const EdgeInsets.all(8),
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
-        final message = _searchResults[index].data() as Map<String, dynamic>;
-        final senderName = message['senderName'] ?? 'Unknown';
-        final text = message['text'] ?? '';
-        final timestamp = message['createdAt'] as int?;
+        final message = _searchResults[index];
+        final senderName = message.senderName;
+        final text = message.text;
+        final timestamp = message.createdAt;
 
         String timeStr = '';
-        if (timestamp != null) {
-          final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
-          timeStr = DateFormat('HH:mm').format(date);
+        final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+        timeStr = DateFormat('HH:mm').format(date);
+
+        // Determine display text and icon
+        String displayText = text;
+        IconData icon = Icons.chat_bubble_outline;
+
+        if (text.isEmpty && message.mediaMetadata != null) {
+          displayText =
+              message.mediaMetadata?.originalFileName ?? 'Media message';
+          final mime = message.mediaMetadata?.mimeType ?? '';
+          if (mime == 'application/pdf') {
+            icon = Icons.picture_as_pdf_outlined;
+          } else if (mime.startsWith('audio/')) {
+            icon = Icons.audiotrack;
+          } else if (mime.startsWith('image/')) {
+            icon = Icons.image_outlined;
+          }
         }
 
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              widget.onMessageSelected(message);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => Navigator.pop(context, message),
+              borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: widget.theme.colorScheme.surfaceContainerHighest
-                      .withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: widget.theme.brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.05)
+                        : widget.theme.dividerColor.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          senderName,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: widget.theme.textTheme.bodyMedium?.color,
-                          ),
-                        ),
-                        Text(
-                          timeStr,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: widget.theme.textTheme.bodyMedium?.color
-                                ?.withOpacity(0.5),
-                          ),
-                        ),
-                      ],
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: widget.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(icon, color: widget.primaryColor, size: 22),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      text,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: widget.theme.textTheme.bodySmall?.color,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayText.isNotEmpty
+                                ? displayText
+                                : 'Media message',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: widget.theme.textTheme.bodyLarge?.color,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$senderName • $timeStr',
+                            style: TextStyle(
+                              color: widget.theme.textTheme.bodySmall?.color
+                                  ?.withOpacity(0.6),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

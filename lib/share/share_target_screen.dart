@@ -12,8 +12,6 @@ import '../services/media_upload_service.dart';
 import '../services/local_cache_service.dart';
 import '../services/community_service.dart';
 import '../services/group_messaging_service.dart';
-import '../models/community_model.dart';
-import '../models/group_subject.dart';
 import '../core/constants/app_colors.dart';
 
 /// Comprehensive share target screen for all roles
