@@ -56,6 +56,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   final Set<String> _uploadingMessageIds = {};
   final Map<String, double> _pendingUploadProgress = {};
   final Map<String, String> _localFilePaths = {};
+  final Map<String, ValueNotifier<double>> _progressNotifiers = {};
+  DateTime? _lastProgressUpdate;
 
   @override
   void initState() {
@@ -88,6 +90,11 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     _highlightResetTimer?.cancel();
     _recordingDuration.dispose();
     _messageKeys.clear();
+    // Dispose all progress notifiers
+    for (final notifier in _progressNotifiers.values) {
+      notifier.dispose();
+    }
+    _progressNotifiers.clear();
     super.dispose();
   }
 
@@ -229,6 +236,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
       'isPending': true,
     };
 
+    // Create progress notifier
+    final progressNotifier = ValueNotifier<double>(0.0);
+    _progressNotifiers[messageId] = progressNotifier;
+
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
       _uploadingMessageIds.add(messageId);
@@ -244,9 +255,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         senderRole: currentUser.role.toString(),
         mediaType: 'staff_room',
         onProgress: (progress) {
-          setState(() {
-            _pendingUploadProgress[messageId] = progress.toDouble();
-          });
+          // Update ValueNotifier instead of setState to avoid rebuilding entire widget
+          progressNotifier.value = progress.toDouble();
+          _pendingUploadProgress[messageId] = progress.toDouble();
         },
       );
 
@@ -277,6 +288,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         _localFilePaths.remove(messageId);
       });
 
+      // Dispose and remove progress notifier
+      _progressNotifiers[messageId]?.dispose();
+      _progressNotifiers.remove(messageId);
+
       // Scroll to bottom
       Future.delayed(const Duration(milliseconds: 100), () {
         if (_scrollController.hasClients) {
@@ -295,6 +310,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         _pendingUploadProgress.remove(messageId);
         _localFilePaths.remove(messageId);
       });
+
+      // Dispose and remove progress notifier
+      _progressNotifiers[messageId]?.dispose();
+      _progressNotifiers.remove(messageId);
 
       if (mounted) {
         ScaffoldMessenger.of(
@@ -725,48 +744,66 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
             final isHighlighted =
                 messageId == _highlightMessageId && !isPending;
 
-            // Create or get GlobalKey for this message (only for non-pending)
-            GlobalKey? msgKey;
-            if (!isPending) {
-              msgKey = _messageKeys.putIfAbsent(messageId, () => GlobalKey());
-            }
+            // Create stable key for all items (pending and non-pending)
+            final itemKey = ValueKey(messageId);
 
             final isDark = theme.brightness == Brightness.dark;
             final highlightColor = isDark
                 ? primaryColor.withOpacity(0.16)
                 : primaryColor.withOpacity(0.12);
 
-            // Wrap in a Container with the key for scroll detection
-            return Container(
-              key: msgKey,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0, end: isHighlighted ? 1 : 0),
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeInOut,
-                builder: (context, value, child) {
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOut,
-                    decoration: BoxDecoration(
-                      color: Color.lerp(
-                        Colors.transparent,
-                        highlightColor,
-                        value,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: child,
-                  );
-                },
+            // For non-pending messages, create GlobalKey for scroll detection
+            if (!isPending && !_messageKeys.containsKey(messageId)) {
+              _messageKeys[messageId] = GlobalKey();
+            }
+
+            // Simplified container without heavy animations for pending messages
+            if (isPending) {
+              return Container(
+                key: itemKey,
                 child: _MessageBubble(
+                  key: itemKey,
                   message: message,
                   isMe: isMe,
                   primaryColor: primaryColor,
                   uploadingMessageIds: _uploadingMessageIds,
                   pendingUploadProgress: _pendingUploadProgress,
                   localFilePaths: _localFilePaths,
+                  progressNotifiers: _progressNotifiers,
                 ),
-              ),
+              );
+            }
+
+            // Full featured container with animations for non-pending messages
+            return Container(
+              key: _messageKeys[messageId],
+              child: isHighlighted
+                  ? AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                      decoration: BoxDecoration(
+                        color: highlightColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: _MessageBubble(
+                        message: message,
+                        isMe: isMe,
+                        primaryColor: primaryColor,
+                        uploadingMessageIds: _uploadingMessageIds,
+                        pendingUploadProgress: _pendingUploadProgress,
+                        localFilePaths: _localFilePaths,
+                        progressNotifiers: _progressNotifiers,
+                      ),
+                    )
+                  : _MessageBubble(
+                      message: message,
+                      isMe: isMe,
+                      primaryColor: primaryColor,
+                      uploadingMessageIds: _uploadingMessageIds,
+                      pendingUploadProgress: _pendingUploadProgress,
+                      localFilePaths: _localFilePaths,
+                      progressNotifiers: _progressNotifiers,
+                    ),
             );
           },
         );
@@ -1050,14 +1087,17 @@ class _MessageBubble extends StatelessWidget {
   final Set<String> uploadingMessageIds;
   final Map<String, double> pendingUploadProgress;
   final Map<String, String> localFilePaths;
+  final Map<String, ValueNotifier<double>> progressNotifiers;
 
   const _MessageBubble({
+    super.key,
     required this.message,
     required this.isMe,
     required this.primaryColor,
     required this.uploadingMessageIds,
     required this.pendingUploadProgress,
     required this.localFilePaths,
+    required this.progressNotifiers,
   });
 
   @override
@@ -1249,7 +1289,28 @@ class _MessageBubble extends StatelessWidget {
     }
 
     final isUploading = uploadingMessageIds.contains(messageId);
-    final uploadProgress = pendingUploadProgress[messageId];
+    final progressNotifier = progressNotifiers[messageId];
+
+    // Use ValueListenableBuilder for smooth progress updates without rebuilding parent
+    if (isUploading && progressNotifier != null) {
+      return ValueListenableBuilder<double>(
+        valueListenable: progressNotifier,
+        builder: (context, progress, child) {
+          return MediaPreviewCard(
+            r2Key: r2Key,
+            fileName: name ?? _fileNameFromUrl(url ?? ''),
+            mimeType: type,
+            fileSize: fileSize,
+            thumbnailBase64: thumbnailUrl,
+            localPath: localPath,
+            isMe: isMe,
+            selectionMode: false,
+            uploading: true,
+            uploadProgress: progress,
+          );
+        },
+      );
+    }
 
     return MediaPreviewCard(
       r2Key: r2Key,
@@ -1260,8 +1321,7 @@ class _MessageBubble extends StatelessWidget {
       localPath: localPath,
       isMe: isMe,
       selectionMode: false,
-      uploading: isUploading,
-      uploadProgress: uploadProgress,
+      uploading: false,
     );
   }
 
