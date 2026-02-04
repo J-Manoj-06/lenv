@@ -14,7 +14,8 @@ class TeacherCommunityExploreScreen extends StatefulWidget {
 }
 
 class _TeacherCommunityExploreScreenState
-    extends State<TeacherCommunityExploreScreen> {
+    extends State<TeacherCommunityExploreScreen>
+    with WidgetsBindingObserver {
   final CommunityService _communityService = CommunityService();
   final TextEditingController _searchController = TextEditingController();
 
@@ -37,14 +38,24 @@ class _TeacherCommunityExploreScreenState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCommunities();
     _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Reload when app resumes to refresh joined status
+      _loadCommunities();
+    }
   }
 
   Future<void> _loadCommunities() async {

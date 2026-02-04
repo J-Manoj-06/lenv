@@ -11,7 +11,8 @@ class CommunityExploreScreen extends StatefulWidget {
   State<CommunityExploreScreen> createState() => _CommunityExploreScreenState();
 }
 
-class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
+class _CommunityExploreScreenState extends State<CommunityExploreScreen>
+    with WidgetsBindingObserver {
   final CommunityService _communityService = CommunityService();
   final TextEditingController _searchController = TextEditingController();
 
@@ -34,14 +35,24 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCommunities();
     _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Reload when app resumes to refresh joined status
+      _loadCommunities();
+    }
   }
 
   Future<void> _loadCommunities() async {
@@ -145,7 +156,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
       setState(() {
         _joinedCommunities.add(community.id);
       });
-      
+
       // Small delay to ensure Firestore write propagates
       await Future.delayed(const Duration(milliseconds: 500));
     } else if (mounted) {
@@ -189,142 +200,146 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen> {
           centerTitle: true,
         ),
         body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? theme.colorScheme.surface
-                    : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: TextField(
-                controller: _searchController,
-                style: TextStyle(color: theme.colorScheme.onSurface),
-                decoration: InputDecoration(
-                  hintText: 'Search communities',
-                  hintStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: theme.textTheme.bodySmall?.color,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+          children: [
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? theme.colorScheme.surface
+                      : theme.colorScheme.surfaceContainerHighest.withOpacity(
+                          0.6,
+                        ),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  style: TextStyle(color: theme.colorScheme.onSurface),
+                  decoration: InputDecoration(
+                    hintText: 'Search communities',
+                    hintStyle: TextStyle(
+                      color: theme.textTheme.bodySmall?.color,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: theme.textTheme.bodySmall?.color,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
 
-          // Category Filters
-          SizedBox(
-            height: 44,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              scrollDirection: Axis.horizontal,
-              itemCount: _categories.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final category = _categories[index];
-                final isSelected = category == _selectedCategory;
+            // Category Filters
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                itemCount: _categories.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final category = _categories[index];
+                  final isSelected = category == _selectedCategory;
 
-                return GestureDetector(
-                  onTap: () => _onCategorySelected(category),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFFFFA929)
-                          : (isDark
-                                ? theme.colorScheme.surface
-                                : theme.colorScheme.surfaceContainerHighest.withOpacity(
-                                    0.4,
-                                  )),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Center(
-                      child: Text(
-                        category,
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : theme.textTheme.bodySmall?.color,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                  return GestureDetector(
+                    onTap: () => _onCategorySelected(category),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFFFFA929)
+                            : (isDark
+                                  ? theme.colorScheme.surface
+                                  : theme.colorScheme.surfaceContainerHighest
+                                        .withOpacity(0.4)),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Center(
+                        child: Text(
+                          category,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : theme.textTheme.bodySmall?.color,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Communities List
-          Expanded(
-            child: _isLoading
-                ? Center(
-                    child: CircularProgressIndicator(color: theme.primaryColor),
-                  )
-                : _filteredCommunities.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 64,
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(
-                            0.3,
+            // Communities List
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: theme.primaryColor,
+                      ),
+                    )
+                  : _filteredCommunities.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search_off,
+                            size: 64,
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.3),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _searchController.text.isNotEmpty
-                              ? 'No communities found'
-                              : 'No communities available',
-                          style: TextStyle(
-                            color: theme.textTheme.bodySmall?.color,
-                            fontSize: 16,
+                          const SizedBox(height: 16),
+                          Text(
+                            _searchController.text.isNotEmpty
+                                ? 'No communities found'
+                                : 'No communities available',
+                            style: TextStyle(
+                              color: theme.textTheme.bodySmall?.color,
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _filteredCommunities.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final community = _filteredCommunities[index];
+                        final isJoining = _joiningCommunities.contains(
+                          community.id,
+                        );
+                        final isJoined = _joinedCommunities.contains(
+                          community.id,
+                        );
+
+                        return _buildCommunityCard(
+                          community,
+                          isJoining,
+                          isJoined,
+                          theme,
+                        );
+                      },
                     ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _filteredCommunities.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final community = _filteredCommunities[index];
-                      final isJoining = _joiningCommunities.contains(
-                        community.id,
-                      );
-                      final isJoined = _joinedCommunities.contains(
-                        community.id,
-                      );
-
-                      return _buildCommunityCard(
-                        community,
-                        isJoining,
-                        isJoined,
-                        theme,
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
       ),
     );
   }
