@@ -631,6 +631,13 @@ class CommunityService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      // CRITICAL: Remove community from user_communities index
+      final userCommRef = _firestore.collection('user_communities').doc(userId);
+      batch.update(userCommRef, {
+        'communityIds': FieldValue.arrayRemove([communityId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
       await batch.commit();
       return true;
     } catch (e) {

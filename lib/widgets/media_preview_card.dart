@@ -70,7 +70,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   Future<void> _checkDownloadStatus() async {
-    // For sender's own uploaded images, use widget.localPath immediately
+    // For sender's own uploaded media, check if local file still exists
     if (widget.localPath != null &&
         widget.localPath!.isNotEmpty &&
         widget.isMe) {
@@ -84,6 +84,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         }
         return;
       }
+      // Local file doesn't exist anymore (temp cache cleaned up)
+      // Need to download from R2 if upload completed
+      print('⚠️ Local file deleted: ${widget.localPath}');
     }
 
     // Check repository for download status
@@ -142,12 +145,51 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   void _open() {
+    print(
+      '🎯 _open() called: localPath=$_localPath, isDownloaded=$_isDownloaded, isAudio=$_isAudio, uploading=${widget.uploading}',
+    );
+
+    // Block playback if still uploading
+    if (widget.uploading) {
+      print('⏳ File is still uploading, cannot play yet');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait, audio is still uploading...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     if (_localPath == null) return;
 
+    // Verify file still exists before trying to open
+    final file = File(_localPath!);
+    print('🔍 Checking if file exists: ${file.path}');
+    final fileExists = file.existsSync();
+    print('🔍 File exists: $fileExists');
+
+    if (!fileExists) {
+      print('❌ File does NOT exist, triggering re-download');
+      // File was deleted, need to re-download
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('File no longer available, downloading...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      _download(); // Re-download the file
+      return;
+    }
+
+    print('✅ File exists, opening...');
+
     if (_isDocument) {
+      print('📄 Opening document with system app');
       // Open documents with system app picker
       OpenFilex.open(_localPath!, type: widget.mimeType);
     } else if (_isAudio) {
+      print('🎵 Opening audio player screen with path: $_localPath');
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => AudioPlayerScreen(
@@ -168,36 +210,68 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     }
   }
 
-  /// Open PDF/Document - checks if downloaded first, otherwise downloads
+  /// Open PDF/Document/Audio - checks if downloaded first, otherwise downloads
   Future<void> _openFromR2() async {
     if (!_isDocument && !_isAudio) return;
 
-    // Check if already downloaded locally
+    print(
+      '📂 Opening from R2: r2Key=${widget.r2Key}, localPath=$_localPath, isDownloaded=$_isDownloaded',
+    );
+
+    // Check if already downloaded locally and file still exists
     if (_isDownloaded && _localPath != null) {
-      // Open immediately without downloading
-      if (_isDocument) {
-        await OpenFilex.open(_localPath!, type: widget.mimeType);
-      } else if (_isAudio) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AudioPlayerScreen(
-              audioUrl: _localPath!,
-              fileName: widget.fileName,
+      final file = File(_localPath!);
+      final fileExists = await file.exists();
+
+      print('📂 Checking local file: path=$_localPath, exists=$fileExists');
+
+      if (fileExists) {
+        print('✅ Playing from local file: $_localPath');
+        // Open immediately without downloading
+        if (_isDocument) {
+          await OpenFilex.open(_localPath!, type: widget.mimeType);
+        } else if (_isAudio) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AudioPlayerScreen(
+                audioUrl: _localPath!,
+                fileName: widget.fileName,
+              ),
             ),
+          );
+        }
+        return;
+      }
+      // File doesn't exist anymore, fall through to download
+      print('⚠️ Local file missing, will download from R2');
+    }
+
+    // Check if r2Key still shows as pending (not uploaded yet)
+    if (widget.r2Key.startsWith('pending/')) {
+      print('❌ Cannot play - file not uploaded to R2 yet: ${widget.r2Key}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please wait, file is still uploading...'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
       return;
     }
 
-    // Not downloaded yet - download first then open
+    // Not downloaded yet or file deleted - download first then open
     try {
+      print('📥 Downloading from R2: ${widget.r2Key}');
+
       // Show loading indicator
-      if (mounted && _isDocument) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Preparing document...'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(
+              _isAudio ? 'Downloading audio...' : 'Preparing document...',
+            ),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -207,15 +281,33 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         r2Key: widget.r2Key,
         fileName: widget.fileName,
         mimeType: widget.mimeType,
-        onProgress: (progress) {},
+        onProgress: (progress) {
+          print(
+            '📥 Download progress: ${(progress * 100).toStringAsFixed(0)}%',
+          );
+        },
       );
 
-      if (mounted && _isDocument) {
+      if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
       }
 
+      print(
+        '📥 Download result: success=${result.success}, path=${result.localPath}, message=${result.message}',
+      );
+
       // Check if download succeeded
       if (result.success && result.localPath != null) {
+        // Verify file exists before opening
+        final file = File(result.localPath!);
+        final fileExists = await file.exists();
+
+        if (!fileExists) {
+          throw Exception('Downloaded file not found: ${result.localPath}');
+        }
+
+        print('✅ Download complete, file exists: ${result.localPath}');
+
         // Update state
         setState(() {
           _isDownloaded = true;
@@ -226,6 +318,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         if (_isDocument) {
           await OpenFilex.open(result.localPath!, type: widget.mimeType);
         } else if (_isAudio) {
+          print('🎵 Opening audio player with: ${result.localPath}');
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => AudioPlayerScreen(
@@ -239,11 +332,13 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         throw Exception(result.message);
       }
     } catch (e) {
+      print('❌ Error downloading/opening file: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -354,7 +449,10 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final card = InkWell(
-      onTap: widget.selectionMode ? null : (_isDownloaded ? _open : null),
+      // Disable tap if still uploading, in selection mode, or not downloaded
+      onTap: widget.selectionMode || widget.uploading
+          ? null
+          : (_isDownloaded ? _open : null),
       onLongPress: null, // Let parent GestureDetector handle selection
       child: Container(
         width: 260,

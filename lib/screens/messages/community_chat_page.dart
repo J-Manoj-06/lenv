@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../utils/link_utils.dart';
 import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
+import '../../services/community_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../utils/chat_type_config.dart';
@@ -41,12 +42,14 @@ class CommunityChatPage extends StatefulWidget {
 
 class _CommunityChatPageState extends State<CommunityChatPage> {
   final GroupMessagingService _messagingService = GroupMessagingService();
+  final CommunityService _communityService = CommunityService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   late Stream<Timestamp?> _lastReadAtStream;
   final bool _showUnreadDivider = true;
   final AudioRecorder _audioRecorder = AudioRecorder();
   bool _isRecording = false;
+  bool _isSendingRecording = false; // Prevent multiple simultaneous sends
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   Timer? _recordingTimer;
@@ -782,12 +785,15 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     if (lower.endsWith('.rtf')) return 'application/rtf';
 
     // OpenDocument
-    if (lower.endsWith('.odt'))
+    if (lower.endsWith('.odt')) {
       return 'application/vnd.oasis.opendocument.text';
-    if (lower.endsWith('.ods'))
+    }
+    if (lower.endsWith('.ods')) {
       return 'application/vnd.oasis.opendocument.spreadsheet';
-    if (lower.endsWith('.odp'))
+    }
+    if (lower.endsWith('.odp')) {
       return 'application/vnd.oasis.opendocument.presentation';
+    }
 
     // Audio
     if (lower.endsWith('.m4a') || lower.endsWith('.aac')) return 'audio/aac';
@@ -798,18 +804,30 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   }
 
   Future<void> _sendRecording() async {
+    if (_recordingPath == null) return;
+
     try {
-      if (_recordingPath == null) return;
-
-      final file = File(_recordingPath!);
-      if (!file.existsSync()) {
-        print('⚠️ Recording file does not exist');
-        return;
-      }
-
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       if (currentUser == null) return;
+
+      // Stop recording FIRST - this is critical
+      if (_isRecording) {
+        try {
+          await _audioRecorder.stop();
+        } catch (e) {}
+
+        try {
+          _recordingTimer?.cancel();
+        } catch (e) {}
+      }
+
+      // IMMEDIATELY update UI to show we're not recording anymore
+      setState(() {
+        _isRecording = false;
+        _isSendingRecording = true;
+        _recordingDuration.value = 0;
+      });
 
       final conversationId = widget.communityId;
       final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
@@ -817,6 +835,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
           'upload_${baseTimestamp}_${currentUser.uid.hashCode}';
       final messageId = '${groupMessageId}_0';
 
+      final file = File(_recordingPath!);
       final fileSize = await file.length();
 
       final mediaList = [
@@ -849,9 +868,8 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         _uploadingMessageIds.add(messageId);
         _pendingUploadProgress[messageId] = 0.0;
         _localSenderMediaPaths[messageId] = file.path;
-        _isRecording = false;
         _recordingPath = null;
-        _recordingDuration.value = 0;
+        _isSendingRecording = false;
       });
 
       print('📤 Queueing voice message upload for $messageId');
@@ -859,7 +877,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         file: file,
         conversationId: conversationId,
         senderId: currentUser.uid,
-        senderRole: 'student',
+        senderRole: 'institute',
         mediaType: 'message',
         chatType: 'community',
         senderName: currentUser.name,
@@ -867,11 +885,14 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         groupId: groupMessageId,
       );
 
-      print('✅ Voice message queued, scrolling to bottom');
+      print('✅ Voice message queued');
       _scrollToBottom(force: true);
     } catch (e) {
       print('❌ Error sending recording: $e');
       if (mounted) {
+        setState(() {
+          _isSendingRecording = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to send voice message: $e')),
         );
@@ -991,7 +1012,38 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                               ? null
                               : _showDeleteDialog,
                         )
-                      : const SizedBox.shrink();
+                      : PopupMenuButton<String>(
+                          icon: Icon(
+                            Icons.more_vert,
+                            color: isDark
+                                ? Colors.white70
+                                : const Color(0xFF475569),
+                          ),
+                          onSelected: (value) {
+                            if (value == 'leave') {
+                              _showLeaveCommunityDialog();
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'leave',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.exit_to_app,
+                                    color: Colors.redAccent,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Leave Community',
+                                    style: TextStyle(color: Colors.redAccent),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
                 },
               );
             },
@@ -1572,107 +1624,107 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
               builder: (context, duration, _) {
                 final micPrimaryColor = const Color(0xFF00A884);
                 return GestureDetector(
-                  onTap: () async {
-                    if (_messageController.text.trim().isNotEmpty) {
-                      _sendMessage();
-                      return;
-                    }
-
-                    if (_isRecording) {
-                      // Stop recording and send
-                      try {
-                        print('⏹️ Stopping recording...');
-                        _recordingTimer?.cancel();
-
-                        final result = await _audioRecorder.stop();
-                        print('✅ Recording stopped: $result');
-
-                        if (mounted) {
-                          await _sendRecording();
-                        }
-                      } catch (e) {
-                        print('❌ Error stopping recording: $e');
-                        if (mounted) {
-                          setState(() {
-                            _isRecording = false;
-                            _recordingPath = null;
-                            _recordingDuration.value = 0;
-                          });
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                        }
-                      }
-                    } else {
-                      // Start recording
-                      try {
-                        final hasPermission = await _audioRecorder
-                            .hasPermission();
-                        if (!hasPermission) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Microphone permission denied'),
-                              ),
-                            );
+                  onTap: _isSendingRecording
+                      ? null // Disable tap while sending
+                      : () async {
+                          if (_messageController.text.trim().isNotEmpty) {
+                            _sendMessage();
+                            return;
                           }
-                          return;
-                        }
 
-                        final tempDir = await getTemporaryDirectory();
-                        final path =
-                            '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                          if (_isRecording) {
+                            // Send the recording
+                            await _sendRecording();
+                          } else {
+                            // Start recording
+                            try {
+                              final hasPermission = await _audioRecorder
+                                  .hasPermission();
+                              if (!hasPermission) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Microphone permission denied',
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
 
-                        print('🎤 Starting recording at: $path');
+                              final tempDir = await getTemporaryDirectory();
+                              final path =
+                                  '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
-                        await _audioRecorder.start(
-                          const RecordConfig(encoder: AudioEncoder.aacLc),
-                          path: path,
-                        );
+                              print('🎤 Starting recording at: $path');
 
-                        setState(() {
-                          _isRecording = true;
-                          _recordingPath = path;
-                          _recordingDuration.value = 0;
-                        });
+                              await _audioRecorder.start(
+                                const RecordConfig(encoder: AudioEncoder.aacLc),
+                                path: path,
+                              );
 
-                        _recordingTimer = Timer.periodic(
-                          const Duration(seconds: 1),
-                          (_) {
-                            if (mounted) {
-                              _recordingDuration.value++;
+                              setState(() {
+                                _isRecording = true;
+                                _recordingPath = path;
+                                _recordingDuration.value = 0;
+                              });
+
+                              _recordingTimer = Timer.periodic(
+                                const Duration(seconds: 1),
+                                (_) {
+                                  if (mounted) {
+                                    _recordingDuration.value++;
+                                  }
+                                },
+                              );
+
+                              print('✅ Recording started successfully');
+                            } catch (e) {
+                              print('❌ Error starting recording: $e');
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
+                              }
                             }
-                          },
-                        );
-
-                        print('✅ Recording started successfully');
-                      } catch (e) {
-                        print('❌ Error starting recording: $e');
-                        if (mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                        }
-                      }
-                    }
-                  },
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: _isRecording ? Colors.red : micPrimaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        _messageController.text.trim().isNotEmpty
-                            ? Icons.send_rounded
-                            : (_isRecording ? Icons.send_rounded : Icons.mic),
-                        color: Colors.white,
-                        size: 24,
+                          }
+                        },
+                  child: Opacity(
+                    opacity: _isSendingRecording ? 0.5 : 1.0,
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: _isRecording ? Colors.red : micPrimaryColor,
+                        shape: BoxShape.circle,
                       ),
-                      padding: EdgeInsets.zero,
-                      onPressed: null,
+                      child: _isSendingRecording
+                          ? const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              icon: Icon(
+                                _messageController.text.trim().isNotEmpty
+                                    ? Icons.send_rounded
+                                    : (_isRecording
+                                          ? Icons.send_rounded
+                                          : Icons.mic),
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                              padding: EdgeInsets.zero,
+                              onPressed: null,
+                            ),
                     ),
                   ),
                 );
@@ -1793,6 +1845,94 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
             content: Text('Failed to delete: $e'),
             backgroundColor: Colors.red,
           ),
+        );
+      }
+    }
+  }
+
+  void _showLeaveCommunityDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Leave Community',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Are you sure you want to leave this community? You can rejoin later from the explore page.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _leaveCommunity();
+            },
+            child: const Text(
+              'Leave',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _leaveCommunity() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
+      if (currentUserId == null) return;
+
+      // Show loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Leaving community...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // Leave community
+      final success = await _communityService.leaveCommunity(
+        widget.communityId,
+        currentUserId,
+      );
+
+      if (success) {
+        if (mounted) {
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You have left the community'),
+              backgroundColor: Color(0xFF4CAF50),
+            ),
+          );
+
+          // Navigate back to communities list
+          Navigator.pop(context);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to leave community'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }

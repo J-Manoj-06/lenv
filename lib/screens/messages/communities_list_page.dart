@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/community.dart';
 import '../../providers/unread_count_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/group_messaging_service.dart';
+import '../../services/community_service.dart';
 import '../../utils/chat_type_config.dart';
 import 'community_chat_page.dart';
 
@@ -22,6 +24,18 @@ Color _getCategoryColor(String description) {
   return const Color(0xFFF2800D);
 }
 
+// Helper to get icon emoji for category
+String _getCategoryIcon(String category) {
+  final s = category.toLowerCase();
+  if (s.contains('career')) return '💼';
+  if (s.contains('sport')) return '⚽';
+  if (s.contains('coding') || s.contains('tech')) return '💻';
+  if (s.contains('music')) return '🎵';
+  if (s.contains('arts') || s.contains('art')) return '🎨';
+  if (s.contains('health')) return '❤️';
+  return '📚';
+}
+
 class CommunitiesListPage extends StatefulWidget {
   final String studentId;
 
@@ -34,6 +48,7 @@ class CommunitiesListPage extends StatefulWidget {
 class _CommunitiesListPageState extends State<CommunitiesListPage>
     with WidgetsBindingObserver {
   final GroupMessagingService _messagingService = GroupMessagingService();
+  final CommunityService _communityService = CommunityService();
   List<Community> _communities = [];
   bool _isLoading = true;
   final Map<String, StreamSubscription?> _messageListeners = {};
@@ -66,7 +81,33 @@ class _CommunitiesListPageState extends State<CommunitiesListPage>
     setState(() => _isLoading = true);
 
     try {
-      final communities = await _messagingService.getAllCommunities();
+      // Get current user ID from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.uid;
+
+      if (userId == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Fetch only communities where user is a member
+      final communitiesData = await _communityService.getMyCommunitiesForRole(
+        userId: userId,
+        role: 'institute', // Principal/Institute role
+      );
+
+      // Convert CommunityModel to Community
+      final communities = communitiesData
+          .map(
+            (cm) => Community(
+              id: cm.id,
+              name: cm.name,
+              description: cm.category,
+              icon: _getCategoryIcon(cm.category),
+              memberCount: cm.memberCount,
+            ),
+          )
+          .toList();
 
       setState(() {
         _communities = communities;

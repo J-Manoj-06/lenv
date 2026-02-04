@@ -428,7 +428,11 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
             builder: (context) => CommunityChatScreen(community: community),
           ),
         ).then((_) {
-          // Optimistically clear unread, then refresh from backend
+          // Refresh the list when returning (user may have left the community)
+          if (mounted) {
+            _loadMyCommunities();
+          }
+          // Also refresh unread counts
           final unreadProvider = Provider.of<UnreadCountProvider>(
             context,
             listen: false,

@@ -97,8 +97,8 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen>
     return audienceOk && scopeOk;
   }
 
-  void _openChat(CommunityModel community) {
-    Navigator.push(
+  void _openChat(CommunityModel community) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CommunityChatPage(
@@ -108,6 +108,11 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen>
         ),
       ),
     );
+
+    // Refresh the list when returning (user may have left the community)
+    if (mounted) {
+      _loadData();
+    }
   }
 
   Future<void> _openExplore() async {

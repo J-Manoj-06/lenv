@@ -211,9 +211,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     // Determine mime type
     String mimeType = 'application/octet-stream';
     final lower = fileName.toLowerCase();
-    if (lower.endsWith('.pdf'))
+    if (lower.endsWith('.pdf')) {
       mimeType = 'application/pdf';
-    else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg'))
+    } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg'))
       mimeType = 'image/jpeg';
     else if (lower.endsWith('.png'))
       mimeType = 'image/png';

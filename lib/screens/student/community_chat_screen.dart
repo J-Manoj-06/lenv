@@ -1700,6 +1700,33 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                 icon: Icon(Icons.search, color: theme.iconTheme.color),
                 onPressed: _openSearch,
               ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: theme.iconTheme.color),
+                onSelected: (value) {
+                  if (value == 'leave') {
+                    _showLeaveCommunityDialog();
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'leave',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.exit_to_app,
+                          color: Colors.redAccent,
+                          size: 20,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Leave Community',
+                          style: TextStyle(color: Colors.redAccent),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
@@ -2179,6 +2206,97 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
         ],
       ),
     );
+  }
+
+  void _showLeaveCommunityDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Leave Community',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Are you sure you want to leave this community? You can rejoin later from the explore page.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _leaveCommunity();
+            },
+            child: const Text(
+              'Leave',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _leaveCommunity() async {
+    try {
+      final studentProvider = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      );
+      final student = studentProvider.currentStudent;
+      if (student == null) return;
+
+      // Show loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Leaving community...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // Leave community
+      final success = await _communityService.leaveCommunity(
+        widget.community.id,
+        student.uid,
+      );
+
+      if (success) {
+        if (mounted) {
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You have left the community'),
+              backgroundColor: Color(0xFF4CAF50),
+            ),
+          );
+
+          // Navigate back to communities list
+          Navigator.pop(context);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to leave community'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   void _openSearch() {
