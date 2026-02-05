@@ -516,6 +516,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         selectionMode: _isSelectionMode,
                         uploadingMessageIds: _uploadingMessageIds,
                         pendingUploadProgress: _pendingUploadProgress,
+                        classId: widget.classId,
+                        subjectId: widget.subjectId,
                         key: ValueKey('bubble-${message.id}'),
                       ),
                     ),
@@ -2408,6 +2410,8 @@ class _MessageBubble extends StatelessWidget {
   final bool selectionMode;
   final Set<String> uploadingMessageIds;
   final Map<String, double> pendingUploadProgress;
+  final String classId;
+  final String subjectId;
 
   const _MessageBubble({
     super.key,
@@ -2419,6 +2423,8 @@ class _MessageBubble extends StatelessWidget {
     this.selectionMode = false,
     required this.uploadingMessageIds,
     required this.pendingUploadProgress,
+    required this.classId,
+    required this.subjectId,
   });
 
   @override
@@ -2479,7 +2485,7 @@ class _MessageBubble extends StatelessWidget {
                 if (message.type == 'poll')
                   PollMessageWidget(
                     poll: PollModel.fromMap(message.toMap(), message.id),
-                    chatId: '${message.classId}_${message.subjectId}',
+                    chatId: '${classId}_$subjectId',
                     chatType: 'group',
                     isOwnMessage: isMe,
                   )

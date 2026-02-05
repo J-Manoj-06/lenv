@@ -19,6 +19,9 @@ import 'package:open_filex/open_filex.dart';
 import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/auth_provider.dart';
+import '../create_poll_screen.dart';
+import '../../widgets/poll_message_widget.dart';
+import '../../models/poll_model.dart';
 import '../../services/community_service.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../../services/media_upload_service.dart';
@@ -786,8 +789,21 @@ class _TeacherCommunityChatScreenState
       onImageTap: _pickAndSendImages,
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
+      onPollTap: _navigateToPollScreen,
       cameraEnabled: widget.community.allowImages,
       imageEnabled: widget.community.allowImages,
+    );
+  }
+
+  void _navigateToPollScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/create_poll'),
+        builder: (context) => CreatePollScreen(
+          chatId: widget.community.id,
+          chatType: 'community',
+        ),
+      ),
     );
   }
 
@@ -1971,161 +1987,178 @@ class _TeacherCommunityChatScreenState
                           ],
                         ),
                       ),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal:
-                              message.multipleMedia != null &&
-                                  message.multipleMedia!.isNotEmpty
-                              ? 0
-                              : 5,
-                          vertical:
-                              message.multipleMedia != null &&
-                                  message.multipleMedia!.isNotEmpty
-                              ? 0
-                              : 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              message.multipleMedia != null &&
-                                  message.multipleMedia!.isNotEmpty
-                              ? Colors.transparent
-                              : (isCurrentUser
-                                    ? (isDark
-                                          ? const Color(0xFF1A1C20)
-                                          : theme
-                                                .colorScheme
-                                                .surfaceContainerHighest
-                                                .withOpacity(0.6))
-                                    : (isDark
-                                          ? const Color(0xFF14171B)
-                                          : theme.cardColor)),
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(12),
-                            topRight: const Radius.circular(12),
-                            bottomLeft: Radius.circular(isCurrentUser ? 12 : 6),
-                            bottomRight: Radius.circular(
-                              isCurrentUser ? 6 : 12,
-                            ),
+                      // Check if this is a poll message - render it outside the bubble
+                      if (message.type == 'poll')
+                        PollMessageWidget(
+                          poll: PollModel.fromMap(
+                            message.toMap(),
+                            message.messageId,
                           ),
-                          border:
-                              message.multipleMedia != null &&
-                                  message.multipleMedia!.isNotEmpty
-                              ? null
-                              : Border.all(
-                                  color: theme.dividerColor.withOpacity(0.4),
-                                  width: 0.1,
-                                ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Multi-image bubble (new WhatsApp-style)
-                            if (message.multipleMedia != null &&
-                                message.multipleMedia!.isNotEmpty) ...[
-                              IgnorePointer(
-                                ignoring: _selectionMode,
-                                child: Opacity(
-                                  opacity: _selectionMode ? 0.6 : 1.0,
-                                  child: MultiImageMessageBubble(
-                                    imageUrls: message.multipleMedia!.map((m) {
-                                      // Prefer local path for sender's own images
-                                      final localPath =
-                                          m.localPath ??
-                                          _localSenderMediaPaths[m.messageId];
-                                      if (localPath != null &&
-                                          localPath.isNotEmpty &&
-                                          File(localPath).existsSync()) {
-                                        return localPath;
-                                      }
-                                      // Fallback to public URL
-                                      return m.publicUrl.isNotEmpty
-                                          ? m.publicUrl
-                                          : m.thumbnail;
-                                    }).toList(),
-                                    isMe: isCurrentUser,
-                                    uploadProgress: message.multipleMedia!
-                                        .map(
-                                          (m) =>
-                                              _pendingUploadProgress[m
-                                                  .messageId],
-                                        )
-                                        .toList(),
-                                    onImageTap: (index) {
-                                      if (_selectionMode) return;
-                                      _showImageGalleryViewer(
-                                        message.multipleMedia!,
-                                        index,
-                                        isCurrentUser,
-                                      );
-                                    },
-                                  ),
-                                ),
+                          chatId: widget.community.id,
+                          chatType: 'community',
+                          isOwnMessage: isCurrentUser,
+                        )
+                      else
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal:
+                                message.multipleMedia != null &&
+                                    message.multipleMedia!.isNotEmpty
+                                ? 0
+                                : 5,
+                            vertical:
+                                message.multipleMedia != null &&
+                                    message.multipleMedia!.isNotEmpty
+                                ? 0
+                                : 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                message.multipleMedia != null &&
+                                    message.multipleMedia!.isNotEmpty
+                                ? Colors.transparent
+                                : (isCurrentUser
+                                      ? (isDark
+                                            ? const Color(0xFF1A1C20)
+                                            : theme
+                                                  .colorScheme
+                                                  .surfaceContainerHighest
+                                                  .withOpacity(0.6))
+                                      : (isDark
+                                            ? const Color(0xFF14171B)
+                                            : theme.cardColor)),
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(12),
+                              topRight: const Radius.circular(12),
+                              bottomLeft: Radius.circular(
+                                isCurrentUser ? 12 : 6,
                               ),
-                              if (message.content.isNotEmpty)
-                                const SizedBox(height: 8),
-                            ]
-                            // Single media with metadata (images, PDFs, audio)
-                            else if (message.mediaMetadata != null) ...[
-                              IgnorePointer(
-                                ignoring: _selectionMode,
-                                child: Opacity(
-                                  opacity: _selectionMode ? 0.6 : 1.0,
-                                  child: MediaPreviewCard(
-                                    r2Key: message.mediaMetadata!.r2Key,
-                                    fileName: _getFileNameFromMetadata(
-                                      message.mediaMetadata!,
+                              bottomRight: Radius.circular(
+                                isCurrentUser ? 6 : 12,
+                              ),
+                            ),
+                            border:
+                                message.multipleMedia != null &&
+                                    message.multipleMedia!.isNotEmpty
+                                ? null
+                                : Border.all(
+                                    color: theme.dividerColor.withOpacity(0.4),
+                                    width: 0.1,
+                                  ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Multi-image bubble (new WhatsApp-style)
+                              if (message.multipleMedia != null &&
+                                  message.multipleMedia!.isNotEmpty) ...[
+                                IgnorePointer(
+                                  ignoring: _selectionMode,
+                                  child: Opacity(
+                                    opacity: _selectionMode ? 0.6 : 1.0,
+                                    child: MultiImageMessageBubble(
+                                      imageUrls: message.multipleMedia!.map((
+                                        m,
+                                      ) {
+                                        // Prefer local path for sender's own images
+                                        final localPath =
+                                            m.localPath ??
+                                            _localSenderMediaPaths[m.messageId];
+                                        if (localPath != null &&
+                                            localPath.isNotEmpty &&
+                                            File(localPath).existsSync()) {
+                                          return localPath;
+                                        }
+                                        // Fallback to public URL
+                                        return m.publicUrl.isNotEmpty
+                                            ? m.publicUrl
+                                            : m.thumbnail;
+                                      }).toList(),
+                                      isMe: isCurrentUser,
+                                      uploadProgress: message.multipleMedia!
+                                          .map(
+                                            (m) =>
+                                                _pendingUploadProgress[m
+                                                    .messageId],
+                                          )
+                                          .toList(),
+                                      onImageTap: (index) {
+                                        if (_selectionMode) return;
+                                        _showImageGalleryViewer(
+                                          message.multipleMedia!,
+                                          index,
+                                          isCurrentUser,
+                                        );
+                                      },
                                     ),
-                                    mimeType:
-                                        message.mediaMetadata!.mimeType ??
-                                        'application/octet-stream',
-                                    fileSize:
-                                        message.mediaMetadata!.fileSize ?? 0,
-                                    thumbnailBase64:
-                                        message.mediaMetadata!.thumbnail,
-                                    localPath: message.mediaMetadata!.localPath,
-                                    isMe: isCurrentUser,
-                                    uploading: isUploading,
-                                    uploadProgress: uploadProgress,
-                                    selectionMode: _selectionMode,
                                   ),
                                 ),
-                              ),
+                                if (message.content.isNotEmpty)
+                                  const SizedBox(height: 8),
+                              ]
+                              // Single media with metadata (images, PDFs, audio)
+                              else if (message.mediaMetadata != null) ...[
+                                IgnorePointer(
+                                  ignoring: _selectionMode,
+                                  child: Opacity(
+                                    opacity: _selectionMode ? 0.6 : 1.0,
+                                    child: MediaPreviewCard(
+                                      r2Key: message.mediaMetadata!.r2Key,
+                                      fileName: _getFileNameFromMetadata(
+                                        message.mediaMetadata!,
+                                      ),
+                                      mimeType:
+                                          message.mediaMetadata!.mimeType ??
+                                          'application/octet-stream',
+                                      fileSize:
+                                          message.mediaMetadata!.fileSize ?? 0,
+                                      thumbnailBase64:
+                                          message.mediaMetadata!.thumbnail,
+                                      localPath:
+                                          message.mediaMetadata!.localPath,
+                                      isMe: isCurrentUser,
+                                      uploading: isUploading,
+                                      uploadProgress: uploadProgress,
+                                      selectionMode: _selectionMode,
+                                    ),
+                                  ),
+                                ),
+                                if (message.content.isNotEmpty)
+                                  const SizedBox(height: 8),
+                              ],
+                              // Text content
                               if (message.content.isNotEmpty)
-                                const SizedBox(height: 8),
+                                Linkify(
+                                  onOpen: (link) async {
+                                    final uri = Uri.parse(link.url);
+                                    if (await canLaunchUrl(uri)) {
+                                      await launchUrl(
+                                        uri,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    }
+                                  },
+                                  text: LinkUtils.addProtocolToBareUrls(
+                                    message.content,
+                                  ),
+                                  options: const LinkifyOptions(
+                                    defaultToHttps: true,
+                                  ),
+                                  style: TextStyle(
+                                    color: theme.textTheme.bodyLarge?.color,
+                                    fontSize: 14,
+                                    height: 1.5,
+                                  ),
+                                  linkStyle: TextStyle(
+                                    color: const Color(0xFF6A4FF7),
+                                    fontSize: 14,
+                                    height: 1.5,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
                             ],
-                            // Text content
-                            if (message.content.isNotEmpty)
-                              Linkify(
-                                onOpen: (link) async {
-                                  final uri = Uri.parse(link.url);
-                                  if (await canLaunchUrl(uri)) {
-                                    await launchUrl(
-                                      uri,
-                                      mode: LaunchMode.externalApplication,
-                                    );
-                                  }
-                                },
-                                text: LinkUtils.addProtocolToBareUrls(
-                                  message.content,
-                                ),
-                                options: const LinkifyOptions(
-                                  defaultToHttps: true,
-                                ),
-                                style: TextStyle(
-                                  color: theme.textTheme.bodyLarge?.color,
-                                  fontSize: 14,
-                                  height: 1.5,
-                                ),
-                                linkStyle: TextStyle(
-                                  color: const Color(0xFF6A4FF7),
-                                  fontSize: 14,
-                                  height: 1.5,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                          ],
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 4),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
