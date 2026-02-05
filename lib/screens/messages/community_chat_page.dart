@@ -23,6 +23,9 @@ import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
 import '../../models/media_metadata.dart';
 import '../../services/background_upload_service.dart';
+import '../create_poll_screen.dart';
+import '../../widgets/poll_message_widget.dart';
+import '../../models/poll_model.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -525,6 +528,22 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     }
   }
 
+  void _navigateToPollScreen() {
+    print('🔴 _navigateToPollScreen called');
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/create_poll'),
+        builder: (_) {
+          print('🔴 CreatePollScreen builder executing');
+          return CreatePollScreen(
+            chatId: widget.communityId,
+            chatType: 'community',
+          );
+        },
+      ),
+    );
+  }
+
   void _showAttachmentPicker() {
     final primaryColor = const Color(0xFF00A884); // Community chat green
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -532,10 +551,13 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
         ? const Color(0xFF222222)
         : const Color(0xFFFFFFFF);
 
+    // Capture the page's BuildContext (not the bottom sheet's)
+    final pageContext = context;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (bottomSheetContext) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: cardColor,
@@ -566,7 +588,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   label: 'Gallery',
                   color: primaryColor,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickAndSendImages();
                   },
                 ),
@@ -575,7 +597,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   label: 'Camera',
                   color: primaryColor,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickCamera();
                   },
                 ),
@@ -584,7 +606,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   label: 'Document',
                   color: primaryColor,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickDocument();
                   },
                 ),
@@ -593,8 +615,18 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                   label: 'Audio',
                   color: primaryColor,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickAudio();
+                  },
+                ),
+                _buildAttachmentOption(
+                  icon: Icons.poll,
+                  label: 'Poll',
+                  color: primaryColor,
+                  onTap: () {
+                    print('🔴 POLL BUTTON TAPPED');
+                    Navigator.pop(bottomSheetContext);
+                    _navigateToPollScreen();
                   },
                 ),
               ],
@@ -1344,6 +1376,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                                             _pendingUploadProgress,
                                         selectionMode: isSelectionMode,
                                         isSelected: isSelected,
+                                        communityId: widget.communityId,
                                       ),
                                     ),
                                   ],
@@ -1949,6 +1982,7 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, double> pendingUploadProgress;
   final bool selectionMode;
   final bool isSelected;
+  final String communityId;
 
   const _MessageBubble({
     required this.message,
@@ -1960,6 +1994,7 @@ class _MessageBubble extends StatelessWidget {
     required this.pendingUploadProgress,
     this.selectionMode = false,
     this.isSelected = false,
+    required this.communityId,
   });
 
   @override
@@ -2010,7 +2045,15 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     ),
                   ),
-                if (message.multipleMedia != null &&
+                // Check if this is a poll message
+                if (message.type == 'poll')
+                  PollMessageWidget(
+                    poll: PollModel.fromMap(message.toMap(), message.id),
+                    chatId: communityId,
+                    chatType: 'community',
+                    isOwnMessage: isMe,
+                  )
+                else if (message.multipleMedia != null &&
                     message.multipleMedia!.isNotEmpty) ...[
                   MultiImageMessageBubble(
                     imageUrls: message.multipleMedia!

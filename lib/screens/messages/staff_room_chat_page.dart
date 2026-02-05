@@ -14,6 +14,9 @@ import '../../services/media_upload_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../models/staff_room_message.dart';
+import '../create_poll_screen.dart';
+import '../../widgets/poll_message_widget.dart';
+import '../../models/poll_model.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
 class StaffRoomChatPage extends StatefulWidget {
@@ -331,15 +334,34 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     }
   }
 
+  void _navigateToPollScreen() {
+    print('🟢 _navigateToPollScreen called');
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/create_poll'),
+        builder: (_) {
+          print('🟢 CreatePollScreen builder executing');
+          return CreatePollScreen(
+            chatId: widget.instituteId,
+            chatType: 'staff_room',
+          );
+        },
+      ),
+    );
+  }
+
   void _showAttachmentPicker() {
     final primaryColor = widget.isTeacher
         ? const Color(0xFFF97316)
         : const Color(0xFF146D7A);
 
+    // Capture the page's BuildContext (not the bottom sheet's)
+    final pageContext = context;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (bottomSheetContext) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
@@ -370,7 +392,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   label: 'Gallery',
                   color: primaryColor,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickImage();
                   },
                 ),
@@ -379,7 +401,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   label: 'Camera',
                   color: primaryColor,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickCamera();
                   },
                 ),
@@ -388,7 +410,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   label: 'Document',
                   color: primaryColor,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickDocument();
                   },
                 ),
@@ -397,8 +419,18 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   label: 'Audio',
                   color: primaryColor,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickAudio();
+                  },
+                ),
+                _buildAttachmentOption(
+                  icon: Icons.poll,
+                  label: 'Poll',
+                  color: primaryColor,
+                  onTap: () {
+                    print('🟢 POLL BUTTON TAPPED');
+                    Navigator.pop(bottomSheetContext);
+                    _navigateToPollScreen();
                   },
                 ),
               ],
@@ -845,6 +877,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                           progressNotifiers: _progressNotifiers,
                           selectionMode: isSelectionMode,
                           isSelected: selectedMessages.contains(messageId),
+                          staffRoomId: widget.instituteId,
                         ),
                       );
                     },
@@ -911,6 +944,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                                   progressNotifiers: _progressNotifiers,
                                   selectionMode: isSelectionMode,
                                   isSelected: isSelected,
+                                  staffRoomId: widget.instituteId,
                                 ),
                               )
                             : _MessageBubble(
@@ -923,6 +957,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                                 progressNotifiers: _progressNotifiers,
                                 selectionMode: isSelectionMode,
                                 isSelected: isSelected,
+                                staffRoomId: widget.instituteId,
                               ),
                       ),
                     );
@@ -1376,6 +1411,7 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, ValueNotifier<double>> progressNotifiers;
   final bool selectionMode;
   final bool isSelected;
+  final String staffRoomId;
 
   const _MessageBubble({
     super.key,
@@ -1388,6 +1424,7 @@ class _MessageBubble extends StatelessWidget {
     required this.progressNotifiers,
     this.selectionMode = false,
     this.isSelected = false,
+    required this.staffRoomId,
   });
 
   @override
@@ -1518,7 +1555,15 @@ class _MessageBubble extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                       ],
-                      if (hasAttachment) ...[
+                      // Check if this is a poll message
+                      if (message['type'] == 'poll')
+                        PollMessageWidget(
+                          poll: PollModel.fromMap(message, messageId),
+                          chatId: staffRoomId,
+                          chatType: 'staff_room',
+                          isOwnMessage: isMe,
+                        )
+                      else if (hasAttachment) ...[
                         _buildAttachmentWidget(
                           attachmentUrl,
                           attachmentType ?? 'application/octet-stream',

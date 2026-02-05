@@ -13,6 +13,8 @@ class GroupChatMessage {
   final int timestamp;
   final List<String>? deletedFor; // List of user IDs who deleted this message
   final bool isDeleted; // Whether message was deleted by sender
+  final String? type; // Message type (e.g., 'poll', 'text', 'image')
+  final Map<String, dynamic>? rawData; // Store raw Firestore data for polls
 
   GroupChatMessage({
     required this.id,
@@ -25,6 +27,8 @@ class GroupChatMessage {
     required this.timestamp,
     this.deletedFor,
     this.isDeleted = false,
+    this.type,
+    this.rawData,
   });
 
   factory GroupChatMessage.fromFirestore(Map<String, dynamic> data, String id) {
@@ -58,6 +62,8 @@ class GroupChatMessage {
           ? List<String>.from(data['deletedFor'])
           : null,
       isDeleted: data['isDeleted'] ?? false,
+      type: data['type'],
+      rawData: data,
     );
   }
 
@@ -72,6 +78,15 @@ class GroupChatMessage {
       'timestamp': timestamp,
       'deletedFor': deletedFor,
       'isDeleted': isDeleted,
+      'type': type,
     };
+  }
+
+  Map<String, dynamic> toMap() {
+    // For poll messages, return the raw data; otherwise return toFirestore
+    if (rawData != null) {
+      return rawData!;
+    }
+    return toFirestore();
   }
 }
