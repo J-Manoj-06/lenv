@@ -787,9 +787,18 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
 
         // Sort by timestamp
         allMessages.sort((a, b) {
-          final aTime = a['createdAt'] as int? ?? 0;
-          final bTime = b['createdAt'] as int? ?? 0;
-          return bTime.compareTo(aTime);
+          final aTime = a['createdAt'];
+          final bTime = b['createdAt'];
+
+          // Handle both Timestamp and int types
+          final aMillis = aTime is Timestamp
+              ? aTime.millisecondsSinceEpoch
+              : (aTime as int? ?? 0);
+          final bMillis = bTime is Timestamp
+              ? bTime.millisecondsSinceEpoch
+              : (bTime as int? ?? 0);
+
+          return bMillis.compareTo(aMillis);
         });
 
         // Store messages for index-based scrolling
@@ -1433,7 +1442,10 @@ class _MessageBubble extends StatelessWidget {
     final senderName = message['senderName'] ?? 'Unknown';
     final senderRole = message['senderRole'] ?? '';
     final text = message['text'] ?? '';
-    final timestamp = message['createdAt'] as int?;
+    final createdAt = message['createdAt'];
+    final timestamp = createdAt is Timestamp
+        ? createdAt.millisecondsSinceEpoch
+        : (createdAt as int? ?? 0);
     final attachmentUrl = message['attachmentUrl'] as String?;
     final attachmentType = message['attachmentType'] as String?;
     final attachmentName = message['attachmentName'] as String?;
@@ -1454,6 +1466,7 @@ class _MessageBubble extends StatelessWidget {
         : const Color(0xFFF97316); // Orange for teachers
 
     final hasAttachment = attachmentUrl != null && attachmentUrl.isNotEmpty;
+    final isPoll = message['type'] == 'poll';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1463,146 +1476,201 @@ class _MessageBubble extends StatelessWidget {
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
         children: [
-          Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
-            ),
-            child: Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                if (!isMe) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12, bottom: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: roleColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            senderRole == 'principal' ? 'Principal' : 'Teacher',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: roleColor,
-                              fontWeight: FontWeight.w600,
-                            ),
+          // Use Flexible for polls, Container with maxWidth for others
+          isPoll
+              ? Flexible(
+                  child: Column(
+                    crossAxisAlignment: isMe
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      if (!isMe) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(left: 12, bottom: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: roleColor.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  senderRole == 'principal'
+                                      ? 'Principal'
+                                      : 'Teacher',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: roleColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  senderName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.textTheme.bodyMedium?.color
+                                        ?.withOpacity(0.8),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            senderName,
+                      ],
+                      PollMessageWidget(
+                        poll: PollModel.fromMap(message, messageId),
+                        chatId: staffRoomId,
+                        chatType: 'staff_room',
+                        isOwnMessage: isMe,
+                      ),
+                    ],
+                  ),
+                )
+              : Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.75,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: isMe
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      if (!isMe) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(left: 12, bottom: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: roleColor.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  senderRole == 'principal'
+                                      ? 'Principal'
+                                      : 'Teacher',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: roleColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  senderName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.textTheme.bodyMedium?.color
+                                        ?.withOpacity(0.8),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: hasAttachment && text.isEmpty ? 4 : 16,
+                      vertical: hasAttachment && text.isEmpty ? 4 : 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isMe
+                          ? primaryColor
+                          : theme.colorScheme.surfaceContainerHighest
+                              .withOpacity(
+                            0.7,
+                          ),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMe ? 16 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isForwarded) ...[
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.forward,
+                                size: 14,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Forwarded',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                  color: isMe ? Colors.white70 : Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                        if (hasAttachment) ...[
+                          _buildAttachmentWidget(
+                            attachmentUrl,
+                            attachmentType ?? 'application/octet-stream',
+                            attachmentName,
+                            attachmentSize ?? 0,
+                            thumbnailUrl,
+                            isPending,
+                            messageId,
+                          ),
+                          if (text.isNotEmpty) const SizedBox(height: 8),
+                        ],
+                        if (text.isNotEmpty)
+                          Text(
+                            text,
                             style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: theme.textTheme.bodyMedium?.color
-                                  ?.withOpacity(0.8),
+                              fontSize: 15,
+                              color: isMe
+                                  ? Colors.white
+                                  : theme.textTheme.bodyLarge?.color,
                             ),
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                        const SizedBox(height: 4),
+                        Text(
+                          timeStr,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isMe
+                                ? Colors.white.withOpacity(0.7)
+                                : theme.textTheme.bodyMedium?.color?.withOpacity(
+                                    0.5,
+                                  ),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ],
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: hasAttachment && text.isEmpty ? 4 : 16,
-                    vertical: hasAttachment && text.isEmpty ? 4 : 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isMe
-                        ? primaryColor
-                        : theme.colorScheme.surfaceContainerHighest.withOpacity(
-                            0.7,
-                          ),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 16),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (isForwarded) ...[
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.forward,
-                              size: 14,
-                              color: isMe ? Colors.white70 : Colors.black54,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Forwarded',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontStyle: FontStyle.italic,
-                                color: isMe ? Colors.white70 : Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                      ],
-                      // Check if this is a poll message
-                      if (message['type'] == 'poll')
-                        PollMessageWidget(
-                          poll: PollModel.fromMap(message, messageId),
-                          chatId: staffRoomId,
-                          chatType: 'staff_room',
-                          isOwnMessage: isMe,
-                        )
-                      else if (hasAttachment) ...[
-                        _buildAttachmentWidget(
-                          attachmentUrl,
-                          attachmentType ?? 'application/octet-stream',
-                          attachmentName,
-                          attachmentSize ?? 0,
-                          thumbnailUrl,
-                          isPending,
-                          messageId,
-                        ),
-                        if (text.isNotEmpty) const SizedBox(height: 8),
-                      ],
-                      if (text.isNotEmpty)
-                        Text(
-                          text,
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: isMe
-                                ? Colors.white
-                                : theme.textTheme.bodyLarge?.color,
-                          ),
-                        ),
-                      const SizedBox(height: 4),
-                      Text(
-                        timeStr,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isMe
-                              ? Colors.white.withOpacity(0.7)
-                              : theme.textTheme.bodyMedium?.color?.withOpacity(
-                                  0.5,
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
           if (selectionMode && isMe)
             Padding(
               padding: const EdgeInsets.only(left: 8),

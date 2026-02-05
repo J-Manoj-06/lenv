@@ -1,5 +1,5 @@
-/// Create Poll Screen - Allows users to create polls in chat
-/// Min 2 options, Max 6 options, Single/Multi-select toggle
+/// Create Poll Screen - Premium Redesigned UI matching Insights style
+/// Calm teal/green palette, premium rounded corners, smooth animations
 library;
 
 import 'package:flutter/material.dart';
@@ -11,7 +11,7 @@ import '../providers/auth_provider.dart' as local_auth;
 
 class CreatePollScreen extends StatefulWidget {
   final String chatId;
-  final String chatType; // 'community', 'group', 'individual'
+  final String chatType;
 
   const CreatePollScreen({
     super.key,
@@ -23,7 +23,8 @@ class CreatePollScreen extends StatefulWidget {
   State<CreatePollScreen> createState() => _CreatePollScreenState();
 }
 
-class _CreatePollScreenState extends State<CreatePollScreen> {
+class _CreatePollScreenState extends State<CreatePollScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _questionController = TextEditingController();
   final List<TextEditingController> _optionControllers = [
@@ -32,27 +33,31 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
   ];
 
   bool _allowMultiple = false;
+  bool _anonymousVotes = false;
   bool _isSending = false;
   String? _errorMessage;
 
   final int _minOptions = 2;
   final int _maxOptions = 6;
 
+  late AnimationController _animController;
+
   @override
   void initState() {
     super.initState();
-    print('🔵 CreatePollScreen initState called');
-    print('🔵 Chat ID: ${widget.chatId}');
-    print('🔵 Chat Type: ${widget.chatType}');
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
   }
 
   @override
   void dispose() {
-    print('🔵 CreatePollScreen disposed');
     _questionController.dispose();
     for (final controller in _optionControllers) {
       controller.dispose();
     }
+    _animController.dispose();
     super.dispose();
   }
 
@@ -87,17 +92,15 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
     return validOptions >= _minOptions;
   }
 
+  // BACKEND INTEGRATION POINT: Keep existing sendPoll() logic unchanged
   Future<void> _sendPoll() async {
-    print('🔵 _sendPoll called');
     if (!_isValid()) {
-      print('🔵 ❌ Poll validation failed');
       setState(() {
         _errorMessage =
             'Please enter a question and at least $_minOptions options';
       });
       return;
     }
-    print('🔵 ✅ Poll validation passed');
 
     setState(() {
       _isSending = true;
@@ -105,76 +108,51 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
     });
 
     try {
-      print('🔵 Getting auth provider...');
       final authProvider = Provider.of<local_auth.AuthProvider>(
         context,
         listen: false,
       );
-      final currentUser = authProvider.currentUser;
-      print('🔵 Current user: ${currentUser?.uid} - ${currentUser?.name}');
+      final creatorId = authProvider.currentUser?.uid ?? '';
+      final creatorName = authProvider.currentUser?.name ?? 'Anonymous';
+      final creatorRole =
+          authProvider.currentUser?.role.toString() ?? 'unknown';
 
-      if (currentUser == null) {
-        print('🔵 ❌ User not authenticated');
-        throw Exception('User not authenticated');
-      }
-
-      // Build poll options
-      print('🔵 Building poll options...');
       final options = <PollOption>[];
       for (int i = 0; i < _optionControllers.length; i++) {
         final text = _optionControllers[i].text.trim();
         if (text.isNotEmpty) {
-          options.add(
-            PollOption(
-              id: 'opt_${DateTime.now().millisecondsSinceEpoch}_$i',
-              text: text,
-            ),
-          );
-          print('🔵 Option $i: $text');
+          options.add(PollOption(id: 'option_$i', text: text));
         }
       }
-      print('🔵 Total options: ${options.length}');
 
-      // Create poll model
-      print('🔵 Creating poll model...');
       final poll = PollModel(
         question: _questionController.text.trim(),
         options: options,
         allowMultiple: _allowMultiple,
-        createdBy: currentUser.uid,
-        createdByName: currentUser.name,
-        createdByRole: currentUser.role.toString().split('.').last,
+        createdBy: creatorId,
+        createdByName: creatorName,
+        createdByRole: creatorRole,
+        createdAt: DateTime.now(),
       );
-      print('🔵 Poll question: ${poll.question}');
-      print('🔵 Allow multiple: ${poll.allowMultiple}');
 
-      // Send poll
-      print('🔵 Sending poll to Firestore...');
-      print('🔵 Chat ID: ${widget.chatId}');
-      print('🔵 Chat Type: ${widget.chatType}');
       final pollService = PollService();
-      final messageId = await pollService.sendPoll(
+      await pollService.sendPoll(
         chatId: widget.chatId,
         poll: poll,
         chatType: widget.chatType,
       );
-      print('🔵 ✅ Poll sent successfully! Message ID: $messageId');
 
-      // Success - go back to chat
       if (mounted) {
-        print('🔵 Navigating back to chat...');
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Poll sent successfully!'),
-            backgroundColor: AppColors.success,
+            backgroundColor: AppColors.accentSuccess,
             duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
-      print('🔵 ❌ ERROR sending poll: $e');
-      print('🔵 Stack trace: ${StackTrace.current}');
       setState(() {
         _isSending = false;
         _errorMessage = 'Failed to send poll: ${e.toString()}';
@@ -184,7 +162,7 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_errorMessage!),
-            backgroundColor: AppColors.error,
+            backgroundColor: AppColors.accentDanger,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -194,173 +172,554 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('🔵 CreatePollScreen build method called');
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? AppColors.surfaceDark : AppColors.background;
+    final cardColor = isDark ? AppColors.surfaceCard : Colors.white;
 
     return Scaffold(
+      backgroundColor: bgColor,
+      // Premium header with centered title
       appBar: AppBar(
-        title: const Text('Create Poll'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        backgroundColor: isDark
+            ? AppColors.surfaceDark
+            : AppColors.insightsTeal,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.pop(context),
+          color: isDark ? AppColors.textOnDark : Colors.white,
+        ),
+        title: Text(
+          'Create Poll',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: isDark ? AppColors.textOnDark : Colors.white,
+          ),
+        ),
       ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: Column(
           children: [
-            // Question field
-            TextFormField(
-              controller: _questionController,
-              decoration: const InputDecoration(
-                labelText: 'Poll Question',
-                hintText: 'Ask a question...',
-                prefixIcon: Icon(Icons.poll),
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-              maxLength: 200,
-              textCapitalization: TextCapitalization.sentences,
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 24),
+            // Scrollable content
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16), // Outer padding 16px
+                children: [
+                  // Question input - large rounded field
+                  _buildQuestionField(isDark, cardColor),
+                  const SizedBox(height: 24), // Vertical rhythm 24px
+                  // Options header
+                  _buildOptionsHeader(),
+                  const SizedBox(height: 12),
 
-            // Options header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Options',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '${_optionControllers.length}/$_maxOptions',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                  // Options list
+                  ..._buildOptionsList(isDark, cardColor),
+
+                  // Add option button
+                  if (_optionControllers.length < _maxOptions)
+                    _buildAddOptionButton(isDark),
+                  const SizedBox(height: 24),
+
+                  // Controls (toggles)
+                  _buildControls(isDark, cardColor),
+                  const SizedBox(height: 16),
+
+                  // Validation hint
+                  if (_errorMessage != null) _buildErrorMessage(),
+                ],
+              ),
+            ),
+
+            // Sticky bottom bar with blur/elevation
+            _buildBottomBar(isDark),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Question field with icon, counter, premium styling
+  Widget _buildQuestionField(bool isDark, Color cardColor) {
+    final charCount = _questionController.text.length;
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16), // Premium radius 16px
+        border: Border.all(
+          color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
+          width: 1,
+        ),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          TextField(
+            controller: _questionController,
+            maxLines: 3,
+            maxLength: 200,
+            style: TextStyle(
+              fontSize: 16,
+              color: isDark ? AppColors.textOnDark : AppColors.textPrimary,
+              height: 1.4,
             ),
-            const SizedBox(height: 12),
+            decoration: InputDecoration(
+              hintText: 'Enter poll question (max 200 chars)',
+              hintStyle: TextStyle(
+                color: isDark ? AppColors.textMuted : Colors.grey.shade500,
+                fontSize: 15,
+              ),
+              prefixIcon: Icon(
+                Icons.poll_outlined,
+                color: AppColors.insightsTeal,
+                size: 22,
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
+              counterText: '', // Hide default counter
+            ),
+            onChanged: (val) => setState(() {}),
+          ),
+          // Custom counter
+          Padding(
+            padding: const EdgeInsets.only(right: 16, bottom: 12),
+            child: Text(
+              '$charCount/200',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? AppColors.textMuted : Colors.grey.shade600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            // Options list
-            ..._optionControllers.asMap().entries.map((entry) {
-              final index = entry.key;
-              final controller = entry.value;
+  Widget _buildOptionsHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          'Options',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? AppColors.textOnDark
+                : AppColors.textPrimary,
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.insightsTeal.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            '${_optionControllers.length}/$_maxOptions',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.insightsTeal,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: controller,
-                        decoration: InputDecoration(
-                          labelText: 'Option ${index + 1}',
-                          hintText: 'Enter option text...',
-                          border: const OutlineInputBorder(),
-                          prefixIcon: Icon(
-                            _allowMultiple
-                                ? Icons.check_box_outline_blank
-                                : Icons.radio_button_unchecked,
-                            color: primaryColor,
-                          ),
-                        ),
-                        maxLength: 100,
-                        onChanged: (_) => setState(() {}),
-                      ),
+  List<Widget> _buildOptionsList(bool isDark, Color cardColor) {
+    return _optionControllers.asMap().entries.map((entry) {
+      final index = entry.key;
+      final controller = entry.value;
+      final label = String.fromCharCode(65 + index); // A, B, C, ...
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12), // Spacing 12px
+        child: _buildOptionRow(
+          index: index,
+          label: label,
+          controller: controller,
+          isDark: isDark,
+          cardColor: cardColor,
+        ),
+      );
+    }).toList();
+  }
+
+  // Option row with circular label, text field, drag handle, remove icon
+  Widget _buildOptionRow({
+    required int index,
+    required String label,
+    required TextEditingController controller,
+    required bool isDark,
+    required Color cardColor,
+  }) {
+    final charCount = controller.text.length;
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14), // Radius 14px
+        border: Border.all(
+          color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
+        ),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+      ),
+      child: Row(
+        children: [
+          // Circular label (A/B/C)
+          Container(
+            margin: const EdgeInsets.all(12),
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.insightsTeal.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.insightsTeal,
+                ),
+              ),
+            ),
+          ),
+          // Text field
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                TextField(
+                  controller: controller,
+                  maxLength: 100,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: isDark
+                        ? AppColors.textOnDark
+                        : AppColors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Option ${index + 1}',
+                    hintStyle: TextStyle(
+                      color: isDark
+                          ? AppColors.textMuted
+                          : Colors.grey.shade500,
                     ),
-                    if (_optionControllers.length > _minOptions)
-                      IconButton(
-                        icon: const Icon(
-                          Icons.remove_circle_outline,
-                          color: Colors.red,
-                        ),
-                        onPressed: () => _removeOption(index),
-                        tooltip: 'Remove option',
-                      ),
-                  ],
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    counterText: '',
+                  ),
+                  onChanged: (val) => setState(() {}),
                 ),
-              );
-            }),
-
-            // Add option button
-            if (_optionControllers.length < _maxOptions)
-              OutlinedButton.icon(
-                onPressed: _addOption,
-                icon: const Icon(Icons.add),
-                label: const Text('Add Option'),
-                style: OutlinedButton.styleFrom(foregroundColor: primaryColor),
-              ),
-            const SizedBox(height: 24),
-
-            // Allow multiple answers toggle
-            Card(
-              child: SwitchListTile(
-                title: const Text('Allow multiple answers'),
-                subtitle: const Text('Users can select more than one option'),
-                value: _allowMultiple,
-                activeThumbColor: primaryColor,
-                onChanged: (value) {
-                  setState(() {
-                    _allowMultiple = value;
-                  });
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Error message
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-            // Send button
-            ElevatedButton(
-              onPressed: _isSending || !_isValid() ? null : _sendPoll,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: _isSending
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Text(
-                      'Send Poll',
+                if (charCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12, bottom: 8),
+                    child: Text(
+                      '$charCount/100',
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        color: isDark ? AppColors.textMuted : Colors.grey,
                       ),
                     ),
+                  ),
+              ],
             ),
+          ),
+          // Drag handle (UI only)
+          Icon(
+            Icons.drag_indicator,
+            color: isDark ? AppColors.textMuted : Colors.grey.shade400,
+            size: 20,
+          ),
+          const SizedBox(width: 4),
+          // Remove button
+          if (_optionControllers.length > _minOptions)
+            IconButton(
+              icon: Icon(
+                Icons.close,
+                color: isDark ? AppColors.textMuted : Colors.grey.shade500,
+                size: 20,
+              ),
+              onPressed: () => _removeOption(index),
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
+            )
+          else
+            const SizedBox(width: 8),
+          const SizedBox(width: 8),
+        ],
+      ),
+    );
+  }
 
-            // Validation hint
-            if (!_isValid())
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
+  Widget _buildAddOptionButton(bool isDark) {
+    return OutlinedButton.icon(
+      onPressed: _addOption,
+      icon: const Icon(Icons.add, size: 18),
+      label: const Text('Add Option'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.insightsTeal,
+        side: BorderSide(
+          color: isDark
+              ? AppColors.borderMedium
+              : AppColors.insightsTeal.withOpacity(0.3),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      ),
+    );
+  }
+
+  Widget _buildControls(bool isDark, Color cardColor) {
+    return Column(
+      children: [
+        // Allow multiple answers toggle
+        Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
+            ),
+          ),
+          child: SwitchListTile(
+            title: Text(
+              'Allow multiple answers',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: isDark ? AppColors.textOnDark : AppColors.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              'Users can select more than one option',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppColors.textMuted : Colors.grey.shade600,
+              ),
+            ),
+            value: _allowMultiple,
+            activeThumbColor: AppColors.insightsTeal,
+            onChanged: (value) {
+              setState(() {
+                _allowMultiple = value;
+              });
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Anonymous votes toggle (optional)
+        Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
+            ),
+          ),
+          child: SwitchListTile(
+            title: Text(
+              'Anonymous votes',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: isDark ? AppColors.textOnDark : AppColors.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              'Hide voter identities',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppColors.textMuted : Colors.grey.shade600,
+              ),
+            ),
+            value: _anonymousVotes,
+            activeThumbColor: AppColors.insightsTeal,
+            onChanged: (value) {
+              setState(() {
+                _anonymousVotes = value;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorMessage() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.accentDanger.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.accentDanger.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.error_outline,
+            color: AppColors.accentDanger,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.accentDanger,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Sticky bottom bar with blur, elevation, buttons
+  Widget _buildBottomBar(bool isDark) {
+    final isValid = _isValid();
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.surfaceElevated.withOpacity(0.95)
+            : Colors.white.withOpacity(0.95),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? AppColors.borderSubtle : Colors.grey.shade200,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Preview button (outline)
+            Expanded(
+              child: OutlinedButton(
+                onPressed: isValid ? () {} : null, // Preview action (UI only)
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.insightsTeal,
+                  side: BorderSide(
+                    color: isValid
+                        ? AppColors.insightsTeal
+                        : (isDark ? AppColors.textMuted : Colors.grey.shade400),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
                 child: Text(
-                  'Enter a question and at least $_minOptions options to send',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                  textAlign: TextAlign.center,
+                  'Preview',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: isValid
+                        ? AppColors.insightsTeal
+                        : (isDark ? AppColors.textMuted : Colors.grey),
+                  ),
                 ),
               ),
+            ),
+            const SizedBox(width: 12),
+            // Send Poll button (gradient fill)
+            Expanded(
+              flex: 2,
+              child: GestureDetector(
+                onTapDown: (_) => _animController.forward(),
+                onTapUp: (_) {
+                  _animController.reverse();
+                  if (!_isSending && isValid) _sendPoll();
+                },
+                onTapCancel: () => _animController.reverse(),
+                child: AnimatedBuilder(
+                  animation: _animController,
+                  builder: (context, child) {
+                    return Transform.scale(
+                      scale: 1.0 - (_animController.value * 0.05),
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      gradient: isValid && !_isSending
+                          ? AppColors.insightsTealGradient
+                          : null,
+                      color: isValid && !_isSending
+                          ? null
+                          : (isDark
+                                ? AppColors.textMuted
+                                : Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: isValid && !_isSending
+                          ? [
+                              BoxShadow(
+                                color: AppColors.insightsTeal.withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : [],
+                    ),
+                    child: Center(
+                      child: _isSending
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Send Poll',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

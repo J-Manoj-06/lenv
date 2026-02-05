@@ -217,11 +217,11 @@ class PollService {
               voteChanges[optionId] = 1;
             }
           } else {
-            // Single-select: replace vote
+            // Single-select: toggle or replace vote
             if (currentVotes.contains(optionId)) {
-              // Clicking same option - no change (or could toggle off)
-              // For better UX, we'll keep it selected (no-op)
-              return;
+              // Clicking same option - toggle it off (deselect)
+              voteChanges[optionId] = -1;
+              // newVotes stays empty
             } else {
               // Remove old vote (if any)
               if (currentVotes.isNotEmpty) {

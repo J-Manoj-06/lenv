@@ -6,6 +6,30 @@ class AppColors {
   static const Color primaryLight = Color(0xFF9D97FF);
   static const Color primaryDark = Color(0xFF4A42E0);
 
+  // Insights/Poll Colors (calm teal/green palette)
+  static const Color insightsTeal = Color(0xFF168B8B); // Primary accent
+  static const Color insightsTealDark = Color(0xFF0F6B6B); // Action/dark
+  static const Color insightsTealLight = Color(0xFF23A9A9); // Light variant
+
+  // Dark theme surfaces
+  static const Color surfaceDark = Color(
+    0xFF0F1113,
+  ); // Deep charcoal background
+  static const Color surfaceCard = Color(0xFF121516); // Card surface
+  static const Color surfaceElevated = Color(0xFF1A1D1F); // Elevated surface
+
+  // Text colors for dark theme
+  static const Color textMuted = Color(0xFF9AA3A3); // Muted text
+  static const Color textOnDark = Color(0xFFE5E7E7); // Primary text on dark
+
+  // Accent colors
+  static const Color accentSuccess = Color(0xFF23A455); // Subtle success
+  static const Color accentDanger = Color(0xFFD9534F); // Delete/alert
+
+  // Borders and dividers
+  static const Color borderSubtle = Color(0x0AFFFFFF); // rgba(255,255,255,0.04)
+  static const Color borderMedium = Color(0x1AFFFFFF); // rgba(255,255,255,0.1)
+
   // Role-based Colors
   static const Color instituteColor = Color(0xFF2196F3);
   static const Color teacherColor = Color(0xFF6366F1); // #6366F1
@@ -41,6 +65,13 @@ class AppColors {
   // Gradient Colors
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primary, primaryDark],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  // Insights Teal Gradient (subtle)
+  static const LinearGradient insightsTealGradient = LinearGradient(
+    colors: [insightsTeal, insightsTealDark],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
