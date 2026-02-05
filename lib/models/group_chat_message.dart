@@ -15,6 +15,8 @@ class GroupChatMessage {
   final bool isDeleted; // Whether message was deleted by sender
   final String? type; // Message type (e.g., 'poll', 'text', 'image')
   final Map<String, dynamic>? rawData; // Store raw Firestore data for polls
+  final String? classId; // Class ID for group chat
+  final String? subjectId; // Subject ID for group chat
 
   GroupChatMessage({
     required this.id,
@@ -29,6 +31,8 @@ class GroupChatMessage {
     this.isDeleted = false,
     this.type,
     this.rawData,
+    this.classId,
+    this.subjectId,
   });
 
   factory GroupChatMessage.fromFirestore(Map<String, dynamic> data, String id) {
@@ -64,6 +68,8 @@ class GroupChatMessage {
       isDeleted: data['isDeleted'] ?? false,
       type: data['type'],
       rawData: data,
+      classId: data['classId'],
+      subjectId: data['subjectId'],
     );
   }
 

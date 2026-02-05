@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 
-/// Modern, minimal attachment picker bottom sheet
-/// Dark-first design with rounded icon buttons
+/// Modern, colorful attachment picker bottom sheet
+/// Teacher theme with violet/purple color palette
 class ModernAttachmentSheet extends StatelessWidget {
   final VoidCallback? onCameraTap;
   final VoidCallback? onImageTap;
   final VoidCallback? onDocumentTap;
   final VoidCallback? onAudioTap;
+  final VoidCallback? onPollTap;
   final bool cameraEnabled;
   final bool imageEnabled;
   final bool documentEnabled;
   final bool audioEnabled;
+  final bool pollEnabled;
 
   const ModernAttachmentSheet({
     super.key,
@@ -18,141 +20,135 @@ class ModernAttachmentSheet extends StatelessWidget {
     this.onImageTap,
     this.onDocumentTap,
     this.onAudioTap,
+    this.onPollTap,
     this.cameraEnabled = true,
     this.imageEnabled = true,
     this.documentEnabled = true,
     this.audioEnabled = true,
+    this.pollEnabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1D1F),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Drag handle
-          const SizedBox(height: 8),
           Container(
-            width: 36,
+            width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey.shade700,
+              color: Colors.grey[300],
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(height: 20),
+          
+          // Title
+          const Text(
+            'Send Attachment',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 20),
 
           // Options row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _AttachmentOption(
-                  icon: Icons.camera_alt_outlined,
-                  label: 'Camera',
-                  enabled: cameraEnabled,
-                  onTap: onCameraTap,
-                ),
-                _AttachmentOption(
-                  icon: Icons.image_outlined,
-                  label: 'Gallery',
-                  enabled: imageEnabled,
-                  onTap: onImageTap,
-                ),
-                _AttachmentOption(
-                  icon: Icons.description_outlined,
-                  label: 'Document',
-                  enabled: documentEnabled,
-                  onTap: onDocumentTap,
-                ),
-                _AttachmentOption(
-                  icon: Icons.mic_outlined,
-                  label: 'Audio',
-                  enabled: audioEnabled,
-                  onTap: onAudioTap,
-                ),
-              ],
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _AttachmentOption(
+                icon: Icons.camera_alt,
+                label: 'Camera',
+                color: const Color(0xFF7C3AED),
+                enabled: cameraEnabled,
+                onTap: onCameraTap,
+              ),
+              _AttachmentOption(
+                icon: Icons.image,
+                label: 'Gallery',
+                color: const Color(0xFF7C3AED),
+                enabled: imageEnabled,
+                onTap: onImageTap,
+              ),
+              _AttachmentOption(
+                icon: Icons.picture_as_pdf,
+                label: 'Document',
+                color: const Color(0xFF7C3AED),
+                enabled: documentEnabled,
+                onTap: onDocumentTap,
+              ),
+              _AttachmentOption(
+                icon: Icons.audiotrack,
+                label: 'Audio',
+                color: const Color(0xFF7C3AED),
+                enabled: audioEnabled,
+                onTap: onAudioTap,
+              ),
+              _AttachmentOption(
+                icon: Icons.poll,
+                label: 'Poll',
+                color: const Color(0xFF7C3AED),
+                enabled: pollEnabled,
+                onTap: onPollTap,
+              ),
+            ],
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 }
 
-class _AttachmentOption extends StatefulWidget {
+class _AttachmentOption extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color color;
   final bool enabled;
   final VoidCallback? onTap;
 
   const _AttachmentOption({
     required this.icon,
     required this.label,
+    required this.color,
     required this.enabled,
     this.onTap,
   });
 
   @override
-  State<_AttachmentOption> createState() => _AttachmentOptionState();
-}
-
-class _AttachmentOptionState extends State<_AttachmentOption> {
-  bool _isPressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final color = widget.enabled
-        ? (_isPressed ? const Color(0xFFF27F0D) : Colors.grey.shade600)
-        : Colors.grey.shade800;
-
     return GestureDetector(
-      onTapDown: widget.enabled
-          ? (_) => setState(() => _isPressed = true)
-          : null,
-      onTapUp: widget.enabled
-          ? (_) => setState(() => _isPressed = false)
-          : null,
-      onTapCancel: widget.enabled
-          ? () => setState(() => _isPressed = false)
-          : null,
-      onTap: widget.enabled
-          ? () {
-              setState(() => _isPressed = false);
-              widget.onTap?.call();
-            }
-          : null,
+      onTap: enabled ? onTap : null,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          // Icon button
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+          Container(
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withOpacity(0.2), width: 1),
+              color: enabled ? color.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+              shape: BoxShape.circle,
             ),
-            child: Icon(widget.icon, color: color, size: 28),
+            child: Icon(
+              icon,
+              color: enabled ? color : Colors.grey,
+              size: 28,
+            ),
           ),
           const SizedBox(height: 8),
-          // Label
           Text(
-            widget.label,
+            label,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: widget.enabled
-                  ? Colors.grey.shade400
-                  : Colors.grey.shade700,
+              color: enabled ? null : Colors.grey,
             ),
           ),
         ],
@@ -168,16 +164,15 @@ Future<void> showModernAttachmentSheet(
   VoidCallback? onImageTap,
   VoidCallback? onDocumentTap,
   VoidCallback? onAudioTap,
-  // Legacy support for old parameter names
+  VoidCallback? onPollTap,
   @Deprecated('Use onDocumentTap instead') VoidCallback? onPdfTap,
   bool cameraEnabled = true,
   bool imageEnabled = true,
   bool documentEnabled = true,
   bool audioEnabled = true,
-  // Legacy support for old parameter names
+  bool pollEnabled = true,
   @Deprecated('Use documentEnabled instead') bool? pdfEnabled,
 }) {
-  // Use new parameter if provided, otherwise fall back to legacy
   final effectiveDocumentTap = onDocumentTap ?? onPdfTap;
   final effectiveDocumentEnabled = documentEnabled && (pdfEnabled ?? true);
 
@@ -212,10 +207,17 @@ Future<void> showModernAttachmentSheet(
               onAudioTap();
             }
           : null,
+      onPollTap: onPollTap != null
+          ? () {
+              Navigator.pop(context);
+              onPollTap();
+            }
+          : null,
       cameraEnabled: cameraEnabled,
       imageEnabled: imageEnabled,
       documentEnabled: effectiveDocumentEnabled,
       audioEnabled: audioEnabled,
+      pollEnabled: pollEnabled,
     ),
   );
 }

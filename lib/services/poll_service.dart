@@ -32,11 +32,22 @@ class PollService {
             .doc();
       } else if (chatType == 'group') {
         print('🟣 Using group path');
-        messageRef = _firestore
-            .collection('parent_teacher_groups')
-            .doc(chatId)
-            .collection('messages')
-            .doc();
+        // Group chat uses classes/{classId}/subjects/{subjectId}/messages
+        // chatId format: classId_subjectId
+        final parts = chatId.split('_');
+        if (parts.length == 2) {
+          messageRef = _firestore
+              .collection('classes')
+              .doc(parts[0])
+              .collection('subjects')
+              .doc(parts[1])
+              .collection('messages')
+              .doc();
+        } else {
+          throw Exception(
+            'Invalid group chat ID format. Expected: classId_subjectId',
+          );
+        }
       } else if (chatType == 'staff_room') {
         print('🟣 Using staff_room path');
         messageRef = _firestore
@@ -90,7 +101,17 @@ class PollService {
       if (chatType == 'community') {
         parentRef = _firestore.collection('communities').doc(chatId);
       } else if (chatType == 'group') {
-        parentRef = _firestore.collection('parent_teacher_groups').doc(chatId);
+        // Group chat uses classes/{classId}/subjects/{subjectId}
+        final parts = chatId.split('_');
+        if (parts.length == 2) {
+          parentRef = _firestore
+              .collection('classes')
+              .doc(parts[0])
+              .collection('subjects')
+              .doc(parts[1]);
+        } else {
+          return; // Skip update if format is invalid
+        }
       } else if (chatType == 'staff_room') {
         parentRef = _firestore.collection('staff_rooms').doc(chatId);
       } else {
@@ -122,11 +143,18 @@ class PollService {
           .collection('messages')
           .doc(messageId);
     } else if (chatType == 'group') {
-      messageRef = _firestore
-          .collection('parent_teacher_groups')
-          .doc(chatId)
-          .collection('messages')
-          .doc(messageId);
+      final parts = chatId.split('_');
+      if (parts.length == 2) {
+        messageRef = _firestore
+            .collection('classes')
+            .doc(parts[0])
+            .collection('subjects')
+            .doc(parts[1])
+            .collection('messages')
+            .doc(messageId);
+      } else {
+        throw Exception('Invalid group chat ID format');
+      }
     } else {
       messageRef = _firestore
           .collection('conversations')
@@ -162,11 +190,18 @@ class PollService {
           .collection('messages')
           .doc(messageId);
     } else if (chatType == 'group') {
-      messageRef = _firestore
-          .collection('parent_teacher_groups')
-          .doc(chatId)
-          .collection('messages')
-          .doc(messageId);
+      final parts = chatId.split('_');
+      if (parts.length == 2) {
+        messageRef = _firestore
+            .collection('classes')
+            .doc(parts[0])
+            .collection('subjects')
+            .doc(parts[1])
+            .collection('messages')
+            .doc(messageId);
+      } else {
+        throw Exception('Invalid group chat ID format');
+      }
     } else if (chatType == 'staff_room') {
       messageRef = _firestore
           .collection('staff_rooms')
@@ -293,12 +328,19 @@ class PollService {
             .doc(messageId)
             .get();
       } else if (chatType == 'group') {
-        snapshot = await _firestore
-            .collection('parent_teacher_groups')
-            .doc(chatId)
-            .collection('messages')
-            .doc(messageId)
-            .get();
+        final parts = chatId.split('_');
+        if (parts.length == 2) {
+          snapshot = await _firestore
+              .collection('classes')
+              .doc(parts[0])
+              .collection('subjects')
+              .doc(parts[1])
+              .collection('messages')
+              .doc(messageId)
+              .get();
+        } else {
+          throw Exception('Invalid group chat ID format');
+        }
       } else if (chatType == 'staff_room') {
         snapshot = await _firestore
             .collection('staff_rooms')

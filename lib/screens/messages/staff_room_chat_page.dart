@@ -1589,88 +1589,89 @@ class _MessageBubble extends StatelessWidget {
                         ),
                       ],
                       Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: hasAttachment && text.isEmpty ? 4 : 16,
-                      vertical: hasAttachment && text.isEmpty ? 4 : 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isMe
-                          ? primaryColor
-                          : theme.colorScheme.surfaceContainerHighest
-                              .withOpacity(
-                            0.7,
-                          ),
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMe ? 16 : 4),
-                        bottomRight: Radius.circular(isMe ? 4 : 16),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isForwarded) ...[
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.forward,
-                                size: 14,
-                                color: isMe ? Colors.white70 : Colors.black54,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Forwarded',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontStyle: FontStyle.italic,
-                                  color: isMe ? Colors.white70 : Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                        ],
-                        if (hasAttachment) ...[
-                          _buildAttachmentWidget(
-                            attachmentUrl,
-                            attachmentType ?? 'application/octet-stream',
-                            attachmentName,
-                            attachmentSize ?? 0,
-                            thumbnailUrl,
-                            isPending,
-                            messageId,
-                          ),
-                          if (text.isNotEmpty) const SizedBox(height: 8),
-                        ],
-                        if (text.isNotEmpty)
-                          Text(
-                            text,
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: isMe
-                                  ? Colors.white
-                                  : theme.textTheme.bodyLarge?.color,
-                            ),
-                          ),
-                        const SizedBox(height: 4),
-                        Text(
-                          timeStr,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isMe
-                                ? Colors.white.withOpacity(0.7)
-                                : theme.textTheme.bodyMedium?.color?.withOpacity(
-                                    0.5,
-                                  ),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: hasAttachment && text.isEmpty ? 4 : 16,
+                          vertical: hasAttachment && text.isEmpty ? 4 : 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isMe
+                              ? primaryColor
+                              : theme.colorScheme.surfaceContainerHighest
+                                    .withOpacity(0.7),
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(16),
+                            topRight: const Radius.circular(16),
+                            bottomLeft: Radius.circular(isMe ? 16 : 4),
+                            bottomRight: Radius.circular(isMe ? 4 : 16),
                           ),
                         ),
-                      ],
-                    ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (isForwarded) ...[
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.forward,
+                                    size: 14,
+                                    color: isMe
+                                        ? Colors.white70
+                                        : Colors.black54,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Forwarded',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                      color: isMe
+                                          ? Colors.white70
+                                          : Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                            ],
+                            if (hasAttachment) ...[
+                              _buildAttachmentWidget(
+                                attachmentUrl,
+                                attachmentType ?? 'application/octet-stream',
+                                attachmentName,
+                                attachmentSize ?? 0,
+                                thumbnailUrl,
+                                isPending,
+                                messageId,
+                              ),
+                              if (text.isNotEmpty) const SizedBox(height: 8),
+                            ],
+                            if (text.isNotEmpty)
+                              Text(
+                                text,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: isMe
+                                      ? Colors.white
+                                      : theme.textTheme.bodyLarge?.color,
+                                ),
+                              ),
+                            const SizedBox(height: 4),
+                            Text(
+                              timeStr,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isMe
+                                    ? Colors.white.withOpacity(0.7)
+                                    : theme.textTheme.bodyMedium?.color
+                                          ?.withOpacity(0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
           if (selectionMode && isMe)
             Padding(
               padding: const EdgeInsets.only(left: 8),

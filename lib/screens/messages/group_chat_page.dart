@@ -30,6 +30,9 @@ import '../../providers/unread_count_provider.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../widgets/multi_image_message_bubble.dart';
+import '../create_poll_screen.dart';
+import '../../widgets/poll_message_widget.dart';
+import '../../models/poll_model.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String classId;
@@ -2252,6 +2255,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
       onImageTap: _pickAndSendImage,
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
+      onPollTap: _navigateToPollScreen,
+    );
+  }
+
+  void _navigateToPollScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/create_poll'),
+        builder: (context) => CreatePollScreen(
+          chatId: '${widget.classId}_${widget.subjectId}',
+          chatType: 'group',
+        ),
+      ),
     );
   }
 
@@ -2459,8 +2475,16 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     ),
                   ),
+                // Check if this is a poll message - render it outside the bubble
+                if (message.type == 'poll')
+                  PollMessageWidget(
+                    poll: PollModel.fromMap(message.toMap(), message.id),
+                    chatId: '${message.classId}_${message.subjectId}',
+                    chatType: 'group',
+                    isOwnMessage: isMe,
+                  )
                 // Multiple media handling (WhatsApp-style grid) - NO outer bubble
-                if (message.multipleMedia != null &&
+                else if (message.multipleMedia != null &&
                     message.multipleMedia!.isNotEmpty)
                   Column(
                     crossAxisAlignment: isMe
