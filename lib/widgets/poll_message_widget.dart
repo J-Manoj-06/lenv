@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/poll_model.dart';
+import '../models/user_model.dart';
 import '../services/poll_service.dart';
 import '../core/constants/app_colors.dart';
 import '../providers/auth_provider.dart' as local_auth;
@@ -32,6 +33,32 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
   final PollService _pollService = PollService();
   String? _tappedOptionId;
   late AnimationController _animController;
+
+  Color _getAccentColor(UserRole? role) {
+    switch (role) {
+      case UserRole.teacher:
+        return AppColors.teacherColor;
+      case UserRole.student:
+        return AppColors.studentColor;
+      case UserRole.parent:
+        return AppColors.parentColor;
+      case UserRole.institute:
+      default:
+        return AppColors.insightsTeal;
+    }
+  }
+
+  Color _getAccentDark(Color color) {
+    return Color.lerp(color, Colors.black, 0.2) ?? color;
+  }
+
+  LinearGradient _getAccentGradient(Color base, Color dark) {
+    return LinearGradient(
+      colors: [base, dark],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+  }
 
   @override
   void initState() {
@@ -83,6 +110,10 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
       listen: false,
     );
     final currentUserId = authProvider.currentUser?.uid ?? '';
+    final currentUserRole = authProvider.currentUser?.role;
+    final accentColor = _getAccentColor(currentUserRole);
+    final accentDark = _getAccentDark(accentColor);
+    final accentGradient = _getAccentGradient(accentColor, accentDark);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Use real-time stream for live updates
@@ -108,6 +139,8 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
             totalVotes: totalVotes,
             currentUserId: currentUserId,
             isDark: isDark,
+            accentColor: accentColor,
+            accentGradient: accentGradient,
           ),
         );
       },
@@ -122,6 +155,8 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
     required int totalVotes,
     required String currentUserId,
     required bool isDark,
+    required Color accentColor,
+    required LinearGradient accentGradient,
   }) {
     final cardColor = isDark ? AppColors.surfaceCard : Colors.white;
 
@@ -132,7 +167,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
         border: Border.all(
           color: isDark
               ? AppColors.borderMedium
-              : AppColors.insightsTeal.withOpacity(0.15),
+              : accentColor.withOpacity(0.15),
           width: 1.5,
         ),
         boxShadow: [
@@ -149,7 +184,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header row: type badge + "You voted" indicator
-            _buildHeader(poll, hasVoted, isDark),
+            _buildHeader(poll, hasVoted, isDark, accentColor),
             const SizedBox(height: 12),
 
             // Question text
@@ -176,6 +211,8 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
                   allowMultiple: poll.allowMultiple,
                   currentUserId: currentUserId,
                   isDark: isDark,
+                  accentColor: accentColor,
+                  accentGradient: accentGradient,
                 ),
               );
             }),
@@ -191,17 +228,19 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
   }
 
   // Header with type badge and "You voted" indicator
-  Widget _buildHeader(PollModel poll, bool hasVoted, bool isDark) {
+  Widget _buildHeader(
+    PollModel poll,
+    bool hasVoted,
+    bool isDark,
+    Color accentColor,
+  ) {
     return Row(
       children: [
         // Type badge: SINGLE CHOICE / MULTIPLE CHOICE
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            border: Border.all(
-              color: AppColors.insightsTeal.withOpacity(0.4),
-              width: 1,
-            ),
+            border: Border.all(color: accentColor.withOpacity(0.4), width: 1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -212,15 +251,15 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
                     ? Icons.check_box_outlined
                     : Icons.radio_button_checked_outlined,
                 size: 14,
-                color: AppColors.insightsTeal,
+                color: accentColor,
               ),
               const SizedBox(width: 6),
               Text(
                 poll.allowMultiple ? 'MULTIPLE CHOICE' : 'SINGLE CHOICE',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.insightsTeal,
+                  color: accentColor,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -283,6 +322,8 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
     required bool allowMultiple,
     required String currentUserId,
     required bool isDark,
+    required Color accentColor,
+    required LinearGradient accentGradient,
   }) {
     final label = String.fromCharCode(65 + index); // A, B, C, ...
     final isTapped = _tappedOptionId == option.id;
@@ -318,15 +359,15 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
           decoration: BoxDecoration(
             color: isSelected
                 ? (isDark
-                      ? AppColors.insightsTeal.withOpacity(0.12)
-                      : AppColors.insightsTeal.withOpacity(0.08))
+                      ? accentColor.withOpacity(0.12)
+                      : accentColor.withOpacity(0.08))
                 : (isDark
                       ? AppColors.surfaceDark.withOpacity(0.5)
                       : Colors.grey.shade50),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
-                  ? AppColors.insightsTeal
+                  ? accentColor
                   : (isDark ? AppColors.borderSubtle : Colors.grey.shade300),
               width: isSelected ? 2 : 1,
             ),
@@ -347,7 +388,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
                       height: 32,
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppColors.insightsTeal
+                            ? accentColor
                             : (isDark
                                   ? AppColors.textMuted.withOpacity(0.2)
                                   : Colors.grey.shade300),
@@ -381,9 +422,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
                               ? FontWeight.w600
                               : FontWeight.w500,
                           color: isSelected
-                              ? (isDark
-                                    ? AppColors.textOnDark
-                                    : AppColors.insightsTeal)
+                              ? (isDark ? AppColors.textOnDark : accentColor)
                               : (isDark
                                     ? AppColors.textOnDark
                                     : AppColors.textPrimary),
@@ -399,7 +438,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.insightsTeal
+                              ? accentColor
                               : (isDark
                                     ? AppColors.textMuted.withOpacity(0.2)
                                     : Colors.grey.shade200),
@@ -446,7 +485,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
                             0.8, // Approximate width
                         decoration: BoxDecoration(
                           gradient: isSelected
-                              ? AppColors.insightsTealGradient
+                              ? accentGradient
                               : LinearGradient(
                                   colors: [
                                     AppColors.textMuted.withOpacity(0.5),

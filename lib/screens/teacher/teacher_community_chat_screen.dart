@@ -35,6 +35,7 @@ import '../../widgets/modern_attachment_sheet.dart';
 import '../../models/media_metadata.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
+import '../../core/constants/app_colors.dart';
 
 class TeacherCommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -792,6 +793,7 @@ class _TeacherCommunityChatScreenState
       onPollTap: _navigateToPollScreen,
       cameraEnabled: widget.community.allowImages,
       imageEnabled: widget.community.allowImages,
+      color: AppColors.teacherColor,
     );
   }
 

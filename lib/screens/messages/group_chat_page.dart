@@ -27,6 +27,8 @@ import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
+import '../../core/constants/app_colors.dart';
+import '../../models/user_model.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../widgets/multi_image_message_bubble.dart';
@@ -59,6 +61,20 @@ class GroupChatPage extends StatefulWidget {
 }
 
 class _GroupChatPageState extends State<GroupChatPage> {
+  Color _getAccentColor(UserRole? role) {
+    switch (role) {
+      case UserRole.teacher:
+        return AppColors.teacherColor;
+      case UserRole.student:
+        return AppColors.studentColor;
+      case UserRole.parent:
+        return AppColors.parentColor;
+      case UserRole.institute:
+      default:
+        return AppColors.insightsTeal;
+    }
+  }
+
   final GroupMessagingService _messagingService = GroupMessagingService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -2251,6 +2267,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   void _showMediaOptions() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final accentColor = _getAccentColor(authProvider.currentUser?.role);
     showModernAttachmentSheet(
       context,
       onCameraTap: _pickAndSendCamera,
@@ -2258,7 +2276,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
       onPollTap: _navigateToPollScreen,
-      color: const Color(0xFFFFA929),
+      color: accentColor,
     );
   }
 

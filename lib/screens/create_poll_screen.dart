@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/poll_model.dart';
+import '../models/user_model.dart';
 import '../services/poll_service.dart';
 import '../core/constants/app_colors.dart';
 import '../providers/auth_provider.dart' as local_auth;
@@ -33,7 +34,6 @@ class _CreatePollScreenState extends State<CreatePollScreen>
   ];
 
   bool _allowMultiple = false;
-  bool _anonymousVotes = false;
   bool _isSending = false;
   String? _errorMessage;
 
@@ -41,6 +41,32 @@ class _CreatePollScreenState extends State<CreatePollScreen>
   final int _maxOptions = 6;
 
   late AnimationController _animController;
+
+  Color _getAccentColor(UserRole? role) {
+    switch (role) {
+      case UserRole.teacher:
+        return AppColors.teacherColor;
+      case UserRole.student:
+        return AppColors.studentColor;
+      case UserRole.parent:
+        return AppColors.parentColor;
+      case UserRole.institute:
+      default:
+        return AppColors.insightsTeal;
+    }
+  }
+
+  Color _getAccentDark(Color color) {
+    return Color.lerp(color, Colors.black, 0.2) ?? color;
+  }
+
+  LinearGradient _getAccentGradient(Color base, Color dark) {
+    return LinearGradient(
+      colors: [base, dark],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+  }
 
   @override
   void initState() {
@@ -172,77 +198,101 @@ class _CreatePollScreenState extends State<CreatePollScreen>
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<local_auth.AuthProvider>(
+      context,
+      listen: false,
+    );
+    final currentUserRole = authProvider.currentUser?.role;
+    final accentColor = _getAccentColor(currentUserRole);
+    final accentDark = _getAccentDark(accentColor);
+    final accentGradient = _getAccentGradient(accentColor, accentDark);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? AppColors.surfaceDark : AppColors.background;
     final cardColor = isDark ? AppColors.surfaceCard : Colors.white;
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      // Premium header with centered title
-      appBar: AppBar(
-        backgroundColor: isDark
-            ? AppColors.surfaceDark
-            : AppColors.insightsTeal,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.pop(context),
-          color: isDark ? AppColors.textOnDark : Colors.white,
-        ),
-        title: Text(
-          'Create Poll',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: isDark ? AppColors.textOnDark : Colors.white,
+    return WillPopScope(
+      onWillPop: () async {
+        final navigator = Navigator.of(context);
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
+        return false;
+      },
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          textSelectionTheme: TextSelectionThemeData(
+            cursorColor: accentColor,
+            selectionColor: accentColor.withOpacity(0.25),
+            selectionHandleColor: accentColor,
           ),
         ),
-      ),
-      body: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            // Scrollable content
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16), // Outer padding 16px
-                children: [
-                  // Question input - large rounded field
-                  _buildQuestionField(isDark, cardColor),
-                  const SizedBox(height: 24), // Vertical rhythm 24px
-                  // Options header
-                  _buildOptionsHeader(),
-                  const SizedBox(height: 12),
-
-                  // Options list
-                  ..._buildOptionsList(isDark, cardColor),
-
-                  // Add option button
-                  if (_optionControllers.length < _maxOptions)
-                    _buildAddOptionButton(isDark),
-                  const SizedBox(height: 24),
-
-                  // Controls (toggles)
-                  _buildControls(isDark, cardColor),
-                  const SizedBox(height: 16),
-
-                  // Validation hint
-                  if (_errorMessage != null) _buildErrorMessage(),
-                ],
+        child: Scaffold(
+          backgroundColor: bgColor,
+          // Premium header with centered title
+          appBar: AppBar(
+            backgroundColor: isDark ? AppColors.surfaceDark : accentColor,
+            elevation: 0,
+            centerTitle: true,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+              onPressed: () => Navigator.of(context).maybePop(),
+              color: isDark ? AppColors.textOnDark : Colors.white,
+            ),
+            title: Text(
+              'Create Poll',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.textOnDark : Colors.white,
               ),
             ),
+          ),
+          body: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                // Scrollable content
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.all(16), // Outer padding 16px
+                    children: [
+                      // Question input - large rounded field
+                      _buildQuestionField(isDark, cardColor, accentColor),
+                      const SizedBox(height: 24), // Vertical rhythm 24px
+                      // Options header
+                      _buildOptionsHeader(accentColor),
+                      const SizedBox(height: 12),
 
-            // Sticky bottom bar with blur/elevation
-            _buildBottomBar(isDark),
-          ],
+                      // Options list
+                      ..._buildOptionsList(isDark, cardColor, accentColor),
+
+                      // Add option button
+                      if (_optionControllers.length < _maxOptions)
+                        _buildAddOptionButton(isDark, accentColor),
+                      const SizedBox(height: 24),
+
+                      // Controls (toggles)
+                      _buildControls(isDark, cardColor, accentColor),
+                      const SizedBox(height: 16),
+
+                      // Validation hint
+                      if (_errorMessage != null) _buildErrorMessage(),
+                    ],
+                  ),
+                ),
+
+                // Sticky bottom bar with blur/elevation
+                _buildBottomBar(isDark, accentColor, accentGradient),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
   // Question field with icon, counter, premium styling
-  Widget _buildQuestionField(bool isDark, Color cardColor) {
+  Widget _buildQuestionField(bool isDark, Color cardColor, Color accentColor) {
     final charCount = _questionController.text.length;
     return Container(
       decoration: BoxDecoration(
@@ -280,9 +330,20 @@ class _CreatePollScreenState extends State<CreatePollScreen>
                 color: isDark ? AppColors.textMuted : Colors.grey.shade500,
                 fontSize: 15,
               ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: accentColor, width: 1.5),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
+                  width: 1,
+                ),
+              ),
               prefixIcon: Icon(
                 Icons.poll_outlined,
-                color: AppColors.insightsTeal,
+                color: accentColor,
                 size: 22,
               ),
               border: InputBorder.none,
@@ -310,7 +371,7 @@ class _CreatePollScreenState extends State<CreatePollScreen>
     );
   }
 
-  Widget _buildOptionsHeader() {
+  Widget _buildOptionsHeader(Color accentColor) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -327,15 +388,15 @@ class _CreatePollScreenState extends State<CreatePollScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: AppColors.insightsTeal.withOpacity(0.1),
+            color: accentColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             '${_optionControllers.length}/$_maxOptions',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppColors.insightsTeal,
+              color: accentColor,
             ),
           ),
         ),
@@ -343,7 +404,11 @@ class _CreatePollScreenState extends State<CreatePollScreen>
     );
   }
 
-  List<Widget> _buildOptionsList(bool isDark, Color cardColor) {
+  List<Widget> _buildOptionsList(
+    bool isDark,
+    Color cardColor,
+    Color accentColor,
+  ) {
     return _optionControllers.asMap().entries.map((entry) {
       final index = entry.key;
       final controller = entry.value;
@@ -357,6 +422,7 @@ class _CreatePollScreenState extends State<CreatePollScreen>
           controller: controller,
           isDark: isDark,
           cardColor: cardColor,
+          accentColor: accentColor,
         ),
       );
     }).toList();
@@ -369,6 +435,7 @@ class _CreatePollScreenState extends State<CreatePollScreen>
     required TextEditingController controller,
     required bool isDark,
     required Color cardColor,
+    required Color accentColor,
   }) {
     final charCount = controller.text.length;
     return Container(
@@ -396,16 +463,16 @@ class _CreatePollScreenState extends State<CreatePollScreen>
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: AppColors.insightsTeal.withOpacity(0.12),
+              color: accentColor.withOpacity(0.12),
               shape: BoxShape.circle,
             ),
             child: Center(
               child: Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.insightsTeal,
+                  color: accentColor,
                 ),
               ),
             ),
@@ -430,6 +497,19 @@ class _CreatePollScreenState extends State<CreatePollScreen>
                       color: isDark
                           ? AppColors.textMuted
                           : Colors.grey.shade500,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: accentColor, width: 1.5),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: isDark
+                            ? AppColors.borderSubtle
+                            : Colors.grey.shade300,
+                        width: 1,
+                      ),
                     ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -478,17 +558,15 @@ class _CreatePollScreenState extends State<CreatePollScreen>
     );
   }
 
-  Widget _buildAddOptionButton(bool isDark) {
+  Widget _buildAddOptionButton(bool isDark, Color accentColor) {
     return OutlinedButton.icon(
       onPressed: _addOption,
       icon: const Icon(Icons.add, size: 18),
       label: const Text('Add Option'),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.insightsTeal,
+        foregroundColor: accentColor,
         side: BorderSide(
-          color: isDark
-              ? AppColors.borderMedium
-              : AppColors.insightsTeal.withOpacity(0.3),
+          color: isDark ? AppColors.borderMedium : accentColor.withOpacity(0.3),
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -496,7 +574,7 @@ class _CreatePollScreenState extends State<CreatePollScreen>
     );
   }
 
-  Widget _buildControls(bool isDark, Color cardColor) {
+  Widget _buildControls(bool isDark, Color cardColor, Color accentColor) {
     return Column(
       children: [
         // Allow multiple answers toggle
@@ -525,7 +603,7 @@ class _CreatePollScreenState extends State<CreatePollScreen>
               ),
             ),
             value: _allowMultiple,
-            activeThumbColor: AppColors.insightsTeal,
+            activeThumbColor: accentColor,
             onChanged: (value) {
               setState(() {
                 _allowMultiple = value;
@@ -534,40 +612,6 @@ class _CreatePollScreenState extends State<CreatePollScreen>
           ),
         ),
         const SizedBox(height: 12),
-        // Anonymous votes toggle (optional)
-        Container(
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
-            ),
-          ),
-          child: SwitchListTile(
-            title: Text(
-              'Anonymous votes',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: isDark ? AppColors.textOnDark : AppColors.textPrimary,
-              ),
-            ),
-            subtitle: Text(
-              'Hide voter identities',
-              style: TextStyle(
-                fontSize: 13,
-                color: isDark ? AppColors.textMuted : Colors.grey.shade600,
-              ),
-            ),
-            value: _anonymousVotes,
-            activeThumbColor: AppColors.insightsTeal,
-            onChanged: (value) {
-              setState(() {
-                _anonymousVotes = value;
-              });
-            },
-          ),
-        ),
       ],
     );
   }
@@ -603,7 +647,11 @@ class _CreatePollScreenState extends State<CreatePollScreen>
   }
 
   // Sticky bottom bar with blur, elevation, buttons
-  Widget _buildBottomBar(bool isDark) {
+  Widget _buildBottomBar(
+    bool isDark,
+    Color accentColor,
+    LinearGradient accentGradient,
+  ) {
     final isValid = _isValid();
     return Container(
       decoration: BoxDecoration(
@@ -633,10 +681,10 @@ class _CreatePollScreenState extends State<CreatePollScreen>
               child: OutlinedButton(
                 onPressed: isValid ? () {} : null, // Preview action (UI only)
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.insightsTeal,
+                  foregroundColor: accentColor,
                   side: BorderSide(
                     color: isValid
-                        ? AppColors.insightsTeal
+                        ? accentColor
                         : (isDark ? AppColors.textMuted : Colors.grey.shade400),
                   ),
                   shape: RoundedRectangleBorder(
@@ -650,7 +698,7 @@ class _CreatePollScreenState extends State<CreatePollScreen>
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: isValid
-                        ? AppColors.insightsTeal
+                        ? accentColor
                         : (isDark ? AppColors.textMuted : Colors.grey),
                   ),
                 ),
@@ -678,9 +726,7 @@ class _CreatePollScreenState extends State<CreatePollScreen>
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(
-                      gradient: isValid && !_isSending
-                          ? AppColors.insightsTealGradient
-                          : null,
+                      gradient: isValid && !_isSending ? accentGradient : null,
                       color: isValid && !_isSending
                           ? null
                           : (isDark
@@ -690,7 +736,7 @@ class _CreatePollScreenState extends State<CreatePollScreen>
                       boxShadow: isValid && !_isSending
                           ? [
                               BoxShadow(
-                                color: AppColors.insightsTeal.withOpacity(0.3),
+                                color: accentColor.withOpacity(0.3),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
