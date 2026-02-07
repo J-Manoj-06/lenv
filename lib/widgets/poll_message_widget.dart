@@ -130,17 +130,28 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
         final hasVoted = poll.hasUserVotedAny(currentUserId);
         final totalVotes = poll.totalVotes;
 
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-          child: _buildPollCard(
-            poll: poll,
-            hasVoted: hasVoted,
-            userVotes: userVotes,
-            totalVotes: totalVotes,
-            currentUserId: currentUserId,
-            isDark: isDark,
-            accentColor: accentColor,
-            accentGradient: accentGradient,
+        return Align(
+          alignment: widget.isOwnMessage
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
+          child: Container(
+            margin: EdgeInsets.only(
+              top: 6,
+              bottom: 6,
+              left: widget.isOwnMessage ? 80 : 0,
+              right: widget.isOwnMessage ? 0 : 40,
+            ),
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: _buildPollCard(
+              poll: poll,
+              hasVoted: hasVoted,
+              userVotes: userVotes,
+              totalVotes: totalVotes,
+              currentUserId: currentUserId,
+              isDark: isDark,
+              accentColor: accentColor,
+              accentGradient: accentGradient,
+            ),
           ),
         );
       },

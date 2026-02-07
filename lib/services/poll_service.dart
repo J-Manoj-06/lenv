@@ -48,6 +48,13 @@ class PollService {
             'Invalid group chat ID format. Expected: classId_subjectId',
           );
         }
+      } else if (chatType == 'ptGroup') {
+        print('🟣 Using parent_teacher_groups path');
+        messageRef = _firestore
+            .collection('parent_teacher_groups')
+            .doc(chatId)
+            .collection('messages')
+            .doc();
       } else if (chatType == 'staff_room') {
         print('🟣 Using staff_room path');
         messageRef = _firestore
@@ -112,16 +119,25 @@ class PollService {
         } else {
           return; // Skip update if format is invalid
         }
+      } else if (chatType == 'ptGroup') {
+        parentRef = _firestore.collection('parent_teacher_groups').doc(chatId);
       } else if (chatType == 'staff_room') {
         parentRef = _firestore.collection('staff_rooms').doc(chatId);
       } else {
         parentRef = _firestore.collection('conversations').doc(chatId);
       }
 
-      await parentRef.update({
-        'lastMessage': 'Poll: $question',
-        'lastTimestamp': FieldValue.serverTimestamp(),
-      });
+      if (chatType == 'ptGroup') {
+        await parentRef.update({
+          'lastMessage': 'Poll: $question',
+          'lastMessageAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await parentRef.update({
+          'lastMessage': 'Poll: $question',
+          'lastTimestamp': FieldValue.serverTimestamp(),
+        });
+      }
     } catch (e) {
       // Non-critical error - poll was sent successfully
       print('Warning: Failed to update last message: $e');
@@ -155,6 +171,12 @@ class PollService {
       } else {
         throw Exception('Invalid group chat ID format');
       }
+    } else if (chatType == 'ptGroup') {
+      messageRef = _firestore
+          .collection('parent_teacher_groups')
+          .doc(chatId)
+          .collection('messages')
+          .doc(messageId);
     } else {
       messageRef = _firestore
           .collection('conversations')
@@ -202,6 +224,12 @@ class PollService {
       } else {
         throw Exception('Invalid group chat ID format');
       }
+    } else if (chatType == 'ptGroup') {
+      messageRef = _firestore
+          .collection('parent_teacher_groups')
+          .doc(chatId)
+          .collection('messages')
+          .doc(messageId);
     } else if (chatType == 'staff_room') {
       messageRef = _firestore
           .collection('staff_rooms')

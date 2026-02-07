@@ -1458,7 +1458,7 @@ class _MessageBubble extends StatelessWidget {
     String timeStr = '';
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
     timeStr = DateFormat('HH:mm').format(date);
-  
+
     final roleColor = senderRole == 'principal'
         ? primaryColor
         : const Color(0xFFF97316); // Orange for teachers
@@ -1525,11 +1525,19 @@ class _MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ],
-                      PollMessageWidget(
-                        poll: PollModel.fromMap(message, messageId),
-                        chatId: staffRoomId,
-                        chatType: 'staff_room',
-                        isOwnMessage: isMe,
+                      SizedBox(
+                        width: double.infinity,
+                        child: Align(
+                          alignment: isMe
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: PollMessageWidget(
+                            poll: PollModel.fromMap(message, messageId),
+                            chatId: staffRoomId,
+                            chatType: 'staff_room',
+                            isOwnMessage: isMe,
+                          ),
+                        ),
                       ),
                     ],
                   ),

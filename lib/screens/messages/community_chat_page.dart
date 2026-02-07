@@ -2047,11 +2047,19 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 // Check if this is a poll message
                 if (message.type == 'poll')
-                  PollMessageWidget(
-                    poll: PollModel.fromMap(message.toMap(), message.id),
-                    chatId: communityId,
-                    chatType: 'community',
-                    isOwnMessage: isMe,
+                  SizedBox(
+                    width: double.infinity,
+                    child: Align(
+                      alignment: isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: PollMessageWidget(
+                        poll: PollModel.fromMap(message.toMap(), message.id),
+                        chatId: communityId,
+                        chatType: 'community',
+                        isOwnMessage: isMe,
+                      ),
+                    ),
                   )
                 else if (message.multipleMedia != null &&
                     message.multipleMedia!.isNotEmpty) ...[

@@ -1904,14 +1904,22 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     ),
                   // Check if this is a poll message - render it outside the bubble
                   if (message.type == 'poll')
-                    PollMessageWidget(
-                      poll: PollModel.fromMap(
-                        message.toMap(),
-                        message.messageId,
+                    SizedBox(
+                      width: double.infinity,
+                      child: Align(
+                        alignment: isCurrentUser
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: PollMessageWidget(
+                          poll: PollModel.fromMap(
+                            message.toMap(),
+                            message.messageId,
+                          ),
+                          chatId: widget.community.id,
+                          chatType: 'community',
+                          isOwnMessage: isCurrentUser,
+                        ),
                       ),
-                      chatId: widget.community.id,
-                      chatType: 'community',
-                      isOwnMessage: isCurrentUser,
                     )
                   else
                     Stack(

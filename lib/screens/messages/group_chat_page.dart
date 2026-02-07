@@ -2502,11 +2502,19 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 // Check if this is a poll message - render it outside the bubble
                 if (message.type == 'poll')
-                  PollMessageWidget(
-                    poll: PollModel.fromMap(message.toMap(), message.id),
-                    chatId: '${classId}_$subjectId',
-                    chatType: 'group',
-                    isOwnMessage: isMe,
+                  SizedBox(
+                    width: double.infinity,
+                    child: Align(
+                      alignment: isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: PollMessageWidget(
+                        poll: PollModel.fromMap(message.toMap(), message.id),
+                        chatId: '${classId}_$subjectId',
+                        chatType: 'group',
+                        isOwnMessage: isMe,
+                      ),
+                    ),
                   )
                 // Multiple media handling (WhatsApp-style grid) - NO outer bubble
                 else if (message.multipleMedia != null &&

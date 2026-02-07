@@ -27,6 +27,9 @@ import '../../services/parent_teacher_group_service.dart';
 import '../../services/unread_count_service.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
+import '../create_poll_screen.dart';
+import '../../widgets/poll_message_widget.dart';
+import '../../models/poll_model.dart';
 import '../common/announcement_view_screen.dart';
 
 class ParentSectionGroupChatScreen extends StatefulWidget {
@@ -734,6 +737,36 @@ class _ParentSectionGroupChatScreenState
                           );
                         }
 
+                        if (msg.type == 'poll') {
+                          final data =
+                              msg.documentSnapshot?.data()
+                                  as Map<String, dynamic>?;
+                          if (data != null) {
+                            final poll = PollModel.fromMap(data, msg.messageId);
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (showDayDivider)
+                                  _buildDayDivider(currentDate),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: Align(
+                                    alignment: isCurrentUser
+                                        ? Alignment.centerRight
+                                        : Alignment.centerLeft,
+                                    child: PollMessageWidget(
+                                      poll: poll,
+                                      chatId: widget.groupId,
+                                      chatType: 'ptGroup',
+                                      isOwnMessage: isCurrentUser,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+                        }
+
                         // Skip deleted messages
                         if (msg.isDeleted) {
                           return const SizedBox.shrink();
@@ -1359,12 +1392,27 @@ class _ParentSectionGroupChatScreenState
   }
 
   void _showAttachmentSheet() {
+    final primaryColor = widget.senderRole == 'teacher'
+        ? teacherViolet
+        : parentGreen;
     showModernAttachmentSheet(
       context,
       onCameraTap: _pickAndSendCamera,
       onImageTap: _pickAndSendImage,
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudioFile,
+      onPollTap: _navigateToPollScreen,
+      color: primaryColor,
+    );
+  }
+
+  void _navigateToPollScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/create_poll'),
+        builder: (context) =>
+            CreatePollScreen(chatId: widget.groupId, chatType: 'ptGroup'),
+      ),
     );
   }
 
