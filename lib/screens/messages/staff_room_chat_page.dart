@@ -1186,63 +1186,106 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     }
 
     // Normal input UI
+    final hintColor = isDark ? Colors.white60 : const Color(0xFF94A3B8);
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        border: isDark
+            ? null
+            : const Border(
+                top: BorderSide(color: Color(0xFFE2E8F0), width: 0.5),
+              ),
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, -4),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
+                ),
+              ],
       ),
       child: SafeArea(
-        child: Column(
+        top: false,
+        child: Row(
           children: [
-            if (_isUploading)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: LinearProgressIndicator(
-                  value: _uploadProgress / 100,
-                  backgroundColor: Colors.grey[300],
-                  valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+            // Text Input with emoji button inside
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1F2C34)
+                      : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(24),
                 ),
-              ),
-            Row(
-              children: [
-                IconButton(
-                  icon: Icon(Icons.attach_file, color: primaryColor),
-                  onPressed: _isUploading ? null : _showAttachmentPicker,
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      filled: true,
-                      fillColor: theme.colorScheme.surfaceContainerHighest
-                          .withOpacity(0.5),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.sentiment_satisfied_outlined,
+                        color: hintColor,
+                        size: 26,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                      padding: const EdgeInsets.all(8),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Emoji picker coming soon'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF0F172A),
+                          fontSize: 16,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Message',
+                          hintStyle: TextStyle(color: hintColor),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
+                        ),
+                        maxLines: null,
+                        enabled: !_isUploading,
+                        textCapitalization: TextCapitalization.sentences,
+                        textInputAction: TextInputAction.send,
+                        onChanged: (_) => setState(() {}),
+                        onSubmitted: (_) => _sendMessage(),
                       ),
                     ),
-                    maxLines: null,
-                    enabled: !_isUploading,
-                    textCapitalization: TextCapitalization.sentences,
-                    onSubmitted: (_) => _sendMessage(),
-                    onChanged: (_) => setState(() {}),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                // Show send button when text is typed, otherwise mic button
-                GestureDetector(
+              ),
+            ),
+            const SizedBox(width: 6),
+            IconButton(
+              icon: Icon(Icons.attach_file, color: hintColor, size: 26),
+              padding: const EdgeInsets.all(8),
+              onPressed: _isUploading ? null : _showAttachmentPicker,
+            ),
+            const SizedBox(width: 8),
+            // Mic/Send button
+            ValueListenableBuilder<int>(
+              valueListenable: _recordingDuration,
+              builder: (context, duration, _) {
+                return GestureDetector(
                   onTap: _isUploading
                       ? null
                       : _messageController.text.trim().isNotEmpty
@@ -1301,23 +1344,45 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                             print('❌ Error starting recording: $e');
                           }
                         },
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: _isUploading ? Colors.grey : primaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _messageController.text.trim().isNotEmpty
-                          ? Icons.send
-                          : Icons.mic,
-                      color: Colors.white,
-                      size: 22,
+                  child: Opacity(
+                    opacity: _isUploading ? 0.5 : 1.0,
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: _isRecording ? Colors.red : primaryColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _isUploading
+                          ? const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              icon: Icon(
+                                _messageController.text.trim().isNotEmpty
+                                    ? Icons.send_rounded
+                                    : (_isRecording
+                                          ? Icons.send_rounded
+                                          : Icons.mic),
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                              padding: EdgeInsets.zero,
+                              onPressed: null,
+                            ),
                     ),
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ],
         ),
