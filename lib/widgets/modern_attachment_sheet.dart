@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Modern, colorful attachment picker bottom sheet
-/// Teacher theme with violet/purple color palette
+/// Supports custom color themes (violet for teachers, orange for students)
 class ModernAttachmentSheet extends StatelessWidget {
   final VoidCallback? onCameraTap;
   final VoidCallback? onImageTap;
@@ -13,6 +13,7 @@ class ModernAttachmentSheet extends StatelessWidget {
   final bool documentEnabled;
   final bool audioEnabled;
   final bool pollEnabled;
+  final Color color;
 
   const ModernAttachmentSheet({
     super.key,
@@ -26,6 +27,7 @@ class ModernAttachmentSheet extends StatelessWidget {
     this.documentEnabled = true,
     this.audioEnabled = true,
     this.pollEnabled = true,
+    this.color = const Color(0xFF7C3AED),
   });
 
   @override
@@ -52,7 +54,7 @@ class ModernAttachmentSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Title
           const Text(
             'Send Attachment',
@@ -67,35 +69,35 @@ class ModernAttachmentSheet extends StatelessWidget {
               _AttachmentOption(
                 icon: Icons.camera_alt,
                 label: 'Camera',
-                color: const Color(0xFF7C3AED),
+                color: color,
                 enabled: cameraEnabled,
                 onTap: onCameraTap,
               ),
               _AttachmentOption(
                 icon: Icons.image,
                 label: 'Gallery',
-                color: const Color(0xFF7C3AED),
+                color: color,
                 enabled: imageEnabled,
                 onTap: onImageTap,
               ),
               _AttachmentOption(
                 icon: Icons.picture_as_pdf,
                 label: 'Document',
-                color: const Color(0xFF7C3AED),
+                color: color,
                 enabled: documentEnabled,
                 onTap: onDocumentTap,
               ),
               _AttachmentOption(
                 icon: Icons.audiotrack,
                 label: 'Audio',
-                color: const Color(0xFF7C3AED),
+                color: color,
                 enabled: audioEnabled,
                 onTap: onAudioTap,
               ),
               _AttachmentOption(
                 icon: Icons.poll,
                 label: 'Poll',
-                color: const Color(0xFF7C3AED),
+                color: color,
                 enabled: pollEnabled,
                 onTap: onPollTap,
               ),
@@ -133,14 +135,12 @@ class _AttachmentOption extends StatelessWidget {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: enabled ? color.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+              color: enabled
+                  ? color.withOpacity(0.1)
+                  : Colors.grey.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              color: enabled ? color : Colors.grey,
-              size: 28,
-            ),
+            child: Icon(icon, color: enabled ? color : Colors.grey, size: 28),
           ),
           const SizedBox(height: 8),
           Text(
@@ -172,6 +172,7 @@ Future<void> showModernAttachmentSheet(
   bool audioEnabled = true,
   bool pollEnabled = true,
   @Deprecated('Use documentEnabled instead') bool? pdfEnabled,
+  Color color = const Color(0xFF7C3AED),
 }) {
   final effectiveDocumentTap = onDocumentTap ?? onPdfTap;
   final effectiveDocumentEnabled = documentEnabled && (pdfEnabled ?? true);
@@ -218,6 +219,7 @@ Future<void> showModernAttachmentSheet(
       documentEnabled: effectiveDocumentEnabled,
       audioEnabled: audioEnabled,
       pollEnabled: pollEnabled,
+      color: color,
     ),
   );
 }

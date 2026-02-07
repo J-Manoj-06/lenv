@@ -18,6 +18,9 @@ import '../../utils/link_utils.dart';
 import '../../models/community_model.dart';
 import '../../models/community_message_model.dart';
 import '../../providers/student_provider.dart';
+import '../create_poll_screen.dart';
+import '../../widgets/poll_message_widget.dart';
+import '../../models/poll_model.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../services/community_service.dart';
 import '../../utils/chat_type_config.dart';
@@ -410,8 +413,22 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       onImageTap: _pickAndSendImages,
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
+      onPollTap: _navigateToPollScreen,
       cameraEnabled: widget.community.allowImages,
       imageEnabled: widget.community.allowImages,
+      color: const Color(0xFFFFA929),
+    );
+  }
+
+  void _navigateToPollScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/create_poll'),
+        builder: (context) => CreatePollScreen(
+          chatId: widget.community.id,
+          chatType: 'community',
+        ),
+      ),
     );
   }
 
@@ -1885,173 +1902,188 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                         ),
                       ),
                     ),
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Multi-image grid bubble
-                      if (message.multipleMedia != null &&
-                          message.multipleMedia!.isNotEmpty)
-                        MultiImageMessageBubble(
-                          imageUrls: message.multipleMedia!
-                              .map(
-                                (m) => m.localPath?.isNotEmpty == true
-                                    ? m.localPath!
-                                    : (m.publicUrl.isNotEmpty
-                                          ? m.publicUrl
-                                          : m.thumbnail),
-                              )
-                              .toList(),
-                          isMe: isCurrentUser,
-                          uploadProgress: message.multipleMedia!
-                              .map((m) => _pendingUploadProgress[m.messageId])
-                              .toList(),
-                          onImageTap: (index) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => _ImageGalleryViewer(
-                                  mediaList: message.multipleMedia!,
-                                  initialIndex: index,
-                                  localSenderMediaPaths: _localSenderMediaPaths,
-                                  isMe: isCurrentUser,
-                                ),
-                              ),
-                            );
-                          },
-                        )
-                      else
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal:
-                                message.mediaMetadata != null &&
-                                    message.content.isEmpty
-                                ? 4
-                                : 14,
-                            vertical:
-                                message.mediaMetadata != null &&
-                                    message.content.isEmpty
-                                ? 4
-                                : 11,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isCurrentUser
-                                ? const Color(0xFFFFE8D1)
-                                : const Color(0xFF1A1D21),
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(
-                                isCurrentUser ? 16 : 4,
-                              ),
-                              bottomRight: Radius.circular(
-                                isCurrentUser ? 4 : 16,
-                              ),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Media with metadata (images, PDFs, audio)
-                              if (message.mediaMetadata != null) ...[
-                                MediaPreviewCard(
-                                  r2Key: message.mediaMetadata!.r2Key,
-                                  fileName: _getFileNameFromMetadata(
-                                    message.mediaMetadata!,
-                                  ),
-                                  mimeType:
-                                      message.mediaMetadata!.mimeType ??
-                                      'application/octet-stream',
-                                  fileSize:
-                                      message.mediaMetadata!.fileSize ?? 0,
-                                  thumbnailBase64:
-                                      message.mediaMetadata!.thumbnail,
-                                  isMe: isCurrentUser,
-                                  uploading: isUploading,
-                                  uploadProgress: uploadProgress,
-                                  selectionMode: _isSelectionMode,
-                                ),
-                                if (message.content.isNotEmpty)
-                                  const SizedBox(height: 8),
-                              ],
-                              // Text content
-                              if (message.content.isNotEmpty)
-                                Linkify(
-                                  onOpen: (link) async {
-                                    final uri = Uri.parse(link.url);
-                                    if (await canLaunchUrl(uri)) {
-                                      await launchUrl(
-                                        uri,
-                                        mode: LaunchMode.externalApplication,
-                                      );
-                                    }
-                                  },
-                                  text: LinkUtils.addProtocolToBareUrls(
-                                    message.content,
-                                  ),
-                                  options: const LinkifyOptions(
-                                    defaultToHttps: true,
-                                  ),
-                                  style: TextStyle(
-                                    color: isCurrentUser
-                                        ? const Color(0xFF1A1D21)
-                                        : const Color(0xFFE8E8E8),
-                                    fontSize: 15,
-                                    height: 1.45,
-                                    letterSpacing: 0.15,
-                                  ),
-                                  linkStyle: TextStyle(
-                                    color: isCurrentUser
-                                        ? const Color(0xFF0066CC)
-                                        : const Color(0xFFFFA726),
-                                    fontSize: 15,
-                                    height: 1.45,
-                                    letterSpacing: 0.15,
-                                    decoration: TextDecoration.underline,
+                  // Check if this is a poll message - render it outside the bubble
+                  if (message.type == 'poll')
+                    PollMessageWidget(
+                      poll: PollModel.fromMap(
+                        message.toMap(),
+                        message.messageId,
+                      ),
+                      chatId: widget.community.id,
+                      chatType: 'community',
+                      isOwnMessage: isCurrentUser,
+                    )
+                  else
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Multi-image grid bubble
+                        if (message.multipleMedia != null &&
+                            message.multipleMedia!.isNotEmpty)
+                          MultiImageMessageBubble(
+                            imageUrls: message.multipleMedia!
+                                .map(
+                                  (m) => m.localPath?.isNotEmpty == true
+                                      ? m.localPath!
+                                      : (m.publicUrl.isNotEmpty
+                                            ? m.publicUrl
+                                            : m.thumbnail),
+                                )
+                                .toList(),
+                            isMe: isCurrentUser,
+                            uploadProgress: message.multipleMedia!
+                                .map((m) => _pendingUploadProgress[m.messageId])
+                                .toList(),
+                            onImageTap: (index) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => _ImageGalleryViewer(
+                                    mediaList: message.multipleMedia!,
+                                    initialIndex: index,
+                                    localSenderMediaPaths:
+                                        _localSenderMediaPaths,
+                                    isMe: isCurrentUser,
                                   ),
                                 ),
-                            ],
-                          ),
-                        ),
-                      if (!isCurrentUser && message.senderRole == 'Teacher')
-                        Positioned(
-                          left: -4,
-                          top: -6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
+                              );
+                            },
+                          )
+                        else
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal:
+                                  message.mediaMetadata != null &&
+                                      message.content.isEmpty
+                                  ? 4
+                                  : 14,
+                              vertical:
+                                  message.mediaMetadata != null &&
+                                      message.content.isEmpty
+                                  ? 4
+                                  : 11,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF64B5F6).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFF64B5F6).withOpacity(0.4),
-                                width: 1,
+                              color: isCurrentUser
+                                  ? const Color(0xFFFFE8D1)
+                                  : const Color(0xFF1A1D21),
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(16),
+                                topRight: const Radius.circular(16),
+                                bottomLeft: Radius.circular(
+                                  isCurrentUser ? 16 : 4,
+                                ),
+                                bottomRight: Radius.circular(
+                                  isCurrentUser ? 4 : 16,
+                                ),
                               ),
                             ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  Icons.school_outlined,
-                                  size: 10,
-                                  color: Color(0xFF64B5F6),
-                                ),
-                                SizedBox(width: 3),
-                                Text(
-                                  'Teacher',
-                                  style: TextStyle(
-                                    color: Color(0xFF64B5F6),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w500,
+                                // Media with metadata (images, PDFs, audio)
+                                if (message.mediaMetadata != null) ...[
+                                  MediaPreviewCard(
+                                    r2Key: message.mediaMetadata!.r2Key,
+                                    fileName: _getFileNameFromMetadata(
+                                      message.mediaMetadata!,
+                                    ),
+                                    mimeType:
+                                        message.mediaMetadata!.mimeType ??
+                                        'application/octet-stream',
+                                    fileSize:
+                                        message.mediaMetadata!.fileSize ?? 0,
+                                    thumbnailBase64:
+                                        message.mediaMetadata!.thumbnail,
+                                    isMe: isCurrentUser,
+                                    uploading: isUploading,
+                                    uploadProgress: uploadProgress,
+                                    selectionMode: _isSelectionMode,
                                   ),
-                                ),
+                                  if (message.content.isNotEmpty)
+                                    const SizedBox(height: 8),
+                                ],
+                                // Text content
+                                if (message.content.isNotEmpty)
+                                  Linkify(
+                                    onOpen: (link) async {
+                                      final uri = Uri.parse(link.url);
+                                      if (await canLaunchUrl(uri)) {
+                                        await launchUrl(
+                                          uri,
+                                          mode: LaunchMode.externalApplication,
+                                        );
+                                      }
+                                    },
+                                    text: LinkUtils.addProtocolToBareUrls(
+                                      message.content,
+                                    ),
+                                    options: const LinkifyOptions(
+                                      defaultToHttps: true,
+                                    ),
+                                    style: TextStyle(
+                                      color: isCurrentUser
+                                          ? const Color(0xFF1A1D21)
+                                          : const Color(0xFFE8E8E8),
+                                      fontSize: 15,
+                                      height: 1.45,
+                                      letterSpacing: 0.15,
+                                    ),
+                                    linkStyle: TextStyle(
+                                      color: isCurrentUser
+                                          ? const Color(0xFF0066CC)
+                                          : const Color(0xFFFFA726),
+                                      fontSize: 15,
+                                      height: 1.45,
+                                      letterSpacing: 0.15,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
-                        ),
-                    ],
-                  ),
+                        if (!isCurrentUser && message.senderRole == 'Teacher')
+                          Positioned(
+                            left: -4,
+                            top: -6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF64B5F6).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFF64B5F6,
+                                  ).withOpacity(0.4),
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.school_outlined,
+                                    size: 10,
+                                    color: Color(0xFF64B5F6),
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Teacher',
+                                    style: TextStyle(
+                                      color: Color(0xFF64B5F6),
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   Padding(
                     padding: const EdgeInsets.only(top: 5, left: 4, right: 4),
                     child: Text(

@@ -2258,6 +2258,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
       onPollTap: _navigateToPollScreen,
+      color: const Color(0xFFFFA929),
     );
   }
 

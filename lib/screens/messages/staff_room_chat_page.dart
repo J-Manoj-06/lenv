@@ -1456,11 +1456,9 @@ class _MessageBubble extends StatelessWidget {
     final messageId = message['id'] as String? ?? '';
 
     String timeStr = '';
-    if (timestamp != null) {
-      final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
-      timeStr = DateFormat('HH:mm').format(date);
-    }
-
+    final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    timeStr = DateFormat('HH:mm').format(date);
+  
     final roleColor = senderRole == 'principal'
         ? primaryColor
         : const Color(0xFFF97316); // Orange for teachers
