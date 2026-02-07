@@ -17,6 +17,7 @@ import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
 import '../../services/community_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/user_model.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../utils/chat_type_config.dart';
 import '../../widgets/media_preview_card.dart';
@@ -92,22 +93,34 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   }
 
   Widget _buildUnreadDivider() {
+    // Get user role to determine theme color
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userRole = authProvider.currentUser?.role;
+    final isPrincipal = userRole == UserRole.institute;
+    final themeColor = isPrincipal
+        ? const Color(0xFF00A884)
+        : const Color(0xFFFF8800);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
-        children: const [
-          Expanded(child: Divider(color: Color(0x339E9E9E), thickness: 1)),
-          SizedBox(width: 8),
+        children: [
+          const Expanded(
+            child: Divider(color: Color(0x339E9E9E), thickness: 1),
+          ),
+          const SizedBox(width: 8),
           Text(
             'Unread messages',
             style: TextStyle(
-              color: Color(0xFFFF8800),
+              color: themeColor,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(width: 8),
-          Expanded(child: Divider(color: Color(0x339E9E9E), thickness: 1)),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Divider(color: Color(0x339E9E9E), thickness: 1),
+          ),
         ],
       ),
     );
@@ -1999,9 +2012,16 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bubbleColor = isMe
-        ? const Color(0xFFFF8800)
-        : const Color(0xFF2A2A2A);
+    // Get user role to determine theme color
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userRole = authProvider.currentUser?.role;
+    final isPrincipal = userRole == UserRole.institute;
+
+    // Use teal for principal, orange for others
+    final themeColor = isPrincipal
+        ? const Color(0xFF00A884)
+        : const Color(0xFFFF8800);
+    final bubbleColor = isMe ? themeColor : const Color(0xFF2A2A2A);
     final textColor = Colors.white;
 
     return Padding(
@@ -2023,8 +2043,8 @@ class _MessageBubble extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 4, left: 4),
                     child: Text(
                       message.senderName,
-                      style: const TextStyle(
-                        color: Color(0xFFFF8800),
+                      style: TextStyle(
+                        color: themeColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -2148,7 +2168,7 @@ class _MessageBubble extends StatelessWidget {
               padding: const EdgeInsets.only(left: 8),
               child: Icon(
                 isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                color: isSelected ? const Color(0xFFFF8800) : Colors.grey,
+                color: isSelected ? themeColor : Colors.grey,
                 size: 24,
               ),
             ),
