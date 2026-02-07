@@ -138,8 +138,8 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
             margin: EdgeInsets.only(
               top: 6,
               bottom: 6,
-              left: widget.isOwnMessage ? 80 : 0,
-              right: widget.isOwnMessage ? 0 : 40,
+              left: widget.isOwnMessage ? 60 : 0,
+              right: widget.isOwnMessage ? 12 : 30,
             ),
             constraints: const BoxConstraints(maxWidth: 600),
             child: _buildPollCard(
@@ -190,7 +190,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16), // Inner padding 16px
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

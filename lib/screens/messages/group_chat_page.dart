@@ -2464,235 +2464,227 @@ class _MessageBubble extends StatelessWidget {
             : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isMe) ...[
-            // Avatar for others
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: theme.primaryColor.withOpacity(0.2),
-              child: Text(
-                message.senderName[0].toUpperCase(),
-                style: TextStyle(
-                  color: theme.primaryColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-
           // Message Content
           Flexible(
-            child: Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                if (!isMe)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      message.senderName,
-                      style: TextStyle(
-                        color: theme.textTheme.bodySmall?.color,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                // Check if this is a poll message - render it outside the bubble
-                if (message.type == 'poll')
-                  SizedBox(
-                    width: double.infinity,
-                    child: Align(
-                      alignment: isMe
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: PollMessageWidget(
-                        poll: PollModel.fromMap(message.toMap(), message.id),
-                        chatId: '${classId}_$subjectId',
-                        chatType: 'group',
-                        isOwnMessage: isMe,
-                      ),
-                    ),
-                  )
-                // Multiple media handling (WhatsApp-style grid) - NO outer bubble
-                else if (message.multipleMedia != null &&
-                    message.multipleMedia!.isNotEmpty)
-                  Column(
-                    crossAxisAlignment: isMe
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      MultiImageMessageBubble(
-                        imageUrls: message.multipleMedia!
-                            .map((m) => m.localPath ?? m.publicUrl)
-                            .toList(),
-                        isMe: isMe,
-                        uploadProgress: message.multipleMedia!
-                            .map((m) => pendingUploadProgress[m.messageId])
-                            .toList(),
-                        onImageTap: (index) async {
-                          // Open image gallery - it handles loading from cache or network
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => _ImageGalleryViewer(
-                                mediaList: message.multipleMedia!,
-                                initialIndex: index,
-                                localSenderMediaPaths: localSenderMediaPaths,
-                                isMe: isMe,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      if (message.message.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Material(
-                          elevation: 0,
-                          color: isMe ? myBubbleColor : otherBubbleColor,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(12),
-                            topRight: const Radius.circular(12),
-                            bottomLeft: Radius.circular(isMe ? 12 : 6),
-                            bottomRight: Radius.circular(isMe ? 6 : 12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            child: Linkify(
-                              onOpen: (link) async {
-                                final uri = Uri.parse(link.url);
-                                if (await canLaunchUrl(uri)) {
-                                  await launchUrl(
-                                    uri,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                }
-                              },
-                              text: LinkUtils.addProtocolToBareUrls(
-                                message.message,
-                              ),
-                              options: const LinkifyOptions(
-                                defaultToHttps: true,
-                              ),
-                              style: TextStyle(
-                                color: isMe
-                                    ? const Color(0xFF1A1D21)
-                                    : theme.colorScheme.onSurface,
-                                fontSize: 14,
-                                height: 1.5,
-                              ),
-                              linkStyle: TextStyle(
-                                color: isMe
-                                    ? const Color(0xFF0066CC)
-                                    : theme.colorScheme.primary,
-                                fontSize: 14,
-                                height: 1.5,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
+            child: Container(
+              margin: EdgeInsets.only(
+                left: isMe ? 32 : 0,
+                right: isMe ? 0 : 32,
+              ),
+              child: Column(
+                crossAxisAlignment: isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [
+                  if (!isMe)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        message.senderName,
+                        style: TextStyle(
+                          color: theme.textTheme.bodySmall?.color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ],
-                  )
-                // Single media or text-only messages
-                else
-                  Material(
-                    elevation: 0,
-                    color: isMe ? myBubbleColor : otherBubbleColor,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(12),
-                      topRight: const Radius.circular(12),
-                      bottomLeft: Radius.circular(isMe ? 12 : 6),
-                      bottomRight: Radius.circular(isMe ? 6 : 12),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        // Tighter padding for media-only bubbles to maximize image area
-                        horizontal:
-                            (message.mediaMetadata != null ||
-                                    message.imageUrl != null) &&
-                                message.message.isEmpty
-                            ? 6
-                            : 14,
-                        // Reduce bottom border for media-only bubbles
-                        vertical:
-                            (message.mediaMetadata != null ||
-                                    message.imageUrl != null) &&
-                                message.message.isEmpty
-                            ? 0
-                            : 12,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Single media handling
-                          if (message.mediaMetadata != null) ...[
-                            _buildMetadataAttachment(
+                    ),
+                  // Check if this is a poll message - render it outside the bubble
+                  if (message.type == 'poll')
+                    SizedBox(
+                      width: double.infinity,
+                      child: Align(
+                        alignment: isMe
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: PollMessageWidget(
+                          poll: PollModel.fromMap(message.toMap(), message.id),
+                          chatId: '${classId}_$subjectId',
+                          chatType: 'group',
+                          isOwnMessage: isMe,
+                        ),
+                      ),
+                    )
+                  // Multiple media handling (WhatsApp-style grid) - NO outer bubble
+                  else if (message.multipleMedia != null &&
+                      message.multipleMedia!.isNotEmpty)
+                    Column(
+                      crossAxisAlignment: isMe
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        MultiImageMessageBubble(
+                          imageUrls: message.multipleMedia!
+                              .map((m) => m.localPath ?? m.publicUrl)
+                              .toList(),
+                          isMe: isMe,
+                          uploadProgress: message.multipleMedia!
+                              .map((m) => pendingUploadProgress[m.messageId])
+                              .toList(),
+                          onImageTap: (index) async {
+                            // Open image gallery - it handles loading from cache or network
+                            Navigator.push(
                               context,
-                              message.mediaMetadata!,
+                              MaterialPageRoute(
+                                builder: (_) => _ImageGalleryViewer(
+                                  mediaList: message.multipleMedia!,
+                                  initialIndex: index,
+                                  localSenderMediaPaths: localSenderMediaPaths,
+                                  isMe: isMe,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        if (message.message.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Material(
+                            elevation: 0,
+                            color: isMe ? myBubbleColor : otherBubbleColor,
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(12),
+                              topRight: const Radius.circular(12),
+                              bottomLeft: Radius.circular(isMe ? 12 : 6),
+                              bottomRight: Radius.circular(isMe ? 6 : 12),
                             ),
-                            if (message.message.isNotEmpty)
-                              const SizedBox(height: 8),
-                          ]
-                          // Legacy URL support (images/PDFs)
-                          else if (message.imageUrl != null) ...[
-                            _buildLegacyAttachment(context, message.imageUrl!),
-                            if (message.message.isNotEmpty)
-                              const SizedBox(height: 8),
-                          ],
-                          if (message.message.isNotEmpty)
-                            Linkify(
-                              onOpen: (link) async {
-                                final uri = Uri.parse(link.url);
-                                if (await canLaunchUrl(uri)) {
-                                  await launchUrl(
-                                    uri,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                }
-                              },
-                              text: LinkUtils.addProtocolToBareUrls(
-                                message.message,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
                               ),
-                              options: const LinkifyOptions(
-                                defaultToHttps: true,
-                              ),
-                              style: TextStyle(
-                                color: isMe
-                                    ? const Color(0xFF1A1D21)
-                                    : theme.colorScheme.onSurface,
-                                fontSize: 14,
-                                height: 1.5,
-                              ),
-                              linkStyle: TextStyle(
-                                color: isMe
-                                    ? const Color(0xFF0066CC)
-                                    : theme.colorScheme.primary,
-                                fontSize: 14,
-                                height: 1.5,
-                                decoration: TextDecoration.underline,
+                              child: Linkify(
+                                onOpen: (link) async {
+                                  final uri = Uri.parse(link.url);
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(
+                                      uri,
+                                      mode: LaunchMode.externalApplication,
+                                    );
+                                  }
+                                },
+                                text: LinkUtils.addProtocolToBareUrls(
+                                  message.message,
+                                ),
+                                options: const LinkifyOptions(
+                                  defaultToHttps: true,
+                                ),
+                                style: TextStyle(
+                                  color: isMe
+                                      ? const Color(0xFF1A1D21)
+                                      : theme.colorScheme.onSurface,
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                                linkStyle: TextStyle(
+                                  color: isMe
+                                      ? const Color(0xFF0066CC)
+                                      : theme.colorScheme.primary,
+                                  fontSize: 14,
+                                  height: 1.5,
+                                  decoration: TextDecoration.underline,
+                                ),
                               ),
                             ),
+                          ),
                         ],
+                      ],
+                    )
+                  // Single media or text-only messages
+                  else
+                    Material(
+                      elevation: 0,
+                      color: isMe ? myBubbleColor : otherBubbleColor,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(12),
+                        topRight: const Radius.circular(12),
+                        bottomLeft: Radius.circular(isMe ? 12 : 6),
+                        bottomRight: Radius.circular(isMe ? 6 : 12),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          // Tighter padding for media-only bubbles to maximize image area
+                          horizontal:
+                              (message.mediaMetadata != null ||
+                                      message.imageUrl != null) &&
+                                  message.message.isEmpty
+                              ? 6
+                              : 14,
+                          // Reduce bottom border for media-only bubbles
+                          vertical:
+                              (message.mediaMetadata != null ||
+                                      message.imageUrl != null) &&
+                                  message.message.isEmpty
+                              ? 0
+                              : 12,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Single media handling
+                            if (message.mediaMetadata != null) ...[
+                              _buildMetadataAttachment(
+                                context,
+                                message.mediaMetadata!,
+                              ),
+                              if (message.message.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ]
+                            // Legacy URL support (images/PDFs)
+                            else if (message.imageUrl != null) ...[
+                              _buildLegacyAttachment(
+                                context,
+                                message.imageUrl!,
+                              ),
+                              if (message.message.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ],
+                            if (message.message.isNotEmpty)
+                              Linkify(
+                                onOpen: (link) async {
+                                  final uri = Uri.parse(link.url);
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(
+                                      uri,
+                                      mode: LaunchMode.externalApplication,
+                                    );
+                                  }
+                                },
+                                text: LinkUtils.addProtocolToBareUrls(
+                                  message.message,
+                                ),
+                                options: const LinkifyOptions(
+                                  defaultToHttps: true,
+                                ),
+                                style: TextStyle(
+                                  color: isMe
+                                      ? const Color(0xFF1A1D21)
+                                      : theme.colorScheme.onSurface,
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                                linkStyle: TextStyle(
+                                  color: isMe
+                                      ? const Color(0xFF0066CC)
+                                      : theme.colorScheme.primary,
+                                  fontSize: 14,
+                                  height: 1.5,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatTime(message.timestamp),
+                    style: TextStyle(
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                      fontSize: 10,
+                    ),
                   ),
-                const SizedBox(height: 4),
-                Text(
-                  _formatTime(message.timestamp),
-                  style: TextStyle(
-                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                    fontSize: 10,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
