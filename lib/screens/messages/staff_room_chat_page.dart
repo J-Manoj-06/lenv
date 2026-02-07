@@ -266,9 +266,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
         senderRole: currentUser.role.toString(),
         mediaType: 'staff_room',
         onProgress: (progress) {
-          // Update ValueNotifier instead of setState to avoid rebuilding entire widget
-          progressNotifier.value = progress.toDouble();
-          _pendingUploadProgress[messageId] = progress.toDouble();
+          // Convert progress from 0-100 to 0.0-1.0 for MediaPreviewCard
+          final normalizedProgress = progress / 100.0;
+          progressNotifier.value = normalizedProgress;
+          _pendingUploadProgress[messageId] = normalizedProgress;
         },
       );
 
@@ -291,17 +292,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
             'thumbnailUrl': mediaMessage.thumbnailUrl,
           });
 
-      // Remove pending message
-      setState(() {
-        _pendingMessages.removeWhere((m) => m['id'] == messageId);
-        _uploadingMessageIds.remove(messageId);
-        _pendingUploadProgress.remove(messageId);
-        _localFilePaths.remove(messageId);
-      });
-
-      // Dispose and remove progress notifier
-      _progressNotifiers[messageId]?.dispose();
-      _progressNotifiers.remove(messageId);
+      // Don't remove pending message here - let StreamBuilder handle it automatically
+      // This prevents flickering by avoiding double rebuild
 
       // Scroll to bottom
       Future.delayed(const Duration(milliseconds: 100), () {
@@ -796,9 +788,65 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
 
         // Merge pending and Firestore messages
         final allMessages = <Map<String, dynamic>>[];
+        final pendingIdsToRemove = <String>[];
 
-        // Add pending messages first
-        allMessages.addAll(_pendingMessages);
+        // Add pending messages first, but check if they have a Firestore version
+        for (final pendingMsg in _pendingMessages) {
+          final pendingId = pendingMsg['id'] as String;
+          final pendingSenderId = pendingMsg['senderId'];
+          final pendingTimestamp = pendingMsg['createdAt'] as int;
+
+          // Check if this pending message now exists in Firestore
+          final hasServerVersion = firestoreMessages.any((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            if (data['isDeleted'] == true) return false;
+
+            final serverSenderId = data['senderId'];
+            final serverTimestamp = data['createdAt'];
+            final serverTimestampMs = serverTimestamp is Timestamp
+                ? serverTimestamp.millisecondsSinceEpoch
+                : (serverTimestamp as int? ?? 0);
+
+            // Match by sender and timestamp (within 30 seconds)
+            final senderMatch = serverSenderId == pendingSenderId;
+            final timeDiff = (serverTimestampMs - pendingTimestamp).abs();
+            final timeMatch = timeDiff < 30000; // 30 seconds
+
+            return senderMatch && timeMatch;
+          });
+
+          if (hasServerVersion) {
+            // Mark for removal but don't remove yet
+            pendingIdsToRemove.add(pendingId);
+            // Save local path for sender to reuse
+            final localPath = _localFilePaths[pendingId];
+            if (localPath != null && localPath.isNotEmpty) {
+              // Keep local path for a short time for display
+            }
+          } else {
+            // Still uploading or not saved yet, keep in list
+            allMessages.add(pendingMsg);
+          }
+        }
+
+        // Remove completed pending messages after frame to avoid flicker
+        if (pendingIdsToRemove.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() {
+              _pendingMessages.removeWhere(
+                (m) => pendingIdsToRemove.contains(m['id']),
+              );
+              for (final id in pendingIdsToRemove) {
+                _uploadingMessageIds.remove(id);
+                _pendingUploadProgress.remove(id);
+                _localFilePaths.remove(id);
+                _progressNotifiers[id]?.dispose();
+                _progressNotifiers.remove(id);
+              }
+            });
+          });
+        }
 
         // Add Firestore messages
         for (final doc in firestoreMessages) {

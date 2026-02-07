@@ -2012,21 +2012,6 @@ class _MessageBubble extends StatelessWidget {
             : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isMe) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: const Color(0xFFFF8800).withOpacity(0.16),
-              child: Text(
-                message.senderName[0].toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFFFF8800),
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
           Flexible(
             child: Column(
               crossAxisAlignment: isMe
@@ -2035,7 +2020,7 @@ class _MessageBubble extends StatelessWidget {
               children: [
                 if (!isMe)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(bottom: 4, left: 4),
                     child: Text(
                       message.senderName,
                       style: const TextStyle(
