@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
@@ -84,8 +86,7 @@ class CloudflareR2Service {
           '&X-Amz-SignedHeaders=${credential['signedHeaders']}'
           '&X-Amz-Signature=${credential['signature']}';
 
-      if (fileName != safeFileName) {
-      }
+      if (fileName != safeFileName) {}
 
       return {
         'url': uploadUrl,
@@ -99,7 +100,7 @@ class CloudflareR2Service {
     }
   }
 
-  /// Upload file using signed URL
+  /// Upload file using signed URL with retry logic
   ///
   /// fileBytes: raw file data
   /// signedUrl: from generateSignedUploadUrl
@@ -111,43 +112,94 @@ class CloudflareR2Service {
     required String contentType,
     Function(int)? onProgress,
   }) async {
-    try {
+    const maxRetries = 3;
+    const initialTimeout = Duration(seconds: 60);
 
-      final request = http.Request('PUT', Uri.parse(signedUrl))
-        ..bodyBytes = fileBytes
-        ..headers['Content-Type'] = contentType;
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Calculate timeout: 60s, 120s, 180s for retry attempts
+        final timeout = initialTimeout * (attempt + 1);
 
-      // Simulate progress for PUT request
-      onProgress?.call(0);
+        final request = http.Request('PUT', Uri.parse(signedUrl))
+          ..bodyBytes = fileBytes
+          ..headers['Content-Type'] = contentType;
 
-      final streamedResponse = await request.send();
+        // Simulate progress for PUT request
+        onProgress?.call(0);
 
-
-      if (streamedResponse.statusCode == 200) {
-        // Simulate progress completion
-        onProgress?.call(100);
-
-        // Extract public URL from signed URL
-        final uri = Uri.parse(signedUrl);
-        final pathWithoutQuery = uri.path;
-
-        // Remove bucket name from path since custom domain points to bucket root
-        // Path format: /lenv-storage/media/... → /media/...
-        final pathWithoutBucket = pathWithoutQuery.replaceFirst(
-          '/$bucketName/',
-          '/',
+        // Add timeout to prevent hanging
+        final streamedResponse = await request.send().timeout(
+          timeout,
+          onTimeout: () {
+            throw TimeoutException(
+              'Upload timed out after ${timeout.inSeconds}s',
+            );
+          },
         );
 
-        // r2Domain already includes https://, so just concatenate
-        final publicUrl = '$r2Domain$pathWithoutBucket';
-        return publicUrl;
-      } else {
-        final responseBody = await streamedResponse.stream.bytesToString();
-        throw Exception('Upload failed: ${streamedResponse.statusCode}');
+        if (streamedResponse.statusCode == 200) {
+          // Simulate progress completion
+          onProgress?.call(100);
+
+          // Extract public URL from signed URL
+          final uri = Uri.parse(signedUrl);
+          final pathWithoutQuery = uri.path;
+
+          // Remove bucket name from path since custom domain points to bucket root
+          // Path format: /lenv-storage/media/... → /media/...
+          final pathWithoutBucket = pathWithoutQuery.replaceFirst(
+            '/$bucketName/',
+            '/',
+          );
+
+          // r2Domain already includes https://, so just concatenate
+          final publicUrl = '$r2Domain$pathWithoutBucket';
+          return publicUrl;
+        } else {
+          final responseBody = await streamedResponse.stream.bytesToString();
+
+          // Don't retry on client errors (4xx), only server errors (5xx) and network issues
+          if (streamedResponse.statusCode >= 400 &&
+              streamedResponse.statusCode < 500) {
+            throw Exception(
+              'Upload failed: ${streamedResponse.statusCode} - $responseBody',
+            );
+          }
+
+          // Retry on server errors
+          if (attempt < maxRetries - 1) {
+            await Future.delayed(
+              Duration(seconds: (attempt + 1) * 2),
+            ); // 2s, 4s, 6s
+            continue;
+          }
+          throw Exception(
+            'Upload failed after $maxRetries attempts: ${streamedResponse.statusCode}',
+          );
+        }
+      } on SocketException catch (e) {
+        // Network error - retry with exponential backoff
+        if (attempt < maxRetries - 1) {
+          await Future.delayed(
+            Duration(seconds: (attempt + 1) * 2),
+          ); // 2s, 4s, 6s
+          continue;
+        }
+        throw Exception('Network error after $maxRetries attempts: $e');
+      } on TimeoutException catch (e) {
+        // Timeout - retry with longer timeout
+        if (attempt < maxRetries - 1) {
+          await Future.delayed(Duration(seconds: (attempt + 1) * 2));
+          continue;
+        }
+        throw Exception('Upload timeout after $maxRetries attempts: $e');
+      } catch (e) {
+        // For other errors, don't retry
+        throw Exception('Failed to upload file: $e');
       }
-    } catch (e) {
-      throw Exception('Failed to upload file: $e');
     }
+
+    throw Exception('Upload failed after $maxRetries attempts');
   }
 
   /// Get AWS Signature V4 headers for signing
@@ -163,7 +215,6 @@ class CloudflareR2Service {
     final date = DateTime.now().toUtc();
     final dateStr = _formatAmzDate(date);
     final shortDate = dateStr.substring(0, 8);
-
 
     // AWS Signature V4 process
     final credentialScope = '$shortDate/auto/s3/aws4_request';
@@ -240,7 +291,6 @@ class CloudflareR2Service {
         throw Exception('Cannot delete: Empty file key provided');
       }
 
-
       // Ensure key is properly encoded
       final keyParts = key.split('/');
       final encodedKey = keyParts.map(Uri.encodeComponent).join('/');
@@ -266,16 +316,13 @@ class CloudflareR2Service {
           '&X-Amz-SignedHeaders=${credential['signedHeaders']}'
           '&X-Amz-Signature=${credential['signature']}';
 
-
       final response = await http.delete(Uri.parse(deleteUrl));
-
 
       if (response.statusCode != 204 && response.statusCode != 200) {
         throw Exception(
           'Delete failed: ${response.statusCode} - ${response.body}',
         );
       }
-
     } catch (e) {
       throw Exception('Failed to delete file from R2: $e');
     }

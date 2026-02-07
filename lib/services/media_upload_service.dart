@@ -195,6 +195,15 @@ class MediaUploadService {
       throw Exception('Only images, documents, and audio files are supported');
     }
 
+    // Check size for all other document types (not PDF, already checked)
+    if (isDocument &&
+        mimeType != 'application/pdf' &&
+        fileBytes.length > MAX_PDF_SIZE) {
+      throw Exception(
+        'Document too large. Max: ${MAX_PDF_SIZE ~/ (1024 * 1024)}MB',
+      );
+    }
+
     // Check file name
     if (fileName.isEmpty) {
       throw Exception('Invalid file name');

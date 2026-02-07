@@ -415,8 +415,29 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       widget.mimeType ==
           'application/vnd.oasis.opendocument.presentation'; // .odp
 
+  bool get _isWord =>
+      widget.mimeType == 'application/msword' ||
+      widget.mimeType ==
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      widget.mimeType == 'application/vnd.oasis.opendocument.text';
+
+  bool get _isExcel =>
+      widget.mimeType == 'application/vnd.ms-excel' ||
+      widget.mimeType ==
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      widget.mimeType == 'application/vnd.oasis.opendocument.spreadsheet';
+
+  bool get _isPowerPoint =>
+      widget.mimeType == 'application/vnd.ms-powerpoint' ||
+      widget.mimeType ==
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+      widget.mimeType == 'application/vnd.oasis.opendocument.presentation';
+
   IconData get _icon {
     if (_isPdf) return Icons.picture_as_pdf;
+    if (_isWord) return Icons.description;
+    if (_isExcel) return Icons.table_chart;
+    if (_isPowerPoint) return Icons.slideshow;
     if (_isAudio) return Icons.audio_file;
     if (_isImage) return Icons.image;
     if (_isVideo) return Icons.video_file;
@@ -424,11 +445,14 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   Color get _accentColor {
-    if (_isPdf) return const Color(0xFFE53935);
-    if (_isAudio) return const Color(0xFF42A5F5);
-    if (_isImage) return const Color(0xFF66BB6A);
-    if (_isVideo) return const Color(0xFFAB47BC);
-    return const Color(0xFF9E9E9E);
+    if (_isPdf) return const Color(0xFFE53935); // Red
+    if (_isWord) return const Color(0xFF1976D2); // Blue
+    if (_isExcel) return const Color(0xFF388E3C); // Green
+    if (_isPowerPoint) return const Color(0xFFD84315); // Orange
+    if (_isAudio) return const Color(0xFF42A5F5); // Light Blue
+    if (_isImage) return const Color(0xFF66BB6A); // Light Green
+    if (_isVideo) return const Color(0xFFAB47BC); // Purple
+    return const Color(0xFF9E9E9E); // Gray
   }
 
   String _formatSize(int bytes) {
@@ -545,14 +569,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                         : 'View',
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: (_isDocument || _isAudio)
-                        ? _accentColor
-                        : (isDark
-                              ? _accentColor
-                              : _accentColor.withOpacity(0.12)),
-                    foregroundColor: (_isDocument || _isAudio)
-                        ? Colors.white
-                        : (isDark ? Colors.white : const Color(0xFF1A1D21)),
+                    backgroundColor: _accentColor,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -567,14 +585,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   icon: const Icon(Icons.download),
                   label: Text('Download ${_formatSize(widget.fileSize)}'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: (_isPdf || _isAudio)
-                        ? _accentColor
-                        : (isDark
-                              ? _accentColor.withOpacity(0.3)
-                              : _accentColor.withOpacity(0.12)),
-                    foregroundColor: (_isPdf || _isAudio)
-                        ? Colors.white
-                        : (isDark ? Colors.white : const Color(0xFF1A1D21)),
+                    backgroundColor: _accentColor,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),

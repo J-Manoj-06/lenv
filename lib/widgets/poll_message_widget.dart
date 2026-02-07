@@ -138,7 +138,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
             margin: EdgeInsets.only(
               top: 6,
               bottom: 6,
-              left: widget.isOwnMessage ? 60 : 0,
+              left: widget.isOwnMessage ? 30 : 12,
               right: widget.isOwnMessage ? 12 : 30,
             ),
             constraints: const BoxConstraints(maxWidth: 600),

@@ -327,9 +327,38 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
       _progressNotifiers.remove(messageId);
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send file: $e')));
+        // Show user-friendly error message
+        String errorMessage = 'Failed to send file';
+        if (e.toString().contains('Network error') ||
+            e.toString().contains('SocketException') ||
+            e.toString().contains('Failed host lookup')) {
+          errorMessage =
+              'Network error. Please check your internet connection and try again.';
+        } else if (e.toString().contains('timeout') ||
+            e.toString().contains('Timeout')) {
+          errorMessage =
+              'Upload timed out. Please try again or use a smaller file.';
+        } else if (e.toString().contains('too large')) {
+          errorMessage = e.toString().replaceAll('Exception: ', '');
+        } else {
+          errorMessage = 'Failed to send file. Please try again.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () {
+                // Allow user to retry by picking the file again
+                _pickDocument();
+              },
+            ),
+          ),
+        );
       }
     }
   }
