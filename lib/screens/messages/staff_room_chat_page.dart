@@ -59,6 +59,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
   bool _userHasScrolled = false; // Track if user manually scrolled
   double _lastScrollPosition = 0.0; // Track last scroll position
   int _lastItemCount = 0; // Track message count to detect new messages
+  bool _isProcessingScroll = false; // Prevent duplicate scroll callbacks
 
   // Recording variables
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -993,18 +994,22 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         });
 
         // Handle pending scroll request from search
-        if (_scrollToMessageId != null && !_isScrollingToMessage) {
+        if (_scrollToMessageId != null &&
+            !_isScrollingToMessage &&
+            !_isProcessingScroll) {
           final messageId = _scrollToMessageId!;
           _scrollToMessageId = null; // Clear pending request
           _isScrollingToMessage = true; // Set flag to prevent auto-scroll
           _userHasScrolled = true; // Mark as user-initiated scroll
 
-          // Schedule scroll after frame is rendered
+          // Schedule scroll after frame is rendered (single callback)
           WidgetsBinding.instance.addPostFrameCallback((_) async {
+            if (!mounted) return;
+
             await scrollToMessage(messageId, allMessages);
 
-            // Keep flags set to prevent auto-scroll back
-            await Future.delayed(const Duration(seconds: 5));
+            // Wait for scroll animation to complete, then reset scrolling flag
+            await Future.delayed(const Duration(seconds: 3));
             if (mounted) {
               setState(() {
                 _isScrollingToMessage = false;
@@ -1044,26 +1049,38 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           );
         }
 
-        // Check if new messages arrived and user is at bottom
+        // Check if item count changed (avoid redundant callbacks)
+        final itemCountChanged = allMessages.length != _lastItemCount;
+
+        // Check if should auto-scroll (only when count increases and user is at bottom)
         final shouldAutoScroll =
+            itemCountChanged &&
             allMessages.length > _lastItemCount &&
             !_userHasScrolled &&
+            !_isScrollingToMessage &&
+            !_isProcessingScroll &&
             scrollController.hasClients &&
             scrollController.offset < 100;
 
-        // Update last count
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _lastItemCount = allMessages.length;
+        // Only schedule callback when item count actually changed
+        if (itemCountChanged && !_isProcessingScroll) {
+          _isProcessingScroll = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _lastItemCount = allMessages.length;
+            _isProcessingScroll = false;
 
-          // Only auto-scroll if conditions are met
-          if (shouldAutoScroll && scrollController.hasClients) {
-            scrollController.animateTo(
-              0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-        });
+            // Only auto-scroll if all conditions are met
+            if (shouldAutoScroll &&
+                scrollController.hasClients &&
+                !_isScrollingToMessage) {
+              scrollController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        }
 
         return ListView.builder(
           key: const PageStorageKey(

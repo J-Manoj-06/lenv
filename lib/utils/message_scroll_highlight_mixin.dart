@@ -91,8 +91,8 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
       });
     }
 
-    // Wait for keyboard animation to complete
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Wait for keyboard to dismiss and UI to settle
+    await Future.delayed(const Duration(milliseconds: 600));
 
     // Find message index
     final messageIndex = messages.indexWhere((msg) {
@@ -110,62 +110,95 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
 
     print('✅ Found message at index: $messageIndex');
 
-    // Use index-based scroll - simple and reliable
-    await _scrollByIndex(messageIndex, messages.length, animate: true);
+    // Try key-based scroll first (most accurate when widget is rendered)
+    await Future.delayed(
+      const Duration(milliseconds: 100),
+    ); // Let widgets render
+    final success = await _scrollToMessageByKey(messageId);
+
+    if (!success) {
+      // Fallback to index-based scroll with improved calculations
+      print('⚠️ Key-based scroll failed, using improved index-based method');
+      await _scrollByIndexImproved(messageIndex, messages.length);
+    }
 
     _scheduleHighlightClear(highlightDuration);
   }
 
-  /// Fallback: scroll by index if key-based scroll fails
-  Future<void> _scrollByIndex(
-    int index,
-    int totalMessages, {
-    bool animate = true,
-  }) async {
-    if (!scrollController.hasClients) return;
+  /// Scroll to message using its GlobalKey (most accurate method)
+  Future<bool> _scrollToMessageByKey(String messageId) async {
+    try {
+      final key = _messageKeys[messageId];
+      if (key == null || key.currentContext == null) {
+        print('⚠️ Message key or context not available for: $messageId');
+        return false;
+      }
 
-    // Estimate item height (more conservative estimate for better accuracy)
-    const estimatedItemHeight = 80.0;
-    const paddingBetweenMessages = 8.0;
+      final context = key.currentContext!;
+      final renderObject = context.findRenderObject();
 
-    // Calculate scroll position for reverse list
-    // In reverse lists, index 0 is at bottom (offset 0)
-    // Higher indices are further up (higher offset)
-    // So we need to calculate from the current position
+      if (renderObject == null || !renderObject.attached) {
+        print('⚠️ RenderObject not attached');
+        return false;
+      }
 
-    // For reverse list, we want to scroll UP to see older messages
-    // Calculate position from bottom: (totalMessages - index - 1) * (height + padding)
-    final positionFromBottom =
-        (totalMessages - index - 1) *
-        (estimatedItemHeight + paddingBetweenMessages);
+      // Use Scrollable.ensureVisible to scroll the message into view
+      // alignment: 0.5 = center of viewport
+      await Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+        alignment: 0.5, // Center in viewport
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      );
 
-    // Get current viewport height
+      print('✅ Scrolled to message using key-based method');
+      return true;
+    } catch (e) {
+      print('❌ Key-based scroll error: $e');
+      return false;
+    }
+  }
+
+  /// Improved index-based scroll with better accuracy
+  Future<void> _scrollByIndexImproved(int index, int totalMessages) async {
+    if (!scrollController.hasClients) {
+      print('❌ ScrollController has no clients');
+      return;
+    }
+
+    final maxScroll = scrollController.position.maxScrollExtent;
     final viewportHeight = scrollController.position.viewportDimension;
 
-    // Calculate offset to center the message in viewport
-    final targetOffset =
-        positionFromBottom -
-        (viewportHeight / 3); // Position in upper third for better visibility
+    print(
+      '📏 Viewport: $viewportHeight, MaxScroll: $maxScroll, Total: $totalMessages',
+    );
+
+    // Calculate the percentage position in the list
+    // For reverse list: index 0 = bottom (newest), high index = top (oldest)
+    final percentage = (totalMessages - index - 1) / totalMessages;
+
+    // Calculate target scroll position
+    // We want to center the message in viewport
+    final targetOffset = (maxScroll * percentage) - (viewportHeight * 0.25);
 
     // Clamp to valid range
-    final clampedOffset = targetOffset.clamp(
-      0.0,
-      scrollController.position.maxScrollExtent,
-    );
+    final clampedOffset = targetOffset.clamp(0.0, maxScroll);
 
     print(
-      '📍 Index-based scroll: index=$index, total=$totalMessages, target=$clampedOffset',
+      '📍 Improved scroll: index=$index, percentage=$percentage, target=$clampedOffset',
     );
 
-    if (animate) {
-      await scrollController.animateTo(
-        clampedOffset,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      scrollController.jumpTo(clampedOffset);
-    }
+    await scrollController.animateTo(
+      clampedOffset,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOut,
+    );
+
+    // Wait for animation to complete
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    print('✅ Scroll animation completed');
   }
 
   /// Schedule highlight clearing after duration

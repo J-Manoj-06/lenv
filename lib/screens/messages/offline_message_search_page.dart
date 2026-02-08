@@ -197,6 +197,9 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
         style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
       ),
       onTap: () {
+        // Dismiss keyboard before navigating back
+        FocusScope.of(context).unfocus();
+
         // Return messageId to navigate to it in chat
         Navigator.pop(context, message.messageId);
       },
