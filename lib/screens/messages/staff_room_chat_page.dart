@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -13,10 +14,15 @@ import '../../config/cloudflare_config.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../widgets/media_preview_card.dart';
-import '../../models/staff_room_message.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../models/poll_model.dart';
+import 'message_search_page.dart';
+import '../../utils/message_scroll_highlight_mixin.dart';
+// OFFLINE-FIRST IMPORTS
+import '../../repositories/local_message_repository.dart';
+import '../../services/firebase_message_sync_service.dart';
+import 'offline_message_search_page.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
 class StaffRoomChatPage extends StatefulWidget {
@@ -35,17 +41,24 @@ class StaffRoomChatPage extends StatefulWidget {
   State<StaffRoomChatPage> createState() => _StaffRoomChatPageState();
 }
 
-class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
+class _StaffRoomChatPageState extends State<StaffRoomChatPage>
+    with MessageScrollAndHighlightMixin {
   final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
-  double _uploadProgress = 0;
-  String? _highlightMessageId;
-  Timer? _highlightResetTimer;
-  final Map<String, GlobalKey> _messageKeys = {};
-  List<QueryDocumentSnapshot> _currentMessages =
-      []; // Store messages for index lookup
+
+  // OFFLINE-FIRST SERVICES
+  late final LocalMessageRepository _localRepo;
+  late final FirebaseMessageSyncService _syncService;
+  bool _useOfflineFirst = true; // Toggle to test offline vs old approach
+
+  // Track pending scroll request from search
+  String? _scrollToMessageId;
+  bool _isScrollingToMessage =
+      false; // Flag to prevent auto-scroll during search navigation
+  bool _userHasScrolled = false; // Track if user manually scrolled
+  double _lastScrollPosition = 0.0; // Track last scroll position
+  int _lastItemCount = 0; // Track message count to detect new messages
 
   // Recording variables
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -69,6 +82,76 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   void initState() {
     super.initState();
     _initMediaService();
+    _initOfflineFirst();
+    
+    // Listen to scroll events to detect user scrolling
+    scrollController.addListener(_onScroll);
+  }
+  
+  void _onScroll() {
+    if (!scrollController.hasClients) return;
+    
+    final currentPosition = scrollController.offset;
+    
+    // Detect if user manually scrolled (position changed significantly)
+    if ((currentPosition - _lastScrollPosition).abs() > 10.0) {
+      // User scrolled - don't auto-scroll back to bottom
+      if (!_isScrollingToMessage) {
+        _userHasScrolled = true;
+      }
+    }
+    
+    // If scrolled to near bottom (within 100px), reset flag
+    if (currentPosition < 100) {
+      _userHasScrolled = false;
+    }
+    
+    _lastScrollPosition = currentPosition;
+  }
+
+  void _initOfflineFirst() async {
+    // Initialize offline-first services
+    _localRepo = LocalMessageRepository();
+    _syncService = FirebaseMessageSyncService(_localRepo);
+    
+    await _localRepo.initialize();
+    
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    
+    if (currentUser != null) {
+      // Load from cache first (works offline)
+      final cachedMessages = await _localRepo.getMessagesForChat(
+        widget.instituteId,
+        limit: 50, // Initial load: 50 messages
+      );
+      
+      if (cachedMessages.isEmpty) {
+        // No cache: fetch initial batch from Firebase
+        print('📥 No cache - fetching initial messages from Firebase...');
+        await _syncService.initialSyncForChat(
+          chatId: widget.instituteId,
+          chatType: 'staff_room',
+          limit: 50, // Fetch last 50 messages initially
+        );
+      } else {
+        print('✅ Loaded ${cachedMessages.length} messages from cache (offline-ready)');
+        
+        // Sync new messages in background (if online)
+        _syncService.syncNewMessages(
+          chatId: widget.instituteId,
+          chatType: 'staff_room',
+          lastTimestamp: cachedMessages.first.timestamp,
+        );
+      }
+      
+      // Start real-time listener for new messages
+      await _syncService.startSyncForChat(
+        chatId: widget.instituteId,
+        chatType: 'staff_room',
+        userId: currentUser.uid,
+      );
+    }
   }
 
   void _initMediaService() {
@@ -90,12 +173,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
   @override
   void dispose() {
     _messageController.dispose();
-    _scrollController.dispose();
+    disposeScrollController(); // Use mixin's disposal method
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
-    _highlightResetTimer?.cancel();
     _recordingDuration.dispose();
-    _messageKeys.clear();
     // Dispose all progress notifiers
     for (final notifier in _progressNotifiers.values) {
       notifier.dispose();
@@ -132,16 +213,18 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           });
 
       _messageController.clear();
-      // Scroll to bottom after sending
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+      // Scroll to bottom after sending only if user hasn't scrolled away
+      if (!_userHasScrolled) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (scrollController.hasClients) {
+            scrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -295,16 +378,18 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
       // Don't remove pending message here - let StreamBuilder handle it automatically
       // This prevents flickering by avoiding double rebuild
 
-      // Scroll to bottom
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+      // Scroll to bottom only if user hasn't scrolled away
+      if (!_userHasScrolled) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (scrollController.hasClients) {
+            scrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
     } catch (e) {
       // Remove failed pending message
       setState(() {
@@ -375,9 +460,6 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     final primaryColor = widget.isTeacher
         ? const Color(0xFFF97316)
         : const Color(0xFF146D7A);
-
-    // Capture the page's BuildContext (not the bottom sheet's)
-    final pageContext = context;
 
     showModalBottomSheet(
       context: context,
@@ -521,9 +603,6 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
               senderId: currentUser.uid,
               senderRole: currentUser.role.toString().split('.').last,
               mediaType: 'message',
-              onProgress: (progress) {
-                setState(() => _uploadProgress = progress.toDouble());
-              },
             );
 
             // Send message with attachment
@@ -550,19 +629,20 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
               _isRecording = false;
               _recordingPath = null;
               _recordingDuration.value = 0;
-              _uploadProgress = 0;
             });
 
-            // Scroll to bottom
-            Future.delayed(const Duration(milliseconds: 100), () {
-              if (_scrollController.hasClients) {
-                _scrollController.animateTo(
-                  0,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                );
-              }
-            });
+            // Scroll to bottom only if user hasn't scrolled away
+            if (!_userHasScrolled) {
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (scrollController.hasClients) {
+                  scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                  );
+                }
+              });
+            }
 
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -675,10 +755,55 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                               ? null
                               : _showDeleteDialog,
                         )
-                      : IconButton(
-                          icon: Icon(Icons.search, color: textColor),
-                          onPressed: () =>
-                              _openSearch(context, theme, primaryColor),
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Toggle button to switch between Firebase and offline
+                            if (_useOfflineFirst)
+                              Container(
+                                margin: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.green,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.offline_bolt,
+                                      size: 14,
+                                      color: Colors.green,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Offline',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            IconButton(
+                              icon: Icon(Icons.search, color: textColor),
+                              onPressed: () => _useOfflineFirst
+                                  ? _openOfflineSearch(
+                                      context,
+                                      theme,
+                                      primaryColor,
+                                    )
+                                  : _openSearch(context, theme, primaryColor),
+                            ),
+                          ],
                         );
                 },
               );
@@ -695,74 +820,61 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
     );
   }
 
-  void _openSearch(BuildContext context, ThemeData theme, Color primaryColor) {
-    Navigator.of(context)
-        .push<StaffRoomMessage?>(
-          MaterialPageRoute(
-            builder: (_) => SearchStaffRoomScreen(
-              instituteId: widget.instituteId,
-              primaryColor: primaryColor,
-              theme: theme,
-            ),
-          ),
-        )
-        .then((selectedMessage) {
-          if (selectedMessage != null) {
-            _locateMessageInList(selectedMessage);
-          }
-        });
+  void _openSearch(
+    BuildContext context,
+    ThemeData theme,
+    Color primaryColor,
+  ) async {
+    final selectedMessageId = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MessageSearchPage(
+          collectionPath: 'staff_rooms/${widget.instituteId}/messages',
+          primaryColor: primaryColor,
+          onMessageSelected: (messageId, messageData) {
+            // Pop the search page and return the message ID
+            Navigator.pop(context, messageId);
+          },
+        ),
+      ),
+    );
+
+    // If a message was selected, scroll to it
+    if (selectedMessageId != null && mounted) {
+      // Hide keyboard immediately
+      FocusScope.of(context).unfocus();
+
+      setState(() {
+        _scrollToMessageId = selectedMessageId;
+      });
+    }
   }
 
-  Future<void> _locateMessageInList(StaffRoomMessage message) async {
-    final targetId = message.id;
-    if (targetId.isEmpty) return;
-
-    // Find the message index in the current list
-    final messageIndex = _currentMessages.indexWhere(
-      (doc) => doc.id == targetId,
+  // OFFLINE-FIRST SEARCH
+  void _openOfflineSearch(
+    BuildContext context,
+    ThemeData theme,
+    Color primaryColor,
+  ) async {
+    final selectedMessageId = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OfflineMessageSearchPage(
+          chatId: widget.instituteId,
+          chatType: 'staff_room',
+        ),
+      ),
     );
 
-    if (messageIndex == -1) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Message not found in current view'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
+    // If a message was selected, scroll to it
+    if (selectedMessageId != null && mounted) {
+      // Hide keyboard immediately
+      FocusScope.of(context).unfocus();
+
+      setState(() {
+        _scrollToMessageId = selectedMessageId;
+      });
     }
-
-    // Set highlight
-    setState(() {
-      _highlightMessageId = targetId;
-    });
-
-    // Wait for rebuild
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    if (!_scrollController.hasClients || !mounted) return;
-
-    // Calculate approximate scroll position
-    // Estimate 100 pixels per message (adjust as needed)
-    const estimatedItemHeight = 100.0;
-    final scrollPosition = messageIndex * estimatedItemHeight;
-
-    // Scroll to approximate position
-    await _scrollController.animateTo(
-      scrollPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
-    );
-
-    // Clear highlight after delay
-    _highlightResetTimer?.cancel();
-    _highlightResetTimer = Timer(const Duration(milliseconds: 2000), () {
-      if (mounted && _highlightMessageId == targetId) {
-        setState(() => _highlightMessageId = null);
-      }
-    });
   }
 
   Widget _buildNormalMessages(ThemeData theme, Color primaryColor) {
@@ -878,15 +990,27 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           return bMillis.compareTo(aMillis);
         });
 
-        // Store messages for index-based scrolling
-        _currentMessages = firestoreMessages;
+        // Handle pending scroll request from search
+        if (_scrollToMessageId != null && !_isScrollingToMessage) {
+          final messageId = _scrollToMessageId!;
+          _scrollToMessageId = null; // Clear pending request
+          _isScrollingToMessage = true; // Set flag to prevent auto-scroll
+          _userHasScrolled = true; // Mark as user-initiated scroll
 
-        // Track which messages are currently visible - use doc IDs directly
-        final currentMessageIds = firestoreMessages
-            .map((doc) => doc.id)
-            .toSet();
-
-        _messageKeys.removeWhere((key, _) => !currentMessageIds.contains(key));
+          // Schedule scroll after frame is rendered
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            await scrollToMessage(messageId, allMessages);
+            
+            // Keep flags set to prevent auto-scroll back
+            await Future.delayed(const Duration(seconds: 5));
+            if (mounted) {
+              setState(() {
+                _isScrollingToMessage = false;
+                // Keep _userHasScrolled true - user must manually scroll to bottom to reset
+              });
+            }
+          });
+        }
 
         if (allMessages.isEmpty) {
           return Center(
@@ -918,11 +1042,33 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
           );
         }
 
+        // Check if new messages arrived and user is at bottom
+        final shouldAutoScroll = allMessages.length > _lastItemCount && 
+                                 !_userHasScrolled && 
+                                 scrollController.hasClients &&
+                                 scrollController.offset < 100;
+        
+        // Update last count
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _lastItemCount = allMessages.length;
+          
+          // Only auto-scroll if conditions are met
+          if (shouldAutoScroll && scrollController.hasClients) {
+            scrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+        
         return ListView.builder(
-          controller: _scrollController,
+          key: const PageStorageKey('staff_room_messages'), // Prevent unnecessary rebuilds
+          controller: scrollController, // Use controller from mixin
           reverse: true,
           padding: const EdgeInsets.all(16),
           itemCount: allMessages.length,
+          physics: const ClampingScrollPhysics(), // Prevent auto-scroll bounce
           itemBuilder: (context, index) {
             final message = allMessages[index];
             final messageId = message['id'] as String? ?? '';
@@ -934,13 +1080,11 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
             );
             final isMe = message['senderId'] == authProvider.currentUser?.uid;
 
+            // Check if this message is highlighted
+            final isHighlighted = highlightedMessageId == messageId;
+
             // Create stable key for all items (pending and non-pending)
             final itemKey = ValueKey(messageId);
-
-            // For non-pending messages, create GlobalKey for scroll detection
-            if (!isPending && !_messageKeys.containsKey(messageId)) {
-              _messageKeys[messageId] = GlobalKey();
-            }
 
             // Simplified container without heavy animations for pending messages
             if (isPending) {
@@ -950,10 +1094,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   return ValueListenableBuilder<Set<String>>(
                     valueListenable: _selectedMessages,
                     builder: (context, selectedMessages, _) {
-                      return Container(
-                        key: itemKey,
+                      return HighlightedMessageWrapper(
+                        key: getMessageKey(messageId),
+                        isHighlighted: isHighlighted,
                         child: _MessageBubble(
-                          key: itemKey,
                           message: message,
                           isMe: isMe,
                           primaryColor: primaryColor,
@@ -980,7 +1124,6 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                   valueListenable: _selectedMessages,
                   builder: (context, selectedMessages, _) {
                     final isSelected = selectedMessages.contains(messageId);
-                    final isHighlighted = messageId == _highlightMessageId;
 
                     return GestureDetector(
                       onLongPress: isMe
@@ -1010,41 +1153,21 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage> {
                               }
                             }
                           : null,
-                      child: Container(
-                        key: _messageKeys[messageId],
-                        child: isHighlighted
-                            ? AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeOut,
-                                decoration: BoxDecoration(
-                                  color: primaryColor.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: _MessageBubble(
-                                  message: message,
-                                  isMe: isMe,
-                                  primaryColor: primaryColor,
-                                  uploadingMessageIds: _uploadingMessageIds,
-                                  pendingUploadProgress: _pendingUploadProgress,
-                                  localFilePaths: _localFilePaths,
-                                  progressNotifiers: _progressNotifiers,
-                                  selectionMode: isSelectionMode,
-                                  isSelected: isSelected,
-                                  staffRoomId: widget.instituteId,
-                                ),
-                              )
-                            : _MessageBubble(
-                                message: message,
-                                isMe: isMe,
-                                primaryColor: primaryColor,
-                                uploadingMessageIds: _uploadingMessageIds,
-                                pendingUploadProgress: _pendingUploadProgress,
-                                localFilePaths: _localFilePaths,
-                                progressNotifiers: _progressNotifiers,
-                                selectionMode: isSelectionMode,
-                                isSelected: isSelected,
-                                staffRoomId: widget.instituteId,
-                              ),
+                      child: HighlightedMessageWrapper(
+                        key: getMessageKey(messageId),
+                        isHighlighted: isHighlighted,
+                        child: _MessageBubble(
+                          message: message,
+                          isMe: isMe,
+                          primaryColor: primaryColor,
+                          uploadingMessageIds: _uploadingMessageIds,
+                          pendingUploadProgress: _pendingUploadProgress,
+                          localFilePaths: _localFilePaths,
+                          progressNotifiers: _progressNotifiers,
+                          selectionMode: isSelectionMode,
+                          isSelected: isSelected,
+                          staffRoomId: widget.instituteId,
+                        ),
                       ),
                     );
                   },
@@ -1900,441 +2023,5 @@ class _MessageBubble extends StatelessWidget {
     } catch (_) {
       return 'file';
     }
-  }
-}
-
-class SearchStaffRoomScreen extends StatefulWidget {
-  final String instituteId;
-  final Color primaryColor;
-  final ThemeData theme;
-
-  const SearchStaffRoomScreen({
-    super.key,
-    required this.instituteId,
-    required this.primaryColor,
-    required this.theme,
-  });
-
-  @override
-  State<SearchStaffRoomScreen> createState() => _SearchStaffRoomScreenState();
-}
-
-class _SearchStaffRoomScreenState extends State<SearchStaffRoomScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  List<StaffRoomMessage> _searchResults = [];
-  bool _isLoading = false;
-  String _searchQuery = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _performSearch(String query) async {
-    if (query.trim().isEmpty) {
-      setState(() {
-        _searchResults = [];
-        _searchQuery = '';
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _searchQuery = query.toLowerCase();
-    });
-
-    try {
-      // Get messages and search through them
-      final messagesSnapshot = await FirebaseFirestore.instance
-          .collection('staff_rooms')
-          .doc(widget.instituteId)
-          .collection('messages')
-          .orderBy('createdAt', descending: true)
-          .limit(500) // Search in recent messages
-          .get();
-
-      final results = <StaffRoomMessage>[];
-
-      for (final doc in messagesSnapshot.docs) {
-        try {
-          final message = StaffRoomMessage.fromFirestore(doc.data(), doc.id);
-
-          // Search in message text
-          if (message.text.toLowerCase().contains(_searchQuery)) {
-            results.add(message);
-            if (results.length >= 25) break;
-            continue;
-          }
-
-          // Search in sender name
-          if (message.senderName.toLowerCase().contains(_searchQuery)) {
-            results.add(message);
-            if (results.length >= 25) break;
-          }
-
-          // Search in PDF file names
-          if (message.mediaMetadata != null) {
-            final fileName =
-                message.mediaMetadata?.originalFileName?.toLowerCase() ?? '';
-            if (fileName.contains(_searchQuery)) {
-              results.add(message);
-              if (results.length >= 25) break;
-            }
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _searchResults = results;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final isDark = theme.brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final hintColor = isDark ? Colors.grey[400] : Colors.grey[600];
-
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new,
-            size: 20,
-            color: theme.iconTheme.color,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        titleSpacing: 0,
-        title: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Search Messages',
-            style: TextStyle(
-              color: theme.textTheme.bodyLarge?.color,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.5,
-            ),
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(72),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF0F1419)
-                    : theme.colorScheme.surfaceContainerHighest.withOpacity(
-                        0.8,
-                      ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: widget.primaryColor.withOpacity(0.15),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.primaryColor.withOpacity(0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: _performSearch,
-                      autofocus: true,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Search staff room messages...',
-                        hintStyle: TextStyle(
-                          color: hintColor?.withOpacity(0.7),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? Padding(
-                                padding: const EdgeInsets.only(right: 4),
-                                child: IconButton(
-                                  icon: Icon(
-                                    Icons.close_rounded,
-                                    size: 18,
-                                    color: hintColor?.withOpacity(0.6),
-                                  ),
-                                  padding: const EdgeInsets.all(4),
-                                  splashRadius: 16,
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _performSearch('');
-                                  },
-                                ),
-                              )
-                            : null,
-                      ),
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: (_) =>
-                          _performSearch(_searchController.text),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-      body: _buildSearchResultsList(),
-    );
-  }
-
-  Widget _buildSearchResultsList() {
-    if (_searchQuery.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: widget.primaryColor.withOpacity(0.1),
-              ),
-              child: Icon(
-                Icons.search_rounded,
-                size: 50,
-                color: widget.primaryColor.withOpacity(0.3),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Search Messages',
-              style: TextStyle(
-                color: widget.theme.textTheme.bodyLarge?.color,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                'Find messages from staff members',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: widget.theme.textTheme.bodyMedium?.color?.withOpacity(
-                    0.6,
-                  ),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  height: 1.4,
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: widget.primaryColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: widget.primaryColor.withOpacity(0.1),
-                  width: 1,
-                ),
-              ),
-              child: Text(
-                'Type to search messages',
-                style: TextStyle(
-                  color: widget.primaryColor.withOpacity(0.7),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_isLoading) {
-      return Center(
-        child: CircularProgressIndicator(color: widget.primaryColor),
-      );
-    }
-
-    if (_searchResults.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.red.withOpacity(0.1),
-              ),
-              child: Icon(
-                Icons.search_off_rounded,
-                size: 40,
-                color: Colors.red.withOpacity(0.3),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No matches found',
-              style: TextStyle(
-                color: widget.theme.textTheme.bodyLarge?.color,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Try searching with different keywords',
-              style: TextStyle(
-                color: widget.theme.textTheme.bodyMedium?.color?.withOpacity(
-                  0.6,
-                ),
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: _searchResults.length,
-      itemBuilder: (context, index) {
-        final message = _searchResults[index];
-        final senderName = message.senderName;
-        final text = message.text;
-        final timestamp = message.createdAt;
-
-        String timeStr = '';
-        final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
-        timeStr = DateFormat('HH:mm').format(date);
-
-        // Determine display text and icon
-        String displayText = text;
-        IconData icon = Icons.chat_bubble_outline;
-
-        if (text.isEmpty && message.mediaMetadata != null) {
-          displayText =
-              message.mediaMetadata?.originalFileName ?? 'Media message';
-          final mime = message.mediaMetadata?.mimeType ?? '';
-          if (mime == 'application/pdf') {
-            icon = Icons.picture_as_pdf_outlined;
-          } else if (mime.startsWith('audio/')) {
-            icon = Icons.audiotrack;
-          } else if (mime.startsWith('image/')) {
-            icon = Icons.image_outlined;
-          }
-        }
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => Navigator.pop(context, message),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: widget.theme.brightness == Brightness.dark
-                        ? Colors.white.withOpacity(0.05)
-                        : widget.theme.dividerColor.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: widget.primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(icon, color: widget.primaryColor, size: 22),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            displayText.isNotEmpty
-                                ? displayText
-                                : 'Media message',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: widget.theme.textTheme.bodyLarge?.color,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$senderName • $timeStr',
-                            style: TextStyle(
-                              color: widget.theme.textTheme.bodySmall?.color
-                                  ?.withOpacity(0.6),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 }

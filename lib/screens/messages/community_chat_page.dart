@@ -15,7 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../utils/link_utils.dart';
 import '../../models/group_chat_message.dart';
 import '../../services/group_messaging_service.dart';
-import '../../services/community_service.dart';
+import '../../services/community_service.dart' hide MessageSearchPage;
 import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/unread_count_provider.dart';
@@ -27,6 +27,8 @@ import '../../services/background_upload_service.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../models/poll_model.dart';
+import 'message_search_page.dart';
+import '../../utils/message_scroll_highlight_mixin.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -44,11 +46,11 @@ class CommunityChatPage extends StatefulWidget {
   State<CommunityChatPage> createState() => _CommunityChatPageState();
 }
 
-class _CommunityChatPageState extends State<CommunityChatPage> {
+class _CommunityChatPageState extends State<CommunityChatPage>
+    with MessageScrollAndHighlightMixin {
   final GroupMessagingService _messagingService = GroupMessagingService();
   final CommunityService _communityService = CommunityService();
   final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   late Stream<Timestamp?> _lastReadAtStream;
   final bool _showUnreadDivider = true;
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -141,9 +143,13 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
 
+  // Track pending scroll request from search
+  String? _scrollToMessageId;
+
   @override
   void initState() {
     super.initState();
+
     _messageController.addListener(() => setState(() {}));
     _messageFocusNode.addListener(() {
       if (_messageFocusNode.hasFocus && _showEmojiPicker) {
@@ -236,7 +242,7 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     } catch (_) {}
 
     _messageController.dispose();
-    _scrollController.dispose();
+    disposeScrollController(); // Use mixin's disposal method
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
@@ -262,13 +268,35 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
 
   void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (scrollController.hasClients) {
         // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
-        if (force || _scrollController.offset < 100) {
-          _scrollController.jumpTo(0);
+        if (force || scrollController.offset < 100) {
+          scrollController.jumpTo(0);
         }
       }
     });
+  }
+
+  void _openSearchPage() async {
+    final selectedMessageId = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MessageSearchPage(
+          collectionPath: 'communities/${widget.communityId}/messages',
+          onMessageSelected: (messageId, messageData) {
+            // Pop the search page and return the message ID
+            Navigator.pop(context, messageId);
+          },
+        ),
+      ),
+    );
+
+    // If a message was selected, scroll to it
+    if (selectedMessageId != null && mounted) {
+      setState(() {
+        _scrollToMessageId = selectedMessageId;
+      });
+    }
   }
 
   Future<void> _sendMessage({String? imageUrl}) async {
@@ -563,9 +591,6 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
     final cardColor = isDark
         ? const Color(0xFF222222)
         : const Color(0xFFFFFFFF);
-
-    // Capture the page's BuildContext (not the bottom sheet's)
-    final pageContext = context;
 
     showModalBottomSheet(
       context: context,
@@ -1057,35 +1082,54 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                               ? null
                               : _showDeleteDialog,
                         )
-                      : PopupMenuButton<String>(
-                          icon: Icon(
-                            Icons.more_vert,
-                            color: isDark
-                                ? Colors.white70
-                                : const Color(0xFF475569),
-                          ),
-                          onSelected: (value) {
-                            if (value == 'leave') {
-                              _showLeaveCommunityDialog();
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'leave',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.exit_to_app,
-                                    color: Colors.redAccent,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 12),
-                                  Text(
-                                    'Leave Community',
-                                    style: TextStyle(color: Colors.redAccent),
-                                  ),
-                                ],
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Search Icon
+                            IconButton(
+                              icon: Icon(
+                                Icons.search,
+                                color: isDark
+                                    ? Colors.white70
+                                    : const Color(0xFF475569),
                               ),
+                              onPressed: _openSearchPage,
+                              tooltip: 'Search messages',
+                            ),
+                            // More options menu
+                            PopupMenuButton<String>(
+                              icon: Icon(
+                                Icons.more_vert,
+                                color: isDark
+                                    ? Colors.white70
+                                    : const Color(0xFF475569),
+                              ),
+                              onSelected: (value) {
+                                if (value == 'leave') {
+                                  _showLeaveCommunityDialog();
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'leave',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.exit_to_app,
+                                        color: Colors.redAccent,
+                                        size: 20,
+                                      ),
+                                      SizedBox(width: 12),
+                                      Text(
+                                        'Leave Community',
+                                        style: TextStyle(
+                                          color: Colors.redAccent,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         );
@@ -1292,8 +1336,24 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                       unreadDividerIndex = allMessages.length - 1;
                     }
 
+                    // Handle pending scroll request from search
+                    if (_scrollToMessageId != null) {
+                      final messageId = _scrollToMessageId!;
+                      _scrollToMessageId = null; // Clear pending request
+
+                      // Convert GroupChatMessage list to Map format for mixin
+                      final messagesList = allMessages
+                          .map((msg) => {'id': msg.id})
+                          .toList();
+
+                      // Schedule scroll after frame is rendered
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        scrollToMessage(messageId, messagesList);
+                      });
+                    }
+
                     return ListView.builder(
-                      controller: _scrollController,
+                      controller: scrollController,
                       reverse: true,
                       padding: const EdgeInsets.all(16),
                       itemCount: allMessages.length,
@@ -1335,6 +1395,8 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                                 final isSelected = selectedMessages.contains(
                                   message.id,
                                 );
+                                final isHighlighted =
+                                    highlightedMessageId == message.id;
 
                                 return Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -1345,51 +1407,55 @@ class _CommunityChatPageState extends State<CommunityChatPage> {
                                       _buildUnreadDivider(),
                                     if (showDayDivider)
                                       _buildDayDivider(currentDate),
-                                    GestureDetector(
-                                      onLongPress: isMe
-                                          ? () {
-                                              _isSelectionMode.value = true;
-                                              _selectedMessages.value = {
-                                                ...selectedMessages,
-                                                message.id,
-                                              };
-                                            }
-                                          : null,
-                                      onTap: isSelectionMode && isMe
-                                          ? () {
-                                              if (isSelected) {
-                                                final newSelection =
-                                                    Set<String>.from(
-                                                      selectedMessages,
-                                                    )..remove(message.id);
-                                                _selectedMessages.value =
-                                                    newSelection;
-                                                if (newSelection.isEmpty) {
-                                                  _isSelectionMode.value =
-                                                      false;
-                                                }
-                                              } else {
+                                    HighlightedMessageWrapper(
+                                      key: getMessageKey(message.id),
+                                      isHighlighted: isHighlighted,
+                                      child: GestureDetector(
+                                        onLongPress: isMe
+                                            ? () {
+                                                _isSelectionMode.value = true;
                                                 _selectedMessages.value = {
                                                   ...selectedMessages,
                                                   message.id,
                                                 };
                                               }
-                                            }
-                                          : null,
-                                      child: _MessageBubble(
-                                        message: message,
-                                        isMe: isMe,
-                                        uploading: isPending,
-                                        uploadProgress: uploadProgress,
-                                        localSenderMediaPaths:
-                                            _localSenderMediaPaths,
-                                        uploadingMessageIds:
-                                            _uploadingMessageIds,
-                                        pendingUploadProgress:
-                                            _pendingUploadProgress,
-                                        selectionMode: isSelectionMode,
-                                        isSelected: isSelected,
-                                        communityId: widget.communityId,
+                                            : null,
+                                        onTap: isSelectionMode && isMe
+                                            ? () {
+                                                if (isSelected) {
+                                                  final newSelection =
+                                                      Set<String>.from(
+                                                        selectedMessages,
+                                                      )..remove(message.id);
+                                                  _selectedMessages.value =
+                                                      newSelection;
+                                                  if (newSelection.isEmpty) {
+                                                    _isSelectionMode.value =
+                                                        false;
+                                                  }
+                                                } else {
+                                                  _selectedMessages.value = {
+                                                    ...selectedMessages,
+                                                    message.id,
+                                                  };
+                                                }
+                                              }
+                                            : null,
+                                        child: _MessageBubble(
+                                          message: message,
+                                          isMe: isMe,
+                                          uploading: isPending,
+                                          uploadProgress: uploadProgress,
+                                          localSenderMediaPaths:
+                                              _localSenderMediaPaths,
+                                          uploadingMessageIds:
+                                              _uploadingMessageIds,
+                                          pendingUploadProgress:
+                                              _pendingUploadProgress,
+                                          selectionMode: isSelectionMode,
+                                          isSelected: isSelected,
+                                          communityId: widget.communityId,
+                                        ),
                                       ),
                                     ),
                                   ],

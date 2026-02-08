@@ -20,6 +20,8 @@ import 'services/local_cache_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/offline_cache_manager.dart';
 import 'services/offline_data_service.dart';
+import 'services/offline_first_initializer.dart';
+import 'models/local_message.dart';
 import 'share/share_controller.dart';
 import 'share/share_receiver_service.dart';
 
@@ -36,6 +38,11 @@ void main() async {
 
     // Initialize Hive once before any service uses it
     await Hive.initFlutter();
+    
+    // STEP 1: Register Hive adapters for offline-first messaging
+    if (!Hive.isAdapterRegistered(0)) {
+      Hive.registerAdapter(LocalMessageAdapter());
+    }
 
     // Enable offline persistence for Firestore
     FirebaseFirestore.instance.settings = const Settings(
@@ -84,6 +91,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // STEP 2: Add OfflineMessageProvider for offline-first messaging
+        ChangeNotifierProvider(
+          create: (_) => OfflineMessageProvider()..initialize(),
+        ),
         ChangeNotifierProvider(
           create: (_) {
             final authProvider = local_auth.AuthProvider();
