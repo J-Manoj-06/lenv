@@ -38,7 +38,7 @@ void main() async {
 
     // Initialize Hive once before any service uses it
     await Hive.initFlutter();
-    
+
     // STEP 1: Register Hive adapters for offline-first messaging
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(LocalMessageAdapter());

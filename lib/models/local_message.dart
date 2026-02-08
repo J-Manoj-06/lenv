@@ -70,7 +70,7 @@ class LocalMessage extends HiveObject {
     int timestamp;
     final createdAt = data['createdAt'];
     final timestampField = data['timestamp'];
-    
+
     if (createdAt != null) {
       if (createdAt is Timestamp) {
         timestamp = createdAt.millisecondsSinceEpoch;
@@ -90,7 +90,7 @@ class LocalMessage extends HiveObject {
     } else {
       timestamp = DateTime.now().millisecondsSinceEpoch;
     }
-    
+
     return LocalMessage(
       messageId: messageId,
       chatId: chatId,

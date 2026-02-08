@@ -83,16 +83,16 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     super.initState();
     _initMediaService();
     _initOfflineFirst();
-    
+
     // Listen to scroll events to detect user scrolling
     scrollController.addListener(_onScroll);
   }
-  
+
   void _onScroll() {
     if (!scrollController.hasClients) return;
-    
+
     final currentPosition = scrollController.offset;
-    
+
     // Detect if user manually scrolled (position changed significantly)
     if ((currentPosition - _lastScrollPosition).abs() > 10.0) {
       // User scrolled - don't auto-scroll back to bottom
@@ -100,12 +100,12 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         _userHasScrolled = true;
       }
     }
-    
+
     // If scrolled to near bottom (within 100px), reset flag
     if (currentPosition < 100) {
       _userHasScrolled = false;
     }
-    
+
     _lastScrollPosition = currentPosition;
   }
 
@@ -113,19 +113,19 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     // Initialize offline-first services
     _localRepo = LocalMessageRepository();
     _syncService = FirebaseMessageSyncService(_localRepo);
-    
+
     await _localRepo.initialize();
-    
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
-    
+
     if (currentUser != null) {
       // Load from cache first (works offline)
       final cachedMessages = await _localRepo.getMessagesForChat(
         widget.instituteId,
         limit: 50, // Initial load: 50 messages
       );
-      
+
       if (cachedMessages.isEmpty) {
         // No cache: fetch initial batch from Firebase
         print('📥 No cache - fetching initial messages from Firebase...');
@@ -135,8 +135,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           limit: 50, // Fetch last 50 messages initially
         );
       } else {
-        print('✅ Loaded ${cachedMessages.length} messages from cache (offline-ready)');
-        
+        print(
+          '✅ Loaded ${cachedMessages.length} messages from cache (offline-ready)',
+        );
+
         // Sync new messages in background (if online)
         _syncService.syncNewMessages(
           chatId: widget.instituteId,
@@ -144,7 +146,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           lastTimestamp: cachedMessages.first.timestamp,
         );
       }
-      
+
       // Start real-time listener for new messages
       await _syncService.startSyncForChat(
         chatId: widget.instituteId,
@@ -1000,7 +1002,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           // Schedule scroll after frame is rendered
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             await scrollToMessage(messageId, allMessages);
-            
+
             // Keep flags set to prevent auto-scroll back
             await Future.delayed(const Duration(seconds: 5));
             if (mounted) {
@@ -1043,15 +1045,16 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         }
 
         // Check if new messages arrived and user is at bottom
-        final shouldAutoScroll = allMessages.length > _lastItemCount && 
-                                 !_userHasScrolled && 
-                                 scrollController.hasClients &&
-                                 scrollController.offset < 100;
-        
+        final shouldAutoScroll =
+            allMessages.length > _lastItemCount &&
+            !_userHasScrolled &&
+            scrollController.hasClients &&
+            scrollController.offset < 100;
+
         // Update last count
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _lastItemCount = allMessages.length;
-          
+
           // Only auto-scroll if conditions are met
           if (shouldAutoScroll && scrollController.hasClients) {
             scrollController.animateTo(
@@ -1061,9 +1064,11 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             );
           }
         });
-        
+
         return ListView.builder(
-          key: const PageStorageKey('staff_room_messages'), // Prevent unnecessary rebuilds
+          key: const PageStorageKey(
+            'staff_room_messages',
+          ), // Prevent unnecessary rebuilds
           controller: scrollController, // Use controller from mixin
           reverse: true,
           padding: const EdgeInsets.all(16),

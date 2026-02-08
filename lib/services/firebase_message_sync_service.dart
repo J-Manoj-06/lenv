@@ -94,7 +94,7 @@ class FirebaseMessageSyncService {
       print('   Fetching messages from Firebase...');
       final snapshot = await messagesQuery.get();
       print('   Fetched ${snapshot.docs.length} documents from Firebase');
-      
+
       final List<LocalMessage> messages = [];
 
       for (final doc in snapshot.docs) {
@@ -110,7 +110,9 @@ class FirebaseMessageSyncService {
             chatType,
           );
           messages.add(localMessage);
-          print('   📝 Message ${doc.id}: "${localMessage.messageText?.substring(0, localMessage.messageText!.length > 30 ? 30 : localMessage.messageText!.length) ?? '[no text]'}..."');
+          print(
+            '   📝 Message ${doc.id}: "${localMessage.messageText?.substring(0, localMessage.messageText!.length > 30 ? 30 : localMessage.messageText!.length) ?? '[no text]'}..."',
+          );
         } else {
           print('   ⏭️  Message ${doc.id} already exists locally');
         }
@@ -145,27 +147,27 @@ class FirebaseMessageSyncService {
     required int lastTimestamp,
   }) async {
     try {
-      print('🔄 Syncing new messages since ${DateTime.fromMillisecondsSinceEpoch(lastTimestamp)}');
-      
-      final Query messagesQuery = _getMessagesQuery(
-        chatId,
-        chatType,
-      ).where('createdAt', isGreaterThan: lastTimestamp)
-       .orderBy('createdAt', descending: false)
-       .limit(100);
+      print(
+        '🔄 Syncing new messages since ${DateTime.fromMillisecondsSinceEpoch(lastTimestamp)}',
+      );
+
+      final Query messagesQuery = _getMessagesQuery(chatId, chatType)
+          .where('createdAt', isGreaterThan: lastTimestamp)
+          .orderBy('createdAt', descending: false)
+          .limit(100);
 
       final snapshot = await messagesQuery.get();
-      
+
       if (snapshot.docs.isEmpty) {
         print('✅ Already up to date - no new messages');
         return;
       }
-      
+
       final List<LocalMessage> newMessages = [];
       for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final exists = await _localRepo.hasMessage(doc.id);
-        
+
         if (!exists) {
           final localMessage = LocalMessage.fromFirestore(
             data,
@@ -195,21 +197,21 @@ class FirebaseMessageSyncService {
     int limit = 50,
   }) async {
     try {
-      print('📜 Loading older messages before ${DateTime.fromMillisecondsSinceEpoch(beforeTimestamp)}');
-      
-      final Query messagesQuery = _getMessagesQuery(
-        chatId,
-        chatType,
-      ).where('createdAt', isLessThan: beforeTimestamp)
-       .orderBy('createdAt', descending: true)
-       .limit(limit);
+      print(
+        '📜 Loading older messages before ${DateTime.fromMillisecondsSinceEpoch(beforeTimestamp)}',
+      );
+
+      final Query messagesQuery = _getMessagesQuery(chatId, chatType)
+          .where('createdAt', isLessThan: beforeTimestamp)
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
 
       final snapshot = await messagesQuery.get();
       final List<LocalMessage> olderMessages = [];
 
       for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        
+
         // Save to cache
         final localMessage = LocalMessage.fromFirestore(
           data,
@@ -224,7 +226,7 @@ class FirebaseMessageSyncService {
         await _localRepo.saveMessages(olderMessages);
         print('✅ Loaded ${olderMessages.length} older messages');
       }
-      
+
       return olderMessages;
     } catch (e) {
       print('❌ Failed to load older messages: $e');

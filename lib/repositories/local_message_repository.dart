@@ -18,7 +18,7 @@ class LocalMessageRepository {
   Future<void> initialize() async {
     // Don't re-initialize Hive - it's already done in main.dart
     // Just open the boxes
-    
+
     // Open message box
     if (!Hive.isBoxOpen(_boxName)) {
       _messageBox = await Hive.openBox<LocalMessage>(_boxName);
@@ -101,7 +101,7 @@ class LocalMessageRepository {
     }
 
     final lowerQuery = query.toLowerCase();
-    
+
     print('🔍 Search started:');
     print('   Query: "$query"');
     print('   ChatId filter: ${chatId ?? "all chats"}');
@@ -148,7 +148,9 @@ class LocalMessageRepository {
 
     print('✅ Search complete: ${results.length} results found');
     if (results.isNotEmpty) {
-      print('   First result: ${results.first.messageText?.substring(0, results.first.messageText!.length > 50 ? 50 : results.first.messageText!.length)}...');
+      print(
+        '   First result: ${results.first.messageText?.substring(0, results.first.messageText!.length > 50 ? 50 : results.first.messageText!.length)}...',
+      );
     }
 
     return results;
