@@ -95,55 +95,148 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF111B21)
+          : const Color(0xFFF0F2F5),
       appBar: AppBar(
-        title: TextField(
-          controller: _searchController,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Search messages...',
-            border: InputBorder.none,
-            hintStyle: TextStyle(color: theme.hintColor),
+        backgroundColor: isDark
+            ? const Color(0xFF1F2C34)
+            : const Color(0xFF008069),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.white,
+            size: 20,
           ),
-          style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+          onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          if (_searchController.text.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: () {
-                _searchController.clear();
-              },
+        title: const Text(
+          'Search',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: Column(
+        children: [
+          // Search input container
+          Container(
+            color: isDark ? const Color(0xFF1F2C34) : const Color(0xFF008069),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF111B21) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF8696A0)
+                      : const Color(0xFF008069),
+                  width: 2,
+                ),
+              ),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontSize: 16,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Messages, files, audio...',
+                  hintStyle: TextStyle(
+                    color: isDark ? const Color(0xFF8696A0) : Colors.grey[600],
+                    fontSize: 16,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(
+                            Icons.close,
+                            color: isDark
+                                ? const Color(0xFF8696A0)
+                                : Colors.grey[600],
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
+                ),
+              ),
             ),
+          ),
+          // Search results
+          Expanded(child: _buildBody(theme)),
         ],
       ),
-      body: _buildBody(theme),
     );
   }
 
   Widget _buildBody(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+
     if (_searchController.text.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search,
-              size: 64,
-              color: theme.iconTheme.color?.withOpacity(0.3),
-            ),
-            const SizedBox(height: 16),
             Text(
-              'Search for messages',
+              'Search Messages',
               style: TextStyle(
-                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                color: isDark ? Colors.white : Colors.black87,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
-              '✈️ Works offline',
-              style: TextStyle(color: Colors.green, fontSize: 12),
+              'Find messages, PDFs, images, or audio files',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isDark ? const Color(0xFF8696A0) : Colors.grey[600],
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1F2C34) : Colors.grey[200],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.flight_takeoff,
+                    size: 16,
+                    color: isDark
+                        ? const Color(0xFF00A884)
+                        : const Color(0xFF008069),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Works offline',
+                    style: TextStyle(
+                      color: isDark
+                          ? const Color(0xFF00A884)
+                          : const Color(0xFF008069),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -151,7 +244,11 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
     }
 
     if (_isSearching) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: CircularProgressIndicator(
+          color: isDark ? const Color(0xFF00A884) : const Color(0xFF008069),
+        ),
+      );
     }
 
     if (_searchResults.isEmpty) {
@@ -162,13 +259,14 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
             Icon(
               Icons.search_off,
               size: 64,
-              color: theme.iconTheme.color?.withOpacity(0.3),
+              color: isDark ? const Color(0xFF8696A0) : Colors.grey[400],
             ),
             const SizedBox(height: 16),
             Text(
               'No messages found',
               style: TextStyle(
-                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                color: isDark ? const Color(0xFF8696A0) : Colors.grey[600],
+                fontSize: 16,
               ),
             ),
           ],
@@ -186,36 +284,76 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
   }
 
   Widget _buildSearchResultItem(LocalMessage message, ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
     final displayText =
         message.messageText ??
         (message.pollData != null
             ? '📊 Poll: ${message.pollData!['question'] ?? ''}'
             : '[Media message]');
 
-    return ListTile(
-      leading: CircleAvatar(
-        child: Text(
-          message.senderName.isNotEmpty
-              ? message.senderName[0].toUpperCase()
-              : '?',
+    // Highlight search term in message text
+    final searchQuery = _searchController.text.toLowerCase();
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF1F2C34) : Colors.grey[200]!,
+            width: 0.5,
+          ),
         ),
       ),
-      title: Text(
-        message.senderName,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      subtitle: Text(displayText, maxLines: 2, overflow: TextOverflow.ellipsis),
-      trailing: Text(
-        _formatTimestamp(message.timestamp),
-        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
-      ),
-      onTap: () {
-        // Dismiss keyboard before navigating back
-        FocusScope.of(context).unfocus();
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: isDark
+              ? const Color(0xFF00A884)
+              : const Color(0xFF008069),
+          child: Text(
+            message.senderName.isNotEmpty
+                ? message.senderName[0].toUpperCase()
+                : '?',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        title: Text(
+          message.senderName,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            displayText,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? const Color(0xFF8696A0) : Colors.grey[600],
+            ),
+          ),
+        ),
+        trailing: Text(
+          _formatTimestamp(message.timestamp),
+          style: TextStyle(
+            fontSize: 12,
+            color: isDark ? const Color(0xFF8696A0) : Colors.grey[500],
+          ),
+        ),
+        onTap: () {
+          // Dismiss keyboard before navigating back
+          FocusScope.of(context).unfocus();
 
-        // Return messageId to navigate to it in chat
-        Navigator.pop(context, message.messageId);
-      },
+          // Return messageId to navigate to it in chat
+          Navigator.pop(context, message.messageId);
+        },
+      ),
     );
   }
 
