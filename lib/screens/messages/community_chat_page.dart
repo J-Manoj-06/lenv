@@ -27,8 +27,11 @@ import '../../services/background_upload_service.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../models/poll_model.dart';
-import 'message_search_page.dart';
 import '../../utils/message_scroll_highlight_mixin.dart';
+// OFFLINE-FIRST IMPORTS
+import '../../repositories/local_message_repository.dart';
+import '../../services/firebase_message_sync_service.dart';
+import 'offline_message_search_page.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -59,6 +62,18 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   Timer? _recordingTimer;
+
+  // OFFLINE-FIRST SERVICES
+  late final LocalMessageRepository _localRepo;
+  late final FirebaseMessageSyncService _syncService;
+
+  // Track pending scroll request from search
+  String? _scrollToMessageId;
+  bool _isScrollingToMessage = false;
+  bool _userHasScrolled = false;
+  double _lastScrollPosition = 0.0;
+  int _lastItemCount = 0;
+  bool _isProcessingScroll = false;
 
   // ===== Date helpers for day separators =====
   String _formatDayLabel(DateTime dt) {
@@ -143,9 +158,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
 
-  // Track pending scroll request from search
-  String? _scrollToMessageId;
-
   @override
   void initState() {
     super.initState();
@@ -156,6 +168,12 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         setState(() => _showEmojiPicker = false);
       }
     });
+
+    // Initialize offline-first services
+    _initOfflineFirst();
+
+    // Listen to scroll events to detect user scrolling
+    scrollController.addListener(_onScroll);
 
     // Track upload progress so pending bubbles show overlays
     BackgroundUploadService().onUploadProgress =
@@ -213,6 +231,72 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     }
   }
 
+  void _initOfflineFirst() async {
+    // Initialize offline-first services
+    _localRepo = LocalMessageRepository();
+    _syncService = FirebaseMessageSyncService(_localRepo);
+
+    await _localRepo.initialize();
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+
+    if (currentUser != null) {
+      // Load from cache first (works offline)
+      final cachedMessages = await _localRepo.getMessagesForChat(
+        widget.communityId,
+        limit: 50,
+      );
+
+      if (cachedMessages.isEmpty) {
+        print('📥 No cache - fetching initial messages from Firebase...');
+        await _syncService.initialSyncForChat(
+          chatId: widget.communityId,
+          chatType: 'community',
+          limit: 50,
+        );
+      } else {
+        print(
+          '✅ Loaded ${cachedMessages.length} messages from cache (offline-ready)',
+        );
+
+        // Sync new messages in background
+        _syncService.syncNewMessages(
+          chatId: widget.communityId,
+          chatType: 'community',
+          lastTimestamp: cachedMessages.first.timestamp,
+        );
+      }
+
+      // Start real-time listener for new messages
+      await _syncService.startSyncForChat(
+        chatId: widget.communityId,
+        chatType: 'community',
+        userId: currentUser.uid,
+      );
+    }
+  }
+
+  void _onScroll() {
+    if (!scrollController.hasClients) return;
+
+    final currentPosition = scrollController.offset;
+
+    // Detect if user manually scrolled
+    if ((currentPosition - _lastScrollPosition).abs() > 10.0) {
+      if (!_isScrollingToMessage) {
+        _userHasScrolled = true;
+      }
+    }
+
+    // If scrolled to near bottom (within 100px), reset flag
+    if (currentPosition < 100) {
+      _userHasScrolled = false;
+    }
+
+    _lastScrollPosition = currentPosition;
+  }
+
   Future<void> _markAsRead() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -267,6 +351,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   }
 
   void _scrollToBottom({bool force = false}) {
+    // Don't auto-scroll if user has manually scrolled away (unless forced)
+    if (!force && _userHasScrolled) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController.hasClients) {
         // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
@@ -281,12 +368,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     final selectedMessageId = await Navigator.push<String>(
       context,
       MaterialPageRoute(
-        builder: (context) => MessageSearchPage(
-          collectionPath: 'communities/${widget.communityId}/messages',
-          onMessageSelected: (messageId, messageData) {
-            // Pop the search page and return the message ID
-            Navigator.pop(context, messageId);
-          },
+        builder: (context) => OfflineMessageSearchPage(
+          chatId: widget.communityId,
+          chatType: 'community',
         ),
       ),
     );
@@ -1337,26 +1421,77 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                     }
 
                     // Handle pending scroll request from search
-                    if (_scrollToMessageId != null) {
+                    if (_scrollToMessageId != null &&
+                        !_isScrollingToMessage &&
+                        !_isProcessingScroll) {
                       final messageId = _scrollToMessageId!;
                       _scrollToMessageId = null; // Clear pending request
+                      _isScrollingToMessage = true;
+                      _userHasScrolled = true;
 
                       // Convert GroupChatMessage list to Map format for mixin
                       final messagesList = allMessages
                           .map((msg) => {'id': msg.id})
                           .toList();
 
-                      // Schedule scroll after frame is rendered
+                      // Schedule scroll after frame is rendered (single callback)
+                      WidgetsBinding.instance.addPostFrameCallback((_) async {
+                        if (!mounted) return;
+
+                        await scrollToMessage(messageId, messagesList);
+
+                        // Wait for scroll animation to complete
+                        await Future.delayed(const Duration(seconds: 3));
+                        if (mounted) {
+                          setState(() {
+                            _isScrollingToMessage = false;
+                            // Keep _userHasScrolled true
+                          });
+                        }
+                      });
+                    }
+
+                    // Check if item count changed (avoid redundant callbacks)
+                    final itemCountChanged =
+                        allMessages.length != _lastItemCount;
+
+                    // Check if should auto-scroll
+                    final shouldAutoScroll =
+                        itemCountChanged &&
+                        allMessages.length > _lastItemCount &&
+                        !_userHasScrolled &&
+                        !_isScrollingToMessage &&
+                        !_isProcessingScroll &&
+                        scrollController.hasClients &&
+                        scrollController.offset < 100;
+
+                    // Only schedule callback when item count actually changed
+                    if (itemCountChanged && !_isProcessingScroll) {
+                      _isProcessingScroll = true;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        scrollToMessage(messageId, messagesList);
+                        _lastItemCount = allMessages.length;
+                        _isProcessingScroll = false;
+
+                        // Only auto-scroll if all conditions are met
+                        if (shouldAutoScroll &&
+                            scrollController.hasClients &&
+                            !_isScrollingToMessage) {
+                          scrollController.animateTo(
+                            0,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOut,
+                          );
+                        }
                       });
                     }
 
                     return ListView.builder(
+                      key: const PageStorageKey('community_messages'),
                       controller: scrollController,
                       reverse: true,
                       padding: const EdgeInsets.all(16),
                       itemCount: allMessages.length,
+                      physics: const ClampingScrollPhysics(),
                       itemBuilder: (context, index) {
                         final message = allMessages[index];
                         final isMe = message.senderId == currentUserId;

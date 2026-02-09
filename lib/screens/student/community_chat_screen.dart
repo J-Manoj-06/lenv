@@ -37,6 +37,11 @@ import '../../widgets/modern_attachment_sheet.dart';
 import '../../models/media_metadata.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
+import '../../utils/message_scroll_highlight_mixin.dart';
+// OFFLINE-FIRST IMPORTS
+import '../../repositories/local_message_repository.dart';
+import '../../services/firebase_message_sync_service.dart';
+import '../messages/offline_message_search_page.dart';
 
 class CommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -47,9 +52,9 @@ class CommunityChatScreen extends StatefulWidget {
   State<CommunityChatScreen> createState() => _CommunityChatScreenState();
 }
 
-class _CommunityChatScreenState extends State<CommunityChatScreen> {
+class _CommunityChatScreenState extends State<CommunityChatScreen>
+    with MessageScrollAndHighlightMixin {
   final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   final FocusNode _messageFocusNode = FocusNode();
   final CommunityService _communityService = CommunityService();
   final ImagePicker _imagePicker = ImagePicker();
@@ -57,6 +62,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   late final WhatsAppMediaUploadService _whatsappMediaUpload;
   late final MediaUploadService _mediaUploadService;
   final MediaRepository _mediaRepository = MediaRepository();
+
+  // OFFLINE-FIRST SERVICES
+  late final LocalMessageRepository _localRepo;
+  late final FirebaseMessageSyncService _syncService;
+
   bool _isUploading = false;
   bool _isRecording = false;
   bool _showEmojiPicker = false;
@@ -67,15 +77,19 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   bool _isCancelled = false;
   final Set<String> _selectedMessages = {};
   bool _isSelectionMode = false;
+
+  // Scroll tracking
+  String? _scrollToMessageId;
+  final bool _isScrollingToMessage = false;
+  bool _userHasScrolled = false;
+  double _lastScrollPosition = 0.0;
+  final int _lastItemCount = 0;
+  final bool _isProcessingScroll = false;
+
   // Optimistic pending messages and per-upload progress
   final List<CommunityMessageModel> _pendingMessages = [];
   final Map<String, double> _pendingUploadProgress = {};
   final Map<String, String> _localSenderMediaPaths = {};
-  // Tracking for message location and highlight
-  final Map<String, GlobalKey> _messageKeys = {};
-  Set<String> _visibleMessageIds = {};
-  String? _highlightMessageId;
-  Timer? _highlightResetTimer;
   DateTime? _lastMarkedMessageAt;
 
   // Theme helpers
@@ -87,9 +101,75 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.65) ??
       Colors.grey;
 
+  void _initOfflineFirst() async {
+    _localRepo = LocalMessageRepository();
+    _syncService = FirebaseMessageSyncService(_localRepo);
+
+    await _localRepo.initialize();
+
+    final cachedMessages = await _localRepo.getMessagesForChat(
+      widget.community.id,
+      limit: 50,
+    );
+
+    if (cachedMessages.isEmpty) {
+      print('📥 No cache - fetching initial messages...');
+      await _syncService.initialSyncForChat(
+        chatId: widget.community.id,
+        chatType: 'community',
+        limit: 50,
+      );
+    } else {
+      print('✅ Loaded ${cachedMessages.length} messages from cache');
+      _syncService.syncNewMessages(
+        chatId: widget.community.id,
+        chatType: 'community',
+        lastTimestamp: cachedMessages.first.timestamp,
+      );
+    }
+
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+    final studentUser = studentProvider.currentStudent;
+    if (studentUser != null) {
+      await _syncService.startSyncForChat(
+        chatId: widget.community.id,
+        chatType: 'community',
+        userId: studentUser.uid,
+      );
+    }
+  }
+
+  void _onScroll() {
+    if (!scrollController.hasClients) return;
+
+    final currentPosition = scrollController.offset;
+
+    if ((currentPosition - _lastScrollPosition).abs() > 10.0) {
+      if (!_isScrollingToMessage) {
+        _userHasScrolled = true;
+      }
+    }
+
+    if (currentPosition < 100) {
+      _userHasScrolled = false;
+    }
+
+    _lastScrollPosition = currentPosition;
+  }
+
   @override
   void initState() {
     super.initState();
+
+    // Initialize offline-first
+    _initOfflineFirst();
+
+    // Listen to scroll events
+    scrollController.addListener(_onScroll);
+
     // Avoid full-screen rebuild on each keystroke; use local ValueListenableBuilder instead
     _messageFocusNode.addListener(() {
       if (_messageFocusNode.hasFocus && _showEmojiPicker) {
@@ -317,11 +397,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     _markChatAsReadAndRefresh();
 
     _messageController.dispose();
-    _scrollController.dispose();
+    scrollController.dispose();
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
-    _highlightResetTimer?.cancel();
-    _messageKeys.clear();
     super.dispose();
   }
 
@@ -337,10 +415,10 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   }
 
   void _scrollToBottom({bool force = false}) {
-    if (_scrollController.hasClients) {
+    if (scrollController.hasClients) {
       // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
-      if (force || _scrollController.offset < 100) {
-        _scrollController.jumpTo(0);
+      if (force || scrollController.offset < 100) {
+        scrollController.jumpTo(0);
       }
     }
   }
@@ -370,40 +448,11 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     final targetId = message.messageId;
     if (targetId.isEmpty) return;
 
-    if (!_visibleMessageIds.contains(targetId)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Message is outside the currently loaded window'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-      _highlightMessageId = targetId;
-    });
-
-    await Future.delayed(const Duration(milliseconds: 30));
-
-    final contextForTarget = _messageKeys[targetId]?.currentContext;
-    if (contextForTarget != null && mounted) {
-      await Scrollable.ensureVisible(
-        contextForTarget,
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeInOut,
-      );
-    }
-
-    _highlightResetTimer?.cancel();
-    _highlightResetTimer = Timer(const Duration(milliseconds: 1400), () {
-      if (mounted && _highlightMessageId == targetId) {
-        setState(() => _highlightMessageId = null);
-      }
-    });
+    // Use mixin's scrollToMessage method with empty list fallback
+    // The key-based scrolling will work regardless of the list
+    await scrollToMessage(targetId, [
+      {'id': targetId},
+    ]);
   }
 
   void _showMediaOptions() {
@@ -2340,26 +2389,24 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
   }
 
   void _openSearch() {
-    final studentProvider = Provider.of<StudentProvider>(
-      context,
-      listen: false,
-    );
-    final student = studentProvider.currentStudent;
-    if (student == null) return;
-
     Navigator.of(context)
-        .push<CommunityMessageModel?>(
+        .push<String?>(
           MaterialPageRoute(
-            builder: (_) => StudentCommunityMessageSearchScreen(
-              communityId: widget.community.id,
-              communityService: _communityService,
-              currentUserId: student.uid,
+            builder: (_) => OfflineMessageSearchPage(
+              chatId: widget.community.id,
+              chatType: 'community',
             ),
           ),
         )
-        .then((selected) {
-          if (selected != null) {
-            _locateMessage(selected);
+        .then((messageId) async {
+          if (messageId != null) {
+            // Scroll to the message
+            final localMsg = await _localRepo.getMessageById(messageId);
+            if (localMsg != null) {
+              await scrollToMessage(messageId, [
+                {'id': messageId},
+              ]);
+            }
           }
         });
   }
@@ -2887,13 +2934,10 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                     final isDark = theme.brightness == Brightness.dark;
 
                     final currentIds = combined.map((m) => m.messageId).toSet();
-                    _visibleMessageIds = currentIds;
-                    _messageKeys.removeWhere(
-                      (key, _) => !currentIds.contains(key),
-                    );
+                    cleanupMessageKeys(currentIds.toList());
 
                     return ListView.builder(
-                      controller: _scrollController,
+                      controller: scrollController,
                       reverse: true,
                       padding: const EdgeInsets.all(16),
                       itemCount: combined.length,
@@ -2922,12 +2966,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                             _formatDate(message.createdAt) !=
                                 _formatDate(older!.createdAt);
 
-                        final msgKey = _messageKeys.putIfAbsent(
-                          message.messageId,
-                          () => GlobalKey(),
-                        );
+                        final msgKey = getMessageKey(message.messageId);
                         final isHighlighted =
-                            _highlightMessageId == message.messageId;
+                            highlightedMessageId == message.messageId;
                         final highlightColor = isDark
                             ? theme.colorScheme.primary.withOpacity(0.16)
                             : theme.colorScheme.primary.withOpacity(0.12);

@@ -31,6 +31,11 @@ import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../models/poll_model.dart';
 import '../common/announcement_view_screen.dart';
+import '../../utils/message_scroll_highlight_mixin.dart';
+// OFFLINE-FIRST IMPORTS
+import '../../repositories/local_message_repository.dart';
+import '../../services/firebase_message_sync_service.dart';
+import '../messages/offline_message_search_page.dart';
 
 class ParentSectionGroupChatScreen extends StatefulWidget {
   final String groupId;
@@ -61,7 +66,7 @@ class ParentSectionGroupChatScreen extends StatefulWidget {
 
 class _ParentSectionGroupChatScreenState
     extends State<ParentSectionGroupChatScreen>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, MessageScrollAndHighlightMixin {
   // ✅ NEW THEME COLORS - Modern dark design
   static const Color primaryBackground = Color(0xFF0F1113);
   static const Color secondaryBackground = Color(0xFF16181A);
@@ -88,8 +93,12 @@ class _ParentSectionGroupChatScreenState
   final ParentTeacherGroupService _service = ParentTeacherGroupService();
   final MediaRepository _mediaRepository = MediaRepository();
   final UnreadCountService _unreadService = UnreadCountService();
+
+  // OFFLINE-FIRST SERVICES
+  late final LocalMessageRepository _localRepo;
+  late final FirebaseMessageSyncService _syncService;
+
   final TextEditingController _controller = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -128,7 +137,7 @@ class _ParentSectionGroupChatScreenState
     _hasText.dispose();
     _isLoadingMoreNotifier.dispose();
     _controller.dispose();
-    _scrollController.dispose();
+    scrollController.dispose();
     _focusNode.dispose();
     _recordingTimer?.cancel();
     _audioRecorder.dispose();
@@ -140,12 +149,14 @@ class _ParentSectionGroupChatScreenState
     super.initState();
 
     // ✅ OPTIMIZATION: Setup scroll listener for pagination
-    _scrollController.addListener(_onScroll);
+    scrollController.addListener(_onScroll);
 
     // ✅ OPTIMIZATION: Listen to text changes without rebuilding
     _controller.addListener(() {
       _hasText.value = _controller.text.trim().isNotEmpty;
     });
+
+    _initOfflineFirst();
 
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -163,6 +174,73 @@ class _ParentSectionGroupChatScreenState
 
     // Mark chat as read when screen opens
     _markChatAsRead();
+  }
+
+  void _initOfflineFirst() async {
+    try {
+      _localRepo = LocalMessageRepository();
+      _syncService = FirebaseMessageSyncService(_localRepo);
+
+      await _localRepo.initialize();
+
+      final chatId = widget.groupId;
+      print('👨‍👩‍👧 Parent Group Chat - Initializing offline-first');
+      print('   Group ID: $chatId');
+      print('   Group Name: ${widget.groupName}');
+
+      // Load from cache first
+      final cachedMessages = await _localRepo.getMessagesForChat(
+        chatId,
+        limit: 50,
+      );
+
+      if (cachedMessages.isEmpty) {
+        print('📥 No cache - fetching initial messages from Firebase...');
+        await _syncService.initialSyncForChat(
+          chatId: chatId,
+          chatType: 'parent_group',
+          limit: 50,
+        );
+        print('✅ Initial sync completed');
+      } else {
+        print('✅ Loaded ${cachedMessages.length} messages from cache');
+
+        // Debug: Check what senders are in the cache
+        final senders = cachedMessages.map((m) => m.senderId).toSet();
+        print('   👥 Unique senders in cache: ${senders.length}');
+        for (final senderId in senders) {
+          final count = cachedMessages
+              .where((m) => m.senderId == senderId)
+              .length;
+          print('      - $senderId: $count messages');
+        }
+
+        _syncService.syncNewMessages(
+          chatId: chatId,
+          chatType: 'parent_group',
+          lastTimestamp: cachedMessages.first.timestamp,
+        );
+      }
+
+      // Start real-time sync
+      if (!mounted) return;
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser != null) {
+        print('🔄 Starting real-time sync for parent group chat');
+        await _syncService.startSyncForChat(
+          chatId: chatId,
+          chatType: 'parent_group',
+          userId: currentUser.uid,
+        );
+        print('✅ Real-time sync started successfully');
+      } else {
+        print('⚠️ No current user found, skipping real-time sync');
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error initializing offline-first for parent group: $e');
+      print('Stack trace: $stackTrace');
+    }
   }
 
   /// Mark this chat as read for the current user
@@ -258,7 +336,7 @@ class _ParentSectionGroupChatScreenState
 
   /// ✅ OPTIMIZATION: Scroll listener for pagination
   void _onScroll() {
-    if (!_scrollController.hasClients ||
+    if (!scrollController.hasClients ||
         _isLoadingMore ||
         !_hasMoreMessages ||
         _isRestoringScroll) {
@@ -267,7 +345,7 @@ class _ParentSectionGroupChatScreenState
 
     // Load more when user scrolls to 95% from the top (bottom in reverse list)
     // Higher threshold prevents premature loading when just scrolling up a bit
-    final scrollPosition = _scrollController.position;
+    final scrollPosition = scrollController.position;
     if (scrollPosition.pixels >= scrollPosition.maxScrollExtent * 0.95) {
       print(
         '[CHAT_DEBUG] Scroll threshold reached - loading more messages. Current: ${scrollPosition.pixels}, Max: ${scrollPosition.maxScrollExtent}',
@@ -292,8 +370,8 @@ class _ParentSectionGroupChatScreenState
     );
 
     // Save current scroll position before loading
-    final savedPosition = _scrollController.hasClients
-        ? _scrollController.position.pixels
+    final savedPosition = scrollController.hasClients
+        ? scrollController.position.pixels
         : 0.0;
     print(
       '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Saved scroll position: $savedPosition',
@@ -350,7 +428,7 @@ class _ParentSectionGroupChatScreenState
             return;
           }
 
-          if (!_scrollController.hasClients) {
+          if (!scrollController.hasClients) {
             print(
               '[CHAT_DEBUG] [LOAD #$_messageLoadCount] ScrollController has no clients',
             );
@@ -362,7 +440,7 @@ class _ParentSectionGroupChatScreenState
             print(
               '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Restoring scroll to position: $savedPosition',
             );
-            _scrollController.jumpTo(savedPosition);
+            scrollController.jumpTo(savedPosition);
             print(
               '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Scroll restoration completed',
             );
@@ -373,11 +451,11 @@ class _ParentSectionGroupChatScreenState
             // If position is out of bounds, jump to safe position
             try {
               final safePosition =
-                  _scrollController.position.maxScrollExtent * 0.5;
+                  scrollController.position.maxScrollExtent * 0.5;
               print(
                 '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Attempting safe scroll to: $safePosition',
               );
-              _scrollController.jumpTo(safePosition);
+              scrollController.jumpTo(safePosition);
             } catch (_) {
               print(
                 '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Safe scroll also failed',
@@ -449,20 +527,20 @@ class _ParentSectionGroupChatScreenState
 
   /// ✅ NEW: Instant scroll to bottom to show latest message
   void _scrollToBottom() {
-    if (!_scrollController.hasClients) return;
+    if (!scrollController.hasClients) return;
 
     print('[CHAT_DEBUG] Instant scrolling to bottom to show latest message');
 
     // Schedule after frame to ensure ListView has laid out
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) {
+      if (!mounted || !scrollController.hasClients) {
         print('[CHAT_DEBUG] ScrollController not ready for bottom scroll');
         return;
       }
 
       try {
         // Instant jump to bottom (0 in reverse list) - no animation
-        _scrollController.jumpTo(0.0);
+        scrollController.jumpTo(0.0);
         print('[CHAT_DEBUG] Successfully jumped to bottom instantly');
       } catch (e) {
         print('[CHAT_DEBUG] Exception during instant scroll: $e');
@@ -651,7 +729,7 @@ class _ParentSectionGroupChatScreenState
                     // Main message list
                     ListView.builder(
                       key: const PageStorageKey('parent_group_chat_list'),
-                      controller: _scrollController,
+                      controller: scrollController,
                       reverse: true,
                       padding: const EdgeInsets.all(16),
                       itemCount: allMessages.length,
@@ -1474,8 +1552,8 @@ class _ParentSectionGroupChatScreenState
 
       // Scroll to bottom to show new message
       Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(0);
+        if (scrollController.hasClients) {
+          scrollController.jumpTo(0);
         }
       });
 
@@ -1574,8 +1652,8 @@ class _ParentSectionGroupChatScreenState
 
       // Scroll to bottom to show new message
       Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(0);
+        if (scrollController.hasClients) {
+          scrollController.jumpTo(0);
         }
       });
 
@@ -2176,19 +2254,26 @@ class _ParentSectionGroupChatScreenState
   }
 
   void _openSearch() {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUser = authProvider.currentUser;
-    if (currentUser == null) return;
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ParentGroupMessageSearchScreen(
-          groupId: widget.groupId,
-          messagingService: _service,
-          currentUserId: currentUser.uid,
-        ),
-      ),
-    );
+    Navigator.of(context)
+        .push<String?>(
+          MaterialPageRoute(
+            builder: (_) => OfflineMessageSearchPage(
+              chatId: widget.groupId,
+              chatType: 'parent_group',
+            ),
+          ),
+        )
+        .then((messageId) async {
+          if (messageId != null) {
+            // Scroll to the message
+            final localMsg = await _localRepo.getMessageById(messageId);
+            if (localMsg != null) {
+              await scrollToMessage(messageId, [
+                {'id': messageId},
+              ]);
+            }
+          }
+        });
   }
 }
 

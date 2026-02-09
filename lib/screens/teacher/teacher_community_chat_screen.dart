@@ -36,6 +36,11 @@ import '../../models/media_metadata.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
 import '../../core/constants/app_colors.dart';
+import '../../utils/message_scroll_highlight_mixin.dart';
+// OFFLINE-FIRST IMPORTS
+import '../../repositories/local_message_repository.dart';
+import '../../services/firebase_message_sync_service.dart';
+import '../messages/offline_message_search_page.dart';
 
 class TeacherCommunityChatScreen extends StatefulWidget {
   final CommunityModel community;
@@ -47,10 +52,9 @@ class TeacherCommunityChatScreen extends StatefulWidget {
       _TeacherCommunityChatScreenState();
 }
 
-class _TeacherCommunityChatScreenState
-    extends State<TeacherCommunityChatScreen> {
+class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
+    with MessageScrollAndHighlightMixin {
   final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   final CommunityService _communityService = CommunityService();
   final ImagePicker _imagePicker = ImagePicker();
@@ -59,6 +63,10 @@ class _TeacherCommunityChatScreenState
   final MediaRepository _mediaRepository = MediaRepository();
   late final WhatsAppMediaUploadService _whatsappMediaUpload;
   final ValueNotifier<String> _messageText = ValueNotifier<String>('');
+
+  // OFFLINE-FIRST SERVICES
+  late final LocalMessageRepository _localRepo;
+  late final FirebaseMessageSyncService _syncService;
   String? _teacherName;
   String? _teacherId;
   bool _showEmojiPicker = false;
@@ -73,12 +81,6 @@ class _TeacherCommunityChatScreenState
   final List<CommunityMessageModel> _pendingMessages = [];
   final Map<String, double> _pendingUploadProgress = {};
   final Map<String, String> _localSenderMediaPaths = {};
-
-  // Tracking for message location and highlight
-  final Map<String, GlobalKey> _messageKeys = {};
-  Set<String> _visibleMessageIds = {};
-  String? _highlightMessageId;
-  Timer? _highlightResetTimer;
 
   // Audio recording
   bool _isRecording = false;
@@ -137,12 +139,58 @@ class _TeacherCommunityChatScreenState
     _syncUploadProgress();
 
     _loadTeacherData();
+    _initOfflineFirst();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToBottom(force: true),
     );
 
     // Load persisted pending messages on init
     _loadPendingMessages();
+  }
+
+  void _initOfflineFirst() async {
+    _localRepo = LocalMessageRepository();
+    _syncService = FirebaseMessageSyncService(_localRepo);
+
+    await _localRepo.initialize();
+
+    final chatId = widget.community.id;
+    print('🎓 Teacher Community Chat - Initializing offline-first');
+    print('   Community ID: $chatId');
+    print('   Community Name: ${widget.community.name}');
+
+    // Load from cache first
+    final cachedMessages = await _localRepo.getMessagesForChat(
+      chatId,
+      limit: 50,
+    );
+
+    if (cachedMessages.isEmpty) {
+      print('📥 No cache - fetching initial messages...');
+      await _syncService.initialSyncForChat(
+        chatId: chatId,
+        chatType: 'community',
+        limit: 50,
+      );
+    } else {
+      print('✅ Loaded ${cachedMessages.length} messages from cache');
+      _syncService.syncNewMessages(
+        chatId: chatId,
+        chatType: 'community',
+        lastTimestamp: cachedMessages.first.timestamp,
+      );
+    }
+
+    // Start real-time sync
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser != null) {
+      await _syncService.startSyncForChat(
+        chatId: chatId,
+        chatType: 'community',
+        userId: currentUser.uid,
+      );
+    }
   }
 
   // Sync upload progress from BackgroundUploadService
@@ -394,15 +442,13 @@ class _TeacherCommunityChatScreenState
   @override
   void dispose() {
     _messageController.dispose();
-    _scrollController.dispose();
+    scrollController.dispose();
     _focusNode.dispose();
     _audioRecorder.dispose();
     _messageText.dispose();
     _selectedMessages.dispose();
-    _highlightResetTimer?.cancel();
     _recordingTimer.cancel();
     _recordingDuration.dispose();
-    _messageKeys.clear();
     super.dispose();
   }
 
@@ -465,47 +511,17 @@ class _TeacherCommunityChatScreenState
     final targetId = message.messageId;
     if (targetId.isEmpty) return;
 
-    if (!_visibleMessageIds.contains(targetId)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Message is outside the currently loaded window'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-      _highlightMessageId = targetId;
-    });
-
-    await Future.delayed(const Duration(milliseconds: 30));
-
-    final contextForTarget = _messageKeys[targetId]?.currentContext;
-    if (contextForTarget != null && mounted) {
-      await Scrollable.ensureVisible(
-        contextForTarget,
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeInOut,
-      );
-    }
-
-    _highlightResetTimer?.cancel();
-    _highlightResetTimer = Timer(const Duration(milliseconds: 1400), () {
-      if (mounted && _highlightMessageId == targetId) {
-        setState(() => _highlightMessageId = null);
-      }
-    });
+    // Use mixin's scrollToMessage method
+    await scrollToMessage(targetId, [
+      {'id': targetId},
+    ]);
   }
 
   void _scrollToBottom({bool force = false}) {
-    if (_scrollController.hasClients) {
+    if (scrollController.hasClients) {
       // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
-      if (force || _scrollController.offset < 100) {
-        _scrollController.jumpTo(0);
+      if (force || scrollController.offset < 100) {
+        scrollController.jumpTo(0);
       }
     }
   }
@@ -1566,13 +1582,10 @@ class _TeacherCommunityChatScreenState
                     final isDark = theme.brightness == Brightness.dark;
 
                     final currentIds = combined.map((m) => m.messageId).toSet();
-                    _visibleMessageIds = currentIds;
-                    _messageKeys.removeWhere(
-                      (key, _) => !currentIds.contains(key),
-                    );
+                    cleanupMessageKeys(currentIds.toList());
 
                     return ListView.builder(
-                      controller: _scrollController,
+                      controller: scrollController,
                       reverse: true,
                       padding: const EdgeInsets.all(16),
                       itemCount: combined.length,
@@ -1604,12 +1617,9 @@ class _TeacherCommunityChatScreenState
                             _formatDate(message.createdAt) !=
                                 _formatDate(older!.createdAt);
 
-                        final msgKey = _messageKeys.putIfAbsent(
-                          message.messageId,
-                          () => GlobalKey(),
-                        );
+                        final msgKey = getMessageKey(message.messageId);
                         final isHighlighted =
-                            _highlightMessageId == message.messageId;
+                            highlightedMessageId == message.messageId;
                         final highlightColor = isDark
                             ? theme.colorScheme.primary.withOpacity(0.16)
                             : theme.colorScheme.primary.withOpacity(0.12);
@@ -2582,20 +2592,24 @@ class _TeacherCommunityChatScreenState
   }
 
   void _openSearch() {
-    if (_teacherId == null) return;
+    final chatId = widget.community.id;
+    print('🔍 Teacher Community - Opening search');
+    print('   Chat ID: $chatId');
+    print('   Community Name: ${widget.community.name}');
+
     Navigator.of(context)
-        .push<CommunityMessageModel?>(
+        .push<String?>(
           MaterialPageRoute(
-            builder: (_) => MessageSearchScreen(
-              communityId: widget.community.id,
-              communityService: _communityService,
-              currentUserId: _teacherId!,
-            ),
+            builder: (_) =>
+                OfflineMessageSearchPage(chatId: chatId, chatType: 'community'),
           ),
         )
-        .then((selected) {
-          if (selected != null) {
-            _locateMessage(selected);
+        .then((selectedMessageId) async {
+          if (selectedMessageId != null) {
+            print('📍 Scrolling to message: $selectedMessageId');
+            await scrollToMessage(selectedMessageId, [
+              {'id': selectedMessageId},
+            ]);
           }
         });
   }

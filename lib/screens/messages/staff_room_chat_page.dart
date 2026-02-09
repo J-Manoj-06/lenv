@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -50,7 +49,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
   // OFFLINE-FIRST SERVICES
   late final LocalMessageRepository _localRepo;
   late final FirebaseMessageSyncService _syncService;
-  bool _useOfflineFirst = true; // Toggle to test offline vs old approach
+  final bool _useOfflineFirst = true; // Toggle to test offline vs old approach
 
   // Track pending scroll request from search
   String? _scrollToMessageId;
@@ -1710,7 +1709,6 @@ class _MessageBubble extends StatelessWidget {
   final String staffRoomId;
 
   const _MessageBubble({
-    super.key,
     required this.message,
     required this.isMe,
     required this.primaryColor,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'dart:async';
 
 /// Mixin to add scroll-to-message and highlight functionality

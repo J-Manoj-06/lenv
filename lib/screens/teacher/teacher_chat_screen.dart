@@ -13,6 +13,10 @@ import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
+import '../../repositories/local_message_repository.dart';
+import '../../services/firebase_message_sync_service.dart';
+import '../../utils/message_scroll_highlight_mixin.dart';
+import '../messages/offline_message_search_page.dart';
 
 class TeacherChatScreen extends StatefulWidget {
   final String schoolCode;
@@ -40,7 +44,8 @@ class TeacherChatScreen extends StatefulWidget {
   State<TeacherChatScreen> createState() => _TeacherChatScreenState();
 }
 
-class _TeacherChatScreenState extends State<TeacherChatScreen> {
+class _TeacherChatScreenState extends State<TeacherChatScreen>
+    with MessageScrollAndHighlightMixin {
   final ChatService _chat = ChatService();
   final TextEditingController _controller = TextEditingController();
   String? _conversationId;
@@ -49,6 +54,10 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
 
   // Track the last known message count to detect new data
   int _lastMessageCount = 0;
+
+  // Offline-first message search
+  LocalMessageRepository? _localRepo;
+  FirebaseMessageSyncService? _syncService;
 
   // Media handling
   final ImagePicker _imagePicker = ImagePicker();
@@ -123,7 +132,62 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     );
 
     _controller.addListener(() => setState(() {}));
-    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureConversation());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureConversation();
+      _initOfflineFirst();
+    });
+  }
+
+  void _initOfflineFirst() async {
+    try {
+      _localRepo = LocalMessageRepository();
+      _syncService = FirebaseMessageSyncService(_localRepo!);
+
+      await _localRepo!.initialize();
+
+      if (_conversationId == null) {
+        // Wait for conversation ID to be set
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (_conversationId == null) return;
+      }
+
+      print('💬 Teacher-Parent Chat - Initializing offline-first');
+      print('   Conversation ID: $_conversationId');
+
+      // Load from cache first
+      final cachedMessages = await _localRepo!.getMessagesForChat(
+        _conversationId!,
+        limit: 50,
+      );
+
+      if (cachedMessages.isEmpty) {
+        print('📥 No cache - fetching initial messages from Firebase...');
+        await _syncService!.initialSyncForChat(
+          chatId: _conversationId!,
+          chatType: 'private',
+          limit: 50,
+        );
+        print('✅ Initial sync completed');
+      } else {
+        print('✅ Loaded ${cachedMessages.length} messages from cache');
+        _syncService!.syncNewMessages(
+          chatId: _conversationId!,
+          chatType: 'private',
+          lastTimestamp: cachedMessages.first.timestamp,
+        );
+      }
+
+      // Start real-time sync
+      print('🔄 Starting real-time sync for teacher-parent chat');
+      await _syncService!.startSyncForChat(
+        chatId: _conversationId!,
+        chatType: 'private',
+        userId: widget.teacherId,
+      );
+      print('✅ Real-time sync started successfully');
+    } catch (e) {
+      print('❌ Error initializing offline-first: $e');
+    }
   }
 
   @override
@@ -145,6 +209,36 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     );
 
     setState(() => _conversationId = id);
+  }
+
+  void _openSearch() {
+    if (_conversationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait for chat to load...')),
+      );
+      return;
+    }
+
+    Navigator.of(context)
+        .push<String?>(
+          MaterialPageRoute(
+            builder: (context) => OfflineMessageSearchPage(
+              chatId: _conversationId!,
+              chatType: 'private',
+            ),
+          ),
+        )
+        .then((messageId) async {
+          if (messageId != null && _localRepo != null) {
+            // Scroll to the message
+            final localMsg = await _localRepo!.getMessageById(messageId);
+            if (localMsg != null) {
+              await scrollToMessage(messageId, [
+                {'id': messageId},
+              ]);
+            }
+          }
+        });
   }
 
   @override
@@ -194,6 +288,13 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: _openSearch,
+            tooltip: 'Search messages',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -215,6 +316,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                       }
 
                       return ListView.separated(
+                        controller: scrollController,
                         reverse: true, // Show newest messages at bottom
                         padding: const EdgeInsets.all(16),
                         itemBuilder: (context, index) {
@@ -276,25 +378,6 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                                                       : Colors.black87),
                                           ),
                                         ),
-                                      if (isTeacher) ...[
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              readByParent
-                                                  ? Icons.done_all
-                                                  : deliveredToParent
-                                                  ? Icons.done_all
-                                                  : Icons.done,
-                                              size: 16,
-                                              color: readByParent
-                                                  ? Colors.lightBlueAccent
-                                                  : Colors.white70,
-                                            ),
-                                          ],
-                                        ),
-                                      ],
                                     ],
                                   ),
                                 ),

@@ -35,6 +35,11 @@ import '../../widgets/multi_image_message_bubble.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../models/poll_model.dart';
+import '../../utils/message_scroll_highlight_mixin.dart';
+// OFFLINE-FIRST IMPORTS
+import '../../repositories/local_message_repository.dart';
+import '../../services/firebase_message_sync_service.dart';
+import '../messages/offline_message_search_page.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String classId;
@@ -60,7 +65,8 @@ class GroupChatPage extends StatefulWidget {
   State<GroupChatPage> createState() => _GroupChatPageState();
 }
 
-class _GroupChatPageState extends State<GroupChatPage> {
+class _GroupChatPageState extends State<GroupChatPage>
+    with MessageScrollAndHighlightMixin {
   Color _getAccentColor(UserRole? role) {
     switch (role) {
       case UserRole.teacher:
@@ -77,12 +83,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   final GroupMessagingService _messagingService = GroupMessagingService();
   final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   String? _lastTopMessageId;
   final FocusNode _messageFocusNode = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
+
+  // OFFLINE-FIRST SERVICES
+  late final LocalMessageRepository _localRepo;
+  late final FirebaseMessageSyncService _syncService;
+
   bool _isUploading = false;
   bool _isRecording = false;
   String _uploadingMediaType =
@@ -95,6 +105,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _isCancelled = false;
   final Set<String> _selectedMessages = {};
   bool _isSelectionMode = false;
+
   // Optimistic UI: pending messages added locally before Firestore confirms
   final List<GroupChatMessage> _pendingMessages = [];
   // Track upload progress per pending messageId
@@ -103,11 +114,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final Set<String> _uploadingMessageIds = {};
   // Local media paths for the sender (so they view from disk, no re-download)
   final Map<String, String> _localSenderMediaPaths = {};
-  // Map every rendered message to a GlobalKey for precise scrolling/highlight
-  final Map<String, GlobalKey> _messageKeys = {};
-  Set<String> _visibleMessageIds = {};
-  String? _highlightMessageId;
-  Timer? _highlightResetTimer;
   // Stream lastReadAt dynamically for real-time splitter updates
   late Stream<Timestamp?> _lastReadAtStream;
   bool _initializedFirstSnapshot = false;
@@ -385,8 +391,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     // Track which messages are currently visible so we can scroll/highlight safely
     final currentIds = messages.map((m) => m.id).toSet();
-    _visibleMessageIds = currentIds;
-    _messageKeys.removeWhere((key, _) => !currentIds.contains(key));
+    cleanupMessageKeys(currentIds.toList()); // Use mixin's cleanup method
 
     // Pre-compute a single divider position: the first read message after unread ones
     // BUT: only show divider if there are unread messages from OTHER users (not self)
@@ -425,7 +430,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
 
     return ListView.builder(
-      controller: _scrollController,
+      controller: scrollController,
       reverse: true,
       padding: const EdgeInsets.all(16),
       itemCount: messages.length,
@@ -462,8 +467,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
         if (_showUnreadDivider && showDivider && unreadDividerIndex == index) {}
 
-        final msgKey = _messageKeys.putIfAbsent(message.id, () => GlobalKey());
-        final isHighlighted = _highlightMessageId == message.id;
+        final msgKey = getMessageKey(message.id);
+        final isHighlighted = highlightedMessageId == message.id;
         final highlightColor = isDark
             ? theme.colorScheme.primary.withOpacity(0.16)
             : theme.colorScheme.primary.withOpacity(0.12);
@@ -569,9 +574,54 @@ class _GroupChatPageState extends State<GroupChatPage> {
     return path;
   }
 
+  void _initOfflineFirst() async {
+    _localRepo = LocalMessageRepository();
+    _syncService = FirebaseMessageSyncService(_localRepo);
+
+    await _localRepo.initialize();
+
+    final chatId = '${widget.classId}_${widget.subjectId}';
+
+    // Load from cache first
+    final cachedMessages = await _localRepo.getMessagesForChat(
+      chatId,
+      limit: 50,
+    );
+
+    if (cachedMessages.isEmpty) {
+      print('📥 No cache - fetching initial messages...');
+      await _syncService.initialSyncForChat(
+        chatId: chatId,
+        chatType: 'group',
+        limit: 50,
+      );
+    } else {
+      print('✅ Loaded ${cachedMessages.length} messages from cache');
+      _syncService.syncNewMessages(
+        chatId: chatId,
+        chatType: 'group',
+        lastTimestamp: cachedMessages.first.timestamp,
+      );
+    }
+
+    // Start real-time sync
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser != null) {
+      await _syncService.startSyncForChat(
+        chatId: chatId,
+        chatType: 'group',
+        userId: currentUser.uid,
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+
+    // Initialize offline-first services
+    _initOfflineFirst();
 
     // Initialize cache keys for this chat session
     _pendingMessagesCacheKey =
@@ -750,12 +800,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
     } catch (e) {}
 
     _messageController.dispose();
-    _scrollController.dispose();
+    disposeScrollController(); // Use mixin's disposal method
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
-    _highlightResetTimer?.cancel();
-    _messageKeys.clear();
+    cleanupMessageKeys([]); // Clear message keys from mixin
     super.dispose();
   }
 
@@ -772,10 +821,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (scrollController.hasClients) {
         // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
-        if (force || _scrollController.offset < 100) {
-          _scrollController.jumpTo(0);
+        if (force || scrollController.offset < 100) {
+          scrollController.jumpTo(0);
         }
       }
     });
@@ -841,75 +890,38 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   void _scrollToLatest() {
-    if (!_scrollController.hasClients) return;
-    _scrollController.animateTo(
+    if (!scrollController.hasClients) return;
+    scrollController.animateTo(
       0,
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
   }
 
-  Future<void> _locateMessageInList(GroupChatMessage message) async {
-    final targetId = message.id;
-    if (targetId.isEmpty) return;
-
-    // Only act if the message is already present in the current window
-    if (!_visibleMessageIds.contains(targetId)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Message is outside the currently loaded window'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-      _highlightMessageId = targetId;
-    });
-
-    // Let the frame build before scrolling
-    await Future.delayed(const Duration(milliseconds: 30));
-
-    final contextForTarget = _messageKeys[targetId]?.currentContext;
-    if (contextForTarget != null && mounted) {
-      await Scrollable.ensureVisible(
-        contextForTarget,
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeInOut,
-      );
-    }
-
-    _highlightResetTimer?.cancel();
-    _highlightResetTimer = Timer(const Duration(milliseconds: 1400), () {
-      if (mounted && _highlightMessageId == targetId) {
-        setState(() => _highlightMessageId = null);
-      }
-    });
-  }
+  // Remove old scroll/highlight methods - now using mixin
 
   void _openSearch() {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUser = authProvider.currentUser;
-    if (currentUser == null) return;
+    final chatId = '${widget.classId}_${widget.subjectId}';
 
     Navigator.of(context)
-        .push<GroupChatMessage?>(
+        .push<String?>(
           MaterialPageRoute(
-            builder: (_) => GroupMessageSearchScreen(
-              classId: widget.classId,
-              subjectId: widget.subjectId,
-              messagingService: _messagingService,
-              currentUserId: currentUser.uid,
-            ),
+            builder: (_) =>
+                OfflineMessageSearchPage(chatId: chatId, chatType: 'group'),
           ),
         )
-        .then((selected) {
-          if (selected != null) {
-            _locateMessageInList(selected);
+        .then((selectedMessageId) async {
+          if (selectedMessageId != null) {
+            // Get current messages to pass to scrollToMessage
+            final messages = await _messagingService
+                .getGroupMessages(widget.classId, widget.subjectId)
+                .first;
+            if (mounted) {
+              await scrollToMessage(
+                selectedMessageId,
+                messages.map((m) => {'id': m.id}).toList(),
+              );
+            }
           }
         });
   }

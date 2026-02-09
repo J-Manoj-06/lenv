@@ -91,16 +91,32 @@ class LocalMessage extends HiveObject {
       timestamp = DateTime.now().millisecondsSinceEpoch;
     }
 
+    // For private chats (teacher-parent), use senderRole as fallback if senderName is missing
+    String senderName = data['senderName'] ?? '';
+    if (senderName.isEmpty && chatType == 'private') {
+      final senderRole = data['senderRole']?.toString() ?? '';
+      if (senderRole == 'teacher') {
+        senderName = 'Teacher';
+      } else if (senderRole == 'parent') {
+        senderName = 'Parent';
+      }
+    }
+
     return LocalMessage(
       messageId: messageId,
       chatId: chatId,
       chatType: chatType,
       senderId: data['senderId'] ?? '',
-      senderName: data['senderName'] ?? '',
-      messageText: data['text'] ?? data['message'],
+      senderName: senderName,
+      messageText: data['text'] ?? data['message'] ?? data['content'],
       timestamp: timestamp,
-      attachmentUrl: data['attachmentUrl'] ?? data['mediaUrl'],
-      attachmentType: data['attachmentType'] ?? data['mediaType'],
+      attachmentUrl:
+          data['attachmentUrl'] ??
+          data['mediaUrl'] ??
+          data['imageUrl'] ??
+          data['fileUrl'],
+      attachmentType:
+          data['attachmentType'] ?? data['mediaType'] ?? data['type'],
       pollData: data['poll'],
       isDeleted: data['isDeleted'] ?? false,
       replyToMessageId: data['replyToMessageId'],

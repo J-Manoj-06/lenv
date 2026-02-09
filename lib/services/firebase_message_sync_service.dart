@@ -110,11 +110,15 @@ class FirebaseMessageSyncService {
             chatType,
           );
           messages.add(localMessage);
-          print(
-            '   📝 Message ${doc.id}: "${localMessage.messageText?.substring(0, localMessage.messageText!.length > 30 ? 30 : localMessage.messageText!.length) ?? '[no text]'}..."',
-          );
-        } else {
-          print('   ⏭️  Message ${doc.id} already exists locally');
+          final preview =
+              localMessage.messageText?.substring(
+                0,
+                localMessage.messageText!.length > 30
+                    ? 30
+                    : localMessage.messageText!.length,
+              ) ??
+              '[no text]';
+          print('   📝 Message ${doc.id}: "$preview..."');
         }
       }
 
@@ -316,11 +320,36 @@ class FirebaseMessageSyncService {
         return _firestore
             .collection('communities')
             .doc(chatId)
-            .collection('chats');
+            .collection('messages');
+
+      case 'group':
+        // Group chat: classId_subjectId format
+        final parts = chatId.split('_');
+        if (parts.length < 2) {
+          throw Exception('Invalid group chat ID format: $chatId');
+        }
+        final classId = parts[0];
+        final subjectId = parts
+            .sublist(1)
+            .join('_'); // Handle underscores in subject ID
+        return _firestore
+            .collection('classes')
+            .doc(classId)
+            .collection('subjects')
+            .doc(subjectId)
+            .collection('messages');
+
+      case 'parent_group':
+        // Parent-teacher group: uses parent_teacher_groups collection
+        return _firestore
+            .collection('parent_teacher_groups')
+            .doc(chatId)
+            .collection('messages');
 
       case 'private':
+        // Private chat: uses conversations collection (teacher-parent individual chat)
         return _firestore
-            .collection('private_chats')
+            .collection('conversations')
             .doc(chatId)
             .collection('messages');
 
@@ -342,11 +371,34 @@ class FirebaseMessageSyncService {
         return _firestore
             .collection('communities')
             .doc(chatId)
-            .collection('chats');
+            .collection('messages');
+
+      case 'group':
+        // Group chat: classId_subjectId format
+        final parts = chatId.split('_');
+        if (parts.length < 2) {
+          throw Exception('Invalid group chat ID format: $chatId');
+        }
+        final classId = parts[0];
+        final subjectId = parts.sublist(1).join('_');
+        return _firestore
+            .collection('classes')
+            .doc(classId)
+            .collection('subjects')
+            .doc(subjectId)
+            .collection('messages');
+
+      case 'parent_group':
+        // Parent-teacher group: uses parent_teacher_groups collection
+        return _firestore
+            .collection('parent_teacher_groups')
+            .doc(chatId)
+            .collection('messages');
 
       case 'private':
+        // Private chat: uses conversations collection (teacher-parent individual chat)
         return _firestore
-            .collection('private_chats')
+            .collection('conversations')
             .doc(chatId)
             .collection('messages');
 

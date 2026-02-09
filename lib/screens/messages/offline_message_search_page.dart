@@ -71,6 +71,19 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
         _searchResults = results;
         _isSearching = false;
       });
+
+      // Debug: Show detailed info about search results
+      if (results.isNotEmpty) {
+        print('📋 Search results details:');
+        for (var i = 0; i < results.take(5).length; i++) {
+          final msg = results[i];
+          print('   [$i] ChatId: ${msg.chatId}');
+          print(
+            '       Message: ${msg.messageText?.substring(0, msg.messageText!.length > 50 ? 50 : msg.messageText!.length)}...',
+          );
+          print('       Sender: ${msg.senderId}');
+        }
+      }
     } catch (e) {
       print('❌ Search error: $e');
       setState(() {
