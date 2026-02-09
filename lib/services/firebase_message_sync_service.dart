@@ -82,27 +82,65 @@ class FirebaseMessageSyncService {
     required String chatId,
     required String chatType,
     int limit = 100, // Fetch last 100 messages
+    bool forceResync = false, // Force re-fetch even if messages exist
   }) async {
     print('📥 Initial sync for chat: $chatId ($chatType)');
+    if (forceResync) {
+      print('   ⚠️ FORCE RESYNC - will re-save all messages');
+    }
 
     try {
-      final Query messagesQuery = _getMessagesQuery(
+      // First try with ordering
+      Query messagesQuery = _getMessagesQuery(
         chatId,
         chatType,
       ).orderBy('createdAt', descending: true).limit(limit);
 
       print('   Fetching messages from Firebase...');
-      final snapshot = await messagesQuery.get();
-      print('   Fetched ${snapshot.docs.length} documents from Firebase');
+      var snapshot = await messagesQuery.get();
+      print('   Fetched ${snapshot.docs.length} documents with orderBy');
+
+      // If we got fewer messages than expected, try without ordering
+      // (some messages might not have createdAt field)
+      if (snapshot.docs.length < 10) {
+        print('   ⚠️ Few messages found, trying without orderBy...');
+        messagesQuery = _getMessagesQuery(chatId, chatType).limit(limit);
+        snapshot = await messagesQuery.get();
+        print('   Fetched ${snapshot.docs.length} documents without orderBy');
+      }
 
       final List<LocalMessage> messages = [];
 
       for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
 
-        // Only save if not already in local DB
+        // Debug: Log message data to see what fields we're getting
+        print('   📄 Doc ${doc.id}:');
+        print('      text: ${data['text'] ?? data['message'] ?? '[none]'}');
+        print('      attachmentUrl: ${data['attachmentUrl'] ?? '[none]'}');
+        print('      mediaUrl: ${data['mediaUrl'] ?? '[none]'}');
+        print('      imageUrl: ${data['imageUrl'] ?? '[none]'}');
+        print('      fileUrl: ${data['fileUrl'] ?? '[none]'}');
+        print('      attachmentType: ${data['attachmentType'] ?? '[none]'}');
+        print('      mediaType: ${data['mediaType'] ?? '[none]'}');
+        print('      type: ${data['type'] ?? '[none]'}');
+
+        // 🔍 NEW: Check for mediaMetadata field (PDFs and files)
+        if (data['mediaMetadata'] != null) {
+          final media = data['mediaMetadata'] as Map<String, dynamic>?;
+          print('      📎 mediaMetadata found!');
+          print('         publicUrl: ${media?['publicUrl'] ?? '[none]'}');
+          print('         mimeType: ${media?['mimeType'] ?? '[none]'}');
+          print(
+            '         originalFileName: ${media?['originalFileName'] ?? '[none]'}',
+          );
+        }
+
+        print('      Available keys: ${data.keys.toList()}');
+
+        // Only save if not already in local DB (or force resync)
         final exists = await _localRepo.hasMessage(doc.id);
-        if (!exists) {
+        if (!exists || forceResync) {
           final localMessage = LocalMessage.fromFirestore(
             data,
             doc.id,
@@ -110,6 +148,15 @@ class FirebaseMessageSyncService {
             chatType,
           );
           messages.add(localMessage);
+
+          // Show what was saved
+          print(
+            '      ✅ Saved with attachmentUrl: ${localMessage.attachmentUrl}',
+          );
+          print(
+            '      ✅ Saved with attachmentType: ${localMessage.attachmentType}',
+          );
+
           final preview =
               localMessage.messageText?.substring(
                 0,
@@ -118,7 +165,7 @@ class FirebaseMessageSyncService {
                     : localMessage.messageText!.length,
               ) ??
               '[no text]';
-          print('   📝 Message ${doc.id}: "$preview..."');
+          print('      📝 Message ${doc.id}: "$preview..."');
         }
       }
 

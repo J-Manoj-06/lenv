@@ -156,6 +156,66 @@ class LocalMessageRepository {
     return results;
   }
 
+  /// Search for files and media attachments
+  /// WHY: Separate search for PDFs, images, audio files, videos, etc.
+  Future<List<LocalMessage>> searchFilesAndMedia(
+    String query, {
+    String? chatId, // Optional: search within specific chat
+    int limit = 100,
+  }) async {
+    await _ensureInitialized();
+
+    if (query.trim().isEmpty) {
+      return [];
+    }
+
+    print('📁 File search started:');
+    print('   Query: "$query"');
+    print('   ChatId filter: ${chatId ?? "all chats"}');
+    print('   Total messages in DB: ${_messageBox!.length}');
+
+    // Filter messages with attachments
+    var allMessagesWithAttachments = _messageBox!.values.where((msg) {
+      if (msg.isDeleted) return false;
+      if (chatId != null && msg.chatId != chatId) return false;
+      return msg.hasAttachment();
+    }).toList();
+
+    print(
+      '   Messages with attachments in this chat: ${allMessagesWithAttachments.length}',
+    );
+
+    if (allMessagesWithAttachments.isNotEmpty) {
+      print('   First 3 attachments:');
+      for (var i = 0; i < allMessagesWithAttachments.take(3).length; i++) {
+        final msg = allMessagesWithAttachments[i];
+        print('      [$i] File: ${msg.getFileName()}');
+        print('          Type: ${msg.attachmentType}');
+        print('          Matches search: ${msg.matchesFileSearch(query)}');
+      }
+    }
+
+    var results = allMessagesWithAttachments.where((msg) {
+      return msg.matchesFileSearch(query);
+    }).toList();
+
+    // Sort by timestamp (newest first)
+    results.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    // Limit results
+    if (results.length > limit) {
+      results = results.sublist(0, limit);
+    }
+
+    print('✅ File search complete: ${results.length} files found');
+    if (results.isNotEmpty) {
+      print('   First result: ${results.first.getFileName()}');
+      print('   Type: ${results.first.attachmentType}');
+    }
+
+    return results;
+  }
+
   /// Get a single message by ID
   /// WHY: Used when navigating to message from search results
   Future<LocalMessage?> getMessageById(String messageId) async {

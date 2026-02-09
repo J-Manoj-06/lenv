@@ -102,6 +102,50 @@ class LocalMessage extends HiveObject {
       }
     }
 
+    // 🔍 CRITICAL: Extract file URL from mediaMetadata if present
+    // WHY: PDF files and other media are stored in mediaMetadata, not attachmentUrl
+    String? finalAttachmentUrl =
+        data['attachmentUrl'] ??
+        data['mediaUrl'] ??
+        data['imageUrl'] ??
+        data['fileUrl'];
+
+    String? finalAttachmentType =
+        data['attachmentType'] ?? data['mediaType'] ?? data['type'];
+
+    // Check if message has mediaMetadata field (used for PDFs and other files)
+    if (data['mediaMetadata'] != null && data['mediaMetadata'] is Map) {
+      final mediaData = data['mediaMetadata'] as Map<String, dynamic>;
+      finalAttachmentUrl = mediaData['publicUrl'] ?? finalAttachmentUrl;
+
+      // Determine attachment type from mimeType or originalFileName
+      if (finalAttachmentType == null || finalAttachmentType == 'text') {
+        final mimeType = mediaData['mimeType']?.toString().toLowerCase();
+        final fileName = mediaData['originalFileName']
+            ?.toString()
+            .toLowerCase();
+
+        if (mimeType != null || fileName != null) {
+          if (mimeType?.contains('pdf') == true ||
+              fileName?.endsWith('.pdf') == true) {
+            finalAttachmentType = 'document';
+          } else if (mimeType?.startsWith('image/') == true ||
+              fileName?.endsWith('.jpg') == true ||
+              fileName?.endsWith('.png') == true) {
+            finalAttachmentType = 'image';
+          } else if (mimeType?.startsWith('audio/') == true ||
+              fileName?.endsWith('.mp3') == true) {
+            finalAttachmentType = 'audio';
+          } else if (mimeType?.startsWith('video/') == true ||
+              fileName?.endsWith('.mp4') == true) {
+            finalAttachmentType = 'video';
+          } else {
+            finalAttachmentType = 'document';
+          }
+        }
+      }
+    }
+
     return LocalMessage(
       messageId: messageId,
       chatId: chatId,
@@ -110,13 +154,8 @@ class LocalMessage extends HiveObject {
       senderName: senderName,
       messageText: data['text'] ?? data['message'] ?? data['content'],
       timestamp: timestamp,
-      attachmentUrl:
-          data['attachmentUrl'] ??
-          data['mediaUrl'] ??
-          data['imageUrl'] ??
-          data['fileUrl'],
-      attachmentType:
-          data['attachmentType'] ?? data['mediaType'] ?? data['type'],
+      attachmentUrl: finalAttachmentUrl,
+      attachmentType: finalAttachmentType,
       pollData: data['poll'],
       isDeleted: data['isDeleted'] ?? false,
       replyToMessageId: data['replyToMessageId'],
@@ -172,6 +211,114 @@ class LocalMessage extends HiveObject {
     }
 
     return false;
+  }
+
+  /// Check if message is a file/media attachment
+  /// WHY: Identify messages with attachments for file search
+  bool hasAttachment() {
+    return attachmentUrl != null && attachmentUrl!.isNotEmpty;
+  }
+
+  /// Check if message has file/media matching search query
+  /// WHY: Enable searching for files by name or type (pdf, image, audio, etc.)
+  bool matchesFileSearch(String query) {
+    final lowerQuery = query.toLowerCase();
+
+    // Must have attachment
+    if (!hasAttachment()) return false;
+
+    // Search in attachment type
+    if (attachmentType != null &&
+        attachmentType!.toLowerCase().contains(lowerQuery)) {
+      return true;
+    }
+
+    // Extract filename from URL if available
+    if (attachmentUrl != null) {
+      final filename = attachmentUrl!.split('/').last.split('?').first;
+      if (filename.toLowerCase().contains(lowerQuery)) {
+        return true;
+      }
+    }
+
+    // Search by common file type keywords
+    if (attachmentType != null) {
+      final type = attachmentType!.toLowerCase();
+
+      // PDF search
+      if (lowerQuery.contains('pdf') && type.contains('pdf')) {
+        return true;
+      }
+
+      // Image search
+      if ((lowerQuery.contains('image') ||
+              lowerQuery.contains('photo') ||
+              lowerQuery.contains('picture') ||
+              lowerQuery.contains('img')) &&
+          (type.contains('image') ||
+              type.contains('photo') ||
+              type.contains('img'))) {
+        return true;
+      }
+
+      // Audio search
+      if ((lowerQuery.contains('audio') ||
+              lowerQuery.contains('voice') ||
+              lowerQuery.contains('sound') ||
+              lowerQuery.contains('music')) &&
+          type.contains('audio')) {
+        return true;
+      }
+
+      // Video search
+      if ((lowerQuery.contains('video') || lowerQuery.contains('vid')) &&
+          type.contains('video')) {
+        return true;
+      }
+
+      // Document search - broaden this
+      if ((lowerQuery.contains('document') ||
+              lowerQuery.contains('doc') ||
+              lowerQuery.contains('file')) &&
+          (type.contains('document') || type.contains('application'))) {
+        return true;
+      }
+    }
+
+    // Also check if searching for generic "file" or "attachment"
+    if (lowerQuery.contains('file') ||
+        lowerQuery.contains('attachment') ||
+        lowerQuery.contains('media')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Get file extension from attachment
+  String? getFileExtension() {
+    if (attachmentUrl == null) return null;
+
+    final filename = attachmentUrl!.split('/').last.split('?').first;
+    final parts = filename.split('.');
+    if (parts.length > 1) {
+      return parts.last.toLowerCase();
+    }
+
+    return null;
+  }
+
+  /// Get display name for file
+  String getFileName() {
+    if (attachmentUrl == null) return 'File';
+
+    final filename = attachmentUrl!.split('/').last.split('?').first;
+    // Decode URL-encoded filename
+    try {
+      return Uri.decodeComponent(filename);
+    } catch (e) {
+      return filename;
+    }
   }
 
   @override
