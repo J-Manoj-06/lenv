@@ -141,22 +141,42 @@ class _PerTestLeaderboardDetailState extends State<PerTestLeaderboardDetail> {
                     );
                   }
 
-                  // Parse and sort results
-                  final List<Map<String, dynamic>> results = snapshot.data!.docs
-                      .map<Map<String, dynamic>>((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        return {
-                          'studentId': data['studentId'] as String? ?? '',
-                          'studentName':
-                              data['studentName'] as String? ?? 'Unknown',
-                          'className': data['className'] as String? ?? '',
-                          'section': data['section'] as String? ?? '',
-                          'score': (data['score'] as num?)?.toDouble() ?? 0.0,
-                        };
-                      })
+                  // Parse results and deduplicate by studentId (keep highest score)
+                  final Map<String, Map<String, Object?>> bestByStudent = {};
+
+                  for (final doc in snapshot.data!.docs) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final studentId = data['studentId'] as String? ?? '';
+
+                    if (studentId.isEmpty) continue;
+
+                    final score = (data['score'] as num?)?.toDouble() ?? 0.0;
+                    final studentName =
+                        data['studentName'] as String? ?? 'Unknown';
+                    final className = data['className'] as String? ?? '';
+                    final section = data['section'] as String? ?? '';
+
+                    final result = <String, Object?>{
+                      'studentId': studentId,
+                      'studentName': studentName,
+                      'className': className,
+                      'section': section,
+                      'score': score,
+                    };
+
+                    // Keep only the highest score for each student
+                    if (!bestByStudent.containsKey(studentId) ||
+                        score >
+                            (bestByStudent[studentId]!['score'] as double)) {
+                      bestByStudent[studentId] = result;
+                    }
+                  }
+
+                  // Convert to list and sort by score descending
+                  final List<Map<String, Object?>> results = bestByStudent
+                      .values
                       .toList();
 
-                  // Sort by score descending
                   results.sort(
                     (a, b) =>
                         (b['score'] as double).compareTo(a['score'] as double),

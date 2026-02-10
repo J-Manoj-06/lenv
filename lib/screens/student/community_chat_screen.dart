@@ -1524,15 +1524,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen>
         mediaMetadata: metadata,
       );
 
-      // Remove pending and progress
-      setState(() {
-        _pendingMessages.removeWhere(
-          (m) => m.mediaMetadata?.messageId == messageId,
-        );
-        _pendingUploadProgress.remove(messageId);
-      });
-
-      // Delete the temporary recording file
+      // Delete the temporary recording file first
       try {
         final file = File(_recordingPath!);
         if (await file.exists()) {
@@ -1540,18 +1532,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen>
         }
       } catch (e) {}
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Audio sent successfully'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-
+      // Only reset upload state - let StreamBuilder remove pending message
+      // to prevent double setState and screen blinking
       if (mounted) {
         setState(() {
+          // Keep pending message, StreamBuilder will remove it when confirmed
+          // Just clear upload progress and reset recording state
+          _pendingUploadProgress.remove(messageId);
           _isUploading = false;
           _recordingPath = null;
           _recordingDuration.value = 0;
@@ -2629,7 +2616,9 @@ class _CommunityChatScreenState extends State<CommunityChatScreen>
   }
 
   Widget _buildRecordingOverlay() {
-    if (_recordingPath == null && !_isUploading) return const SizedBox();
+    // Only show overlay when recording is stopped but not uploaded yet
+    // Don't show during upload to avoid bottom message
+    if (_recordingPath == null || _isUploading) return const SizedBox();
 
     return Positioned(
       bottom: 0,
@@ -2640,75 +2629,54 @@ class _CommunityChatScreenState extends State<CommunityChatScreen>
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         child: SafeArea(
           top: false,
-          child: _isUploading
-              ? Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFF00A884),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Sending audio...',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    // Delete button
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: _isRecording ? _deleteRecording : null,
-                    ),
-                    // Recording duration
-                    Expanded(
-                      child: Center(
-                        child: ValueListenableBuilder<int>(
-                          valueListenable: _recordingDuration,
-                          builder: (context, duration, child) {
-                            return Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (_isRecording)
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    margin: const EdgeInsets.only(right: 8),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                Text(
-                                  _formatDuration(duration),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    // Send button
-                    IconButton(
-                      icon: const Icon(Icons.send, color: Color(0xFF00A884)),
-                      onPressed: _sendRecording,
-                    ),
-                  ],
+          child: Row(
+            children: [
+              // Delete button
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: _isRecording ? _deleteRecording : null,
+              ),
+              // Recording duration
+              Expanded(
+                child: Center(
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _recordingDuration,
+                    builder: (context, duration, child) {
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_isRecording)
+                            Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          Text(
+                            _formatDuration(duration),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
+              ),
+              // Send button
+              IconButton(
+                icon: const Icon(Icons.send, color: Color(0xFF00A884)),
+                onPressed: _sendRecording,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2762,7 +2730,13 @@ class _CommunityChatScreenState extends State<CommunityChatScreen>
                     final combined = <CommunityMessageModel>[];
                     combined.addAll(messagesFromServer);
                     final seenMediaIds = <String>{};
+                    final seenMessageKeys =
+                        <String>{}; // Track by sender+timestamp+type
+                    final seenFileNames =
+                        <String>{}; // Track by filename for audio/files
+
                     for (final m in messagesFromServer) {
+                      // Track media IDs
                       if (m.multipleMedia != null) {
                         seenMediaIds.addAll(
                           m.multipleMedia!.map((mm) => mm.messageId),
@@ -2770,7 +2744,21 @@ class _CommunityChatScreenState extends State<CommunityChatScreen>
                       }
                       final singleId = m.mediaMetadata?.messageId;
                       if (singleId != null) seenMediaIds.add(singleId);
+
+                      // Track by filename (important for audio messages)
+                      if (m.fileName.isNotEmpty) {
+                        seenFileNames.add(m.fileName);
+                      }
+                      if (m.mediaMetadata?.originalFileName != null) {
+                        seenFileNames.add(m.mediaMetadata!.originalFileName!);
+                      }
+
+                      // Track message by sender+type+timestamp (within 5 seconds)
+                      final key =
+                          '${m.senderId}_${m.type}_${m.createdAt.millisecondsSinceEpoch ~/ 5000}';
+                      seenMessageKeys.add(key);
                     }
+
                     final confirmedPendingIds = <String>[];
                     final pendingsToUpdate = <String, List<MediaMetadata>>{};
 
@@ -2783,6 +2771,20 @@ class _CommunityChatScreenState extends State<CommunityChatScreen>
                       }
                       final singleId = pending.mediaMetadata?.messageId;
                       if (singleId != null) pendingIds.add(singleId);
+
+                      // Check if this pending matches a server message by key or filename
+                      final pendingKey =
+                          '${pending.senderId}_${pending.type}_${pending.createdAt.millisecondsSinceEpoch ~/ 5000}';
+                      final matchedByKey = seenMessageKeys.contains(pendingKey);
+
+                      // Check filename match (crucial for audio)
+                      final matchedByFilename =
+                          (pending.fileName.isNotEmpty &&
+                              seenFileNames.contains(pending.fileName)) ||
+                          (pending.mediaMetadata?.originalFileName != null &&
+                              seenFileNames.contains(
+                                pending.mediaMetadata!.originalFileName!,
+                              ));
 
                       // Check for partial completion (multi-image messages)
                       if (pending.multipleMedia != null &&
@@ -2811,25 +2813,34 @@ class _CommunityChatScreenState extends State<CommunityChatScreen>
                           combined.add(pending);
                         }
                       } else {
-                        // Single image or no media - old logic
+                        // Single media (image/audio) - check media ID, message key, AND filename
+                        final matchedByMediaId =
+                            pendingIds.isNotEmpty &&
+                            pendingIds.any(seenMediaIds.contains);
+
+                        // Remove if matched by any criteria
                         final shouldAdd =
-                            pendingIds.isEmpty ||
-                            !pendingIds.any(seenMediaIds.contains);
+                            !matchedByMediaId &&
+                            !matchedByKey &&
+                            !matchedByFilename;
+
                         if (shouldAdd) {
                           combined.add(pending);
                         } else {
                           confirmedPendingIds.add(pending.messageId);
                           debugPrint(
-                            '✅ Pending confirmed: ${pending.messageId}',
+                            '✅ Pending confirmed: ${pending.messageId} (mediaId: $matchedByMediaId, key: $matchedByKey, filename: $matchedByFilename)',
                           );
                         }
                       }
                     }
 
-                    // Update pendings and remove confirmed ones in post-frame callback
+                    // Clean up confirmed pendings and update partial ones immediately
+                    // to prevent blinking from post-frame setState
                     if (confirmedPendingIds.isNotEmpty ||
                         pendingsToUpdate.isNotEmpty) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                      // Schedule cleanup for next frame to avoid modifying during build
+                      Future.microtask(() {
                         if (!mounted) return;
                         setState(() {
                           // Remove fully completed pendings
