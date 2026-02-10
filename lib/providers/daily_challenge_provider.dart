@@ -442,13 +442,19 @@ class DailyChallengeProvider with ChangeNotifier {
         '[Streak] 💾 Updating Firestore: streak=$newStreak, lastStreakDate=$today',
       );
 
-      // Update student document
-      await _firestore.collection('users').doc(studentId).set({
-        'streak': newStreak,
-        'lastStreakDate': today,
-      }, SetOptions(merge: true));
+      // Update BOTH users and students collections for consistency
+      await Future.wait([
+        _firestore.collection('users').doc(studentId).set({
+          'streak': newStreak,
+          'lastStreakDate': today,
+        }, SetOptions(merge: true)),
+        _firestore.collection('students').doc(studentId).set({
+          'streak': newStreak,
+          'lastStreakDate': today,
+        }, SetOptions(merge: true)),
+      ]);
 
-      print('[Streak] ✅ Streak updated successfully!');
+      print('[Streak] ✅ Streak updated successfully in both collections!');
     } catch (e) {
       print('[Streak] ❌ Error updating streak: $e');
     }
