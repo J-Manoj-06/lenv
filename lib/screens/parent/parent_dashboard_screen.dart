@@ -6,6 +6,7 @@ import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
 import '../common/announcement_pageview_screen.dart';
+import 'parent_reward_request_detail_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -980,10 +981,42 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
+  Color _getStatusColor(RewardRequestStatus status) {
+    switch (status) {
+      case RewardRequestStatus.pending:
+        return const Color(0xFFF2800D);
+      case RewardRequestStatus.approved:
+        return const Color(0xFF16A34A);
+      case RewardRequestStatus.orderPlaced:
+        return const Color(0xFF0EA5E9);
+      case RewardRequestStatus.rejected:
+        return const Color(0xFFEF4444);
+    }
+  }
+
+  String _getStatusText(RewardRequestStatus status) {
+    switch (status) {
+      case RewardRequestStatus.pending:
+        return 'Pending';
+      case RewardRequestStatus.approved:
+        return 'Approved';
+      case RewardRequestStatus.orderPlaced:
+        return 'Order Placed';
+      case RewardRequestStatus.rejected:
+        return 'Rejected';
+    }
+  }
+
   Widget _buildRewardRequests(bool isDark, ParentProvider parentProvider) {
+    // Show all requests (pending, approved, orderPlaced) but not rejected
     final rewardRequests = parentProvider.rewardRequests
-        .where((r) => r.status == RewardRequestStatus.pending)
+        .where((r) => r.status != RewardRequestStatus.rejected)
         .toList();
+
+    // Count only pending requests for the badge
+    final pendingCount = rewardRequests
+        .where((r) => r.status == RewardRequestStatus.pending)
+        .length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1003,7 +1036,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     color: isDark ? Colors.white : _onBackground(context),
                   ),
                 ),
-                if (rewardRequests.isNotEmpty)
+                if (pendingCount > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -1034,7 +1067,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${rewardRequests.length}',
+                          '$pendingCount',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
@@ -1063,7 +1096,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               ),
               child: Center(
                 child: Text(
-                  'No pending reward requests',
+                  'No reward requests',
                   style: TextStyle(
                     color: isDark ? Colors.grey[400] : Colors.grey[600],
                   ),
@@ -1086,111 +1119,165 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 icon = Icons.toys;
               }
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _cardColor(context),
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.transparent,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0 : 0.02),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    // Icon
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: parentGreen.withOpacity(isDark ? 0.2 : 0.1),
-                        borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            ParentRewardRequestDetailScreen(request: request),
                       ),
-                      child: Icon(icon, color: parentGreen, size: 24),
-                    ),
-                    const SizedBox(width: 16),
-
-                    // Content
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            request.productName,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: isDark
-                                  ? Colors.white
-                                  : _onBackground(context),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${request.pointsRequired} Points',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: isDark
-                                  ? Colors.grey[400]
-                                  : Colors.grey[600],
-                            ),
-                          ),
-                        ],
+                    );
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _cardColor(context),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.transparent,
                       ),
-                    ),
-
-                    // Approve/Reject Buttons
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () async {
-                            final success = await parentProvider
-                                .approveRewardRequest(request.id);
-                            if (success && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Reward request approved!'),
-                                  backgroundColor: parentGreen,
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.check_circle,
-                            color: parentGreen,
-                          ),
-                          tooltip: 'Approve',
-                        ),
-                        IconButton(
-                          onPressed: () async {
-                            final success = await parentProvider
-                                .rejectRewardRequest(request.id, null);
-                            if (success && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text(
-                                    'Reward request rejected',
-                                  ),
-                                  backgroundColor: Colors.red[400],
-                                ),
-                              );
-                            }
-                          },
-                          icon: Icon(Icons.cancel, color: Colors.red[400]),
-                          tooltip: 'Reject',
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0 : 0.02),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        // Icon
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: parentGreen.withOpacity(isDark ? 0.2 : 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(icon, color: parentGreen, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+
+                        // Content
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                request.productName,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark
+                                      ? Colors.white
+                                      : _onBackground(context),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text(
+                                    '${request.pointsRequired} Points',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: isDark
+                                          ? Colors.grey[400]
+                                          : Colors.grey[600],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Status badge
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColor(
+                                        request.status,
+                                      ).withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      _getStatusText(request.status),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: _getStatusColor(request.status),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Approve/Reject Buttons (only for pending)
+                        if (request.status == RewardRequestStatus.pending)
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: () async {
+                                  final success = await parentProvider
+                                      .approveRewardRequest(request.id);
+                                  if (success && context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Reward request approved!',
+                                        ),
+                                        backgroundColor: parentGreen,
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.check_circle,
+                                  color: parentGreen,
+                                ),
+                                tooltip: 'Approve',
+                              ),
+                              IconButton(
+                                onPressed: () async {
+                                  final success = await parentProvider
+                                      .rejectRewardRequest(request.id, null);
+                                  if (success && context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Text(
+                                          'Reward request rejected',
+                                        ),
+                                        backgroundColor: Colors.red[400],
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: Icon(
+                                  Icons.cancel,
+                                  color: Colors.red[400],
+                                ),
+                                tooltip: 'Reject',
+                              ),
+                            ],
+                          ),
+                        // Arrow for approved/order placed requests
+                        if (request.status != RewardRequestStatus.pending)
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                            color: isDark ? Colors.grey[600] : Colors.grey[400],
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               );
             }),
