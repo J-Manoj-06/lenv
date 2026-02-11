@@ -30,7 +30,6 @@ class _GroupsListPageState extends State<GroupsListPage>
   List<GroupSubject> _subjects = [];
   bool _isLoading = true;
   bool _isLoadingFromCache = false;
-  bool _showingCachedData = false;
   String? _classId;
   bool _hasAttemptedLoad = false;
   final Map<String, int> _lastMessageTs = {}; // chatId -> latest timestamp
@@ -179,7 +178,6 @@ class _GroupsListPageState extends State<GroupsListPage>
       if (mounted) {
         setState(() {
           _subjects = cachedSubjects;
-          _showingCachedData = true;
           _isLoadingFromCache = true;
           _isLoading =
               false; // ✅ Don't show loading spinner if we have cached data
@@ -236,7 +234,6 @@ class _GroupsListPageState extends State<GroupsListPage>
           _subjects = cachedSubjects ?? [];
           _isLoading = false;
           _classId = null;
-          _showingCachedData = cachedSubjects != null;
         });
         return;
       }
@@ -267,7 +264,6 @@ class _GroupsListPageState extends State<GroupsListPage>
         setState(() {
           _subjects = cachedSubjects ?? [];
           _isLoading = false;
-          _showingCachedData = cachedSubjects != null;
           // Don't reset _classId to null if we already had one
           // This preserves it across navigation
         });
@@ -293,7 +289,6 @@ class _GroupsListPageState extends State<GroupsListPage>
         setState(() {
           _subjects = subjects;
           _isLoading = false;
-          _showingCachedData = false;
           _isLoadingFromCache = false;
         });
       } else if (_subjects.isEmpty) {
@@ -301,14 +296,12 @@ class _GroupsListPageState extends State<GroupsListPage>
         setState(() {
           _subjects = [];
           _isLoading = false;
-          _showingCachedData = false;
           _isLoadingFromCache = false;
         });
       } else {
         // Network returned empty but we have cached data - keep showing it
         setState(() {
           _isLoading = false;
-          _showingCachedData = true; // Keep showing cached data
           _isLoadingFromCache = false;
         });
       }
@@ -388,7 +381,6 @@ class _GroupsListPageState extends State<GroupsListPage>
           );
           if (cachedData != null && cachedData.isNotEmpty) {
             _subjects = cachedData;
-            _showingCachedData = true;
 
             // Load cached timestamps
             if (_classId != null) {
@@ -406,11 +398,6 @@ class _GroupsListPageState extends State<GroupsListPage>
         }
         _isLoading = false;
         _isLoadingFromCache = false;
-
-        // If we still have data, show offline indicator
-        if (_subjects.isNotEmpty) {
-          _showingCachedData = true;
-        }
       });
     }
   }
@@ -508,31 +495,6 @@ class _GroupsListPageState extends State<GroupsListPage>
 
     return Column(
       children: [
-        // ✅ Show offline indicator when displaying cached data
-        if (_showingCachedData)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.orange.withOpacity(0.1),
-            child: Row(
-              children: [
-                Icon(Icons.cloud_off, size: 16, color: Colors.orange[700]),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Showing offline data - Tap refresh to update',
-                    style: TextStyle(fontSize: 12, color: Colors.orange[700]),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
-                  onPressed: _loadClassSubjects,
-                  color: Colors.orange[700],
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-          ),
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

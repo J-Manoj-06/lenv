@@ -55,7 +55,6 @@ class _NetworkAwareStudentDashboardState
 
   Widget _buildDashboard(BuildContext context, DashboardProvider provider) {
     final data = provider.dashboardData!;
-    final isFromCache = !provider.isConnected;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -93,9 +92,6 @@ class _NetworkAwareStudentDashboardState
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             children: [
-              // Offline indicator banner
-              if (isFromCache) _buildOfflineBanner(),
-
               // Welcome header
               _buildWelcomeHeader(data),
 
@@ -119,28 +115,7 @@ class _NetworkAwareStudentDashboardState
     );
   }
 
-  Widget _buildOfflineBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      color: Colors.amber[100],
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.cloud_off, size: 16, color: Colors.amber[900]),
-          const SizedBox(width: 8),
-          Text(
-            'Offline Mode - Showing cached data',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.amber[900],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Offline banner removed as per user request
 
   Widget _buildWelcomeHeader(StudentDashboardData data) {
     return Container(

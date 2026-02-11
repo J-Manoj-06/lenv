@@ -23,7 +23,6 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
   final CommunityService _communityService = CommunityService();
   final OfflineDataService _offlineService = OfflineDataService();
   bool _isLoading = true;
-  bool _showingCachedData = false;
   List<CommunityModel> _myCommunities = [];
   final Map<String, int> _lastMessageTs = {}; // communityId -> latest timestamp
   final Map<String, dynamic> _messageListeners =
@@ -133,7 +132,6 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
       if (mounted) {
         setState(() {
           _myCommunities = cachedCommunities;
-          _showingCachedData = true;
           _isLoading = false; // ✅ Don't show loading if we have cached data
         });
       }
@@ -194,7 +192,6 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
       if (communities.isNotEmpty) {
         setState(() {
           _myCommunities = communities;
-          _showingCachedData = false;
           // Sort by latest message
           _myCommunities.sort((a, b) {
             final at = _lastMessageTs[a.id] ?? 0;
@@ -208,13 +205,11 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
         setState(() {
           _myCommunities = [];
           _isLoading = false;
-          _showingCachedData = false;
         });
       } else {
         // Network returned empty but we have cached data - keep showing it
         setState(() {
           _isLoading = false;
-          _showingCachedData = true; // Keep showing cached data
         });
       }
 
@@ -249,15 +244,9 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
             _myCommunities = cachedData
                 .map((data) => CommunityModel.fromJson(data))
                 .toList();
-            _showingCachedData = true;
           }
         }
         _isLoading = false;
-
-        // If we still have data, show offline indicator
-        if (_myCommunities.isNotEmpty) {
-          _showingCachedData = true;
-        }
       });
     }
   }
@@ -270,31 +259,6 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Column(
         children: [
-          // ✅ Show offline indicator when displaying cached data
-          if (_showingCachedData)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.orange.withOpacity(0.1),
-              child: Row(
-                children: [
-                  Icon(Icons.cloud_off, size: 16, color: Colors.orange[700]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Showing offline data - Tap refresh to update',
-                      style: TextStyle(fontSize: 12, color: Colors.orange[700]),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, size: 20),
-                    onPressed: _loadMyCommunities,
-                    color: Colors.orange[700],
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ),
           Expanded(
             child: _isLoading && _myCommunities.isEmpty
                 ? const Center(child: CircularProgressIndicator())
