@@ -53,13 +53,11 @@ class CloudflareWorkerUploadService {
 
       // Read file
       final fileBytes = await file.readAsBytes();
-      final fileSizeKb = (fileBytes.length / 1024).toStringAsFixed(2);
 
       onProgress?.call(20);
 
       // Get MIME type
       final mimeType = _getMimeType(fileName) ?? 'application/octet-stream';
-
 
       // Prepare multipart form data
       final request = http.MultipartRequest(
@@ -96,7 +94,6 @@ class CloudflareWorkerUploadService {
 
       onProgress?.call(80);
 
-
       // Get response body
       final responseBody = await streamedResponse.stream.bytesToString();
       final responseData = _parseJsonResponse(responseBody);
@@ -110,7 +107,6 @@ class CloudflareWorkerUploadService {
       }
 
       onProgress?.call(100);
-
 
       return {
         'publicUrl': responseData['publicUrl'] as String,

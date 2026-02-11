@@ -24,6 +24,7 @@ import 'services/offline_first_initializer.dart';
 import 'models/local_message.dart';
 import 'share/share_controller.dart';
 import 'share/share_receiver_service.dart';
+import 'config/dashboard_setup.dart';
 
 // Initial route is always '/' (Splash) which will resolve and redirect.
 
@@ -49,6 +50,9 @@ void main() async {
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
+
+    // Initialize dashboard setup
+    await DashboardSetup.initialize();
 
     // Initialize services asynchronously without blocking app startup
     // These will complete in the background
@@ -89,73 +93,75 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        // STEP 2: Add OfflineMessageProvider for offline-first messaging
-        ChangeNotifierProvider(
-          create: (_) => OfflineMessageProvider()..initialize(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) {
-            final authProvider = local_auth.AuthProvider();
-            // Initialize auth state from Firebase
-            authProvider.initializeAuth();
-            return authProvider;
+    return DashboardSetup.wrapWithProviders(
+      child: MultiProvider(
+        providers: [
+          // STEP 2: Add OfflineMessageProvider for offline-first messaging
+          ChangeNotifierProvider(
+            create: (_) => OfflineMessageProvider()..initialize(),
+          ),
+          ChangeNotifierProvider(
+            create: (_) {
+              final authProvider = local_auth.AuthProvider();
+              // Initialize auth state from Firebase
+              authProvider.initializeAuth();
+              return authProvider;
+            },
+          ),
+          ChangeNotifierProvider(
+            create: (_) {
+              final shareController = ShareController();
+              shareController.initialize();
+              return shareController;
+            },
+          ),
+          ChangeNotifierProvider(create: (_) => RoleProvider()),
+          ChangeNotifierProvider(create: (_) => TestProvider()),
+          ChangeNotifierProvider(create: (_) => RewardProvider()),
+          ChangeNotifierProvider(create: (_) => StudentProvider()),
+          ChangeNotifierProvider(create: (_) => ParentProvider()),
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
+          ChangeNotifierProxyProvider<
+            local_auth.AuthProvider,
+            UnreadCountProvider
+          >(
+            create: (_) => UnreadCountProvider(),
+            update: (context, auth, previous) {
+              final provider = previous ?? UnreadCountProvider();
+              if (auth.currentUser != null) {
+                provider.initialize(auth.currentUser!.uid);
+              }
+              return provider;
+            },
+          ),
+          ChangeNotifierProxyProvider<
+            local_auth.AuthProvider,
+            DailyChallengeProvider
+          >(
+            create: (_) => DailyChallengeProvider(),
+            update: (context, auth, previous) {
+              // When user logs out, clear all cached challenge state
+              if (auth.currentUser == null && previous != null) {
+                previous.clearAllState();
+              }
+              return previous ?? DailyChallengeProvider();
+            },
+          ),
+        ],
+        child: Consumer<ThemeProvider>(
+          builder: (context, themeProvider, _) {
+            return MaterialApp(
+              title: 'LenV - Educational Ecosystem',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.lightTheme,
+              darkTheme: AppTheme.darkTheme,
+              themeMode: themeProvider.themeMode,
+              onGenerateRoute: AppRouter.generateRoute,
+              navigatorObservers: [NavigationDebounceObserver()],
+              initialRoute: '/',
+            );
           },
         ),
-        ChangeNotifierProvider(
-          create: (_) {
-            final shareController = ShareController();
-            shareController.initialize();
-            return shareController;
-          },
-        ),
-        ChangeNotifierProvider(create: (_) => RoleProvider()),
-        ChangeNotifierProvider(create: (_) => TestProvider()),
-        ChangeNotifierProvider(create: (_) => RewardProvider()),
-        ChangeNotifierProvider(create: (_) => StudentProvider()),
-        ChangeNotifierProvider(create: (_) => ParentProvider()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProxyProvider<
-          local_auth.AuthProvider,
-          UnreadCountProvider
-        >(
-          create: (_) => UnreadCountProvider(),
-          update: (context, auth, previous) {
-            final provider = previous ?? UnreadCountProvider();
-            if (auth.currentUser != null) {
-              provider.initialize(auth.currentUser!.uid);
-            }
-            return provider;
-          },
-        ),
-        ChangeNotifierProxyProvider<
-          local_auth.AuthProvider,
-          DailyChallengeProvider
-        >(
-          create: (_) => DailyChallengeProvider(),
-          update: (context, auth, previous) {
-            // When user logs out, clear all cached challenge state
-            if (auth.currentUser == null && previous != null) {
-              previous.clearAllState();
-            }
-            return previous ?? DailyChallengeProvider();
-          },
-        ),
-      ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) {
-          return MaterialApp(
-            title: 'LenV - Educational Ecosystem',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            themeMode: themeProvider.themeMode,
-            onGenerateRoute: AppRouter.generateRoute,
-            navigatorObservers: [NavigationDebounceObserver()],
-            initialRoute: '/',
-          );
-        },
       ),
     );
   }

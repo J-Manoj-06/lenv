@@ -123,10 +123,9 @@ class InstituteAnnouncementCleanupService {
     }
   }
 
-  /// ALTERNATIVE: Delete using R2 SDK (if you have it in Flutter)
-  /// This avoids the HTTP call if you have direct R2 access
-  static Future<void> _deleteImageFromR2Direct(String imageUrl) async {
-    // If you implement R2 SDK in Flutter, use it here
-    // For now, use the HTTP method above
-  }
+  // Alternative method for future use with R2 SDK
+  // static Future<void> _deleteImageFromR2Direct(String imageUrl) async {
+  //   // If you implement R2 SDK in Flutter, use it here
+  //   // For now, use the HTTP method above
+  // }
 }

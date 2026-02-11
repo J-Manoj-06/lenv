@@ -42,15 +42,12 @@ class YouTubeApiService {
         '$_baseUrl/search?part=snippet&type=video&maxResults=$maxResults&q=${Uri.encodeComponent(query)}&key=$_apiKey',
       );
 
-
       // Make HTTP GET request
       final response = await http.get(url);
-
 
       if (response.statusCode == 200) {
         // Parse and return JSON response
         final data = json.decode(response.body) as Map<String, dynamic>;
-        final itemCount = (data['items'] as List?)?.length ?? 0;
         return data;
       } else {
         // Try to parse YouTube error payload to show specific reason
@@ -69,8 +66,7 @@ class YouTubeApiService {
               : '';
           final messageText = error?['message'] ?? '';
           message = 'YouTube API error $code/$status: $messageText ($reason)';
-        } catch (_) {
-        }
+        } catch (_) {}
         throw Exception(message);
       }
     } catch (e) {

@@ -744,9 +744,6 @@ class FirestoreService {
         .where('teacherId', isEqualTo: teacherId)
         .snapshots()
         .map((snapshot) {
-          for (var doc in snapshot.docs) {
-          }
-
           // Parse all tests
           final tests = snapshot.docs
               .map((doc) => TestModel.fromScheduledTest(doc.id, doc.data()))
@@ -804,8 +801,7 @@ class FirestoreService {
             if (test.status == TestStatus.published) {
               tests.add(test);
             }
-          } catch (e) {
-          }
+          } catch (e) {}
         }
       }
 
@@ -1132,8 +1128,7 @@ class FirestoreService {
       } catch (_) {}
 
       if (testHasEnded) {
-      } else {
-      }
+      } else {}
 
       // NEW LOGIC: Raw marks gained from test result's totalPoints field
       // This represents the actual sum of points for correct answers
@@ -1185,16 +1180,13 @@ class FirestoreService {
           };
 
           await assignmentDoc.reference.update(updateData);
-        } else {
-        }
-      } catch (e) {
-      }
+        } else {}
+      } catch (e) {}
 
       // Update student counters and points ONLY if test has ended
       if (testHasEnded) {
         // Use previously computed points
         final earnedPoints = earnedPointsCandidate; // raw marks
-
 
         // Update student counters (users collection preferred, fallback to students)
         bool countersUpdated = false;
@@ -1229,8 +1221,7 @@ class FirestoreService {
               countersUpdated = true;
             }
           }
-        } catch (e) {
-        }
+        } catch (e) {}
 
         if (!countersUpdated) {
           // Fallback: update students collection counters if present
@@ -1247,13 +1238,11 @@ class FirestoreService {
               });
               countersUpdated = true;
             }
-          } catch (e) {
-          }
+          } catch (e) {}
         }
 
         if (countersUpdated) {
-        } else {
-        }
+        } else {}
 
         // Save points record to student_rewards collection for history
         try {
@@ -1271,8 +1260,7 @@ class FirestoreService {
               timestamp: DateTime.now(),
             ).toJson(),
           );
-        } catch (e) {
-        }
+        } catch (e) {}
       } else {
         // Test hasn't ended yet - mark for later processing
       }
@@ -1345,7 +1333,6 @@ class FirestoreService {
     required double totalMarks,
     required int points,
   }) async {
-
     final doc = _db.collection('student_rewards').doc();
     final payload = RewardPointsModel(
       id: doc.id,
@@ -1377,8 +1364,7 @@ class FirestoreService {
           'totalPoints': FieldValue.increment(points),
           'rewardPoints': FieldValue.increment(points),
         });
-      } else {
-      }
+      } else {}
     } catch (_) {
       // ignore if collection not present
     }
@@ -1692,7 +1678,6 @@ class FirestoreService {
           .toSet()
           .toList();
 
-
       // Helper: check if a test has ended by reading scheduledTests
       Future<Map<String, bool>> loadEndedStatus(List<String> ids) async {
         final result = <String, bool>{};
@@ -1770,8 +1755,7 @@ class FirestoreService {
         return endedMap[tid] == true;
       }).toList();
 
-
-      int processed = 0;
+      // Track processing
       final processedTestIds = <String>{};
 
       // Group pending results by student to ensure correct milestone ordering
@@ -1903,16 +1887,13 @@ class FirestoreService {
                 testsCompleted: testsCompleted,
                 previousScorePercent: prevPercent,
               );
-            } catch (e) {
-            }
+            } catch (e) {}
 
             // Update prev for next iteration
             prevPercent = scorePercent;
 
             processedTestIds.add(testId);
-            processed++;
-          } catch (e) {
-          }
+          } catch (e) {}
         }
       }
 
@@ -1940,12 +1921,9 @@ class FirestoreService {
             }
             await batch.commit();
           }
-        } catch (e) {
-        }
+        } catch (e) {}
       }
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // (Sync utilities removed – website now writes correct data directly.)

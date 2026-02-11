@@ -75,8 +75,6 @@ class WhatsAppMediaUploadService {
       }
 
       final uploadDuration = DateTime.now().difference(uploadStartTime);
-      final speedKBps =
-          (compressedBytes.length / 1024) / uploadDuration.inSeconds;
 
       onProgress?.call(0.9);
 
