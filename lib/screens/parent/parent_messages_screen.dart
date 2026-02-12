@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/parent_provider.dart';
 import '../../widgets/student_selection/student_avatar_row.dart';
 import 'parent_chat_screen.dart';
+import '../../services/offline_data_service.dart';
 
 class ParentMessagesScreen extends StatefulWidget {
   const ParentMessagesScreen({super.key});
@@ -19,6 +20,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
   static const Color cardBg = Colors.white;
   static const Color textPrimary = Color(0xFF110D1B);
 
+  final OfflineDataService _offlineService = OfflineDataService();
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _teachers = [];
   List<Map<String, dynamic>> _filteredTeachers = [];
@@ -86,6 +88,20 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         _lastLoadedChildId = child.uid;
       });
       return;
+    }
+
+    // ✅ Try loading from offline cache first for instant display
+    if (child != null) {
+      final cachedTeachers = _offlineService.getCachedParentTeachers(child.uid);
+      if (cachedTeachers != null && cachedTeachers.isNotEmpty) {
+        setState(() {
+          _teachers = cachedTeachers;
+          _filteredTeachers = _teachers;
+          _teachersCache[child.uid] = _teachers;
+          _isLoading = false;
+          _lastLoadedChildId = child.uid;
+        });
+      }
     }
 
     setState(() => _isLoading = true);
@@ -217,6 +233,14 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         (a, b) => (a['name'] as String).compareTo(b['name'] as String),
       );
 
+      // ✅ Cache teachers for offline access
+      if (teachersList.isNotEmpty) {
+        await _offlineService.cacheParentTeachers(
+          childId: child.uid,
+          teachers: teachersList,
+        );
+      }
+
       setState(() {
         _teachers = teachersList;
         _filteredTeachers = teachersList;
@@ -225,6 +249,19 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         _lastLoadedChildId = child.uid; // Track which child we loaded for
       });
     } catch (e) {
+      // ✅ If network fails but we have cached data, keep showing it
+      if (_teachers.isEmpty && child != null) {
+        final cachedTeachers = _offlineService.getCachedParentTeachers(
+          child.uid,
+        );
+        if (cachedTeachers != null && cachedTeachers.isNotEmpty) {
+          setState(() {
+            _teachers = cachedTeachers;
+            _filteredTeachers = cachedTeachers;
+            _teachersCache[child.uid] = cachedTeachers;
+          });
+        }
+      }
       setState(() => _isLoading = false);
     }
   }

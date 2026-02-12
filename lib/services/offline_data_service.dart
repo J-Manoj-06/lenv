@@ -15,12 +15,19 @@ class OfflineDataService {
   static const String _communitiesBox = 'communities_offline';
   static const String _communityPostsBox = 'community_posts_offline';
   static const String _userDataBox = 'user_data_offline';
+  static const String _teacherGroupsBox = 'teacher_groups_offline';
+  static const String _parentTeachersBox = 'parent_teachers_offline';
+  static const String _instituteCommunitiesBox =
+      'institute_communities_offline';
 
   late Box<Map> _groupMessagesCache;
   late Box<Map> _groupSubjectsCache;
   late Box<Map> _communitiesCache;
   late Box<Map> _communityPostsCache;
   late Box<Map> _userDataCache;
+  late Box<Map> _teacherGroupsCache;
+  late Box<Map> _parentTeachersCache;
+  late Box<Map> _instituteCommunitiesCache;
 
   bool _initialized = false;
 
@@ -34,6 +41,9 @@ class OfflineDataService {
             Hive.openBox<Map>(_communitiesBox),
             Hive.openBox<Map>(_communityPostsBox),
             Hive.openBox<Map>(_userDataBox),
+            Hive.openBox<Map>(_teacherGroupsBox),
+            Hive.openBox<Map>(_parentTeachersBox),
+            Hive.openBox<Map>(_instituteCommunitiesBox),
           ])
           .timeout(
             const Duration(seconds: 10),
@@ -46,6 +56,9 @@ class OfflineDataService {
             _communitiesCache = boxes[2];
             _communityPostsCache = boxes[3];
             _userDataCache = boxes[4];
+            _teacherGroupsCache = boxes[5];
+            _parentTeachersCache = boxes[6];
+            _instituteCommunitiesCache = boxes[7];
           });
 
       _initialized = true;
@@ -298,6 +311,9 @@ class OfflineDataService {
         _communitiesCache.clear(),
         _communityPostsCache.clear(),
         _userDataCache.clear(),
+        _teacherGroupsCache.clear(),
+        _parentTeachersCache.clear(),
+        _instituteCommunitiesCache.clear(),
       ]);
       debugPrint('✅ Cleared all offline caches');
     } catch (e) {
@@ -313,6 +329,118 @@ class OfflineDataService {
       'communities': _communitiesCache.length,
       'communityPosts': _communityPostsCache.length,
       'userData': _userDataCache.length,
+      'teacherGroups': _teacherGroupsCache.length,
+      'parentTeachers': _parentTeachersCache.length,
+      'instituteCommunities': _instituteCommunitiesCache.length,
     };
+  }
+
+  // ==================== TEACHER GROUPS ====================
+
+  /// Cache teacher's message groups
+  Future<void> cacheTeacherGroups({
+    required String teacherId,
+    required List<Map<String, dynamic>> groups,
+  }) async {
+    try {
+      await _teacherGroupsCache.put('groups_$teacherId', {
+        'groups': groups,
+        'cachedAt': DateTime.now().toIso8601String(),
+        'count': groups.length,
+      });
+      debugPrint('✅ Cached ${groups.length} teacher groups for $teacherId');
+    } catch (e) {
+      debugPrint('Error caching teacher groups: $e');
+    }
+  }
+
+  /// Get cached teacher groups
+  List<Map<String, dynamic>>? getCachedTeacherGroups(String teacherId) {
+    try {
+      final cached = _teacherGroupsCache.get('groups_$teacherId');
+      if (cached == null) return null;
+
+      final groups = cached['groups'] as List?;
+      if (groups == null) return null;
+
+      return List<Map<String, dynamic>>.from(groups);
+    } catch (e) {
+      debugPrint('Error reading cached teacher groups: $e');
+      return null;
+    }
+  }
+
+  // ==================== PARENT TEACHERS ====================
+
+  /// Cache parent's teachers list
+  Future<void> cacheParentTeachers({
+    required String childId,
+    required List<Map<String, dynamic>> teachers,
+  }) async {
+    try {
+      await _parentTeachersCache.put('teachers_$childId', {
+        'teachers': teachers,
+        'cachedAt': DateTime.now().toIso8601String(),
+        'count': teachers.length,
+      });
+      debugPrint('✅ Cached ${teachers.length} teachers for child $childId');
+    } catch (e) {
+      debugPrint('Error caching parent teachers: $e');
+    }
+  }
+
+  /// Get cached teachers list for parent
+  List<Map<String, dynamic>>? getCachedParentTeachers(String childId) {
+    try {
+      final cached = _parentTeachersCache.get('teachers_$childId');
+      if (cached == null) return null;
+
+      final teachers = cached['teachers'] as List?;
+      if (teachers == null) return null;
+
+      return List<Map<String, dynamic>>.from(teachers);
+    } catch (e) {
+      debugPrint('Error reading cached parent teachers: $e');
+      return null;
+    }
+  }
+
+  // ==================== INSTITUTE COMMUNITIES ====================
+
+  /// Cache institute's communities
+  Future<void> cacheInstituteCommunities({
+    required String instituteId,
+    required List<Map<String, dynamic>> communities,
+  }) async {
+    try {
+      await _instituteCommunitiesCache.put('communities_$instituteId', {
+        'communities': communities,
+        'cachedAt': DateTime.now().toIso8601String(),
+        'count': communities.length,
+      });
+      debugPrint(
+        '✅ Cached ${communities.length} communities for institute $instituteId',
+      );
+    } catch (e) {
+      debugPrint('Error caching institute communities: $e');
+    }
+  }
+
+  /// Get cached communities for institute
+  List<Map<String, dynamic>>? getCachedInstituteCommunities(
+    String instituteId,
+  ) {
+    try {
+      final cached = _instituteCommunitiesCache.get('communities_$instituteId');
+      if (cached == null) return null;
+
+      final communities = cached['communities'] as List?;
+      if (communities == null) return null;
+
+      return List<Map<String, dynamic>>.from(communities);
+    } catch (e) {
+      debugPrint('Error reading cached institute communities: $e');
+      return null;
+    }
   }
 }

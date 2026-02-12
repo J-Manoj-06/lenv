@@ -6,6 +6,7 @@ import '../../../providers/auth_provider.dart';
 import '../../messages/group_chat_page.dart';
 import '../../../services/group_messaging_service.dart';
 import '../../messages/staff_room_chat_page.dart';
+import '../../../services/offline_data_service.dart';
 
 /// Models
 class TeachingContext {
@@ -301,6 +302,7 @@ class TeacherMessageGroupsScreen extends StatefulWidget {
 class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     with AutomaticKeepAliveClientMixin {
   final MessageGroupsService _service = MessageGroupsService();
+  final OfflineDataService _offlineService = OfflineDataService();
   List<MessageGroup> _groups = [];
   List<MessageGroup> _filteredGroups = [];
   bool _isLoading = true;
@@ -417,8 +419,67 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   }
 
   Future<void> _loadGroupsFromFirestore(String teacherId) async {
+    // ✅ Try loading from cache first for instant display
+    final cachedGroups = _offlineService.getCachedTeacherGroups(teacherId);
+    if (cachedGroups != null && cachedGroups.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _groups = cachedGroups
+              .map(
+                (data) => MessageGroup(
+                  groupId: data['groupId'] ?? '',
+                  subjectId: data['subjectId'] ?? '',
+                  subjectName: data['subjectName'] ?? '',
+                  className: data['className'] ?? '',
+                  sectionName: data['sectionName'] ?? '',
+                  teacherId: data['teacherId'] ?? '',
+                  studentCount: data['studentCount'] ?? 0,
+                  lastMessage: data['lastMessage'] as String?,
+                  lastMessageTime: data['lastMessageTime'] != null
+                      ? DateTime.fromMillisecondsSinceEpoch(
+                          data['lastMessageTime'] as int,
+                        )
+                      : null,
+                  unreadCount: data['unreadCount'] ?? 0,
+                  classId: data['classId'] ?? '',
+                ),
+              )
+              .toList();
+          _filteredGroups = _groups;
+          _isLoading = false;
+        });
+      }
+    }
+
+    // ✅ Now fetch fresh data from network
     try {
       final groups = await _service.getTeacherMessageGroups(teacherId);
+
+      // ✅ Cache the groups for offline access
+      if (groups.isNotEmpty) {
+        final groupsData = groups
+            .map(
+              (g) => {
+                'groupId': g.groupId,
+                'subjectId': g.subjectId,
+                'subjectName': g.subjectName,
+                'className': g.className,
+                'sectionName': g.sectionName,
+                'teacherId': g.teacherId,
+                'studentCount': g.studentCount,
+                'lastMessage': g.lastMessage,
+                'lastMessageTime': g.lastMessageTime?.millisecondsSinceEpoch,
+                'unreadCount': g.unreadCount,
+                'classId': g.classId,
+              },
+            )
+            .toList();
+
+        await _offlineService.cacheTeacherGroups(
+          teacherId: teacherId,
+          groups: groupsData,
+        );
+      }
 
       if (mounted) {
         setState(() {
@@ -439,7 +500,8 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
         });
       }
     } catch (e) {
-      if (mounted) {
+      // ✅ If network fails but we have cached data, keep showing it
+      if (mounted && _groups.isEmpty) {
         setState(() {
           _errorMessage = 'Error loading groups: $e';
         });
@@ -722,14 +784,20 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E1A2F) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.grey[200]!.withOpacity(0.5),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -757,84 +825,75 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                 );
               }
             },
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             splashColor: isDark
                 ? Colors.white.withOpacity(0.05)
                 : Colors.grey.withOpacity(0.05),
             highlightColor: isDark
                 ? Colors.white.withOpacity(0.03)
                 : Colors.grey.withOpacity(0.03),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              child: Row(
-                children: [
-                  // Orange left accent bar (teacher theme)
-                  Container(
-                    width: 4,
-                    height: 70,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF97316), // Orange for teachers
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        bottomLeft: Radius.circular(16),
-                      ),
-                    ),
+            child: Row(
+              children: [
+                // Orange left accent bar (teacher theme)
+                Container(
+                  width: 4,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF97316), // Orange for teachers
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  const SizedBox(width: 12),
+                ),
+                const SizedBox(width: 12),
 
-                  // Icon with letter
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF97316).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.business,
-                        size: 28,
-                        color: Color(0xFFF97316),
-                      ),
+                // Icon with letter
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF97316).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.business,
+                      size: 24,
+                      color: Color(0xFFF97316),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                ),
+                const SizedBox(width: 16),
 
-                  // Group Info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Teacher Group Chat',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.white : Colors.black87,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
+                // Group Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Teacher Group Chat',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Chat with all teachers',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: isDark ? Colors.white60 : Colors.grey[600],
-                          ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Chat with all teachers',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white60 : Colors.grey[600],
                         ),
-                      ],
-                    ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -976,141 +1035,131 @@ class _MessageGroupTileState extends State<MessageGroupTile>
             widget.onTap();
           },
           onTapCancel: () => setState(() => _isPressed = false),
-          child: Container(
-            decoration: BoxDecoration(
-              color: widget.isDark ? const Color(0xFF222222) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: widget.isDark
-                    ? Colors.white.withOpacity(0.12)
-                    : Colors.grey[200]!,
-              ),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: widget.onTap,
-                borderRadius: BorderRadius.circular(16),
-                splashColor: widget.isDark
-                    ? Colors.white.withOpacity(0.05)
-                    : Colors.grey.withOpacity(0.05),
-                highlightColor: widget.isDark
-                    ? Colors.white.withOpacity(0.03)
-                    : Colors.grey.withOpacity(0.03),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 16,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: widget.isDark ? const Color(0xFF222222) : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: widget.isDark
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.grey[200]!.withOpacity(0.5),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(widget.isDark ? 0.3 : 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   ),
-                  child: Row(
-                    children: [
-                      // Violet left accent bar
-                      Container(
-                        width: 4,
-                        height: 70,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF7C3AED),
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(16),
-                            bottomLeft: Radius.circular(16),
-                          ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Violet left accent bar
+                  Container(
+                    width: 4,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7C3AED),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Subject Icon with letter
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6A4FF7).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.group.subjectName.substring(0, 1).toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF6A4FF7),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
 
-                      // Subject Icon with letter
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF6A4FF7).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Text(
-                            widget.group.subjectName
-                                .substring(0, 1)
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF6A4FF7),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // Group Info
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
+                  // Group Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    widget.group.subjectName,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: widget.isDark
-                                          ? Colors.white
-                                          : Colors.black87,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                            Expanded(
+                              child: Text(
+                                widget.group.subjectName,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: widget.isDark
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                            if (widget.group.unreadCount > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red[600],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${widget.group.unreadCount}',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                if (widget.group.unreadCount > 0)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red[600],
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '${widget.group.unreadCount}',
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Builder(
-                              builder: (context) {
-                                // Extract grade number from className
-                                final gradeMatch = RegExp(
-                                  r'\d+',
-                                ).firstMatch(widget.group.className);
-                                final grade =
-                                    gradeMatch?.group(0) ??
-                                    widget.group.className;
-                                return Text(
-                                  'Grade $grade • Section ${widget.group.sectionName}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: widget.isDark
-                                        ? Colors.white60
-                                        : Colors.grey[600],
-                                  ),
-                                );
-                              },
-                            ),
+                              ),
                           ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Builder(
+                          builder: (context) {
+                            // Extract grade number from className
+                            final gradeMatch = RegExp(
+                              r'\d+',
+                            ).firstMatch(widget.group.className);
+                            final grade =
+                                gradeMatch?.group(0) ?? widget.group.className;
+                            return Text(
+                              'Grade $grade • Section ${widget.group.sectionName}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: widget.isDark
+                                    ? Colors.white60
+                                    : Colors.grey[600],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),

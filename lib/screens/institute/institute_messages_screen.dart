@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
 import '../messages/community_chat_page.dart';
 import './institute_community_explore_screen.dart';
+import '../../services/offline_data_service.dart';
 
 class InstituteMessagesScreen extends StatefulWidget {
   const InstituteMessagesScreen({super.key});
@@ -17,6 +18,7 @@ class InstituteMessagesScreen extends StatefulWidget {
 class _InstituteMessagesScreenState extends State<InstituteMessagesScreen>
     with AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
+  final OfflineDataService _offlineService = OfflineDataService();
   bool _isLoading = false;
   List<CommunityModel> _joined = [];
   bool _hasAttemptedLoad = false;
@@ -62,6 +64,22 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen>
 
     _hasAttemptedLoad = true;
 
+    // ✅ Try loading from cache first for instant display
+    final cachedCommunities = _offlineService.getCachedInstituteCommunities(
+      user.uid,
+    );
+    if (cachedCommunities != null && cachedCommunities.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _joined = cachedCommunities
+              .map((data) => CommunityModel.fromJson(data))
+              .toList();
+          _isLoading = false;
+          _dataLoaded = true;
+        });
+      }
+    }
+
     if (mounted) {
       setState(() => _isLoading = true);
     }
@@ -72,6 +90,15 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen>
           .where((c) => _isEligible(c, schoolCode))
           .toList();
 
+      // ✅ Cache communities for offline access
+      if (joined.isNotEmpty) {
+        final communitiesData = joined.map((c) => c.toJson()).toList();
+        await _offlineService.cacheInstituteCommunities(
+          instituteId: user.uid,
+          communities: communitiesData,
+        );
+      }
+
       if (mounted) {
         setState(() {
           _joined = joined;
@@ -80,6 +107,20 @@ class _InstituteMessagesScreenState extends State<InstituteMessagesScreen>
         });
       }
     } catch (e) {
+      // ✅ If network fails but we have cached data, keep showing it
+      if (mounted && _joined.isEmpty) {
+        final cachedCommunities = _offlineService.getCachedInstituteCommunities(
+          user.uid,
+        );
+        if (cachedCommunities != null && cachedCommunities.isNotEmpty) {
+          setState(() {
+            _joined = cachedCommunities
+                .map((data) => CommunityModel.fromJson(data))
+                .toList();
+            _dataLoaded = true;
+          });
+        }
+      }
       if (mounted) {
         setState(() => _isLoading = false);
       }
