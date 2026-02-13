@@ -243,6 +243,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
 
   @override
   Widget build(BuildContext context) {
+    print('🎨 TeacherChatScreen build() called - parentId: ${widget.parentId}');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(

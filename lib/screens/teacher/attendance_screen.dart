@@ -205,6 +205,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final data = docSnap.data();
       final studentsData = data?['students'] as Map<String, dynamic>?;
       if (studentsData != null) {
+        final updatedMap = Map<String, AttendanceStatus>.from(_attendanceMap);
         for (final entry in studentsData.entries) {
           final key = entry
               .key; // could be auth UID (new) or legacy student doc id (old)
@@ -217,7 +218,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           };
           // Resolve auth UID: if key matches a student's canonical id use directly; else try match via legacyId
           String resolvedKey = key;
-          if (!_attendanceMap.containsKey(key)) {
+          if (!updatedMap.containsKey(key)) {
             // attempt legacy match
             final match = _students.firstWhere(
               (s) => s['legacyId'] == key,
@@ -227,9 +228,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               resolvedKey = match['id']; // use auth UID
             }
           }
-          _attendanceMap[resolvedKey] = mapped;
+          updatedMap[resolvedKey] = mapped;
         }
         setState(() {
+          _attendanceMap = updatedMap;
           _isSubmitted = true;
           _isEditing = false;
         });
@@ -404,8 +406,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _selectedDate = picked;
         _isEditing = false;
       });
-      // Refresh existing attendance state for the new date
-      await _fetchExistingAttendance();
+      // Reload students and attendance for the new date
+      await _loadStudents();
     }
   }
 
@@ -955,13 +957,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return;
     }
 
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator()),
-    );
-
     try {
       final messagingService = MessagingService();
 
@@ -976,6 +971,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               .trim();
       final studentEmail = (student['email'] ?? '').toString().trim();
 
+      print('🔍 Fetching parent for student: $studentId');
+
       // Fetch parent for this student (with all available hints)
       final parentData = await messagingService.fetchParentForStudent(
         studentId,
@@ -983,10 +980,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         studentEmail: studentEmail.isEmpty ? null : studentEmail,
       );
 
+      print(
+        '📦 Parent data received: ${parentData != null ? "Found" : "Not found"}',
+      );
+
       if (!mounted) return;
-      Navigator.pop(context); // Close loading
 
       if (parentData == null) {
+        print('❌ No parent found for student: ${student['name']}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('No parent found for ${student['name']}'),
@@ -1033,42 +1034,75 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         }
       }
 
+      print(
+        '📋 Chat params - schoolCode: $schoolCode, className: $className, section: $section',
+      );
+
       if (schoolCode.isEmpty) {
+        print('❌ School code is empty!');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('School code not available')),
         );
         return;
       }
 
-      // Navigate to new TeacherChatScreen (unified chat)
-      if (!mounted) return;
-      Navigator.push(
-        context,
+      final parentId =
+          (parentData['parentAuthUid'] as String?)?.isNotEmpty == true
+          ? parentData['parentAuthUid'] as String
+          : parentData['parentId'] as String;
+
+      final parentName = (parentData['parentName'] ?? 'Parent').toString();
+      final parentPhotoUrl = parentData['parentPhotoUrl'] as String?;
+
+      print('✅ Navigating to chat with:');
+      print('   parentId: $parentId');
+      print('   parentName: $parentName');
+      print('   studentId: $studentId');
+      print('   schoolCode: $schoolCode');
+      print('   teacherId: $teacherId');
+      print('   className: $className');
+      print('   section: $section');
+
+      print('🚀 Attempting navigation...');
+
+      // Create the screen first
+      print('📱 Creating TeacherChatScreen instance...');
+      final chatScreen = TeacherChatScreen(
+        schoolCode: schoolCode,
+        teacherId: teacherId,
+        parentId: parentId,
+        studentId: studentId,
+        parentName: parentName,
+        className: className.isEmpty ? 'Grade ?' : className,
+        section: section,
+        parentAvatarUrl: parentPhotoUrl,
+      );
+      print('✅ TeacherChatScreen instance created');
+
+      // Navigate directly without any delays
+      print('📱 Calling Navigator.push...');
+      await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => TeacherChatScreen(
-            schoolCode: schoolCode,
-            teacherId: teacherId,
-            parentId:
-                (parentData['parentAuthUid'] as String?)?.isNotEmpty == true
-                ? parentData['parentAuthUid'] as String
-                : parentData['parentId'] as String,
-            studentId: studentId,
-            parentName: parentData['parentName'],
-            className: className.isEmpty ? 'Grade ?' : className,
-            section: section,
-            parentAvatarUrl: parentData['parentPhotoUrl'],
+          builder: (ctx) {
+            print('🎯 MaterialPageRoute builder called!');
+            return chatScreen;
+          },
+        ),
+      );
+
+      print('🔙 Returned from chat screen');
+    } catch (e, stackTrace) {
+      print('❌ Error in _openChat: $e');
+      print('📜 Stack trace: $stackTrace');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening chat: ${e.toString()}'),
+            duration: const Duration(seconds: 4),
           ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+        );
+      }
     }
   }
 }
