@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../../utils/feedback_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../config/cloudflare_config.dart';
-import 'dart:typed_data';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
@@ -21,6 +19,7 @@ import '../../models/parent_teacher_group.dart';
 import 'attendance_screen.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../../services/media_repository.dart';
+import 'teacher_announcement_target_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -1243,7 +1242,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             _openStatusViewer(statusList, 0);
           }
         } else {
-          _showCreateHighlightSheet();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TeacherAnnouncementTargetScreen(
+                teacherClasses: _classes,
+                teacherData: _teacherData,
+              ),
+            ),
+          );
         }
       },
       child: Column(
@@ -1405,7 +1412,17 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 right: -2,
                 bottom: -2,
                 child: GestureDetector(
-                  onTap: _showCreateHighlightSheet,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TeacherAnnouncementTargetScreen(
+                          teacherClasses: _classes,
+                          teacherData: _teacherData,
+                        ),
+                      ),
+                    );
+                  },
                   child: Container(
                     width: 28,
                     height: 28,
@@ -1850,6 +1867,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       String postedByLabel;
       String title;
       String? imageUrl;
+      List<Map<String, String>>? imageCaptions;
       DateTime createdAt;
       DateTime expiresAt;
       String creatorId;
@@ -1860,6 +1878,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         postedByLabel = 'Posted by ${status.teacherName}';
         title = status.text;
         imageUrl = status.imageUrl;
+        imageCaptions = status.imageCaptions;
         createdAt = status.createdAt;
         expiresAt = status.createdAt.add(const Duration(hours: 24));
         creatorId = status.teacherId;
@@ -1901,6 +1920,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
         title = displayText;
         imageUrl = displayImageUrl;
+        imageCaptions = principal.imageCaptions;
         createdAt = principal.createdAt;
         expiresAt = principal.expiresAt;
         creatorId = principal.principalId;
@@ -1912,6 +1932,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         'subtitle': '',
         'postedByLabel': postedByLabel,
         'avatarUrl': imageUrl,
+        'imageCaptions': imageCaptions, // Add imageCaptions
         'postedAt': createdAt,
         'expiresAt': expiresAt,
         'creatorId': creatorId,
@@ -2234,10 +2255,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
   */
 
+  // Old bottom sheet method - REMOVED
+  // Now using TeacherAnnouncementTargetScreen and TeacherAnnouncementComposeScreen
+  /*
   Future<void> _showCreateHighlightSheet() async {
     final textController = TextEditingController();
-    Uint8List? previewBytes;
-    String? imageMime;
+    List<Map<String, dynamic>> previewImages = []; // Multiple images with bytes and mime
     bool posting = false;
 
     // Audience selection state
@@ -2333,11 +2356,26 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             }
             Future<void> pickImage() async {
               final picker = ImagePicker();
-              final x = await picker.pickImage(
-                source: ImageSource.gallery,
-                imageQuality: 85,
-              );
-              if (x != null) {
+              
+              // Pick multiple images (max 5)
+              List<XFile> pickedFiles = [];
+              try {
+                pickedFiles = await picker.pickMultiImage(
+                  imageQuality: 85,
+                  limit: 5,
+                );
+              } catch (e) {
+                // Fallback to single image if pickMultiImage fails
+                final x = await picker.pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 85,
+                );
+                if (x != null) pickedFiles = [x];
+              }
+              
+              if (pickedFiles.isEmpty) return;
+              
+              for (final x in pickedFiles) {
                 try {
                   final bytes = await x.readAsBytes();
                   String? mime;
@@ -2347,17 +2385,20 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     mime = 'image/jpeg';
                   }
                   setSheetState(() {
-                    previewBytes = bytes;
-                    imageMime = mime ?? 'image/jpeg';
+                    previewImages.add({
+                      'bytes': bytes,
+                      'mime': mime ?? 'image/jpeg',
+                    });
                   });
                 } catch (_) {}
               }
             }
 
-            Future<void> removeImage() async {
+            Future<void> removeImage(int index) async {
               setSheetState(() {
-                previewBytes = null;
-                imageMime = null;
+                if (index >= 0 && index < previewImages.length) {
+                  previewImages.removeAt(index);
+                }
               });
             }
 
@@ -2366,7 +2407,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
               // Validate message is not empty
               final messageText = textController.text.trim();
-              if (messageText.isEmpty && previewBytes == null) {
+              if (messageText.isEmpty && previewImages.isEmpty) {
                 showErrorSnackbar(
                   context,
                   'Please enter a message or add an image',
@@ -2403,8 +2444,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               try {
                 await _postHighlight(
                   text: textController.text.trim(),
-                  imageBytes: previewBytes,
-                  imageMime: imageMime,
+                  imagesData: previewImages,
                   audienceType: effectiveAudience,
                   standards: effectiveStandards,
                   sections: effectiveSections,
@@ -3177,48 +3217,80 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
                             const SizedBox(height: 16),
 
-                            // Image preview area
-                            if (previewBytes != null)
+                            // Image preview area - Multiple images in horizontal scroll
+                            if (previewImages.isNotEmpty)
                               Container(
                                 margin: const EdgeInsets.only(bottom: 16),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: borderColor),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Stack(
-                                    children: [
-                                      Image.memory(
-                                        previewBytes!,
-                                        height: 120,
-                                        width: double.infinity,
-                                        fit: BoxFit.cover,
+                                height: 120,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: previewImages.length,
+                                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                                  itemBuilder: (_, index) {
+                                    final imageData = previewImages[index];
+                                    return Container(
+                                      width: 120,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: borderColor),
                                       ),
-                                      Positioned(
-                                        right: 8,
-                                        top: 8,
-                                        child: GestureDetector(
-                                          onTap: removeImage,
-                                          child: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withOpacity(
-                                                0.6,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Stack(
+                                          children: [
+                                            Image.memory(
+                                              imageData['bytes'] as Uint8List,
+                                              height: 120,
+                                              width: 120,
+                                              fit: BoxFit.cover,
+                                            ),
+                                            Positioned(
+                                              right: 4,
+                                              top: 4,
+                                              child: GestureDetector(
+                                                onTap: () => removeImage(index),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(4),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black.withOpacity(0.6),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.close_rounded,
+                                                    size: 16,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
                                               ),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
                                             ),
-                                            child: const Icon(
-                                              Icons.close_rounded,
-                                              size: 18,
-                                              color: Colors.white,
+                                            // Image counter badge
+                                            Positioned(
+                                              left: 4,
+                                              bottom: 4,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withOpacity(0.6),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  '${index + 1}/${previewImages.length}',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                          ],
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 ),
                               ),
 
@@ -3249,7 +3321,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
-                                            'Add Image',
+                                            previewImages.isEmpty 
+                                                ? 'Add Images' 
+                                                : 'Add More (${previewImages.length}/5)',
                                             style: TextStyle(
                                               color: textMuted,
                                               fontWeight: FontWeight.w500,
@@ -3350,8 +3424,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Future<void> _postHighlight({
     String? text,
-    Uint8List? imageBytes,
-    String? imageMime,
+    List<Map<String, dynamic>>? imagesData, // Multiple images with bytes and mime
     required String audienceType,
     required List<String> standards,
     required List<String> sections,
@@ -3361,7 +3434,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     if (currentUser == null) throw 'User not logged in';
 
     // Validate message content
-    if ((text == null || text.isEmpty) && imageBytes == null) {
+    if ((text == null || text.isEmpty) && 
+        (imagesData == null || imagesData.isEmpty)) {
       throw 'Message cannot be empty. Please add text or image.';
     }
 
@@ -3373,13 +3447,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       throw 'Section selection is mandatory. Please select at least one section.';
     }
 
-    String? imageUrl;
-    if (imageBytes != null) {
+    // Upload multiple images to Cloudflare R2
+    final List<Map<String, String>> imageCaptions = [];
+    
+    if (imagesData != null && imagesData.isNotEmpty) {
       try {
-        final fileName =
-            'highlight_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-        // Upload to Cloudflare R2 with working credentials
         final r2Service = CloudflareR2Service(
           accountId: CloudflareConfig.accountId,
           bucketName: CloudflareConfig.bucketName,
@@ -3388,20 +3460,34 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           r2Domain: CloudflareConfig.r2Domain,
         );
 
-        // Generate signed URL
-        final signedData = await r2Service.generateSignedUploadUrl(
-          fileName: 'class_highlights/$fileName',
-          fileType: imageMime ?? 'image/jpeg',
-        );
+        for (int i = 0; i < imagesData.length; i++) {
+          final imageData = imagesData[i];
+          final imageBytes = imageData['bytes'] as Uint8List;
+          final imageMime = imageData['mime'] as String;
+          
+          final fileName =
+              'highlight_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
 
-        // Upload file
-        imageUrl = await r2Service.uploadFileWithSignedUrl(
-          fileBytes: imageBytes,
-          signedUrl: signedData['url'],
-          contentType: imageMime ?? 'image/jpeg',
-        );
+          // Generate signed URL
+          final signedData = await r2Service.generateSignedUploadUrl(
+            fileName: 'class_highlights/$fileName',
+            fileType: imageMime,
+          );
+
+          // Upload file
+          final imageUrl = await r2Service.uploadFileWithSignedUrl(
+            fileBytes: imageBytes,
+            signedUrl: signedData['url'],
+            contentType: imageMime,
+          );
+          
+          // Add to imageCaptions array
+          imageCaptions.add({
+            'url': imageUrl,
+            'caption': '', // Empty caption for now
+          });
+        }
       } catch (e) {
-        // ignore: avoid_print
         rethrow;
       }
     }
@@ -3419,7 +3505,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       'instituteId': instituteId,
       'className': selectedClass ?? 'School-wide',
       'text': text ?? '',
-      'imageUrl': imageUrl ?? '',
+      'imageUrl': imageCaptions.isNotEmpty ? imageCaptions[0]['url'] : '', // Legacy support
+      'imageCaptions': imageCaptions, // New multi-image support
       'createdAt': FieldValue.serverTimestamp(),
       'expiresAt': Timestamp.fromDate(expiresAt),
       // Audience targeting
@@ -3430,10 +3517,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       'viewedBy': [], // Initialize empty array
     };
 
-    // Debug: Print what's being saved
-
     await FirebaseFirestore.instance.collection('class_highlights').add(data);
   }
+  */
+
+  // Old _postHighlight method - REMOVED
+  // Now handled by TeacherAnnouncementComposeScreen
 
   Widget _buildClassSummary() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);

@@ -9,7 +9,9 @@ class StatusModel {
   final String instituteId;
   final String className;
   final String text;
-  final String? imageUrl;
+  final String? imageUrl; // Deprecated: use imageCaptions instead
+  final List<Map<String, String>>?
+  imageCaptions; // New: [{url: '...', caption: '...'}]
   final DateTime createdAt;
   final DateTime expiresAt;
   final bool hasImage;
@@ -32,18 +34,29 @@ class StatusModel {
     required this.className,
     required this.text,
     this.imageUrl,
+    this.imageCaptions,
     required this.createdAt,
     required this.expiresAt,
     this.audienceType = 'school',
     this.standards = const [],
     this.sections = const [],
     this.viewedBy = const [],
-  }) : hasImage = imageUrl != null && imageUrl.isNotEmpty,
+  }) : hasImage =
+           (imageCaptions != null && imageCaptions.isNotEmpty) ||
+           (imageUrl != null && imageUrl.isNotEmpty),
        hasText = text.isNotEmpty;
 
   /// Create from Firestore document
   factory StatusModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+
+    List<Map<String, String>>? imageCaptions;
+    if (data['imageCaptions'] != null) {
+      imageCaptions = (data['imageCaptions'] as List)
+          .map((item) => Map<String, String>.from(item as Map))
+          .toList();
+    }
+
     return StatusModel(
       id: doc.id,
       teacherId: data['teacherId'] ?? '',
@@ -53,6 +66,7 @@ class StatusModel {
       className: data['className'] ?? '',
       text: data['text'] ?? '',
       imageUrl: data['imageUrl'],
+      imageCaptions: imageCaptions,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       expiresAt:
           (data['expiresAt'] as Timestamp?)?.toDate() ??
@@ -102,7 +116,6 @@ class StatusModel {
     required String userStandard,
     required String userSection,
   }) {
-
     if (audienceType == 'school') {
       return true;
     }
@@ -117,7 +130,6 @@ class StatusModel {
       // - Hyphenated format: "10-A", "10-B"
       final combinedSection = '$userStandard$userSection'; // e.g., "10A"
       final hyphenatedSection = '$userStandard-$userSection'; // e.g., "10-A"
-
 
       // Check if any format matches
       for (final section in sections) {

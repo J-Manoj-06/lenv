@@ -43,6 +43,9 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
   bool _isPreloadingImages = true; // Show loading while preloading
   bool _hasPreloadedImages = false; // Track if preloading has been initiated
 
+  // Track current image index within each announcement (for multi-image support)
+  final Map<int, int> _announcementImageIndex = {};
+
   @override
   void initState() {
     super.initState();
@@ -188,6 +191,188 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       return 'Expires in ${days}d';
     }
     return 'Expires in ${diff.inHours} hrs';
+  }
+
+  /// Build announcement content with multi-image support
+  Widget _buildAnnouncementContent(
+    Map<String, dynamic> announcement,
+    int announcementIndex,
+  ) {
+    final imageCaptions =
+        announcement['imageCaptions'] as List<Map<String, String>>?;
+
+    // Check if we have multiple images
+    if (imageCaptions != null && imageCaptions.isNotEmpty) {
+      // Initialize image index for this announcement if not set
+      _announcementImageIndex.putIfAbsent(announcementIndex, () => 0);
+      final currentImageIndex = _announcementImageIndex[announcementIndex]!;
+
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Current image
+          PageView.builder(
+            itemCount: imageCaptions.length,
+            onPageChanged: (imageIndex) {
+              setState(() {
+                _announcementImageIndex[announcementIndex] = imageIndex;
+              });
+            },
+            itemBuilder: (context, imageIndex) {
+              final imageData = imageCaptions[imageIndex];
+              final imageUrl = imageData['url'] ?? '';
+              final caption = imageData['caption'] ?? '';
+
+              if (imageUrl.isEmpty) {
+                return Container(
+                  color: Colors.black,
+                  child: const Center(
+                    child: Icon(
+                      Icons.broken_image,
+                      size: 64,
+                      color: Colors.white54,
+                    ),
+                  ),
+                );
+              }
+
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Image
+                  CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.contain,
+                    placeholder: (context, url) => Container(
+                      color: Colors.black,
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white54,
+                          ),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey.shade900,
+                      child: const Icon(
+                        Icons.image_not_supported,
+                        size: 64,
+                        color: Colors.white54,
+                      ),
+                    ),
+                  ),
+
+                  // Caption overlay at bottom (if caption exists)
+                  if (caption.isNotEmpty)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.3),
+                              Colors.black.withOpacity(0.7),
+                            ],
+                          ),
+                        ),
+                        padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
+                        child: Text(
+                          caption,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+
+          // Image counter badge (if multiple images)
+          if (imageCaptions.length > 1)
+            Positioned(
+              top: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  '${currentImageIndex + 1}/${imageCaptions.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
+    // Fallback to legacy single image
+    if (announcement['avatarUrl'] != null &&
+        (announcement['avatarUrl'] as String).isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: announcement['avatarUrl']!,
+        fit: BoxFit.contain,
+        placeholder: (context, url) => Container(
+          color: Colors.black,
+          child: const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white54),
+            ),
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          color: Colors.grey.shade900,
+          child: const Icon(
+            Icons.image_not_supported,
+            size: 64,
+            color: Colors.white54,
+          ),
+        ),
+      );
+    }
+
+    // Show text only if no images
+    if ((announcement['title'] as String?)?.isNotEmpty ?? false) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            announcement['title'] ?? '',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              height: 1.4,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Empty announcement
+    return Container(color: Colors.black);
   }
 
   @override
@@ -423,60 +608,9 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                               child: Container(
                                 color: Colors.black,
                                 child: Center(
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      // Background image (if available)
-                                      if (announcement['avatarUrl'] != null &&
-                                          (announcement['avatarUrl'] as String)
-                                              .isNotEmpty)
-                                        CachedNetworkImage(
-                                          imageUrl: announcement['avatarUrl']!,
-                                          fit: BoxFit.contain,
-                                          placeholder: (context, url) => Container(
-                                            color: Colors.black,
-                                            child: const Center(
-                                              child: CircularProgressIndicator(
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(Colors.white54),
-                                              ),
-                                            ),
-                                          ),
-                                          errorWidget: (context, url, error) =>
-                                              Container(
-                                                color: Colors.grey.shade900,
-                                                child: const Icon(
-                                                  Icons.image_not_supported,
-                                                  size: 64,
-                                                  color: Colors.white54,
-                                                ),
-                                              ),
-                                        )
-                                      else if ((announcement['title']
-                                                  as String?)
-                                              ?.isNotEmpty ??
-                                          false)
-                                        // Show text only if no image
-                                        Center(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(32),
-                                            child: Text(
-                                              announcement['title'] ?? '',
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 32,
-                                                fontWeight: FontWeight.w800,
-                                                height: 1.4,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                      else
-                                        Container(color: Colors.black),
-                                    ],
+                                  child: _buildAnnouncementContent(
+                                    announcement,
+                                    index,
                                   ),
                                 ),
                               ),

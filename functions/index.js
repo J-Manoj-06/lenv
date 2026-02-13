@@ -327,3 +327,8 @@ exports.hardDeleteOldMediaMessages = hardDeleteOldMediaMessages;
 const { deleteExpiredInstituteAnnouncements, deleteExpiredInstituteAnnouncementsManual } = require('./deleteExpiredInstituteAnnouncements');
 exports.deleteExpiredInstituteAnnouncements = deleteExpiredInstituteAnnouncements;
 exports.deleteExpiredInstituteAnnouncementsManual = deleteExpiredInstituteAnnouncementsManual;
+
+// Import Cloud Functions for teacher announcement auto-deletion (24 hour ephemeral teacher announcements)
+const { deleteExpiredTeacherAnnouncements, deleteExpiredTeacherAnnouncementsManual } = require('./deleteExpiredTeacherAnnouncements');
+exports.deleteExpiredTeacherAnnouncements = deleteExpiredTeacherAnnouncements;
+exports.deleteExpiredTeacherAnnouncementsManual = deleteExpiredTeacherAnnouncementsManual;
