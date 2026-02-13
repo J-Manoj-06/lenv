@@ -109,31 +109,51 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
 
     for (int i = 0; i < widget.announcements.length; i++) {
       final announcement = widget.announcements[i];
-      final imageUrl = announcement['avatarUrl'] as String?;
 
-      if (imageUrl != null && imageUrl.isNotEmpty) {
-        // Precache network image
-        imagesToPreload.add(
-          precacheImage(CachedNetworkImageProvider(imageUrl), context)
-              .then((_) {
-                if (mounted) {
-                  setState(() {
-                    _imageLoadedState[i] = true;
-                  });
-                }
-              })
-              .catchError((error) {
-                // Mark as loaded even on error so UI doesn't hang
-                if (mounted) {
-                  setState(() {
-                    _imageLoadedState[i] = true;
-                  });
-                }
+      // Check for multi-image announcements
+      final imageCaptions =
+          announcement['imageCaptions'] as List<Map<String, String>>?;
+
+      if (imageCaptions != null && imageCaptions.isNotEmpty) {
+        // Preload all images in multi-image announcement
+        for (final imageData in imageCaptions) {
+          final imageUrl = imageData['url'];
+          if (imageUrl != null && imageUrl.isNotEmpty) {
+            imagesToPreload.add(
+              precacheImage(
+                CachedNetworkImageProvider(imageUrl),
+                context,
+              ).catchError((error) {
+                // Ignore errors to prevent hanging
               }),
-        );
-      } else {
-        // No image to load
+            );
+          }
+        }
         _imageLoadedState[i] = true;
+      } else {
+        // Legacy single image
+        final imageUrl = announcement['avatarUrl'] as String?;
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          imagesToPreload.add(
+            precacheImage(CachedNetworkImageProvider(imageUrl), context)
+                .then((_) {
+                  if (mounted) {
+                    setState(() {
+                      _imageLoadedState[i] = true;
+                    });
+                  }
+                })
+                .catchError((error) {
+                  if (mounted) {
+                    setState(() {
+                      _imageLoadedState[i] = true;
+                    });
+                  }
+                }),
+          );
+        } else {
+          _imageLoadedState[i] = true;
+        }
       }
     }
 
@@ -142,7 +162,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       // Wait for first image at minimum
       await Future.any([
         imagesToPreload.first,
-        Future.delayed(const Duration(seconds: 3)), // Timeout after 3s
+        Future.delayed(const Duration(seconds: 2)), // Timeout after 2s
       ]);
     }
 
@@ -193,6 +213,93 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     return 'Expires in ${diff.inHours} hrs';
   }
 
+  /// Build progress bars - shows segments for images in multi-image announcements
+  Widget _buildProgressBars(
+    Map<String, dynamic> announcement,
+    _RoleTheme theme,
+  ) {
+    final imageCaptions =
+        announcement['imageCaptions'] as List<Map<String, String>>?;
+
+    // If announcement has multiple images, show progress for each image
+    if (imageCaptions != null && imageCaptions.isNotEmpty) {
+      final currentImageIndex = _announcementImageIndex[_currentIndex] ?? 0;
+
+      return Row(
+        children: List.generate(
+          imageCaptions.length,
+          (i) => Expanded(
+            child: Container(
+              height: 3,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(
+                  i < currentImageIndex
+                      ? 1.0
+                      : // Completed images: fully visible
+                        i == currentImageIndex
+                      ? 0.8
+                      : // Current image: slightly visible
+                        0.2, // Future images: barely visible
+                ),
+                borderRadius: BorderRadius.circular(9999),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: i == currentImageIndex
+                  ? AnimatedBuilder(
+                      animation: _progress,
+                      builder: (context, _) {
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: _progress.value,
+                            child: Container(color: theme.primary),
+                          ),
+                        );
+                      },
+                    )
+                  : i < currentImageIndex
+                  ? Container(color: theme.primary) // Completed: filled
+                  : null, // Future: empty
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Otherwise show progress for announcements (default behavior)
+    return Row(
+      children: List.generate(
+        widget.announcements.length,
+        (i) => Expanded(
+          child: Container(
+            height: 3,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(i == _currentIndex ? 0.8 : 0.2),
+              borderRadius: BorderRadius.circular(9999),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: i == _currentIndex
+                ? AnimatedBuilder(
+                    animation: _progress,
+                    builder: (context, _) {
+                      return Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: _progress.value,
+                          child: Container(color: theme.primary),
+                        ),
+                      );
+                    },
+                  )
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Build announcement content with multi-image support
   Widget _buildAnnouncementContent(
     Map<String, dynamic> announcement,
@@ -207,118 +314,191 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       _announcementImageIndex.putIfAbsent(announcementIndex, () => 0);
       final currentImageIndex = _announcementImageIndex[announcementIndex]!;
 
+      // Get current image data
+      final imageData = imageCaptions[currentImageIndex];
+      final imageUrl = imageData['url'] ?? '';
+      final caption = imageData['caption'] ?? '';
+
       return Stack(
         fit: StackFit.expand,
         children: [
-          // Current image
-          PageView.builder(
-            itemCount: imageCaptions.length,
-            onPageChanged: (imageIndex) {
-              setState(() {
-                _announcementImageIndex[announcementIndex] = imageIndex;
-              });
-            },
-            itemBuilder: (context, imageIndex) {
-              final imageData = imageCaptions[imageIndex];
-              final imageUrl = imageData['url'] ?? '';
-              final caption = imageData['caption'] ?? '';
+          // Display current image with tap navigation
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp: (details) {
+              final width = MediaQuery.of(context).size.width;
+              final dx = details.globalPosition.dx;
 
-              if (imageUrl.isEmpty) {
-                return Container(
-                  color: Colors.black,
-                  child: const Center(
-                    child: Icon(
-                      Icons.broken_image,
-                      size: 64,
-                      color: Colors.white54,
-                    ),
-                  ),
-                );
+              if (dx < width * 0.33 && currentImageIndex > 0) {
+                // Tap left third: Previous image
+                setState(() {
+                  _announcementImageIndex[announcementIndex] =
+                      currentImageIndex - 1;
+                });
+                // Restart progress for new image
+                _progressController.reset();
+                _progressController.forward();
+              } else if (dx > width * 0.67 &&
+                  currentImageIndex < imageCaptions.length - 1) {
+                // Tap right third: Next image
+                setState(() {
+                  _announcementImageIndex[announcementIndex] =
+                      currentImageIndex + 1;
+                });
+                // Restart progress for new image
+                _progressController.reset();
+                _progressController.forward();
               }
-
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Image
-                  CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.contain,
-                    placeholder: (context, url) => Container(
-                      color: Colors.black,
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white54,
-                          ),
-                        ),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey.shade900,
-                      child: const Icon(
-                        Icons.image_not_supported,
+            },
+            child: imageUrl.isEmpty
+                ? Container(
+                    color: Colors.black,
+                    child: const Center(
+                      child: Icon(
+                        Icons.broken_image,
                         size: 64,
                         color: Colors.white54,
                       ),
                     ),
-                  ),
-
-                  // Caption overlay at bottom (if caption exists)
-                  if (caption.isNotEmpty)
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.3),
-                              Colors.black.withOpacity(0.7),
-                            ],
+                  )
+                : Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Image
+                      CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.contain,
+                        fadeInDuration: const Duration(milliseconds: 200),
+                        fadeOutDuration: const Duration(milliseconds: 200),
+                        placeholder: (context, url) => Container(
+                          color: Colors.black,
+                          child: const Center(
+                            child: SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white54,
+                                ),
+                                strokeWidth: 2,
+                              ),
+                            ),
                           ),
                         ),
-                        padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
-                        child: Text(
-                          caption,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            height: 1.4,
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey.shade900,
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            size: 64,
+                            color: Colors.white54,
                           ),
                         ),
+                        // Cache configuration
+                        memCacheHeight: 1080,
+                        memCacheWidth: 1920,
+                        maxHeightDiskCache: 1080,
+                        maxWidthDiskCache: 1920,
                       ),
-                    ),
-                ],
-              );
-            },
-          ),
 
-          // Image counter badge (if multiple images)
-          if (imageCaptions.length > 1)
+                      // Caption overlay at bottom (if caption exists)
+                      if (caption.isNotEmpty)
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.3),
+                                  Colors.black.withOpacity(0.7),
+                                ],
+                              ),
+                            ),
+                            padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
+                            child: Text(
+                              caption,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+          // Counter badge showing current image position
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.swipe, color: Colors.white, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${currentImageIndex + 1}/${imageCaptions.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Left arrow hint (if not on first image)
+          if (currentImageIndex > 0)
             Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  '${currentImageIndex + 1}/${imageCaptions.length}',
-                  style: const TextStyle(
+              left: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.chevron_left,
                     color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    size: 32,
+                  ),
+                ),
+              ),
+            ),
+          // Right arrow hint (if not on last image)
+          if (currentImageIndex < imageCaptions.length - 1)
+            Positioned(
+              right: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white,
+                    size: 32,
                   ),
                 ),
               ),
@@ -333,11 +513,18 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       return CachedNetworkImage(
         imageUrl: announcement['avatarUrl']!,
         fit: BoxFit.contain,
+        fadeInDuration: const Duration(milliseconds: 200),
+        fadeOutDuration: const Duration(milliseconds: 200),
         placeholder: (context, url) => Container(
           color: Colors.black,
           child: const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white54),
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white54),
+                strokeWidth: 2,
+              ),
             ),
           ),
         ),
@@ -349,6 +536,11 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
             color: Colors.white54,
           ),
         ),
+        // Cache configuration
+        memCacheHeight: 1080,
+        memCacheWidth: 1920,
+        maxHeightDiskCache: 1080,
+        maxWidthDiskCache: 1920,
       );
     }
 
@@ -419,6 +611,8 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
           ),
           child: PageView.builder(
             controller: _pageController,
+            physics:
+                const NeverScrollableScrollPhysics(), // Disable swipe - use tap navigation only
             onPageChanged: _onPageChanged,
             itemCount: widget.announcements.length,
             itemBuilder: (context, index) {
@@ -489,50 +683,12 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                               ),
                               child: Column(
                                 children: [
-                                  // Progress bars for announcements
+                                  // Progress bars for announcements or images
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
-                                    child: Row(
-                                      children: List.generate(
-                                        widget.announcements.length,
-                                        (i) => Expanded(
-                                          child: Container(
-                                            height: 3,
-                                            margin: const EdgeInsets.symmetric(
-                                              horizontal: 3,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withOpacity(
-                                                i == _currentIndex ? 0.8 : 0.2,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(9999),
-                                            ),
-                                            clipBehavior: Clip.antiAlias,
-                                            child: i == _currentIndex
-                                                ? AnimatedBuilder(
-                                                    animation: _progress,
-                                                    builder: (context, _) {
-                                                      return Align(
-                                                        alignment: Alignment
-                                                            .centerLeft,
-                                                        child:
-                                                            FractionallySizedBox(
-                                                              widthFactor:
-                                                                  _progress
-                                                                      .value,
-                                                              child: Container(
-                                                                color: theme
-                                                                    .primary,
-                                                              ),
-                                                            ),
-                                                      );
-                                                    },
-                                                  )
-                                                : null,
-                                          ),
-                                        ),
-                                      ),
+                                    child: _buildProgressBars(
+                                      announcement,
+                                      theme,
                                     ),
                                   ),
                                   // Avatar + metadata row

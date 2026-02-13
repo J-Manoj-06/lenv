@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../../utils/feedback_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../config/cloudflare_config.dart';
 import 'package:provider/provider.dart';
@@ -51,6 +53,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   // Cache for instant viewed status display (both teacher and principal)
   final Map<String, bool> _viewedCache = {};
   final MediaRepository _mediaRepository = MediaRepository();
+
+  // Offline cache flag
+  bool _isOfflineMode = false;
 
   // Highlights: best-effort cleanup on load
   Future<void> _cleanupExpiredHighlights() async {
@@ -255,21 +260,40 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       setState(() {
         _isLoading = true;
         _error = null;
+        _isOfflineMode = false;
       });
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
 
-      // Skip expensive re-initialization - user is already logged in
+      // Check if user is logged in
       if (currentUser == null) {
-        // Only initialize if truly not logged in
+        // Try to initialize auth from Firebase
         await authProvider.initializeAuth();
         final retryUser = authProvider.currentUser;
+
         if (retryUser == null) {
-          if (mounted) {
+          // No user logged in - try to load from offline cache first
+          final cachedData = await _loadFromOfflineCache();
+
+          if (cachedData != null && mounted) {
+            // Show cached data in offline mode
             setState(() {
-              _error = 'No user logged in';
+              _teacherData = cachedData['teacherData'];
+              _classes = List<String>.from(cachedData['classes'] ?? []);
+              _students = List<Map<String, dynamic>>.from(
+                cachedData['students'] ?? [],
+              );
+              _isOfflineMode = true;
               _isLoading = false;
+            });
+            return;
+          }
+
+          // No cached data and no user - redirect to login
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Navigator.pushReplacementNamed(context, '/teacher-login');
             });
           }
           return;
@@ -331,13 +355,76 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       // Preload viewed status for instant orange border updates
       await _preloadViewedStatus();
 
+      // Save to offline cache for future offline access
+      _saveToOfflineCache(teacherData, classes, []);
+
       // Fetch students in background after UI is shown
       _fetchStudentsInBackground(user, teacherData, sections, classes);
     } catch (e) {
-      setState(() {
-        _error = 'Failed to load data';
-        _isLoading = false;
-      });
+      // Try to load from offline cache on error
+      final cachedData = await _loadFromOfflineCache();
+
+      if (cachedData != null && mounted) {
+        setState(() {
+          _teacherData = cachedData['teacherData'];
+          _classes = List<String>.from(cachedData['classes'] ?? []);
+          _students = List<Map<String, dynamic>>.from(
+            cachedData['students'] ?? [],
+          );
+          _isOfflineMode = true;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error =
+              'Failed to load data. Please check your internet connection.';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Save teacher data to offline cache
+  Future<void> _saveToOfflineCache(
+    Map<String, dynamic> teacherData,
+    List<String> classes,
+    List<Map<String, dynamic>> students,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheData = {
+        'teacherData': teacherData,
+        'classes': classes,
+        'students': students,
+        'cachedAt': DateTime.now().toIso8601String(),
+      };
+      await prefs.setString('teacher_dashboard_cache', jsonEncode(cacheData));
+    } catch (e) {
+      debugPrint('Error saving offline cache: $e');
+    }
+  }
+
+  /// Load teacher data from offline cache
+  Future<Map<String, dynamic>?> _loadFromOfflineCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheString = prefs.getString('teacher_dashboard_cache');
+
+      if (cacheString == null) return null;
+
+      final cacheData = jsonDecode(cacheString) as Map<String, dynamic>;
+      final cachedAt = DateTime.parse(cacheData['cachedAt'] as String);
+
+      // Cache valid for 7 days
+      if (DateTime.now().difference(cachedAt).inDays > 7) {
+        await prefs.remove('teacher_dashboard_cache');
+        return null;
+      }
+
+      return cacheData;
+    } catch (e) {
+      debugPrint('Error loading offline cache: $e');
+      return null;
     }
   }
 
@@ -430,6 +517,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           }
         }
       });
+
+      // Update offline cache with student data
+      if (_teacherData != null && _classes.isNotEmpty) {
+        _saveToOfflineCache(_teacherData!, _classes, students);
+      }
     } catch (e) {
       // Don't show error, just leave students empty
     }
@@ -445,22 +537,75 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           ? _buildLoadingSkeleton()
           : _error != null
           ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(_error!),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _loadTeacherData,
-                    child: const Text('Retry'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.cloud_off_outlined,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please check your internet connection',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _initializeAndLoad,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7961FF),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           : Column(
               children: [
+                if (_isOfflineMode)
+                  Container(
+                    width: double.infinity,
+                    color: Colors.orange[700],
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 16,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.cloud_off, size: 16, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text(
+                          'Offline Mode - Showing cached data',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 _buildHeader(),
                 Expanded(
                   child: SingleChildScrollView(
@@ -1792,6 +1937,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             'subtitle': '',
             'postedByLabel': 'Posted by ${status.teacherName}',
             'avatarUrl': status.imageUrl,
+            'imageCaptions': status
+                .imageCaptions, // ✅ Add imageCaptions for multi-image support
             'postedAt': status.createdAt,
             'expiresAt': status.createdAt.add(const Duration(hours: 24)),
             'creatorId': status.teacherId,
