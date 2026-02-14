@@ -218,28 +218,14 @@ class MediaUploadService {
         throw Exception('Failed to decode image');
       }
 
-      // Resize if needed
-      img.Image compressedImage = originalImage;
-      if (originalImage.width > MAX_IMAGE_WIDTH ||
-          originalImage.height > MAX_IMAGE_HEIGHT) {
-        compressedImage = img.copyResize(
-          originalImage,
-          width: MAX_IMAGE_WIDTH,
-          height: MAX_IMAGE_HEIGHT,
-          maintainAspect: true,
-        );
-      }
-
-      // Encode as JPEG with quality setting
-      final compressed = img.encodeJpg(compressedImage, quality: 85);
-
+      // Return original image without resizing to preserve quality
       return {
-        'bytes': compressed,
-        'width': compressedImage.width,
-        'height': compressedImage.height,
+        'bytes': imageBytes,
+        'width': originalImage.width,
+        'height': originalImage.height,
       };
     } catch (e) {
-      return {'bytes': imageBytes, 'width': 1920, 'height': 1080};
+      return {'bytes': imageBytes, 'width': null, 'height': null};
     }
   }
 

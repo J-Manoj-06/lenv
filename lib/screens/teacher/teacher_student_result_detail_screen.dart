@@ -556,18 +556,29 @@ class _TeacherStudentResultDetailScreenState
             Color? borderColor;
             IconData? icon;
 
-            // Correct answer always in green
-            if (isCorrectOption) {
+            // Production-ready logic for answer display:
+            // 1. If this option is BOTH user's answer AND correct → GREEN (user got it right)
+            // 2. If this option is user's answer but NOT correct → RED (user's wrong answer)
+            // 3. If this option is correct but NOT user's answer → GREEN (show correct answer)
+            // 4. Otherwise → neutral (neither selected nor correct)
+
+            if (isUserAnswer && isCorrectOption) {
+              // User selected the correct answer - show green
+              bgColor = Colors.green.withOpacity(0.2);
+              borderColor = Colors.green;
+              icon = Icons.check_circle;
+            } else if (isUserAnswer && !isCorrectOption) {
+              // User selected wrong answer - show red
+              bgColor = Colors.red.withOpacity(0.2);
+              borderColor = Colors.red;
+              icon = Icons.cancel;
+            } else if (!isUserAnswer && isCorrectOption) {
+              // This is the correct answer but user didn't select it - show green
               bgColor = Colors.green.withOpacity(0.2);
               borderColor = Colors.green;
               icon = Icons.check_circle;
             }
-            // User's wrong answer in red (only if it's not the correct option)
-            else if (isUserAnswer && !isCorrect) {
-              bgColor = Colors.red.withOpacity(0.2);
-              borderColor = Colors.red;
-              icon = Icons.cancel;
-            }
+            // else: neutral - neither selected nor correct
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -734,12 +745,19 @@ class _TeacherStudentResultDetailScreenState
     return _coerceAnswerValue(val);
   }
 
-  // Extract correct answer - MUST use question data since result has shuffled answers
+  // Extract correct answer - Use stored answer first (it has the correct text from student's view)
   dynamic _deriveCorrectAnswer(
     Map<String, dynamic> answer,
     Map<String, dynamic> question,
   ) {
-    // CRITICAL: ONLY use question's correctAnswer, NEVER from result (shuffled!)
+    // CRITICAL: First check if correctAnswer is stored in the result
+    // This is the correct answer TEXT that the student saw (from their shuffled options)
+    if (answer.containsKey('correctAnswer') &&
+        answer['correctAnswer'] != null) {
+      return _coerceAnswerValue(answer['correctAnswer']);
+    }
+
+    // Fallback: try to derive from question data (less reliable if options were shuffled)
     final qKeys = [
       'correctAnswer',
       'answer',

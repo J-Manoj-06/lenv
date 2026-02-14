@@ -13,6 +13,8 @@ import '../../config/cloudflare_config.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../widgets/media_preview_card.dart';
+import '../../widgets/multi_image_message_bubble.dart';
+import 'package:photo_view/photo_view.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../models/poll_model.dart';
@@ -243,10 +245,54 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    final pickedFiles = await picker.pickMultiImage(limit: 5);
 
-    if (pickedFile != null) {
-      await _uploadFile(File(pickedFile.path));
+    if (pickedFiles.isEmpty) return;
+
+    // Copy files to temporary directory first to avoid file access issues
+    final tempFiles = <File>[];
+    try {
+      for (final pickedFile in pickedFiles) {
+        // Read file bytes
+        final bytes = await File(pickedFile.path).readAsBytes();
+
+        // Create temp file with unique name
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final extension = pickedFile.path.split('.').last;
+        final tempPath =
+            '${Directory.systemTemp.path}/upload_$timestamp${tempFiles.length}.$extension';
+        final tempFile = File(tempPath);
+
+        // Write bytes to temp file
+        await tempFile.writeAsBytes(bytes);
+        tempFiles.add(tempFile);
+      }
+
+      // Upload directly without preview
+      if (mounted) {
+        await _uploadMultipleImages(tempFiles);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading images: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+
+      // Clean up temp files on error
+      for (final tempFile in tempFiles) {
+        try {
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
     }
   }
 
@@ -287,6 +333,165 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
     if (result != null && result.files.single.path != null) {
       await _uploadFile(File(result.files.single.path!));
+    }
+  }
+
+  /// Upload multiple images as a single message
+  Future<void> _uploadMultipleImages(List<File> files) async {
+    if (files.isEmpty) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser == null) return;
+
+    final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+    final groupMessageId =
+        'pending_${baseTimestamp}_${currentUser.uid.hashCode}';
+    final List<Map<String, dynamic>> mediaList = [];
+    final List<String> localPaths = [];
+
+    // Create metadata for each image with local path
+    for (int i = 0; i < files.length; i++) {
+      final file = files[i];
+      if (!file.existsSync()) continue;
+
+      final messageId = '${groupMessageId}_$i';
+      final fileSize = await file.length();
+      final fileName = file.path.split('/').last;
+      localPaths.add(file.path);
+
+      mediaList.add({
+        'messageId': messageId,
+        'r2Key': 'pending/$messageId',
+        'publicUrl': '',
+        'thumbnail': file.path,
+        'localPath': file.path,
+        'originalFileName': fileName,
+        'fileSize': fileSize,
+        'mimeType': 'image/jpeg',
+      });
+    }
+
+    if (mediaList.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No valid images found')));
+      }
+      return;
+    }
+
+    // Create single pending message with multiple media items
+    final pendingMessage = {
+      'id': groupMessageId,
+      'text': '',
+      'senderId': currentUser.uid,
+      'senderName': currentUser.name,
+      'senderRole': currentUser.role.toString().split('.').last,
+      'createdAt': baseTimestamp,
+      'multipleMedia': mediaList,
+      'isPending': true,
+    };
+
+    setState(() {
+      _pendingMessages.insert(0, pendingMessage);
+      for (int i = 0; i < mediaList.length; i++) {
+        final messageId = mediaList[i]['messageId'];
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.0;
+        _localFilePaths[messageId] = localPaths[i];
+      }
+    });
+
+    try {
+      // Upload all images in parallel
+      final uploadedMediaList = <Map<String, dynamic>>[];
+      for (int i = 0; i < files.length; i++) {
+        final file = files[i];
+        final messageId = '${groupMessageId}_$i';
+
+        final mediaMessage = await _mediaUploadService.uploadMedia(
+          file: file,
+          conversationId: widget.instituteId,
+          senderId: currentUser.uid,
+          senderRole: currentUser.role.toString(),
+          mediaType: 'staff_room',
+          onProgress: (progress) {
+            final normalizedProgress = progress / 100.0;
+            setState(() {
+              _pendingUploadProgress[messageId] = normalizedProgress;
+            });
+          },
+        );
+
+        uploadedMediaList.add({
+          'messageId': messageId,
+          'publicUrl': mediaMessage.r2Url,
+          'thumbnail': mediaMessage.thumbnailUrl,
+          'originalFileName': mediaMessage.fileName,
+          'fileSize': await file.length(),
+          'mimeType': mediaMessage.fileType,
+        });
+      }
+
+      // Create single Firestore message with all uploaded media
+      await FirebaseFirestore.instance
+          .collection('staff_rooms')
+          .doc(widget.instituteId)
+          .collection('messages')
+          .add({
+            'text': '',
+            'senderId': currentUser.uid,
+            'senderName': currentUser.name,
+            'senderRole': currentUser.role.toString().split('.').last,
+            'timestamp': FieldValue.serverTimestamp(),
+            'createdAt': DateTime.now().millisecondsSinceEpoch,
+            'multipleMedia': uploadedMediaList,
+          });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${files.length} image${files.length > 1 ? 's' : ''} sent successfully',
+            ),
+            duration: const Duration(seconds: 2),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      // Clean up temp files
+      for (final file in files) {
+        try {
+          if (await file.exists()) {
+            await file.delete();
+          }
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
+    } catch (e) {
+      // Remove failed pending message
+      setState(() {
+        _pendingMessages.removeWhere((m) => m['id'] == groupMessageId);
+        for (final media in mediaList) {
+          final messageId = media['messageId'];
+          _uploadingMessageIds.remove(messageId);
+          _pendingUploadProgress.remove(messageId);
+          _localFilePaths.remove(messageId);
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading images: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -499,7 +704,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
               children: [
                 _buildAttachmentOption(
                   icon: Icons.image,
-                  label: 'Gallery',
+                  label: 'Images',
                   color: primaryColor,
                   onTap: () {
                     Navigator.pop(bottomSheetContext);
@@ -1417,6 +1622,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                                   hintText: 'Message',
                                   hintStyle: TextStyle(color: hintColor),
                                   border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
                                   contentPadding: const EdgeInsets.symmetric(
                                     vertical: 10,
                                   ),
@@ -1786,6 +1993,16 @@ class _MessageBubble extends StatelessWidget {
     final attachmentName = message['attachmentName'] as String?;
     final attachmentSize = message['attachmentSize'] as int?;
     final thumbnailUrl = message['thumbnailUrl'] as String?;
+
+    // Handle multipleMedia field - can be List or null
+    List<dynamic>? multipleMedia;
+    if (message['multipleMedia'] != null) {
+      final mediaField = message['multipleMedia'];
+      if (mediaField is List) {
+        multipleMedia = mediaField;
+      }
+    }
+
     final isForwarded = message['isForwarded'] == true;
     final isPending = message['isPending'] == true;
     final messageId = message['id'] as String? ?? '';
@@ -1799,6 +2016,7 @@ class _MessageBubble extends StatelessWidget {
         : const Color(0xFFF97316); // Orange for teachers
 
     final hasAttachment = attachmentUrl != null && attachmentUrl.isNotEmpty;
+    final hasMultipleMedia = multipleMedia != null && multipleMedia.isNotEmpty;
     final isPoll = message['type'] == 'poll';
 
     return Container(
@@ -1929,87 +2147,145 @@ class _MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ],
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: hasAttachment && text.isEmpty ? 4 : 16,
-                          vertical: hasAttachment && text.isEmpty ? 4 : 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isMe
-                              ? primaryColor
-                              : theme.colorScheme.surfaceContainerHighest
-                                    .withOpacity(0.7),
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(16),
-                            topRight: const Radius.circular(16),
-                            bottomLeft: Radius.circular(isMe ? 16 : 4),
-                            bottomRight: Radius.circular(isMe ? 4 : 16),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      // Multi-image bubble (WhatsApp-style grid)
+                      if (hasMultipleMedia)
+                        Column(
+                          crossAxisAlignment: isMe
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
                           children: [
-                            if (isForwarded) ...[
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.forward,
-                                    size: 14,
-                                    color: isMe
-                                        ? Colors.white70
-                                        : Colors.black54,
+                            MultiImageMessageBubble(
+                              imageUrls: multipleMedia.map<String>((media) {
+                                if (isPending) {
+                                  return media['localPath'] as String? ?? '';
+                                } else {
+                                  return media['publicUrl'] as String? ?? '';
+                                }
+                              }).toList(),
+                              isMe: isMe,
+                              onImageTap: (index) {
+                                // Open full-screen image gallery
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => _ImageGalleryViewer(
+                                      mediaList: multipleMedia!,
+                                      initialIndex: index,
+                                      isPending: isPending,
+                                    ),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Forwarded',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontStyle: FontStyle.italic,
+                                );
+                              },
+                              uploadProgress: isPending
+                                  ? multipleMedia.map<double?>((media) {
+                                      final mediaId =
+                                          media['messageId'] as String?;
+                                      return mediaId != null
+                                          ? pendingUploadProgress[mediaId]
+                                          : null;
+                                    }).toList()
+                                  : null,
+                            ),
+                            const SizedBox(height: 4),
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 12,
+                                right: 12,
+                              ),
+                              child: Text(
+                                timeStr,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: theme.textTheme.bodyMedium?.color
+                                      ?.withOpacity(0.5),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      // Single attachment or text message
+                      else
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: hasAttachment && text.isEmpty ? 4 : 16,
+                            vertical: hasAttachment && text.isEmpty ? 4 : 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isMe
+                                ? primaryColor
+                                : theme.colorScheme.surfaceContainerHighest
+                                      .withOpacity(0.7),
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(16),
+                              topRight: const Radius.circular(16),
+                              bottomLeft: Radius.circular(isMe ? 16 : 4),
+                              bottomRight: Radius.circular(isMe ? 4 : 16),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (isForwarded) ...[
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.forward,
+                                      size: 14,
                                       color: isMe
                                           ? Colors.white70
                                           : Colors.black54,
                                     ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Forwarded',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontStyle: FontStyle.italic,
+                                        color: isMe
+                                            ? Colors.white70
+                                            : Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                              ],
+                              if (hasAttachment) ...[
+                                _buildAttachmentWidget(
+                                  attachmentUrl,
+                                  attachmentType ?? 'application/octet-stream',
+                                  attachmentName,
+                                  attachmentSize ?? 0,
+                                  thumbnailUrl,
+                                  isPending,
+                                  messageId,
+                                ),
+                                if (text.isNotEmpty) const SizedBox(height: 8),
+                              ],
+                              if (text.isNotEmpty)
+                                Text(
+                                  text,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: isMe
+                                        ? Colors.white
+                                        : theme.textTheme.bodyLarge?.color,
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                            ],
-                            if (hasAttachment) ...[
-                              _buildAttachmentWidget(
-                                attachmentUrl,
-                                attachmentType ?? 'application/octet-stream',
-                                attachmentName,
-                                attachmentSize ?? 0,
-                                thumbnailUrl,
-                                isPending,
-                                messageId,
-                              ),
-                              if (text.isNotEmpty) const SizedBox(height: 8),
-                            ],
-                            if (text.isNotEmpty)
+                                ),
+                              const SizedBox(height: 4),
                               Text(
-                                text,
+                                timeStr,
                                 style: TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 11,
                                   color: isMe
-                                      ? Colors.white
-                                      : theme.textTheme.bodyLarge?.color,
+                                      ? Colors.white.withOpacity(0.7)
+                                      : theme.textTheme.bodyMedium?.color
+                                            ?.withOpacity(0.5),
                                 ),
                               ),
-                            const SizedBox(height: 4),
-                            Text(
-                              timeStr,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isMe
-                                    ? Colors.white.withOpacity(0.7)
-                                    : theme.textTheme.bodyMedium?.color
-                                          ?.withOpacity(0.5),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -2093,5 +2369,131 @@ class _MessageBubble extends StatelessWidget {
     } catch (_) {
       return 'file';
     }
+  }
+}
+
+/// Full-screen image gallery viewer for multi-image messages
+class _ImageGalleryViewer extends StatefulWidget {
+  final List<dynamic> mediaList;
+  final int initialIndex;
+  final bool isPending;
+
+  const _ImageGalleryViewer({
+    required this.mediaList,
+    required this.initialIndex,
+    required this.isPending,
+  });
+
+  @override
+  State<_ImageGalleryViewer> createState() => _ImageGalleryViewerState();
+}
+
+class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.mediaList.length}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        centerTitle: true,
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        itemCount: widget.mediaList.length,
+        itemBuilder: (context, index) {
+          final media = widget.mediaList[index];
+          final localPath = media['localPath'] as String?;
+          final publicUrl = media['publicUrl'] as String?;
+
+          return _buildImageViewer(localPath, publicUrl);
+        },
+      ),
+    );
+  }
+
+  Widget _buildImageViewer(String? localPath, String? publicUrl) {
+    final file = (localPath != null && localPath.isNotEmpty)
+        ? File(localPath)
+        : null;
+    final hasLocalFile = file != null && file.existsSync();
+    final hasNetwork = publicUrl != null && publicUrl.isNotEmpty;
+
+    if (hasLocalFile) {
+      return PhotoView(
+        imageProvider: FileImage(file),
+        minScale: PhotoViewComputedScale.contained,
+        maxScale: PhotoViewComputedScale.covered * 3,
+        backgroundDecoration: const BoxDecoration(color: Colors.black),
+        errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
+      );
+    } else if (hasNetwork) {
+      return PhotoView(
+        imageProvider: NetworkImage(publicUrl),
+        minScale: PhotoViewComputedScale.contained,
+        maxScale: PhotoViewComputedScale.covered * 3,
+        backgroundDecoration: const BoxDecoration(color: Colors.black),
+        loadingBuilder: (context, event) {
+          if (event == null) return const SizedBox.shrink();
+          return Center(
+            child: SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(
+                value: event.expectedTotalBytes != null
+                    ? event.cumulativeBytesLoaded / event.expectedTotalBytes!
+                    : null,
+                strokeWidth: 3,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
+      );
+    } else {
+      return _buildFallbackImage();
+    }
+  }
+
+  Widget _buildFallbackImage() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.image, size: 64, color: Colors.white54),
+          SizedBox(height: 16),
+          Text('Image not available', style: TextStyle(color: Colors.white70)),
+        ],
+      ),
+    );
   }
 }
