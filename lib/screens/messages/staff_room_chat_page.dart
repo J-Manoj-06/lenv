@@ -14,7 +14,6 @@ import '../../services/media_upload_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
-import 'package:photo_view/photo_view.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../models/poll_model.dart';
@@ -2391,19 +2390,49 @@ class _ImageGalleryViewer extends StatefulWidget {
 class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
   late PageController _pageController;
   late int _currentIndex;
+  late Map<int, TransformationController> _transformationControllers;
+  late Map<int, bool> _zoomStates;
+  bool _isInteracting =
+      false; // Track if user is currently interacting with zoom
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    _transformationControllers = {};
+    _zoomStates = {};
+
+    // Initialize transformation controllers and zoom states for all images
+    for (int i = 0; i < widget.mediaList.length; i++) {
+      final controller = TransformationController();
+      _transformationControllers[i] = controller;
+      _zoomStates[i] = false;
+
+      // Listen to transformation changes
+      controller.addListener(() {
+        final scale = controller.value.getMaxScaleOnAxis();
+        final isZoomed = scale > 1.01;
+        if (_zoomStates[i] != isZoomed) {
+          setState(() {
+            _zoomStates[i] = isZoomed;
+          });
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    for (var controller in _transformationControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
+
+  bool get _shouldDisableScroll =>
+      _isInteracting || (_zoomStates[_currentIndex] ?? false);
 
   @override
   Widget build(BuildContext context) {
@@ -2423,7 +2452,10 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
       ),
       body: PageView.builder(
         controller: _pageController,
-        scrollDirection: Axis.vertical,
+        scrollDirection: Axis.horizontal,
+        physics: _shouldDisableScroll
+            ? const NeverScrollableScrollPhysics()
+            : const AlwaysScrollableScrollPhysics(),
         onPageChanged: (index) {
           setState(() {
             _currentIndex = index;
@@ -2435,53 +2467,79 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           final localPath = media['localPath'] as String?;
           final publicUrl = media['publicUrl'] as String?;
 
-          return _buildImageViewer(localPath, publicUrl);
+          return _buildImageViewer(index, localPath, publicUrl);
         },
       ),
     );
   }
 
-  Widget _buildImageViewer(String? localPath, String? publicUrl) {
+  Widget _buildImageViewer(int index, String? localPath, String? publicUrl) {
     final file = (localPath != null && localPath.isNotEmpty)
         ? File(localPath)
         : null;
     final hasLocalFile = file != null && file.existsSync();
     final hasNetwork = publicUrl != null && publicUrl.isNotEmpty;
 
+    Widget imageWidget;
+
     if (hasLocalFile) {
-      return PhotoView(
-        imageProvider: FileImage(file),
-        minScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.covered * 3,
-        backgroundDecoration: const BoxDecoration(color: Colors.black),
-        errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
+      imageWidget = Image.file(
+        file,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, __, ___) => _buildFallbackImage(),
       );
     } else if (hasNetwork) {
-      return PhotoView(
-        imageProvider: NetworkImage(publicUrl),
-        minScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.covered * 3,
-        backgroundDecoration: const BoxDecoration(color: Colors.black),
-        loadingBuilder: (context, event) {
-          if (event == null) return const SizedBox.shrink();
-          return Center(
+      imageWidget = Image.network(
+        publicUrl,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(
             child: SizedBox(
               width: 36,
               height: 36,
-              child: CircularProgressIndicator(
-                value: event.expectedTotalBytes != null
-                    ? event.cumulativeBytesLoaded / event.expectedTotalBytes!
-                    : null,
-                strokeWidth: 3,
-              ),
+              child: CircularProgressIndicator(strokeWidth: 3),
             ),
           );
         },
-        errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
+        errorBuilder: (_, __, ___) => _buildFallbackImage(),
       );
     } else {
-      return _buildFallbackImage();
+      imageWidget = _buildFallbackImage();
     }
+
+    return InteractiveViewer(
+      transformationController: _transformationControllers[index],
+      minScale: 0.5,
+      maxScale: 4.0,
+      panEnabled: true,
+      scaleEnabled: true,
+      onInteractionStart: (details) {
+        // Disable PageView scrolling as soon as interaction starts
+        if (details.pointerCount >= 2) {
+          setState(() {
+            _isInteracting = true;
+          });
+        }
+      },
+      onInteractionUpdate: (details) {
+        // Keep disabled during multi-touch interaction
+        if (details.pointerCount >= 2 && !_isInteracting) {
+          setState(() {
+            _isInteracting = true;
+          });
+        }
+      },
+      onInteractionEnd: (details) {
+        // Re-enable PageView scrolling when interaction ends
+        setState(() {
+          _isInteracting = false;
+        });
+      },
+      child: Center(child: imageWidget),
+    );
   }
 
   Widget _buildFallbackImage() {
