@@ -43,6 +43,12 @@ class LocalMessage extends HiveObject {
   @HiveField(11)
   final String? replyToMessageId; // For threaded conversations
 
+  @HiveField(12)
+  final List<dynamic>? multipleMedia; // For multi-image messages
+
+  @HiveField(13)
+  final bool isPending; // For pending upload messages
+
   LocalMessage({
     required this.messageId,
     required this.chatId,
@@ -56,6 +62,8 @@ class LocalMessage extends HiveObject {
     this.pollData,
     this.isDeleted = false,
     this.replyToMessageId,
+    this.multipleMedia,
+    this.isPending = false,
   });
 
   /// Convert from Firebase document
@@ -146,6 +154,14 @@ class LocalMessage extends HiveObject {
       }
     }
 
+    List<dynamic>? multipleMedia;
+    if (data['multipleMedia'] is List) {
+      final rawList = data['multipleMedia'] as List;
+      multipleMedia = rawList
+          .map((item) => item is Map ? Map<String, dynamic>.from(item) : item)
+          .toList();
+    }
+
     return LocalMessage(
       messageId: messageId,
       chatId: chatId,
@@ -159,6 +175,8 @@ class LocalMessage extends HiveObject {
       pollData: data['poll'],
       isDeleted: data['isDeleted'] ?? false,
       replyToMessageId: data['replyToMessageId'],
+      multipleMedia: multipleMedia,
+      isPending: false, // Firebase messages are never pending
     );
   }
 
@@ -178,10 +196,11 @@ class LocalMessage extends HiveObject {
       'mediaUrl': attachmentUrl,
       'attachmentType': attachmentType,
       'mediaType': attachmentType,
+      'multipleMedia': multipleMedia,
       'poll': pollData,
       'isDeleted': isDeleted,
       'replyToMessageId': replyToMessageId,
-      'isPending': false, // Local messages are never pending
+      'isPending': isPending,
     };
   }
 

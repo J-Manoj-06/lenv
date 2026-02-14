@@ -29,13 +29,15 @@ class LocalMessageAdapter extends TypeAdapter<LocalMessage> {
       pollData: (fields[9] as Map?)?.cast<String, dynamic>(),
       isDeleted: fields[10] as bool,
       replyToMessageId: fields[11] as String?,
+      multipleMedia: (fields[12] as List?)?.cast<dynamic>(),
+      isPending: fields[13] == null ? false : fields[13] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, LocalMessage obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.messageId)
       ..writeByte(1)
@@ -59,7 +61,11 @@ class LocalMessageAdapter extends TypeAdapter<LocalMessage> {
       ..writeByte(10)
       ..write(obj.isDeleted)
       ..writeByte(11)
-      ..write(obj.replyToMessageId);
+      ..write(obj.replyToMessageId)
+      ..writeByte(12)
+      ..write(obj.multipleMedia)
+      ..writeByte(13)
+      ..write(obj.isPending);
   }
 
   @override

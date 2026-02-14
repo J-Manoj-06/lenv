@@ -22,6 +22,7 @@ import '../../utils/message_scroll_highlight_mixin.dart';
 // OFFLINE-FIRST IMPORTS
 import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
+import '../../models/local_message.dart';
 import 'offline_message_search_page.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
@@ -124,6 +125,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     final currentUser = authProvider.currentUser;
 
     if (currentUser != null) {
+      // Load pending messages from cache (survive navigation during upload)
+      await _loadPendingMessages();
       // Load from cache first (works offline)
       final cachedMessages = await _localRepo.getMessagesForChat(
         widget.instituteId,
@@ -160,6 +163,57 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     }
   }
 
+  Future<void> _loadPendingMessages() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser == null) return;
+
+    // Load pending messages for this chat from cache
+    final pendingMessages = await _localRepo.getPendingMessages(
+      chatId: widget.instituteId,
+      senderId: currentUser.uid,
+    );
+
+    if (pendingMessages.isNotEmpty && mounted) {
+      setState(() {
+        // Convert LocalMessage to widget format
+        for (final msg in pendingMessages) {
+          if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+            _pendingMessages.add({
+              'id': msg.messageId,
+              'text': msg.messageText ?? '',
+              'senderId': msg.senderId,
+              'senderName': msg.senderName,
+              'senderRole': 'teacher',
+              'createdAt': msg.timestamp,
+              'multipleMedia': msg.multipleMedia,
+              'isPending': true,
+            });
+
+            // Restore local file paths, uploading state, and progress indicators
+            for (final media in msg.multipleMedia!) {
+              final mediaId = media['messageId'] as String?;
+              final localPath = media['localPath'] as String?;
+
+              if (mediaId != null) {
+                _uploadingMessageIds.add(mediaId);
+
+                // Restore local file path for thumbnail display
+                if (localPath != null) {
+                  _localFilePaths[mediaId] = localPath;
+                }
+
+              }
+            }
+          }
+        }
+      });
+      print(
+        '🔄 Restored ${pendingMessages.length} pending messages from cache',
+      );
+    }
+  }
+
   void _initMediaService() {
     final r2 = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -192,6 +246,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     // Dispose selection notifiers
     _selectedMessages.dispose();
     _isSelectionMode.dispose();
+
+    // Note: Pending messages are persisted in cache, not cleared on dispose
+    // They will be auto-removed when upload completes or matched with server version
 
     super.dispose();
   }
@@ -392,6 +449,28 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
       'isPending': true,
     };
 
+    print('📤 Creating pending message with ${mediaList.length} images');
+    print('   Pending ID: $groupMessageId');
+
+    // Save pending message to cache IMMEDIATELY (survives navigation)
+    try {
+      final pendingLocalMsg = LocalMessage(
+        messageId: groupMessageId,
+        chatId: widget.instituteId,
+        chatType: 'staff_room',
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
+        timestamp: baseTimestamp,
+        messageText: '',
+        multipleMedia: mediaList,
+        isPending: true,
+      );
+      await _localRepo.saveMessage(pendingLocalMsg);
+      print('💾 Pending message saved to cache (survives navigation)');
+    } catch (e) {
+      print('⚠️ Failed to cache pending message: $e');
+    }
+
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
       for (int i = 0; i < mediaList.length; i++) {
@@ -434,7 +513,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
       }
 
       // Create single Firestore message with all uploaded media
-      await FirebaseFirestore.instance
+      final messageTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final messageRef = await FirebaseFirestore.instance
           .collection('staff_rooms')
           .doc(widget.instituteId)
           .collection('messages')
@@ -444,9 +524,28 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             'senderName': currentUser.name,
             'senderRole': currentUser.role.toString().split('.').last,
             'timestamp': FieldValue.serverTimestamp(),
-            'createdAt': DateTime.now().millisecondsSinceEpoch,
+            'createdAt': messageTimestamp,
             'multipleMedia': uploadedMediaList,
           });
+
+      // Immediately save to local cache so it persists when user navigates away
+      try {
+        final localMessage = LocalMessage(
+          messageId: messageRef.id,
+          chatId: widget.instituteId,
+          chatType: 'staff_room',
+          senderId: currentUser.uid,
+          senderName: currentUser.name,
+          timestamp: messageTimestamp,
+          multipleMedia: uploadedMediaList,
+        );
+        await _localRepo.saveMessage(localMessage);
+
+        // Remove pending message from cache (upload complete)
+        await _localRepo.deletePendingMessage(groupMessageId);
+      } catch (e) {
+        // Silent fail - message still exists in Firebase
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1121,9 +1220,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           final pendingId = pendingMsg['id'] as String;
           final pendingSenderId = pendingMsg['senderId'];
           final pendingTimestamp = pendingMsg['createdAt'] as int;
+          final pendingHasMultipleMedia = pendingMsg['multipleMedia'] != null;
 
           // Check if this pending message now exists in Firestore
-          final hasServerVersion = firestoreMessages.any((doc) {
+          final matchingServerDoc = firestoreMessages.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             if (data['isDeleted'] == true) return false;
 
@@ -1138,19 +1238,22 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             final timeDiff = (serverTimestampMs - pendingTimestamp).abs();
             final timeMatch = timeDiff < 30000; // 30 seconds
 
-            return senderMatch && timeMatch;
-          });
-
-          if (hasServerVersion) {
-            // Mark for removal but don't remove yet
-            pendingIdsToRemove.add(pendingId);
-            // Save local path for sender to reuse
-            final localPath = _localFilePaths[pendingId];
-            if (localPath != null && localPath.isNotEmpty) {
-              // Keep local path for a short time for display
+            // For multi-media messages, ONLY match if server has multipleMedia too
+            if (pendingHasMultipleMedia) {
+              final serverHasMultipleMedia =
+                  data['multipleMedia'] != null &&
+                  (data['multipleMedia'] as List).isNotEmpty;
+              return senderMatch && timeMatch && serverHasMultipleMedia;
             }
+
+            return senderMatch && timeMatch;
+          }).firstOrNull;
+
+          if (matchingServerDoc != null) {
+            // Found matching server version - remove pending
+            pendingIdsToRemove.add(pendingId);
           } else {
-            // Still uploading or not saved yet, keep in list
+            // Still uploading - keep in list
             allMessages.add(pendingMsg);
           }
         }
@@ -1185,6 +1288,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
           data['id'] = doc.id;
           data['isPending'] = false;
+
           allMessages.add(data);
         }
 
@@ -1315,9 +1419,6 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
             // Check if this message is highlighted
             final isHighlighted = highlightedMessageId == messageId;
-
-            // Create stable key for all items (pending and non-pending)
-            final itemKey = ValueKey(messageId);
 
             // Simplified container without heavy animations for pending messages
             if (isPending) {
@@ -2155,10 +2256,15 @@ class _MessageBubble extends StatelessWidget {
                           children: [
                             MultiImageMessageBubble(
                               imageUrls: multipleMedia.map<String>((media) {
+                                // Cast to Map<String, dynamic> first to access fields
+                                final mediaMap = media is Map<String, dynamic>
+                                    ? media
+                                    : (media as Map).cast<String, dynamic>();
+
                                 if (isPending) {
-                                  return media['localPath'] as String? ?? '';
+                                  return mediaMap['localPath'] as String? ?? '';
                                 } else {
-                                  return media['publicUrl'] as String? ?? '';
+                                  return mediaMap['publicUrl'] as String? ?? '';
                                 }
                               }).toList(),
                               isMe: isMe,
@@ -2177,8 +2283,13 @@ class _MessageBubble extends StatelessWidget {
                               },
                               uploadProgress: isPending
                                   ? multipleMedia.map<double?>((media) {
+                                      final mediaMap =
+                                          media is Map<String, dynamic>
+                                          ? media
+                                          : (media as Map)
+                                                .cast<String, dynamic>();
                                       final mediaId =
-                                          media['messageId'] as String?;
+                                          mediaMap['messageId'] as String?;
                                       return mediaId != null
                                           ? pendingUploadProgress[mediaId]
                                           : null;
@@ -2512,10 +2623,12 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
 
     return InteractiveViewer(
       transformationController: _transformationControllers[index],
-      minScale: 0.5,
-      maxScale: 4.0,
+      minScale: 1.0,
+      maxScale: 5.0,
       panEnabled: true,
       scaleEnabled: true,
+      boundaryMargin: const EdgeInsets.all(double.infinity),
+      clipBehavior: Clip.none,
       onInteractionStart: (details) {
         // Disable PageView scrolling as soon as interaction starts
         if (details.pointerCount >= 2) {

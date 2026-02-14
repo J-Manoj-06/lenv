@@ -299,6 +299,40 @@ class LocalMessageRepository {
     return _messageBox!.values.where((msg) => !msg.isDeleted).length;
   }
 
+  /// Get pending messages (upload in progress)
+  /// WHY: Load pending messages when screen opens to show upload progress
+  Future<List<LocalMessage>> getPendingMessages({
+    required String chatId,
+    required String senderId,
+  }) async {
+    await _ensureInitialized();
+
+    final pendingMessages = _messageBox!.values.where((msg) {
+      return msg.chatId == chatId &&
+          msg.senderId == senderId &&
+          msg.isPending == true &&
+          msg.multipleMedia != null &&
+          msg.multipleMedia!.isNotEmpty;
+    }).toList();
+
+    // Sort by timestamp (newest first)
+    pendingMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    return pendingMessages;
+  }
+
+  /// Delete a pending message
+  /// WHY: Remove from cache when upload completes
+  Future<void> deletePendingMessage(String messageId) async {
+    await _ensureInitialized();
+
+    final msg = _messageBox!.get(messageId);
+    if (msg != null && msg.isPending == true) {
+      await _messageBox!.delete(messageId);
+      print('🗑️ Deleted pending message: $messageId');
+    }
+  }
+
   /// Stream of messages for real-time updates
   /// WHY: UI can listen and auto-update when new messages arrive
   Stream<List<LocalMessage>> watchMessagesForChat(String chatId) async* {
