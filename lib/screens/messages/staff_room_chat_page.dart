@@ -190,10 +190,11 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
               'isPending': true,
             });
 
-            // Restore local file paths, uploading state, and progress indicators
+            // Restore local file paths, uploading state, and actual progress
             for (final media in msg.multipleMedia!) {
               final mediaId = media['messageId'] as String?;
               final localPath = media['localPath'] as String?;
+              final uploadProgress = media['uploadProgress'] as double?;
 
               if (mediaId != null) {
                 _uploadingMessageIds.add(mediaId);
@@ -203,6 +204,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                   _localFilePaths[mediaId] = localPath;
                 }
 
+                // Restore actual upload progress from cache
+                _pendingUploadProgress[mediaId] = uploadProgress ?? 0.0;
               }
             }
           }
@@ -425,6 +428,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         'originalFileName': fileName,
         'fileSize': fileSize,
         'mimeType': 'image/jpeg',
+        'uploadProgress': 0.0, // Track upload progress
       });
     }
 
@@ -494,11 +498,48 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           senderId: currentUser.uid,
           senderRole: currentUser.role.toString(),
           mediaType: 'staff_room',
-          onProgress: (progress) {
+          onProgress: (progress) async {
             final normalizedProgress = progress / 100.0;
-            setState(() {
-              _pendingUploadProgress[messageId] = normalizedProgress;
-            });
+
+            // Only update UI if widget is still mounted
+            if (mounted) {
+              setState(() {
+                _pendingUploadProgress[messageId] = normalizedProgress;
+              });
+            }
+
+            // Only save to cache at 25% intervals to avoid excessive writes
+            final progressPercent = (normalizedProgress * 100).round();
+            if (progressPercent % 25 == 0 || progressPercent == 100) {
+              try {
+                final cachedMsg = await _localRepo.getMessageById(
+                  groupMessageId,
+                );
+                if (cachedMsg != null && cachedMsg.multipleMedia != null) {
+                  final updatedMedia = cachedMsg.multipleMedia!.map((media) {
+                    if (media['messageId'] == messageId) {
+                      return {...media, 'uploadProgress': normalizedProgress};
+                    }
+                    return media;
+                  }).toList();
+
+                  final updatedMsg = LocalMessage(
+                    messageId: cachedMsg.messageId,
+                    chatId: cachedMsg.chatId,
+                    chatType: cachedMsg.chatType,
+                    senderId: cachedMsg.senderId,
+                    senderName: cachedMsg.senderName,
+                    timestamp: cachedMsg.timestamp,
+                    messageText: cachedMsg.messageText,
+                    multipleMedia: updatedMedia,
+                    isPending: true,
+                  );
+                  await _localRepo.saveMessage(updatedMsg);
+                }
+              } catch (e) {
+                // Silent fail - progress still works in current session
+              }
+            }
           },
         );
 
@@ -543,6 +584,19 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
         // Remove pending message from cache (upload complete)
         await _localRepo.deletePendingMessage(groupMessageId);
+
+        // Remove pending message from UI
+        if (mounted) {
+          setState(() {
+            _pendingMessages.removeWhere((m) => m['id'] == groupMessageId);
+            for (final media in uploadedMediaList) {
+              final mediaId = media['messageId'];
+              _uploadingMessageIds.remove(mediaId);
+              _pendingUploadProgress.remove(mediaId);
+              _localFilePaths.remove(mediaId);
+            }
+          });
+        }
       } catch (e) {
         // Silent fail - message still exists in Firebase
       }
