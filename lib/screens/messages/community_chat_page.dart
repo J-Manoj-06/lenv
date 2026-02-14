@@ -31,6 +31,7 @@ import '../../utils/message_scroll_highlight_mixin.dart';
 // OFFLINE-FIRST IMPORTS
 import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
+import '../../models/local_message.dart';
 import 'offline_message_search_page.dart';
 
 class CommunityChatPage extends StatefulWidget {
@@ -158,6 +159,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
 
+  // Timer to poll cache for progress updates
+  Timer? _progressPollTimer;
+
   @override
   void initState() {
     super.initState();
@@ -175,20 +179,70 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Listen to scroll events to detect user scrolling
     scrollController.addListener(_onScroll);
 
+    // Start polling for progress updates every 2 seconds
+    _startProgressPolling();
+
     // Track upload progress so pending bubbles show overlays
-    BackgroundUploadService().onUploadProgress =
-        (messageId, isUploading, progress) {
-          if (!mounted) return;
-          setState(() {
-            if (isUploading) {
-              _uploadingMessageIds.add(messageId);
-              _pendingUploadProgress[messageId] = progress;
-            } else {
-              _uploadingMessageIds.remove(messageId);
-              _pendingUploadProgress.remove(messageId);
+    BackgroundUploadService()
+        .onUploadProgress = (messageId, isUploading, progress) async {
+      if (!mounted) return;
+      setState(() {
+        if (isUploading) {
+          _uploadingMessageIds.add(messageId);
+          _pendingUploadProgress[messageId] = progress;
+        } else {
+          _uploadingMessageIds.remove(messageId);
+          _pendingUploadProgress.remove(messageId);
+        }
+      });
+
+      // Save progress to cache at 5% intervals
+      final progressPercent = (progress * 100).round();
+      if (isUploading && (progressPercent % 5 == 0 || progressPercent == 100)) {
+        try {
+          // Find the group message ID from this media ID
+          String? groupMessageId;
+          for (final pending in _pendingMessages) {
+            if (pending.multipleMedia != null) {
+              for (final media in pending.multipleMedia!) {
+                if (media.messageId == messageId) {
+                  groupMessageId = pending.id.replaceFirst('pending:', '');
+                  break;
+                }
+              }
             }
-          });
-        };
+            if (groupMessageId != null) break;
+          }
+
+          if (groupMessageId != null) {
+            final cachedMsg = await _localRepo.getMessageById(groupMessageId);
+            if (cachedMsg != null && cachedMsg.multipleMedia != null) {
+              final updatedMedia = cachedMsg.multipleMedia!.map((media) {
+                if (media['messageId'] == messageId) {
+                  return {...media, 'uploadProgress': progress};
+                }
+                return media;
+              }).toList();
+
+              final updatedMsg = LocalMessage(
+                messageId: cachedMsg.messageId,
+                chatId: cachedMsg.chatId,
+                chatType: cachedMsg.chatType,
+                senderId: cachedMsg.senderId,
+                senderName: cachedMsg.senderName,
+                timestamp: cachedMsg.timestamp,
+                messageText: cachedMsg.messageText,
+                multipleMedia: updatedMedia,
+                isPending: true,
+              );
+              await _localRepo.saveMessage(updatedMsg);
+            }
+          }
+        } catch (e) {
+          // Silent fail - progress still updates in UI
+        }
+      }
+    };
 
     // Setup last read stream for unread divider
     _setupLastReadStream();
@@ -202,6 +256,88 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         unread.refreshChat(widget.communityId);
       } catch (_) {}
     });
+  }
+
+  void _startProgressPolling() {
+    _progressPollTimer?.cancel();
+    _progressPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_pendingMessages.isNotEmpty) {
+        _checkCacheForProgressUpdates();
+      }
+    });
+  }
+
+  Future<void> _checkCacheForProgressUpdates() async {
+    if (_pendingMessages.isEmpty || !mounted) return;
+
+    final toRemove = <String>[];
+
+    for (final pendingMsg in _pendingMessages) {
+      final messageId = pendingMsg.id;
+
+      try {
+        final cachedMsg = await _localRepo.getMessageById(messageId);
+
+        // If message was deleted from cache, it means upload completed
+        // Remove it from UI pending list
+        if (cachedMsg == null) {
+          toRemove.add(messageId);
+          continue;
+        }
+
+        if (cachedMsg.multipleMedia == null) continue;
+
+        // If message is no longer marked as pending, remove from UI
+        if (cachedMsg.isPending == false) {
+          toRemove.add(messageId);
+          continue;
+        }
+
+        bool hasChanges = false;
+
+        for (final media in cachedMsg.multipleMedia!) {
+          final mediaId = media['messageId'] as String?;
+          if (mediaId == null) continue;
+
+          // Update progress from cache
+          final cachedProgress = media['uploadProgress'] as double?;
+          if (cachedProgress != null) {
+            final currentProgress = _pendingUploadProgress[mediaId] ?? 0.0;
+            if ((cachedProgress - currentProgress).abs() > 0.01) {
+              _pendingUploadProgress[mediaId] = cachedProgress;
+              hasChanges = true;
+            }
+          }
+
+          // Check if this media item completed (has publicUrl)
+          final publicUrl = media['publicUrl'] as String?;
+          if (publicUrl != null && publicUrl.isNotEmpty) {
+            // Media completed - update the pending message to show uploaded image
+            hasChanges = true;
+          }
+        }
+
+        if (hasChanges && mounted) {
+          setState(() {
+            // Update will trigger rebuild with new progress/images
+          });
+        }
+      } catch (e) {
+        // Silent fail - cache might be updating
+      }
+    }
+
+    // Remove completed messages from pending list
+    if (toRemove.isNotEmpty && mounted) {
+      setState(() {
+        _pendingMessages.removeWhere((m) => toRemove.contains(m.id));
+        for (final messageId in toRemove) {
+          _uploadingMessageIds.removeWhere((id) => id.startsWith(messageId));
+          _pendingUploadProgress.removeWhere((k, v) => k.startsWith(messageId));
+          _localSenderMediaPaths.removeWhere((k, v) => k.startsWith(messageId));
+        }
+      });
+    }
   }
 
   void _setupLastReadStream() {
@@ -242,6 +378,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     final currentUser = authProvider.currentUser;
 
     if (currentUser != null) {
+      // Load pending messages from cache (survive navigation during upload)
+      await _loadPendingMessages();
       // Load from cache first (works offline)
       final cachedMessages = await _localRepo.getMessagesForChat(
         widget.communityId,
@@ -273,6 +411,72 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         chatId: widget.communityId,
         chatType: 'community',
         userId: currentUser.uid,
+      );
+    }
+  }
+
+  Future<void> _loadPendingMessages() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser == null) return;
+
+    // Load pending messages for this chat from cache
+    final pendingMessages = await _localRepo.getPendingMessages(
+      chatId: widget.communityId,
+      senderId: currentUser.uid,
+    );
+
+    if (pendingMessages.isNotEmpty && mounted) {
+      setState(() {
+        // Convert LocalMessage to GroupChatMessage format
+        for (final msg in pendingMessages) {
+          if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+            _pendingMessages.insert(
+              0,
+              GroupChatMessage(
+                id: msg.messageId,
+                senderId: msg.senderId,
+                senderName: msg.senderName,
+                message: msg.messageText ?? '',
+                timestamp: msg.timestamp,
+                multipleMedia: msg.multipleMedia!.map((m) {
+                  return MediaMetadata(
+                    messageId: m['messageId'] ?? '',
+                    r2Key: m['r2Key'] ?? '',
+                    publicUrl: m['publicUrl'] ?? '',
+                    thumbnail: m['thumbnail'] ?? '',
+                    localPath: m['localPath'] ?? '',
+                    expiresAt: DateTime.now().add(const Duration(days: 30)),
+                    uploadedAt: DateTime.now(),
+                    originalFileName: m['originalFileName'] ?? '',
+                    fileSize: m['fileSize'] ?? 0,
+                    mimeType: m['mimeType'] ?? 'image/jpeg',
+                  );
+                }).toList(),
+              ),
+            );
+
+            // Restore local file paths, uploading state, and actual progress
+            for (final media in msg.multipleMedia!) {
+              final mediaId = media['messageId'] as String?;
+              final localPath = media['localPath'] as String?;
+              final uploadProgress = media['uploadProgress'] as double?;
+
+              if (mediaId != null) {
+                _uploadingMessageIds.add(mediaId);
+                if (localPath != null) {
+                  _localSenderMediaPaths[mediaId] = localPath;
+                }
+                if (uploadProgress != null) {
+                  _pendingUploadProgress[mediaId] = uploadProgress;
+                }
+              }
+            }
+          }
+        }
+      });
+      print(
+        '🔄 Restored ${pendingMessages.length} pending messages from cache',
       );
     }
   }
@@ -330,6 +534,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     _messageFocusNode.dispose();
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
+    _progressPollTimer?.cancel(); // Cancel progress polling
     _recordingDuration.dispose();
 
     // Dispose selection notifiers
@@ -528,6 +733,33 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           '📝 Updated state with ${_pendingMessages.length} pending messages',
         );
       });
+
+      // Save pending message to cache (survives navigation)
+      try {
+        final pendingLocalMsg = LocalMessage(
+          messageId: groupMessageId,
+          chatId: widget.communityId,
+          chatType: 'community',
+          senderId: currentUser.uid,
+          senderName: currentUser.name,
+          timestamp: baseTimestamp,
+          messageText: '',
+          multipleMedia: mediaList
+              .map(
+                (m) => {
+                  'messageId': m.messageId,
+                  'localPath': m.localPath,
+                  'uploadProgress': 0.0,
+                },
+              )
+              .toList(),
+          isPending: true,
+        );
+        await _localRepo.saveMessage(pendingLocalMsg);
+        print('💾 Pending message saved to cache (survives navigation)');
+      } catch (e) {
+        print('⚠️ Failed to save pending message to cache: $e');
+      }
 
       // Queue uploads in background
       for (int i = 0; i < images.length; i++) {
