@@ -83,6 +83,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
 
+  // Timer to poll cache for progress updates
+  Timer? _progressPollTimer;
+
   @override
   void initState() {
     super.initState();
@@ -91,6 +94,91 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
     // Listen to scroll events to detect user scrolling
     scrollController.addListener(_onScroll);
+
+    // Start polling for progress updates every 2 seconds
+    _startProgressPolling();
+  }
+
+  void _startProgressPolling() {
+    _progressPollTimer?.cancel();
+    _progressPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_pendingMessages.isNotEmpty) {
+        _checkCacheForProgressUpdates();
+      }
+    });
+  }
+
+  Future<void> _checkCacheForProgressUpdates() async {
+    if (_pendingMessages.isEmpty || !mounted) return;
+
+    final toRemove = <String>[];
+
+    for (final pendingMsg in _pendingMessages) {
+      final messageId = pendingMsg['id'] as String;
+
+      try {
+        final cachedMsg = await _localRepo.getMessageById(messageId);
+
+        // If message was deleted from cache, it means upload completed
+        // Remove it from UI pending list
+        if (cachedMsg == null) {
+          toRemove.add(messageId);
+          continue;
+        }
+
+        if (cachedMsg.multipleMedia == null) continue;
+
+        // If message is no longer marked as pending, remove from UI
+        if (cachedMsg.isPending == false) {
+          toRemove.add(messageId);
+          continue;
+        }
+
+        bool hasChanges = false;
+
+        for (final media in cachedMsg.multipleMedia!) {
+          final mediaId = media['messageId'] as String?;
+          if (mediaId == null) continue;
+
+          // Update progress from cache
+          final cachedProgress = media['uploadProgress'] as double?;
+          if (cachedProgress != null) {
+            final currentProgress = _pendingUploadProgress[mediaId] ?? 0.0;
+            if ((cachedProgress - currentProgress).abs() > 0.01) {
+              _pendingUploadProgress[mediaId] = cachedProgress;
+              hasChanges = true;
+            }
+          }
+
+          // Check if this media item completed (has publicUrl)
+          final publicUrl = media['publicUrl'] as String?;
+          if (publicUrl != null && publicUrl.isNotEmpty) {
+            // Media completed - update the pending message to show uploaded image
+            hasChanges = true;
+          }
+        }
+
+        if (hasChanges && mounted) {
+          setState(() {
+            // Update will trigger rebuild with new progress/images
+          });
+        }
+      } catch (e) {
+        // Silent fail - cache might be updating
+      }
+    }
+
+    // Remove completed messages from pending list
+    if (toRemove.isNotEmpty && mounted) {
+      setState(() {
+        _pendingMessages.removeWhere((m) => toRemove.contains(m['id']));
+        for (final messageId in toRemove) {
+          _uploadingMessageIds.removeWhere((id) => id.startsWith(messageId));
+          _pendingUploadProgress.removeWhere((k, v) => k.startsWith(messageId));
+          _localFilePaths.removeWhere((k, v) => k.startsWith(messageId));
+        }
+      });
+    }
   }
 
   void _onScroll() {
@@ -239,6 +327,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     disposeScrollController(); // Use mixin's disposal method
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
+    _progressPollTimer?.cancel(); // Cancel progress polling
     _recordingDuration.dispose();
     // Dispose all progress notifiers
     for (final notifier in _progressNotifiers.values) {
@@ -508,9 +597,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
               });
             }
 
-            // Only save to cache at 25% intervals to avoid excessive writes
+            // Save to cache at 5% intervals for more frequent updates
             final progressPercent = (normalizedProgress * 100).round();
-            if (progressPercent % 25 == 0 || progressPercent == 100) {
+            if (progressPercent % 5 == 0 || progressPercent == 100) {
               try {
                 final cachedMsg = await _localRepo.getMessageById(
                   groupMessageId,
