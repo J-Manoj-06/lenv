@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'dart:io';
 import '../../providers/auth_provider.dart';
@@ -2648,6 +2649,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
   late Map<int, bool> _zoomStates;
   bool _isInteracting =
       false; // Track if user is currently interacting with zoom
+  int _pointerCount = 0; // Track number of fingers on screen
 
   @override
   void initState() {
@@ -2711,6 +2713,11 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
             ? const NeverScrollableScrollPhysics()
             : const AlwaysScrollableScrollPhysics(),
         onPageChanged: (index) {
+          // Reset transformation of previous image when switching
+          if (_transformationControllers[_currentIndex] != null) {
+            _transformationControllers[_currentIndex]!.value =
+                Matrix4.identity();
+          }
           setState(() {
             _currentIndex = index;
           });
@@ -2737,64 +2744,110 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
     Widget imageWidget;
 
     if (hasLocalFile) {
-      imageWidget = Image.file(
-        file,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        errorBuilder: (_, __, ___) => _buildFallbackImage(),
+      imageWidget = RepaintBoundary(
+        child: Image.file(
+          file,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          cacheWidth: 1200,
+          errorBuilder: (_, __, ___) => _buildFallbackImage(),
+        ),
       );
     } else if (hasNetwork) {
-      imageWidget = Image.network(
-        publicUrl,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return const Center(
+      imageWidget = RepaintBoundary(
+        child: CachedNetworkImage(
+          imageUrl: publicUrl,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          memCacheWidth: 1200,
+          maxWidthDiskCache: 1200,
+          fadeInDuration: const Duration(milliseconds: 100),
+          fadeOutDuration: const Duration(milliseconds: 100),
+          placeholder: (context, url) => const Center(
             child: SizedBox(
               width: 36,
               height: 36,
               child: CircularProgressIndicator(strokeWidth: 3),
             ),
-          );
-        },
-        errorBuilder: (_, __, ___) => _buildFallbackImage(),
+          ),
+          errorWidget: (context, url, error) => _buildFallbackImage(),
+        ),
       );
     } else {
       imageWidget = _buildFallbackImage();
     }
 
-    return InteractiveViewer(
-      transformationController: _transformationControllers[index],
-      minScale: 1.0,
-      maxScale: 5.0,
-      panEnabled: true,
-      scaleEnabled: true,
-      boundaryMargin: const EdgeInsets.all(double.infinity),
-      clipBehavior: Clip.none,
-      onInteractionStart: (details) {
-        // Disable PageView scrolling as soon as interaction starts
-        if (details.pointerCount >= 2) {
-          setState(() {
-            _isInteracting = true;
-          });
-        }
-      },
-      onInteractionUpdate: (details) {
-        // Keep disabled during multi-touch interaction
-        if (details.pointerCount >= 2 && !_isInteracting) {
-          setState(() {
-            _isInteracting = true;
-          });
-        }
-      },
-      onInteractionEnd: (details) {
-        // Re-enable PageView scrolling when interaction ends
+    return Listener(
+      onPointerDown: (event) {
         setState(() {
-          _isInteracting = false;
+          _pointerCount++;
+          // Only enable interaction when 2+ fingers detected
+          if (_pointerCount >= 2) {
+            _isInteracting = true;
+          }
         });
       },
-      child: Center(child: imageWidget),
+      onPointerUp: (event) {
+        setState(() {
+          _pointerCount--;
+          // Re-enable PageView when less than 2 fingers
+          if (_pointerCount < 2) {
+            _isInteracting = false;
+            // Snap back to center if at original scale
+            final controller = _transformationControllers[index]!;
+            final scale = controller.value.getMaxScaleOnAxis();
+            if (scale <= 1.01) {
+              // Reset to centered position
+              controller.value = Matrix4.identity();
+            }
+          }
+        });
+      },
+      onPointerCancel: (event) {
+        setState(() {
+          _pointerCount--;
+          if (_pointerCount < 2) {
+            _isInteracting = false;
+            // Snap back to center if at original scale
+            final controller = _transformationControllers[index]!;
+            final scale = controller.value.getMaxScaleOnAxis();
+            if (scale <= 1.01) {
+              controller.value = Matrix4.identity();
+            }
+          }
+        });
+      },
+      child: GestureDetector(
+        onDoubleTap: () {
+          final controller = _transformationControllers[index]!;
+          final scale = controller.value.getMaxScaleOnAxis();
+
+          if (scale > 1.1) {
+            // Zoom out to original
+            controller.value = Matrix4.identity();
+          } else {
+            // Zoom in to 2.5x at center
+            final targetScale = 2.5;
+            controller.value = Matrix4.identity()
+              ..translate(
+                -MediaQuery.of(context).size.width * (targetScale - 1) / 2,
+                -MediaQuery.of(context).size.height * (targetScale - 1) / 2,
+              )
+              ..scale(targetScale);
+          }
+          setState(() {});
+        },
+        child: InteractiveViewer(
+          transformationController: _transformationControllers[index],
+          minScale: 1.0,
+          maxScale: 5.0,
+          panEnabled: _pointerCount >= 2, // Only pan with 2+ fingers
+          scaleEnabled: true,
+          boundaryMargin: const EdgeInsets.all(double.infinity),
+          clipBehavior: Clip.none,
+          child: Center(child: imageWidget),
+        ),
+      ),
     );
   }
 

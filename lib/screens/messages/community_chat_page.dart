@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
@@ -2752,19 +2753,50 @@ class _ImageGalleryViewer extends StatefulWidget {
 class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
   late PageController _pageController;
   late int _currentIndex;
+  late Map<int, TransformationController> _transformationControllers;
+  late Map<int, bool> _zoomStates;
+  bool _isInteracting =
+      false; // Track if user is currently interacting with zoom
+  int _pointerCount = 0; // Track number of fingers on screen
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    _transformationControllers = {};
+    _zoomStates = {};
+
+    // Initialize transformation controllers and zoom states for all images
+    for (int i = 0; i < widget.mediaList.length; i++) {
+      final controller = TransformationController();
+      _transformationControllers[i] = controller;
+      _zoomStates[i] = false;
+
+      // Listen to transformation changes
+      controller.addListener(() {
+        final scale = controller.value.getMaxScaleOnAxis();
+        final isZoomed = scale > 1.01;
+        if (_zoomStates[i] != isZoomed) {
+          setState(() {
+            _zoomStates[i] = isZoomed;
+          });
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    for (var controller in _transformationControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
+
+  bool get _shouldDisableScroll =>
+      _isInteracting || (_zoomStates[_currentIndex] ?? false);
 
   @override
   Widget build(BuildContext context) {
@@ -2785,7 +2817,15 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
       body: PageView.builder(
         controller: _pageController,
         scrollDirection: Axis.vertical,
+        physics: _shouldDisableScroll
+            ? const NeverScrollableScrollPhysics()
+            : const AlwaysScrollableScrollPhysics(),
         onPageChanged: (index) {
+          // Reset transformation of previous image when switching
+          if (_transformationControllers[_currentIndex] != null) {
+            _transformationControllers[_currentIndex]!.value =
+                Matrix4.identity();
+          }
           setState(() {
             _currentIndex = index;
           });
@@ -2812,28 +2852,34 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
     final hasNetwork = metadata.publicUrl.isNotEmpty;
 
     if (hasLocalFile) {
-      imageWidget = Image.file(
-        file,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      imageWidget = RepaintBoundary(
+        child: Image.file(
+          file,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          cacheWidth: 1200,
+          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+        ),
       );
     } else if (hasNetwork) {
-      imageWidget = Image.network(
-        metadata.publicUrl,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return const Center(
+      imageWidget = RepaintBoundary(
+        child: CachedNetworkImage(
+          imageUrl: metadata.publicUrl,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          memCacheWidth: 1200,
+          maxWidthDiskCache: 1200,
+          fadeInDuration: const Duration(milliseconds: 100),
+          fadeOutDuration: const Duration(milliseconds: 100),
+          placeholder: (context, url) => const Center(
             child: SizedBox(
               width: 36,
               height: 36,
               child: CircularProgressIndicator(strokeWidth: 3),
             ),
-          );
-        },
-        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          ),
+          errorWidget: (context, url, error) => _buildFallbackImage(metadata),
+        ),
       );
     } else if (metadata.thumbnail.isNotEmpty) {
       if (metadata.thumbnail.startsWith('/')) {
@@ -2860,10 +2906,80 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
       imageWidget = _buildFallbackImage(metadata);
     }
 
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 4.0,
-      child: Center(child: imageWidget),
+    // Get the index from the metadata to find the correct controller
+    final index = widget.mediaList.indexOf(metadata);
+
+    return Listener(
+      onPointerDown: (event) {
+        setState(() {
+          _pointerCount++;
+          // Only enable interaction when 2+ fingers detected
+          if (_pointerCount >= 2) {
+            _isInteracting = true;
+          }
+        });
+      },
+      onPointerUp: (event) {
+        setState(() {
+          _pointerCount--;
+          // Re-enable PageView when less than 2 fingers
+          if (_pointerCount < 2) {
+            _isInteracting = false;
+            // Snap back to center if at original scale
+            final controller = _transformationControllers[index]!;
+            final scale = controller.value.getMaxScaleOnAxis();
+            if (scale <= 1.01) {
+              // Reset to centered position
+              controller.value = Matrix4.identity();
+            }
+          }
+        });
+      },
+      onPointerCancel: (event) {
+        setState(() {
+          _pointerCount--;
+          if (_pointerCount < 2) {
+            _isInteracting = false;
+            // Snap back to center if at original scale
+            final controller = _transformationControllers[index]!;
+            final scale = controller.value.getMaxScaleOnAxis();
+            if (scale <= 1.01) {
+              controller.value = Matrix4.identity();
+            }
+          }
+        });
+      },
+      child: GestureDetector(
+        onDoubleTap: () {
+          final controller = _transformationControllers[index]!;
+          final scale = controller.value.getMaxScaleOnAxis();
+
+          if (scale > 1.1) {
+            // Zoom out to original
+            controller.value = Matrix4.identity();
+          } else {
+            // Zoom in to 2.5x at center
+            final targetScale = 2.5;
+            controller.value = Matrix4.identity()
+              ..translate(
+                -MediaQuery.of(context).size.width * (targetScale - 1) / 2,
+                -MediaQuery.of(context).size.height * (targetScale - 1) / 2,
+              )
+              ..scale(targetScale);
+          }
+          setState(() {});
+        },
+        child: InteractiveViewer(
+          transformationController: _transformationControllers[index],
+          minScale: 1.0,
+          maxScale: 5.0,
+          panEnabled: _pointerCount >= 2, // Only pan with 2+ fingers
+          scaleEnabled: true,
+          boundaryMargin: const EdgeInsets.all(double.infinity),
+          clipBehavior: Clip.none,
+          child: Center(child: imageWidget),
+        ),
+      ),
     );
   }
 

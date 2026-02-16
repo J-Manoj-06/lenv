@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 /// WhatsApp-style multi-image message bubble.
 /// UI-only: no backend or state changes. Use in any chat screen.
@@ -453,11 +454,14 @@ class _ImageTileState extends State<_ImageTile> {
       final file = File(url);
       if (file.existsSync()) {
         _markLoadedAsync();
-        return Image.file(
-          file,
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.high,
-          errorBuilder: (_, __, ___) => _errorFallback(),
+        return RepaintBoundary(
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+            cacheWidth: 800, // Cache optimization
+            errorBuilder: (_, __, ___) => _errorFallback(),
+          ),
         );
       } else {
         // File not found, show download prompt
@@ -465,16 +469,30 @@ class _ImageTileState extends State<_ImageTile> {
       }
     }
 
-    // Network image with loadingBuilder to update skeleton visibility
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      filterQuality: FilterQuality.high,
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) _markLoadedAsync();
-        return child; // skeleton remains visible via AnimatedOpacity
-      },
-      errorBuilder: (_, __, ___) => _downloadPromptFallback(),
+    // Network image with caching
+    return RepaintBoundary(
+      child: CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
+        memCacheWidth: 800, // Memory cache optimization
+        maxWidthDiskCache: 800, // Disk cache optimization
+        fadeInDuration: const Duration(milliseconds: 100),
+        fadeOutDuration: const Duration(milliseconds: 100),
+        placeholder: (context, url) {
+          // Keep skeleton visible during load
+          return const SizedBox.shrink();
+        },
+        imageBuilder: (context, imageProvider) {
+          _markLoadedAsync();
+          return Image(
+            image: imageProvider,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+          );
+        },
+        errorWidget: (context, url, error) => _downloadPromptFallback(),
+      ),
     );
   }
 
