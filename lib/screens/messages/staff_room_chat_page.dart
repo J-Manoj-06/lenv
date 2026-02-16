@@ -2399,6 +2399,7 @@ class _MessageBubble extends StatelessWidget {
                               : CrossAxisAlignment.start,
                           children: [
                             MultiImageMessageBubble(
+                              key: ValueKey('${messageId}_multi_image'),
                               imageUrls: multipleMedia.map<String>((media) {
                                 // Cast to Map<String, dynamic> first to access fields
                                 final mediaMap = media is Map<String, dynamic>
@@ -2757,12 +2758,15 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
       imageWidget = RepaintBoundary(
         child: CachedNetworkImage(
           imageUrl: publicUrl,
+          key: ValueKey(publicUrl),
+          cacheKey: publicUrl,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
           memCacheWidth: 1200,
           maxWidthDiskCache: 1200,
           fadeInDuration: const Duration(milliseconds: 0),
           fadeOutDuration: const Duration(milliseconds: 0),
+          useOldImageOnUrlChange: true,
           imageBuilder: (context, imageProvider) => Image(
             image: imageProvider,
             fit: BoxFit.contain,

@@ -478,6 +478,8 @@ class _ImageTileState extends State<_ImageTile>
     return RepaintBoundary(
       child: CachedNetworkImage(
         imageUrl: url,
+        key: ValueKey(url), // Add key for widget identity
+        cacheKey: url, // Explicit cache key
         fit: BoxFit.cover,
         filterQuality: FilterQuality.high,
         memCacheWidth: 800, // Memory cache optimization
@@ -486,6 +488,7 @@ class _ImageTileState extends State<_ImageTile>
           milliseconds: 0,
         ), // No fade for cached images
         fadeOutDuration: const Duration(milliseconds: 0),
+        useOldImageOnUrlChange: true, // Keep showing old image while new one loads
         placeholder: (context, url) {
           // Keep skeleton visible during initial load only
           return const SizedBox.shrink();

@@ -2528,6 +2528,7 @@ class _MessageBubble extends StatelessWidget {
                 else if (message.multipleMedia != null &&
                     message.multipleMedia!.isNotEmpty) ...[
                   MultiImageMessageBubble(
+                    key: ValueKey('${message.id}_multi_image'),
                     imageUrls: message.multipleMedia!
                         .map((m) => m.localPath ?? m.publicUrl)
                         .toList(),
@@ -2865,12 +2866,15 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
       imageWidget = RepaintBoundary(
         child: CachedNetworkImage(
           imageUrl: metadata.publicUrl,
+          key: ValueKey(metadata.publicUrl),
+          cacheKey: metadata.publicUrl,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
           memCacheWidth: 1200,
           maxWidthDiskCache: 1200,
           fadeInDuration: const Duration(milliseconds: 0),
           fadeOutDuration: const Duration(milliseconds: 0),
+          useOldImageOnUrlChange: true,
           imageBuilder: (context, imageProvider) => Image(
             image: imageProvider,
             fit: BoxFit.contain,
