@@ -90,17 +90,32 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
   // Message cache to maintain stable Map instances (prevents flickering)
   final Map<String, Map<String, dynamic>> _messageCache = {};
 
+  // Cached stream to prevent StreamBuilder recreating stream on every build
+  Stream<QuerySnapshot>? _messagesStream;
+
   @override
   void initState() {
     super.initState();
     _initMediaService();
     _initOfflineFirst();
+    _initMessagesStream();
 
     // Listen to scroll events to detect user scrolling
     scrollController.addListener(_onScroll);
 
     // Start polling for progress updates every 2 seconds
     _startProgressPolling();
+  }
+
+  void _initMessagesStream() {
+    // Create stream once and cache it to prevent rebuilds
+    _messagesStream = FirebaseFirestore.instance
+        .collection('staff_rooms')
+        .doc(widget.instituteId)
+        .collection('messages')
+        .orderBy('createdAt', descending: true)
+        .limit(300)
+        .snapshots();
   }
 
   void _startProgressPolling() {
@@ -1218,50 +1233,13 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                       : Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Toggle button to switch between Firebase and offline
-                            if (_useOfflineFirst)
-                              Container(
-                                margin: const EdgeInsets.only(right: 8),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Colors.green,
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.offline_bolt,
-                                      size: 14,
-                                      color: Colors.green,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Offline',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
                             IconButton(
                               icon: Icon(Icons.search, color: textColor),
-                              onPressed: () => _useOfflineFirst
-                                  ? _openOfflineSearch(
-                                      context,
-                                      theme,
-                                      primaryColor,
-                                    )
-                                  : _openSearch(context, theme, primaryColor),
+                              onPressed: () => _openOfflineSearch(
+                                context,
+                                theme,
+                                primaryColor,
+                              ),
                             ),
                           ],
                         );
@@ -1339,13 +1317,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
   Widget _buildNormalMessages(ThemeData theme, Color primaryColor) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('staff_rooms')
-          .doc(widget.instituteId)
-          .collection('messages')
-          .orderBy('createdAt', descending: true)
-          .limit(300)
-          .snapshots(),
+      stream: _messagesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             _pendingMessages.isEmpty) {
@@ -1439,17 +1411,17 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
           final messageId = doc.id;
 
-          // Use cached instance to maintain widget identity
-          final cachedMsg = _messageCache[messageId] ??= {
-            ...data,
-            'id': messageId,
-            'isPending': false,
-          };
+          // Create a stable cached instance - NEVER MUTATE IT
+          // This ensures Flutter recognizes the same object and doesn't rebuild widgets
+          if (!_messageCache.containsKey(messageId)) {
+            _messageCache[messageId] = {
+              ...data,
+              'id': messageId,
+              'isPending': false,
+            };
+          }
 
-          // Update cached data in case anything changed
-          cachedMsg.addAll({...data, 'id': messageId, 'isPending': false});
-
-          allMessages.add(cachedMsg);
+          allMessages.add(_messageCache[messageId]!);
         }
 
         // Sort by timestamp
@@ -2218,7 +2190,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
   }
 }
 
-class _MessageBubble extends StatelessWidget {
+class _MessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
   final bool isMe;
   final Color primaryColor;
@@ -2245,51 +2217,62 @@ class _MessageBubble extends StatelessWidget {
   });
 
   @override
+  State<_MessageBubble> createState() => _MessageBubbleState();
+}
+
+class _MessageBubbleState extends State<_MessageBubble>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context); // Must call for AutomaticKeepAliveClientMixin
+
+    final messageId = widget.message['id'] as String? ?? 'unknown';
     final theme = Theme.of(context);
-    final senderName = message['senderName'] ?? 'Unknown';
-    final senderRole = message['senderRole'] ?? '';
-    final text = message['text'] ?? '';
-    final createdAt = message['createdAt'];
+    final senderName = widget.message['senderName'] ?? 'Unknown';
+    final senderRole = widget.message['senderRole'] ?? '';
+    final text = widget.message['text'] ?? '';
+    final createdAt = widget.message['createdAt'];
     final timestamp = createdAt is Timestamp
         ? createdAt.millisecondsSinceEpoch
         : (createdAt as int? ?? 0);
-    final attachmentUrl = message['attachmentUrl'] as String?;
-    final attachmentType = message['attachmentType'] as String?;
-    final attachmentName = message['attachmentName'] as String?;
-    final attachmentSize = message['attachmentSize'] as int?;
-    final thumbnailUrl = message['thumbnailUrl'] as String?;
+    final attachmentUrl = widget.message['attachmentUrl'] as String?;
+    final attachmentType = widget.message['attachmentType'] as String?;
+    final attachmentName = widget.message['attachmentName'] as String?;
+    final attachmentSize = widget.message['attachmentSize'] as int?;
+    final thumbnailUrl = widget.message['thumbnailUrl'] as String?;
 
     // Handle multipleMedia field - can be List or null
     List<dynamic>? multipleMedia;
-    if (message['multipleMedia'] != null) {
-      final mediaField = message['multipleMedia'];
+    if (widget.message['multipleMedia'] != null) {
+      final mediaField = widget.message['multipleMedia'];
       if (mediaField is List) {
         multipleMedia = mediaField;
       }
     }
 
-    final isForwarded = message['isForwarded'] == true;
-    final isPending = message['isPending'] == true;
-    final messageId = message['id'] as String? ?? '';
+    final isForwarded = widget.message['isForwarded'] == true;
+    final isPending = widget.message['isPending'] == true;
 
     String timeStr = '';
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
     timeStr = DateFormat('HH:mm').format(date);
 
     final roleColor = senderRole == 'principal'
-        ? primaryColor
+        ? widget.primaryColor
         : const Color(0xFFF97316); // Orange for teachers
 
     final hasAttachment = attachmentUrl != null && attachmentUrl.isNotEmpty;
     final hasMultipleMedia = multipleMedia != null && multipleMedia.isNotEmpty;
-    final isPoll = message['type'] == 'poll';
+    final isPoll = widget.message['type'] == 'poll';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: widget.isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
-        mainAxisAlignment: isMe
+        mainAxisAlignment: widget.isMe
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
         children: [
@@ -2297,11 +2280,11 @@ class _MessageBubble extends StatelessWidget {
           isPoll
               ? Flexible(
                   child: Column(
-                    crossAxisAlignment: isMe
+                    crossAxisAlignment: widget.isMe
                         ? CrossAxisAlignment.end
                         : CrossAxisAlignment.start,
                     children: [
-                      if (!isMe) ...[
+                      if (!widget.isMe) ...[
                         Padding(
                           padding: const EdgeInsets.only(left: 12, bottom: 4),
                           child: Row(
@@ -2347,14 +2330,14 @@ class _MessageBubble extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: Align(
-                          alignment: isMe
+                          alignment: widget.isMe
                               ? Alignment.centerRight
                               : Alignment.centerLeft,
                           child: PollMessageWidget(
-                            poll: PollModel.fromMap(message, messageId),
-                            chatId: staffRoomId,
+                            poll: PollModel.fromMap(widget.message, messageId),
+                            chatId: widget.staffRoomId,
                             chatType: 'staff_room',
-                            isOwnMessage: isMe,
+                            isOwnMessage: widget.isMe,
                           ),
                         ),
                       ),
@@ -2366,11 +2349,11 @@ class _MessageBubble extends StatelessWidget {
                     maxWidth: MediaQuery.of(context).size.width * 0.75,
                   ),
                   child: Column(
-                    crossAxisAlignment: isMe
+                    crossAxisAlignment: widget.isMe
                         ? CrossAxisAlignment.end
                         : CrossAxisAlignment.start,
                     children: [
-                      if (!isMe) ...[
+                      if (!widget.isMe) ...[
                         Padding(
                           padding: const EdgeInsets.only(left: 12, bottom: 4),
                           child: Row(
@@ -2416,7 +2399,7 @@ class _MessageBubble extends StatelessWidget {
                       // Multi-image bubble (WhatsApp-style grid)
                       if (hasMultipleMedia)
                         Column(
-                          crossAxisAlignment: isMe
+                          crossAxisAlignment: widget.isMe
                               ? CrossAxisAlignment.end
                               : CrossAxisAlignment.start,
                           children: [
@@ -2434,7 +2417,7 @@ class _MessageBubble extends StatelessWidget {
                                   return mediaMap['publicUrl'] as String? ?? '';
                                 }
                               }).toList(),
-                              isMe: isMe,
+                              isMe: widget.isMe,
                               onImageTap: (index) {
                                 // Open full-screen image gallery
                                 Navigator.push(
@@ -2458,7 +2441,8 @@ class _MessageBubble extends StatelessWidget {
                                       final mediaId =
                                           mediaMap['messageId'] as String?;
                                       return mediaId != null
-                                          ? pendingUploadProgress[mediaId]
+                                          ? widget
+                                                .pendingUploadProgress[mediaId]
                                           : null;
                                     }).toList()
                                   : null,
@@ -2488,15 +2472,17 @@ class _MessageBubble extends StatelessWidget {
                             vertical: hasAttachment && text.isEmpty ? 4 : 10,
                           ),
                           decoration: BoxDecoration(
-                            color: isMe
-                                ? primaryColor
+                            color: widget.isMe
+                                ? widget.primaryColor
                                 : theme.colorScheme.surfaceContainerHighest
                                       .withOpacity(0.7),
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(16),
                               topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(isMe ? 16 : 4),
-                              bottomRight: Radius.circular(isMe ? 4 : 16),
+                              bottomLeft: Radius.circular(widget.isMe ? 16 : 4),
+                              bottomRight: Radius.circular(
+                                widget.isMe ? 4 : 16,
+                              ),
                             ),
                           ),
                           child: Column(
@@ -2508,7 +2494,7 @@ class _MessageBubble extends StatelessWidget {
                                     Icon(
                                       Icons.forward,
                                       size: 14,
-                                      color: isMe
+                                      color: widget.isMe
                                           ? Colors.white70
                                           : Colors.black54,
                                     ),
@@ -2518,7 +2504,7 @@ class _MessageBubble extends StatelessWidget {
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontStyle: FontStyle.italic,
-                                        color: isMe
+                                        color: widget.isMe
                                             ? Colors.white70
                                             : Colors.black54,
                                       ),
@@ -2544,7 +2530,7 @@ class _MessageBubble extends StatelessWidget {
                                   text,
                                   style: TextStyle(
                                     fontSize: 15,
-                                    color: isMe
+                                    color: widget.isMe
                                         ? Colors.white
                                         : theme.textTheme.bodyLarge?.color,
                                   ),
@@ -2554,7 +2540,7 @@ class _MessageBubble extends StatelessWidget {
                                 timeStr,
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: isMe
+                                  color: widget.isMe
                                       ? Colors.white.withOpacity(0.7)
                                       : theme.textTheme.bodyMedium?.color
                                             ?.withOpacity(0.5),
@@ -2566,12 +2552,14 @@ class _MessageBubble extends StatelessWidget {
                     ],
                   ),
                 ),
-          if (selectionMode && isMe)
+          if (widget.selectionMode && widget.isMe)
             Padding(
               padding: const EdgeInsets.only(left: 8),
               child: Icon(
-                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                color: isSelected ? primaryColor : Colors.grey,
+                widget.isSelected
+                    ? Icons.check_circle
+                    : Icons.radio_button_unchecked,
+                color: widget.isSelected ? widget.primaryColor : Colors.grey,
                 size: 24,
               ),
             ),
@@ -2594,7 +2582,7 @@ class _MessageBubble extends StatelessWidget {
     String r2Key = '';
 
     if (isPending) {
-      localPath = localFilePaths[messageId];
+      localPath = widget.localFilePaths[messageId];
       r2Key = 'pending/$messageId';
     } else {
       // Extract R2 key from URL
@@ -2603,8 +2591,8 @@ class _MessageBubble extends StatelessWidget {
       r2Key = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
     }
 
-    final isUploading = uploadingMessageIds.contains(messageId);
-    final progressNotifier = progressNotifiers[messageId];
+    final isUploading = widget.uploadingMessageIds.contains(messageId);
+    final progressNotifier = widget.progressNotifiers[messageId];
 
     // Use ValueListenableBuilder for smooth progress updates without rebuilding parent
     if (isUploading && progressNotifier != null) {
@@ -2618,8 +2606,8 @@ class _MessageBubble extends StatelessWidget {
             fileSize: fileSize,
             thumbnailBase64: thumbnailUrl,
             localPath: localPath,
-            isMe: isMe,
-            selectionMode: selectionMode,
+            isMe: widget.isMe,
+            selectionMode: widget.selectionMode,
             uploading: true,
             uploadProgress: progress,
           );
@@ -2634,8 +2622,8 @@ class _MessageBubble extends StatelessWidget {
       fileSize: fileSize,
       thumbnailBase64: thumbnailUrl,
       localPath: localPath,
-      isMe: isMe,
-      selectionMode: selectionMode,
+      isMe: widget.isMe,
+      selectionMode: widget.selectionMode,
       uploading: false,
     );
   }
