@@ -488,7 +488,8 @@ class _ImageTileState extends State<_ImageTile>
           milliseconds: 0,
         ), // No fade for cached images
         fadeOutDuration: const Duration(milliseconds: 0),
-        useOldImageOnUrlChange: true, // Keep showing old image while new one loads
+        useOldImageOnUrlChange:
+            true, // Keep showing old image while new one loads
         placeholder: (context, url) {
           // Keep skeleton visible during initial load only
           return const SizedBox.shrink();
