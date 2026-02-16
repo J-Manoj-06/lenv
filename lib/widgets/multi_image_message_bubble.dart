@@ -83,14 +83,19 @@ class MultiImageMessageBubble extends StatelessWidget {
 
     // Single image
     if (count == 1) {
-      return AspectRatio(
-        aspectRatio: 1,
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: screenWidth * 0.7,
+          maxHeight:
+              screenWidth * 0.9, // Limit height to prevent extreme tall images
+        ),
         child: _ImageTile(
           url: imageUrls[0],
           index: 0,
           radius: tileRadius,
           onTap: onImageTap,
           uploadProgress: uploadProgress?[0],
+          fit: BoxFit.contain, // Preserve aspect ratio for single images
         ),
       );
     }
@@ -338,6 +343,7 @@ class _ImageTile extends StatefulWidget {
   final bool showOverlay;
   final int overlayCount;
   final double? uploadProgress; // 0.0 to 1.0, null means completed
+  final BoxFit? fit; // Add fit parameter
 
   const _ImageTile({
     required this.url,
@@ -347,6 +353,7 @@ class _ImageTile extends StatefulWidget {
     this.showOverlay = false,
     this.overlayCount = 0,
     this.uploadProgress,
+    this.fit, // Optional fit parameter
   });
 
   @override
@@ -368,7 +375,9 @@ class _ImageTileState extends State<_ImageTile>
       child: GestureDetector(
         onTap: () => widget.onTap(widget.index),
         child: Stack(
-          fit: StackFit.expand,
+          fit: widget.fit == BoxFit.contain
+              ? StackFit.passthrough
+              : StackFit.expand,
           children: [
             // Skeleton placeholder
             AnimatedOpacity(
@@ -462,7 +471,7 @@ class _ImageTileState extends State<_ImageTile>
         return RepaintBoundary(
           child: Image.file(
             file,
-            fit: BoxFit.cover,
+            fit: widget.fit ?? BoxFit.cover,
             filterQuality: FilterQuality.high,
             cacheWidth: 800, // Cache optimization
             errorBuilder: (_, __, ___) => _errorFallback(),
@@ -480,7 +489,7 @@ class _ImageTileState extends State<_ImageTile>
         imageUrl: url,
         key: ValueKey(url), // Add key for widget identity
         cacheKey: url, // Explicit cache key
-        fit: BoxFit.cover,
+        fit: widget.fit ?? BoxFit.cover,
         filterQuality: FilterQuality.high,
         memCacheWidth: 800, // Memory cache optimization
         maxWidthDiskCache: 800, // Disk cache optimization
@@ -498,7 +507,7 @@ class _ImageTileState extends State<_ImageTile>
           _markLoadedAsync();
           return Image(
             image: imageProvider,
-            fit: BoxFit.cover,
+            fit: widget.fit ?? BoxFit.cover,
             filterQuality: FilterQuality.high,
             gaplessPlayback: true, // Seamless transition
           );

@@ -2817,7 +2817,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
       ),
       body: PageView.builder(
         controller: _pageController,
-        scrollDirection: Axis.vertical,
+        scrollDirection: Axis.horizontal,
         physics: _shouldDisableScroll
             ? const NeverScrollableScrollPhysics()
             : const AlwaysScrollableScrollPhysics(),
