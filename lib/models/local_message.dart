@@ -157,9 +157,35 @@ class LocalMessage extends HiveObject {
     List<dynamic>? multipleMedia;
     if (data['multipleMedia'] is List) {
       final rawList = data['multipleMedia'] as List;
-      multipleMedia = rawList
-          .map((item) => item is Map ? Map<String, dynamic>.from(item) : item)
-          .toList();
+      multipleMedia = rawList.map((item) {
+        if (item is Map) {
+          // Deep copy and convert all Timestamp objects to int
+          final Map<String, dynamic> cleanedMap = {};
+          (item).forEach((key, value) {
+            if (value is Timestamp) {
+              // Convert Firestore Timestamp to int
+              cleanedMap[key.toString()] = value.millisecondsSinceEpoch;
+            } else if (value is Map) {
+              // Recursively clean nested maps
+              final nestedMap = <String, dynamic>{};
+              value.forEach((k, v) {
+                nestedMap[k.toString()] = v is Timestamp ? v.millisecondsSinceEpoch : v;
+              });
+              cleanedMap[key.toString()] = nestedMap;
+            } else {
+              cleanedMap[key.toString()] = value;
+            }
+          });
+          return cleanedMap;
+        }
+        return item;
+      }).toList();
+    }
+
+    // Clean poll data if present
+    Map<String, dynamic>? cleanedPollData;
+    if (data['poll'] is Map) {
+      cleanedPollData = _cleanMapFromTimestamps(data['poll']);
     }
 
     return LocalMessage(
@@ -172,12 +198,36 @@ class LocalMessage extends HiveObject {
       timestamp: timestamp,
       attachmentUrl: finalAttachmentUrl,
       attachmentType: finalAttachmentType,
-      pollData: data['poll'],
+      pollData: cleanedPollData,
       isDeleted: data['isDeleted'] ?? false,
       replyToMessageId: data['replyToMessageId'],
       multipleMedia: multipleMedia,
       isPending: false, // Firebase messages are never pending
     );
+  }
+
+  /// Helper to recursively clean Timestamp objects from maps
+  /// WHY: Hive cannot serialize Firestore Timestamp objects
+  static Map<String, dynamic> _cleanMapFromTimestamps(dynamic data) {
+    if (data is! Map) return {};
+    
+    final Map<String, dynamic> cleaned = {};
+    data.forEach((key, value) {
+      if (value is Timestamp) {
+        cleaned[key.toString()] = value.millisecondsSinceEpoch;
+      } else if (value is Map) {
+        cleaned[key.toString()] = _cleanMapFromTimestamps(value);
+      } else if (value is List) {
+        cleaned[key.toString()] = value.map((item) {
+          if (item is Timestamp) return item.millisecondsSinceEpoch;
+          if (item is Map) return _cleanMapFromTimestamps(item);
+          return item;
+        }).toList();
+      } else {
+        cleaned[key.toString()] = value;
+      }
+    });
+    return cleaned;
   }
 
   /// Convert to Map for display in UI

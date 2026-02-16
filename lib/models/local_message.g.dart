@@ -30,7 +30,7 @@ class LocalMessageAdapter extends TypeAdapter<LocalMessage> {
       isDeleted: fields[10] as bool,
       replyToMessageId: fields[11] as String?,
       multipleMedia: (fields[12] as List?)?.cast<dynamic>(),
-      isPending: fields[13] == null ? false : fields[13] as bool,
+      isPending: fields[13] as bool,
     );
   }
 

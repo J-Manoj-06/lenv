@@ -244,6 +244,31 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       }
     };
 
+    // Handle group upload completion
+    BackgroundUploadService().onGroupComplete = (groupId) async {
+      print('🎉 Group upload complete: $groupId');
+      
+      // Delete pending message from cache
+      try {
+        await _localRepo.deletePendingMessage(groupId);
+        print('💾 Deleted pending message from cache: $groupId');
+      } catch (e) {
+        print('⚠️ Failed to delete pending message from cache: $e');
+      }
+
+      // Remove pending message from UI
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.id == 'pending:$groupId');
+          // Clean up tracking maps
+          _uploadingMessageIds.removeWhere((id) => id.startsWith(groupId));
+          _pendingUploadProgress.removeWhere((k, v) => k.startsWith(groupId));
+          _localSenderMediaPaths.removeWhere((k, v) => k.startsWith(groupId));
+        });
+        print('✅ Removed pending message from UI: $groupId');
+      }
+    };
+
     // Setup last read stream for unread divider
     _setupLastReadStream();
     // Scroll to bottom on initial load only and mark as read after frame

@@ -109,7 +109,10 @@ class BackgroundUploadService extends ChangeNotifier {
 
   // Callback for UI to track uploading messages
   Function(String messageId, bool isUploading, double progress)?
-  onUploadProgress;
+      onUploadProgress;
+
+  // Callback when a group upload completes (all images uploaded)
+  Function(String groupId)? onGroupComplete;
 
   List<PendingUpload> get uploads => _uploads;
 
@@ -316,6 +319,11 @@ class BackgroundUploadService extends ChangeNotifier {
               // Clean up completed group
               _completedGroups.remove(upload.groupId);
               _uploads.removeWhere((u) => u.groupId == upload.groupId);
+
+              // Notify UI that group upload is complete
+              if (onGroupComplete != null) {
+                onGroupComplete!(upload.groupId!);
+              }
             }
             continue; // Don't send individual message for grouped uploads
           }
