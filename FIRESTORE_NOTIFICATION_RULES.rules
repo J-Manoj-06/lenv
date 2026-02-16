@@ -1,0 +1,147 @@
+// Firestore Security Rules for Lenv Notification System
+// Add these rules to your existing firestore.rules file
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // ====================================
+    // NOTIFICATIONS RULES
+    // ====================================
+    
+    // Users can only read their own notifications
+    match /notifications/{notificationId} {
+      // Read: User can read their own notifications
+      allow read: if isAuthenticated() && 
+        request.auth.uid == resource.data.userId;
+      
+      // Write: Only allow users to update their own notifications
+      // (e.g., marking as read)
+      allow update: if isAuthenticated() && 
+        request.auth.uid == resource.data.userId &&
+        // Only allow updating isRead field
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['isRead']);
+      
+      // Delete: Users can delete their own notifications
+      allow delete: if isAuthenticated() && 
+        request.auth.uid == resource.data.userId;
+      
+      // Create: Only Cloud Functions should create notifications
+      // If you need to allow client-side creation, add specific rules
+      allow create: if false; // Disabled for security
+    }
+    
+    // ====================================
+    // USER FCM TOKEN RULES
+    // ====================================
+    
+    // Allow users to update their FCM token
+    match /users/{userId} {
+      // Read: Users can read any user profile
+      allow read: if isAuthenticated();
+      
+      // Update: Users can only update their own FCM token
+      allow update: if isAuthenticated() && 
+        request.auth.uid == userId &&
+        // Only allow updating FCM token fields
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['fcmToken', 'fcmTokenUpdatedAt']);
+    }
+    
+    // ====================================
+    // MESSAGES RULES (for Chat Notifications)
+    // ====================================
+    
+    match /messages/{messageId} {
+      // Read: Users can read messages where they are sender or receiver
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.senderId ||
+        request.auth.uid == resource.data.receiverId
+      );
+      
+      // Create: Users can create messages where they are the sender
+      allow create: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.senderId;
+      
+      // Update/Delete: Users can update/delete their own messages
+      allow update, delete: if isAuthenticated() && 
+        request.auth.uid == resource.data.senderId;
+    }
+    
+    // ====================================
+    // ASSIGNMENTS RULES (for Assignment Notifications)
+    // ====================================
+    
+    match /assignments/{assignmentId} {
+      // Read: All authenticated users can read assignments
+      allow read: if isAuthenticated();
+      
+      // Create: Only teachers can create assignments
+      allow create: if isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+      
+      // Update/Delete: Only the creator can update/delete
+      allow update, delete: if isAuthenticated() && 
+        request.auth.uid == resource.data.createdBy;
+    }
+    
+    // ====================================
+    // ANNOUNCEMENTS RULES (for Announcement Notifications)
+    // ====================================
+    
+    match /announcements/{announcementId} {
+      // Read: All authenticated users can read announcements
+      allow read: if isAuthenticated();
+      
+      // Create: Only teachers and admins can create announcements
+      allow create: if isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin'];
+      
+      // Update/Delete: Only the creator can update/delete
+      allow update, delete: if isAuthenticated() && 
+        request.auth.uid == resource.data.createdBy;
+    }
+  }
+}
+
+// ====================================
+// SECURITY NOTES
+// ====================================
+
+/*
+1. Notifications can only be created by Cloud Functions (not clients)
+2. Users can only read their own notifications
+3. Users can only mark their own notifications as read
+4. Users can delete their own notifications
+5. FCM tokens can only be updated by the token owner
+6. Messages trigger notifications via Cloud Function
+7. Assignments trigger notifications via Cloud Function
+8. Announcements trigger notifications via Cloud Function
+*/
+
+// ====================================
+// DEPLOYMENT
+// ====================================
+
+/*
+To deploy these rules:
+
+1. Copy the notification rules section to your existing firestore.rules
+2. Merge with your existing rules
+3. Deploy:
+   firebase deploy --only firestore:rules
+
+4. Test rules in Firebase Console:
+   - Firestore Database → Rules → Playground
+   - Test with different user IDs and scenarios
+*/

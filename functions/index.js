@@ -332,3 +332,15 @@ exports.deleteExpiredInstituteAnnouncementsManual = deleteExpiredInstituteAnnoun
 const { deleteExpiredTeacherAnnouncements, deleteExpiredTeacherAnnouncementsManual } = require('./deleteExpiredTeacherAnnouncements');
 exports.deleteExpiredTeacherAnnouncements = deleteExpiredTeacherAnnouncements;
 exports.deleteExpiredTeacherAnnouncementsManual = deleteExpiredTeacherAnnouncementsManual;
+
+// Import Cloud Functions for push notifications
+const { 
+  sendChatNotification, 
+  sendAssignmentNotification, 
+  sendAnnouncementNotification,
+  cleanupOldNotifications 
+} = require('./notifications');
+exports.sendChatNotification = sendChatNotification;
+exports.sendAssignmentNotification = sendAssignmentNotification;
+exports.sendAnnouncementNotification = sendAnnouncementNotification;
+exports.cleanupOldNotifications = cleanupOldNotifications;

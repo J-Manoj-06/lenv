@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
@@ -21,6 +22,7 @@ import 'services/connectivity_service.dart';
 import 'services/offline_cache_manager.dart';
 import 'services/offline_data_service.dart';
 import 'services/offline_first_initializer.dart';
+import 'services/notification_service.dart';
 import 'models/local_message.dart';
 import 'share/share_controller.dart';
 import 'share/share_receiver_service.dart';
@@ -36,6 +38,9 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Initialize Firebase Messaging background handler
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
     // Initialize Hive once before any service uses it
     await Hive.initFlutter();
@@ -81,6 +86,7 @@ Future<void> _initializeServicesAsync() async {
       OfflineDataService().initialize(), // ✅ Added new offline service
       ConnectivityService().initialize(),
       ShareReceiverService().initialize(),
+      NotificationService().initialize(), // ✅ Initialize notification service
     ], eagerError: false); // Continue even if one fails
   } catch (e) {
     // Services failed to initialize, but app can still run

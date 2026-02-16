@@ -373,6 +373,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   children: [
                     _buildStreakBadge(),
                     const SizedBox(width: 10),
+                    _buildUserIdButton(),
+                    const SizedBox(width: 10),
                     _buildProfileIcon(),
                   ],
                 ),
@@ -418,6 +420,60 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildUserIdButton() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? 'Not logged in';
+
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Your User ID'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Copy this ID for testing notifications:'),
+                const SizedBox(height: 12),
+                SelectableText(
+                  userId,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C1C1E) : _surface(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? const Color(0xFF2C2C2E) : Colors.grey.shade300,
+            width: 1,
+          ),
+        ),
+        child: Icon(
+          Icons.info_outline,
+          color: isDark ? Colors.white : Colors.black87,
+          size: 24,
+        ),
+      ),
     );
   }
 

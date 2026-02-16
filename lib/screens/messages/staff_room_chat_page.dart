@@ -87,6 +87,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
   // Timer to poll cache for progress updates
   Timer? _progressPollTimer;
 
+  // Message cache to maintain stable Map instances (prevents flickering)
+  final Map<String, Map<String, dynamic>> _messageCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -1398,7 +1401,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             pendingIdsToRemove.add(pendingId);
           } else {
             // Still uploading - keep in list
-            allMessages.add(pendingMsg);
+            // Use cached instance to maintain widget identity
+            final cachedMsg = _messageCache[pendingId] ??=
+                Map<String, dynamic>.from(pendingMsg);
+            allMessages.add(cachedMsg);
           }
         }
 
@@ -1416,6 +1422,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                 _localFilePaths.remove(id);
                 _progressNotifiers[id]?.dispose();
                 _progressNotifiers.remove(id);
+                _messageCache.remove(id); // Remove from cache too
               }
             });
           });
@@ -1430,10 +1437,19 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             continue;
           }
 
-          data['id'] = doc.id;
-          data['isPending'] = false;
+          final messageId = doc.id;
 
-          allMessages.add(data);
+          // Use cached instance to maintain widget identity
+          final cachedMsg = _messageCache[messageId] ??= {
+            ...data,
+            'id': messageId,
+            'isPending': false,
+          };
+
+          // Update cached data in case anything changed
+          cachedMsg.addAll({...data, 'id': messageId, 'isPending': false});
+
+          allMessages.add(cachedMsg);
         }
 
         // Sort by timestamp
@@ -1550,6 +1566,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           padding: const EdgeInsets.all(16),
           itemCount: allMessages.length,
           physics: const ClampingScrollPhysics(), // Prevent auto-scroll bounce
+          addAutomaticKeepAlives: true, // Keep alive built items
+          addRepaintBoundaries: true, // Add repaint boundaries
+          cacheExtent: 500, // Cache items beyond viewport
           itemBuilder: (context, index) {
             final message = allMessages[index];
             final messageId = message['id'] as String? ?? '';
@@ -1576,6 +1595,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                         key: getMessageKey(messageId),
                         isHighlighted: isHighlighted,
                         child: _MessageBubble(
+                          key: ValueKey('bubble_$messageId'),
                           message: message,
                           isMe: isMe,
                           primaryColor: primaryColor,
@@ -1635,6 +1655,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                         key: getMessageKey(messageId),
                         isHighlighted: isHighlighted,
                         child: _MessageBubble(
+                          key: ValueKey('bubble_$messageId'),
                           message: message,
                           isMe: isMe,
                           primaryColor: primaryColor,
@@ -2210,6 +2231,7 @@ class _MessageBubble extends StatelessWidget {
   final String staffRoomId;
 
   const _MessageBubble({
+    super.key,
     required this.message,
     required this.isMe,
     required this.primaryColor,
