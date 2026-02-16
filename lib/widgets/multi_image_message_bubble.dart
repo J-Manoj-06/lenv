@@ -353,11 +353,15 @@ class _ImageTile extends StatefulWidget {
   State<_ImageTile> createState() => _ImageTileState();
 }
 
-class _ImageTileState extends State<_ImageTile> {
+class _ImageTileState extends State<_ImageTile> with AutomaticKeepAliveClientMixin {
   bool _loaded = false;
 
   @override
+  bool get wantKeepAlive => true; // Keep the widget alive
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context); // Must call super for AutomaticKeepAliveClientMixin
     return ClipRRect(
       borderRadius: BorderRadius.circular(widget.radius),
       child: GestureDetector(
@@ -477,10 +481,10 @@ class _ImageTileState extends State<_ImageTile> {
         filterQuality: FilterQuality.high,
         memCacheWidth: 800, // Memory cache optimization
         maxWidthDiskCache: 800, // Disk cache optimization
-        fadeInDuration: const Duration(milliseconds: 100),
-        fadeOutDuration: const Duration(milliseconds: 100),
+        fadeInDuration: const Duration(milliseconds: 0), // No fade for cached images
+        fadeOutDuration: const Duration(milliseconds: 0),
         placeholder: (context, url) {
-          // Keep skeleton visible during load
+          // Keep skeleton visible during initial load only
           return const SizedBox.shrink();
         },
         imageBuilder: (context, imageProvider) {
@@ -489,6 +493,7 @@ class _ImageTileState extends State<_ImageTile> {
             image: imageProvider,
             fit: BoxFit.cover,
             filterQuality: FilterQuality.high,
+            gaplessPlayback: true, // Seamless transition
           );
         },
         errorWidget: (context, url, error) => _downloadPromptFallback(),

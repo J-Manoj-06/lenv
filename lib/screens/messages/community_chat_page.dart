@@ -2869,8 +2869,14 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           filterQuality: FilterQuality.high,
           memCacheWidth: 1200,
           maxWidthDiskCache: 1200,
-          fadeInDuration: const Duration(milliseconds: 100),
-          fadeOutDuration: const Duration(milliseconds: 100),
+          fadeInDuration: const Duration(milliseconds: 0),
+          fadeOutDuration: const Duration(milliseconds: 0),
+          imageBuilder: (context, imageProvider) => Image(
+            image: imageProvider,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            gaplessPlayback: true,
+          ),
           placeholder: (context, url) => const Center(
             child: SizedBox(
               width: 36,
