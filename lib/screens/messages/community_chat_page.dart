@@ -247,7 +247,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Handle group upload completion
     BackgroundUploadService().onGroupComplete = (groupId) async {
       print('🎉 Group upload complete: $groupId');
-      
+
       // Delete pending message from cache
       try {
         await _localRepo.deletePendingMessage(groupId);

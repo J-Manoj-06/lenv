@@ -109,7 +109,7 @@ class BackgroundUploadService extends ChangeNotifier {
 
   // Callback for UI to track uploading messages
   Function(String messageId, bool isUploading, double progress)?
-      onUploadProgress;
+  onUploadProgress;
 
   // Callback when a group upload completes (all images uploaded)
   Function(String groupId)? onGroupComplete;

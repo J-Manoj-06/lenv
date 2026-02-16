@@ -169,7 +169,9 @@ class LocalMessage extends HiveObject {
               // Recursively clean nested maps
               final nestedMap = <String, dynamic>{};
               value.forEach((k, v) {
-                nestedMap[k.toString()] = v is Timestamp ? v.millisecondsSinceEpoch : v;
+                nestedMap[k.toString()] = v is Timestamp
+                    ? v.millisecondsSinceEpoch
+                    : v;
               });
               cleanedMap[key.toString()] = nestedMap;
             } else {
@@ -210,7 +212,7 @@ class LocalMessage extends HiveObject {
   /// WHY: Hive cannot serialize Firestore Timestamp objects
   static Map<String, dynamic> _cleanMapFromTimestamps(dynamic data) {
     if (data is! Map) return {};
-    
+
     final Map<String, dynamic> cleaned = {};
     data.forEach((key, value) {
       if (value is Timestamp) {
