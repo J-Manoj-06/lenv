@@ -353,7 +353,8 @@ class _ImageTile extends StatefulWidget {
   State<_ImageTile> createState() => _ImageTileState();
 }
 
-class _ImageTileState extends State<_ImageTile> with AutomaticKeepAliveClientMixin {
+class _ImageTileState extends State<_ImageTile>
+    with AutomaticKeepAliveClientMixin {
   bool _loaded = false;
 
   @override
@@ -481,7 +482,9 @@ class _ImageTileState extends State<_ImageTile> with AutomaticKeepAliveClientMix
         filterQuality: FilterQuality.high,
         memCacheWidth: 800, // Memory cache optimization
         maxWidthDiskCache: 800, // Disk cache optimization
-        fadeInDuration: const Duration(milliseconds: 0), // No fade for cached images
+        fadeInDuration: const Duration(
+          milliseconds: 0,
+        ), // No fade for cached images
         fadeOutDuration: const Duration(milliseconds: 0),
         placeholder: (context, url) {
           // Keep skeleton visible during initial load only
