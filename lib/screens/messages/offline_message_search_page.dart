@@ -250,37 +250,6 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
                 fontSize: 14,
               ),
             ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1F2C34) : Colors.grey[200],
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.flight_takeoff,
-                    size: 16,
-                    color: isDark
-                        ? const Color(0xFF00A884)
-                        : const Color(0xFF008069),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Works offline',
-                    style: TextStyle(
-                      color: isDark
-                          ? const Color(0xFF00A884)
-                          : const Color(0xFF008069),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       );
