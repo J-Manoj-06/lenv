@@ -249,6 +249,39 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     BackgroundUploadService().onGroupComplete = (groupId) async {
       print('🎉 Group upload complete: $groupId');
 
+      // Wait for Firestore to propagate the message before removing pending
+      // Poll for up to 5 seconds to check if the message exists in local DB
+      bool messageExists = false;
+      for (int i = 0; i < 10; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Check if message exists in local DB (which gets updated from Firestore sync)
+        final messages = await _localRepo.getMessagesForChat(
+          widget.communityId,
+        );
+        messageExists = messages.any(
+          (m) =>
+              m.messageText?.contains(groupId) == true ||
+              m.messageId.contains(groupId) ||
+              (m.timestamp >
+                      DateTime.now()
+                          .subtract(const Duration(seconds: 10))
+                          .millisecondsSinceEpoch &&
+                  m.attachmentType == 'multiple'),
+        );
+
+        if (messageExists) {
+          print('✅ Confirmed Firestore message exists, safe to remove pending');
+          break;
+        }
+      }
+
+      if (!messageExists) {
+        print(
+          '⚠️ Timeout waiting for Firestore message, removing pending anyway',
+        );
+      }
+
       // Delete pending message from cache
       try {
         await _localRepo.deletePendingMessage(groupId);

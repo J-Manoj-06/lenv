@@ -160,10 +160,10 @@ class ParentTeacherGroupService {
     return '$cls ${sec.isNotEmpty ? sec : ''} Parents & Teachers'.trim();
   }
 
-  /// Stream latest messages (paginated, default 50)
+  /// Stream latest messages (paginated, default 100 to catch new uploads)
   Stream<List<CommunityMessageModel>> getMessagesStream(
     String groupId, {
-    int limit = 50,
+    int limit = 100,
   }) {
     return _firestore
         .collection('parent_teacher_groups')
@@ -173,19 +173,41 @@ class ParentTeacherGroupService {
         .limit(limit)
         .snapshots()
         .map((snapshot) {
+          print(
+            '🔥 [SERVICE_DEBUG] Firestore snapshot received: ${snapshot.docs.length} docs',
+          );
           final messages = <CommunityMessageModel>[];
           for (final doc in snapshot.docs) {
             try {
               final data = doc.data();
+              final createdAtType = data['createdAt']?.runtimeType;
+              final hasMulti = data['multipleMedia'] != null;
+              final multiCount = hasMulti
+                  ? (data['multipleMedia'] as List?)?.length ?? 0
+                  : 0;
+              print(
+                '   📄 Doc ${doc.id}: createdAt=$createdAtType, type=${data['type']}, multipleMedia=$hasMulti ($multiCount items)',
+              );
+
               // Filter out documents with invalid timestamp data or deleted messages
               if (data['createdAt'] != null && !(data['isDeleted'] ?? false)) {
-                messages.add(CommunityMessageModel.fromFirestore(doc));
+                final msg = CommunityMessageModel.fromFirestore(doc);
+                messages.add(msg);
+                print(
+                  '   ✅ Parsed successfully: multiMedia=${msg.multipleMedia?.length ?? 0}',
+                );
+              } else {
+                print('   ⏭️ Skipped: invalid timestamp or deleted');
               }
-            } catch (e) {
+            } catch (e, stack) {
               // Skip messages that fail to parse (e.g., corrupted data)
               print('⚠️ Failed to parse message ${doc.id}: $e');
+              print(
+                '   Stack: ${stack.toString().split('\n').take(3).join('\n')}',
+              );
             }
           }
+          print('🔥 [SERVICE_DEBUG] Returning ${messages.length} messages');
           return messages;
         });
   }

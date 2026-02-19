@@ -14,6 +14,7 @@ import 'package:dio/dio.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../utils/link_utils.dart';
 import '../../config/cloudflare_config.dart';
 import '../../models/community_message_model.dart';
@@ -26,6 +27,7 @@ import '../../services/media_repository.dart';
 import '../../services/parent_teacher_group_service.dart';
 import '../../services/unread_count_service.dart';
 import '../../widgets/media_preview_card.dart';
+import '../../widgets/multi_image_message_bubble.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
@@ -36,6 +38,7 @@ import '../../utils/message_scroll_highlight_mixin.dart';
 import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
 import '../messages/offline_message_search_page.dart';
+import '../../models/local_message.dart';
 
 class ParentSectionGroupChatScreen extends StatefulWidget {
   final String groupId;
@@ -125,6 +128,14 @@ class _ParentSectionGroupChatScreenState
   final ValueNotifier<bool> _isLoadingMoreNotifier = ValueNotifier<bool>(false);
   int _messageLoadCount = 0; // Debug counter
 
+  // ✅ CRITICAL: Message cache to maintain stable Map instances (prevents widget recreation)
+  // This cache ensures Flutter recognizes the same message object and doesn't rebuild widgets
+  // when StreamBuilder rebuilds. Same technique used in staff room.
+  final Map<String, CommunityMessageModel> _messageCache = {};
+
+  // ✅ Cache stream like staff room to avoid rebuilding new streams
+  Stream<List<CommunityMessageModel>>? _messagesStream;
+
   @override
   bool get wantKeepAlive => true; // ✅ Prevent rebuild when switching tabs
 
@@ -157,6 +168,9 @@ class _ParentSectionGroupChatScreenState
     });
 
     _initOfflineFirst();
+
+    // ✅ Cache stream once (same as staff room) to prevent re-creation
+    _messagesStream = _service.getMessagesStream(widget.groupId);
 
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -234,11 +248,133 @@ class _ParentSectionGroupChatScreenState
           userId: currentUser.uid,
         );
         print('✅ Real-time sync started successfully');
+
+        // ✅ CRITICAL: Load pending messages after sync starts
+        await _loadPendingMessages();
       } else {
         print('⚠️ No current user found, skipping real-time sync');
       }
     } catch (e, stackTrace) {
       print('❌ Error initializing offline-first for parent group: $e');
+      print('Stack trace: $stackTrace');
+    }
+  }
+
+  /// Load pending messages from local cache (survives navigation)
+  /// WHY: When user uploads images and navigates away, the pending messages are saved to LocalMessageRepository
+  ///      This function restores them when returning to the chat
+  Future<void> _loadPendingMessages() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) return;
+
+      // Load pending messages for this chat from cache
+      final pendingMessages = await _localRepo.getPendingMessages(
+        chatId: widget.groupId,
+        senderId: currentUser.uid,
+      );
+
+      if (pendingMessages.isEmpty) {
+        print('📭 No pending messages to restore');
+        return;
+      }
+
+      print('📥 Loading ${pendingMessages.length} pending messages from cache');
+
+      if (!mounted) return;
+
+      setState(() {
+        // Convert LocalMessage to CommunityMessageModel format
+        for (final msg in pendingMessages) {
+          if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+            print(
+              '   📤 Restoring pending: ${msg.messageId} (${msg.multipleMedia!.length} media items)',
+            );
+
+            // Convert multipleMedia from List<dynamic> to List<MediaMetadata>
+            final mediaList = <MediaMetadata>[];
+            for (final mediaMap in msg.multipleMedia!) {
+              try {
+                mediaList.add(
+                  MediaMetadata(
+                    messageId: mediaMap['messageId'] ?? '',
+                    r2Key: mediaMap['r2Key'] ?? '',
+                    publicUrl: mediaMap['publicUrl'] ?? '',
+                    thumbnail: mediaMap['thumbnail'] ?? '',
+                    localPath: mediaMap['localPath'],
+                    expiresAt: mediaMap['expiresAt'] != null
+                        ? DateTime.parse(mediaMap['expiresAt'])
+                        : DateTime.now().add(const Duration(days: 30)),
+                    uploadedAt: mediaMap['uploadedAt'] != null
+                        ? DateTime.parse(mediaMap['uploadedAt'])
+                        : DateTime.now(),
+                    originalFileName: mediaMap['originalFileName'] ?? '',
+                    fileSize: mediaMap['fileSize'] ?? 0,
+                    mimeType: mediaMap['mimeType'] ?? 'image/jpeg',
+                  ),
+                );
+              } catch (e) {
+                print('⚠️ Failed to parse media item: $e');
+              }
+            }
+
+            if (mediaList.isEmpty) continue;
+
+            final pendingMessage = CommunityMessageModel(
+              messageId: 'pending:${msg.messageId}',
+              communityId: widget.groupId,
+              senderId: msg.senderId,
+              senderName: msg.senderName,
+              senderRole: widget.senderRole,
+              senderAvatar: '',
+              type: 'image',
+              content: msg.messageText ?? '',
+              imageUrl: '',
+              fileUrl: '',
+              fileName: '',
+              multipleMedia: mediaList,
+              createdAt: DateTime.fromMillisecondsSinceEpoch(msg.timestamp),
+              isEdited: false,
+              isDeleted: false,
+              isPinned: false,
+              reactions: {},
+              replyTo: '',
+              replyCount: 0,
+              isReported: false,
+              reportCount: 0,
+            );
+
+            _pendingMessages.insert(0, pendingMessage);
+
+            // Cache this pending message in the message cache too
+            _messageCache[pendingMessage.messageId] = pendingMessage;
+
+            // Restore upload progress trackers and local paths
+            for (int i = 0; i < mediaList.length; i++) {
+              final media = mediaList[i];
+              if (media.localPath != null && media.localPath!.isNotEmpty) {
+                _localSenderMediaPaths[media.messageId] = media.localPath!;
+              }
+              // Check if progress was saved in the cached multipleMedia
+              final cachedMedia = msg.multipleMedia?[i];
+              final progressValue =
+                  cachedMedia != null && cachedMedia['uploadProgress'] != null
+                  ? (cachedMedia['uploadProgress'] as num).toDouble()
+                  : 0.0;
+              _pendingUploadNotifiers[media.messageId] = ValueNotifier<double>(
+                progressValue * 100, // Convert 0.0-1.0 to 0-100
+              );
+              _lastUploadPercent[media.messageId] = (progressValue * 100)
+                  .toInt();
+            }
+          }
+        }
+      });
+
+      print('✅ Restored ${_pendingMessages.length} pending messages');
+    } catch (e, stackTrace) {
+      print('❌ Error loading pending messages: $e');
       print('Stack trace: $stackTrace');
     }
   }
@@ -653,7 +789,7 @@ class _ParentSectionGroupChatScreenState
         children: [
           Expanded(
             child: StreamBuilder<List<CommunityMessageModel>>(
-              stream: _service.getMessagesStream(widget.groupId),
+              stream: _messagesStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(
@@ -673,16 +809,125 @@ class _ParentSectionGroupChatScreenState
                 }
 
                 final firestoreMessages = snapshot.data ?? [];
-                // ✅ OPTIMIZATION: Combine recent stream messages + older paginated messages
+
+                // StreamBuilder rebuild - combining pending + Firestore messages
+
+                // ✅ CRITICAL: Use message cache to maintain stable instances
+                // Create or retrieve cached versions of Firestore messages
+                final cachedFirestoreMessages = <CommunityMessageModel>[];
+                for (final msg in firestoreMessages) {
+                  final cached = _messageCache[msg.messageId];
+                  if (cached == null) {
+                    // First time seeing this message - cache it
+                    _messageCache[msg.messageId] = msg;
+                  } else {
+                    final cachedMulti = cached.multipleMedia?.length ?? 0;
+                    final freshMulti = msg.multipleMedia?.length ?? 0;
+                    final hasChange =
+                        cached.type != msg.type ||
+                        cachedMulti != freshMulti ||
+                        cached.updatedAt != msg.updatedAt ||
+                        cached.createdAt != msg.createdAt;
+
+                    if (hasChange) {
+                      _messageCache[msg.messageId] = msg;
+                    }
+                  }
+
+                  // Always use the cached instance to maintain widget identity
+                  cachedFirestoreMessages.add(_messageCache[msg.messageId]!);
+                }
+
+                // ✅ SMART MERGE: Remove pending messages that now exist in Firestore
+                final pendingIdsToRemove = <String>[];
+                final filteredPendingMessages = <CommunityMessageModel>[];
+
+                for (final pendingMsg in _pendingMessages) {
+                  final pendingId = pendingMsg.messageId.replaceFirst(
+                    'pending:',
+                    '',
+                  );
+                  final pendingSenderId = pendingMsg.senderId;
+                  final pendingTimestamp =
+                      pendingMsg.createdAt.millisecondsSinceEpoch;
+                  final pendingHasMultipleMedia =
+                      pendingMsg.multipleMedia != null &&
+                      pendingMsg.multipleMedia!.isNotEmpty;
+
+                  // Check if this pending message now exists in Firestore
+                  final matchingServerMsg = cachedFirestoreMessages.where((
+                    msg,
+                  ) {
+                    final serverSenderId = msg.senderId;
+                    final serverTimestamp =
+                        msg.createdAt.millisecondsSinceEpoch;
+
+                    // Match by sender and timestamp (within 30 seconds)
+                    final senderMatch = serverSenderId == pendingSenderId;
+                    final timeDiff = (serverTimestamp - pendingTimestamp).abs();
+                    final timeMatch = timeDiff < 30000; // 30 seconds tolerance
+
+                    // For multi-media messages, ONLY match if server has multipleMedia too
+                    if (pendingHasMultipleMedia) {
+                      final serverHasMultipleMedia =
+                          msg.multipleMedia != null &&
+                          msg.multipleMedia!.isNotEmpty;
+
+                      return senderMatch && timeMatch && serverHasMultipleMedia;
+                    }
+
+                    return senderMatch && timeMatch;
+                  }).firstOrNull;
+
+                  if (matchingServerMsg != null) {
+                    // Found matching server version - mark for removal
+                    pendingIdsToRemove.add(pendingMsg.messageId);
+                  } else {
+                    // Still uploading - keep in list
+                    // Cache pending to keep stable instance
+                    final cachedPending =
+                        _messageCache[pendingMsg.messageId] ??= pendingMsg;
+                    filteredPendingMessages.add(cachedPending);
+                  }
+                }
+
+                // Remove completed pending messages (after frame to avoid flicker)
+                if (pendingIdsToRemove.isNotEmpty) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    setState(() {
+                      _pendingMessages.removeWhere(
+                        (m) => pendingIdsToRemove.contains(m.messageId),
+                      );
+                      // Clean up notifiers and cache for removed pending messages
+                      for (final pendingId in pendingIdsToRemove) {
+                        final baseId = pendingId.replaceFirst('pending:', '');
+                        // Remove all notifiers for this message's media
+                        _pendingUploadNotifiers.removeWhere(
+                          (key, _) => key.startsWith(baseId),
+                        );
+                        _lastUploadPercent.removeWhere(
+                          (key, _) => key.startsWith(baseId),
+                        );
+                        // Remove pending message from cache (but keep Firestore messages)
+                        _messageCache.remove(pendingId);
+                      }
+                    });
+                  });
+                }
+
+                // ✅ COMBINE: pending + Firestore + older paginated messages
+                // IMPORTANT: Sort by timestamp DESC for proper display order
                 final allMessages = [
-                  ..._pendingMessages,
-                  ...firestoreMessages,
+                  ...filteredPendingMessages,
+                  ...cachedFirestoreMessages,
                   ..._olderMessages,
-                ];
+                ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
                 // Update last document from stream if available
-                if (firestoreMessages.isNotEmpty && _lastDocument == null) {
-                  _lastDocument = firestoreMessages.last.documentSnapshot;
+                if (cachedFirestoreMessages.isNotEmpty &&
+                    _lastDocument == null) {
+                  _lastDocument = cachedFirestoreMessages.last.documentSnapshot;
                 }
 
                 if (allMessages.isEmpty) {
@@ -1020,7 +1265,90 @@ class _ParentSectionGroupChatScreenState
                                                       mainAxisSize:
                                                           MainAxisSize.min,
                                                       children: [
-                                                        if (msg.mediaMetadata !=
+                                                        // ✅ MULTI-IMAGE GRID: Display multiple images in WhatsApp-style grid
+                                                        // FIX 1: Properly map URLs - use publicUrl for uploaded, localPath for pending
+                                                        // FIX 2: Fallback to thumbnail if path not found (prevents empty grid)
+                                                        // FIX 3: Filter empty URLs to avoid blank tiles
+                                                        if (msg.multipleMedia !=
+                                                                null &&
+                                                            msg
+                                                                .multipleMedia!
+                                                                .isNotEmpty) ...[
+                                                          MultiImageMessageBubble(
+                                                            imageUrls: msg
+                                                                .multipleMedia!
+                                                                .map((m) {
+                                                                  // Priority: publicUrl > localPath > thumbnail
+                                                                  if (m
+                                                                      .publicUrl
+                                                                      .isNotEmpty) {
+                                                                    return m
+                                                                        .publicUrl; // Uploaded image
+                                                                  }
+                                                                  final localPath =
+                                                                      _localSenderMediaPaths[m
+                                                                          .r2Key];
+                                                                  if (localPath !=
+                                                                          null &&
+                                                                      localPath
+                                                                          .isNotEmpty) {
+                                                                    return localPath; // Pending upload
+                                                                  }
+                                                                  // Fallback to thumbnail (local path stored during pending)
+                                                                  return m
+                                                                          .thumbnail
+                                                                          .isNotEmpty
+                                                                      ? m.thumbnail
+                                                                      : '';
+                                                                })
+                                                                .where(
+                                                                  (url) => url
+                                                                      .isNotEmpty,
+                                                                ) // Filter empty URLs
+                                                                .toList(),
+                                                            isMe: isCurrentUser,
+                                                            // ✅ Show upload progress for pending images
+                                                            uploadProgress:
+                                                                isPending
+                                                                ? msg.multipleMedia!.map((
+                                                                    m,
+                                                                  ) {
+                                                                    final notifier =
+                                                                        _pendingUploadNotifiers[m
+                                                                            .messageId];
+                                                                    return notifier !=
+                                                                            null
+                                                                        ? notifier.value /
+                                                                              100.0
+                                                                        : null;
+                                                                  }).toList()
+                                                                : null,
+                                                            onImageTap: (index) {
+                                                              // ✅ Open full-screen viewer with zoom, pinch, and swipe
+                                                              Navigator.of(
+                                                                context,
+                                                              ).push(
+                                                                MaterialPageRoute(
+                                                                  builder: (_) => _ImageGalleryViewer(
+                                                                    mediaList: msg
+                                                                        .multipleMedia!,
+                                                                    initialIndex:
+                                                                        index,
+                                                                    localFilePaths:
+                                                                        _localSenderMediaPaths,
+                                                                  ),
+                                                                ),
+                                                              );
+                                                            },
+                                                          ),
+                                                          if (msg
+                                                              .content
+                                                              .isNotEmpty)
+                                                            const SizedBox(
+                                                              height: 8,
+                                                            ),
+                                                        ] else if (msg
+                                                                .mediaMetadata !=
                                                             null) ...[
                                                           RepaintBoundary(
                                                             child:
@@ -1600,10 +1928,19 @@ class _ParentSectionGroupChatScreenState
     if (user == null) return;
 
     try {
-      final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
-      if (picked == null) return;
+      // Try pickMultiImage for multiple image selection (up to 5)
+      final picked = await _imagePicker.pickMultiImage(limit: 5);
 
-      final file = File(picked.path);
+      if (picked.isEmpty) return;
+
+      // If multiple images selected, handle as multi-image message
+      if (picked.length > 1) {
+        await _uploadMultipleImages(picked.map((xf) => File(xf.path)).toList());
+        return;
+      }
+
+      // Single image - use existing logic
+      final file = File(picked.first.path);
       final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
 
       // Create optimistic pending message
@@ -1732,6 +2069,368 @@ class _ParentSectionGroupChatScreenState
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+      }
+    }
+  }
+
+  /// Upload multiple images as a single message
+  Future<void> _uploadMultipleImages(List<File> files) async {
+    if (files.isEmpty) return;
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+    final groupMessageId = 'pending_${baseTimestamp}_${user.uid.hashCode}';
+    final List<MediaMetadata> mediaList = [];
+    final List<String> localPaths = [];
+    final List<Map<String, dynamic>> mediaListForCache = [];
+
+    // Create metadata for each image with local path
+    for (int i = 0; i < files.length; i++) {
+      final file = files[i];
+      if (!file.existsSync()) continue;
+
+      final messageId = '${groupMessageId}_$i';
+      final fileSize = await file.length();
+      final fileName = file.path.split('/').last;
+      localPaths.add(file.path);
+
+      final metadata = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        thumbnail: file.path,
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: fileSize,
+        mimeType: 'image/jpeg',
+        originalFileName: fileName,
+      );
+      mediaList.add(metadata);
+
+      // Format for LocalMessageRepository
+      mediaListForCache.add({
+        'messageId': messageId,
+        'r2Key': 'pending/$messageId',
+        'publicUrl': '',
+        'thumbnail': file.path,
+        'localPath': file.path,
+        'originalFileName': fileName,
+        'fileSize': fileSize,
+        'mimeType': 'image/jpeg',
+        'uploadProgress': 0.0,
+      });
+    }
+
+    if (mediaList.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No valid images found')));
+      }
+      return;
+    }
+
+    // Create pending message with multiple media
+    final pendingMessage = CommunityMessageModel(
+      messageId: 'pending:$groupMessageId',
+      communityId: widget.groupId,
+      senderId: user.uid,
+      senderName: user.name,
+      senderRole: widget.senderRole,
+      senderAvatar: user.profileImage ?? '',
+      type: 'image',
+      content: '',
+      imageUrl: '',
+      fileUrl: '',
+      fileName: '',
+      multipleMedia: mediaList,
+      createdAt: DateTime.now(),
+      isEdited: false,
+      isDeleted: false,
+      isPinned: false,
+      reactions: {},
+      replyTo: '',
+      replyCount: 0,
+      isReported: false,
+      reportCount: 0,
+    );
+
+    // ✅ CRITICAL: Save pending message to LocalMessageRepository (persists across navigation)
+    try {
+      final pendingLocalMsg = LocalMessage(
+        messageId: groupMessageId,
+        chatId: widget.groupId,
+        chatType: 'ptGroup',
+        senderId: user.uid,
+        senderName: user.name,
+        timestamp: baseTimestamp,
+        messageText: '',
+        multipleMedia: mediaListForCache,
+        isPending: true,
+      );
+      await _localRepo.saveMessage(pendingLocalMsg);
+      print('💾 Pending message saved to cache (survives navigation)');
+    } catch (e) {
+      print('⚠️ Failed to cache pending message: $e');
+    }
+
+    setState(() {
+      _pendingMessages.insert(0, pendingMessage);
+      print(
+        '✅ [PENDING_DEBUG] Added pending message to list: ${pendingMessage.messageId}',
+      );
+      print('   - Sender: ${user.uid}');
+      print('   - Timestamp: $baseTimestamp');
+      print('   - MultipleMedia count: ${mediaList.length}');
+      print('   - Total pending messages now: ${_pendingMessages.length}');
+
+      // Track local paths and upload progress for each media item
+      for (int i = 0; i < localPaths.length; i++) {
+        final messageId = '${groupMessageId}_$i';
+        _localSenderMediaPaths[messageId] = localPaths[i];
+        _pendingUploadNotifiers[messageId] = ValueNotifier<double>(0);
+        _lastUploadPercent[messageId] = -1;
+        print(
+          '   - Media $i: messageId=$messageId, localPath=${localPaths[i]}',
+        );
+      }
+    });
+
+    // Upload all images
+    try {
+      print('🚀 [UPLOAD_DEBUG] Starting upload for ${files.length} files');
+      final uploadedMetadata = <MediaMetadata>[];
+
+      for (int i = 0; i < files.length; i++) {
+        final file = files[i];
+        final messageId = '${groupMessageId}_$i';
+        print('📤 [UPLOAD_DEBUG] Uploading file $i: ${file.path}');
+
+        // Upload to R2 with progress tracking
+        final mediaMessage = await _mediaUploadService.uploadMedia(
+          file: file,
+          conversationId: widget.groupId,
+          senderId: user.uid,
+          senderRole: widget.senderRole,
+          mediaType: 'community',
+          onProgress: (progress) async {
+            if (!mounted) return;
+
+            // Smooth progress updates (only update on percentage change)
+            final percent = (progress / 100.0 * 100).round();
+            final last = _lastUploadPercent[messageId] ?? -1;
+            if (percent != last) {
+              // Update UI progress
+              _lastUploadPercent[messageId] = percent;
+              _pendingUploadNotifiers[messageId]?.value = percent.toDouble();
+
+              // ✅ CRITICAL: Trigger rebuild to show live progress for multi-image messages
+              // Without this, progress only updates when navigating away and back
+              if (mounted) {
+                setState(() {});
+              }
+
+              // Save to cache at 10% intervals
+              if (percent % 10 == 0 || percent == 100) {
+                try {
+                  final cachedMsg = await _localRepo.getMessageById(
+                    groupMessageId,
+                  );
+                  if (cachedMsg != null && cachedMsg.multipleMedia != null) {
+                    final updatedMedia = cachedMsg.multipleMedia!.map((media) {
+                      if (media['messageId'] == messageId) {
+                        return {...media, 'uploadProgress': progress / 100.0};
+                      }
+                      return media;
+                    }).toList();
+
+                    final updatedMsg = LocalMessage(
+                      messageId: cachedMsg.messageId,
+                      chatId: cachedMsg.chatId,
+                      chatType: cachedMsg.chatType,
+                      senderId: cachedMsg.senderId,
+                      senderName: cachedMsg.senderName,
+                      timestamp: cachedMsg.timestamp,
+                      messageText: cachedMsg.messageText,
+                      multipleMedia: updatedMedia,
+                      isPending: true,
+                    );
+                    await _localRepo.saveMessage(updatedMsg);
+                  }
+                } catch (e) {
+                  // Silent fail - progress still works in current session
+                }
+              }
+            }
+          },
+        );
+
+        print('✅ [UPLOAD_DEBUG] File $i uploaded: ${mediaMessage.r2Url}');
+        final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+        final publicUrl = mediaMessage.r2Url;
+
+        final metadata = MediaMetadata(
+          messageId: messageId,
+          r2Key: r2Key,
+          publicUrl: publicUrl,
+          thumbnail: '',
+          expiresAt: DateTime.now().add(const Duration(days: 365)),
+          uploadedAt: DateTime.now(),
+          fileSize: mediaMessage.fileSize,
+          mimeType: mediaMessage.fileType,
+          originalFileName: mediaMessage.fileName,
+        );
+
+        uploadedMetadata.add(metadata);
+
+        print('💾 [UPLOAD_DEBUG] Cached media file $i');
+        // Cache the uploaded file
+        await _mediaRepository.cacheUploadedMedia(
+          r2Key: r2Key,
+          localPath: file.path,
+          fileName: file.path.split('/').last,
+          mimeType: 'image/jpeg',
+          fileSize: await file.length(),
+        );
+      }
+
+      print('🔥 [UPLOAD_DEBUG] All files uploaded, writing to Firestore');
+      // ✅ Create Firestore message with auto-generated ID (like staff room)
+      // ✅ CRITICAL: Use correct collection - parent_teacher_groups, not communities!
+      final messageTimestamp = DateTime.now().millisecondsSinceEpoch;
+      print(
+        '🔥 [UPLOAD_DEBUG] Writing to parent_teacher_groups/${widget.groupId}/messages',
+      );
+      final messageRef = await FirebaseFirestore.instance
+          .collection('parent_teacher_groups')
+          .doc(widget.groupId)
+          .collection('messages')
+          .add({
+            'senderId': user.uid,
+            'senderName': user.name,
+            'senderRole': widget.senderRole,
+            'senderAvatar': user.profileImage ?? '',
+            'type': 'image',
+            'content': '',
+            'imageUrl': '',
+            'fileUrl': '',
+            'fileName': '',
+            'multipleMedia': uploadedMetadata
+                .map((m) => m.toFirestore())
+                .toList(),
+            'timestamp': FieldValue.serverTimestamp(),
+            'createdAt': messageTimestamp,
+            'isEdited': false,
+            'isDeleted': false,
+            'isPinned': false,
+            'reactions': {},
+            'replyTo': '',
+            'replyCount': 0,
+            'isReported': false,
+            'reportCount': 0,
+          });
+
+      print('✅ [UPLOAD_DEBUG] Firestore message created: ${messageRef.id}');
+      // ✅ CRITICAL: Save final message to LocalMessageRepository with Firestore ID
+      final uploadedMediaForCache = uploadedMetadata
+          .map(
+            (m) => {
+              'messageId': m.messageId,
+              'publicUrl': m.publicUrl,
+              'thumbnail': m.thumbnail,
+              'originalFileName': m.originalFileName,
+              'fileSize': m.fileSize,
+              'mimeType': m.mimeType,
+              'r2Key': m.r2Key,
+            },
+          )
+          .toList();
+
+      try {
+        final localMessage = LocalMessage(
+          messageId: messageRef.id, // Use Firestore auto-generated ID
+          chatId: widget.groupId,
+          chatType: 'ptGroup',
+          senderId: user.uid,
+          senderName: user.name,
+          timestamp: messageTimestamp,
+          multipleMedia: uploadedMediaForCache,
+        );
+        await _localRepo.saveMessage(localMessage);
+
+        // Delete pending message from cache (upload complete)
+        await _localRepo.deletePendingMessage(groupMessageId);
+        print(
+          '✅ Final message saved to cache (ID: ${messageRef.id}), pending deleted',
+        );
+      } catch (e) {
+        print('⚠️ Failed to save final message to cache: $e');
+      }
+
+      // Remove pending message from UI immediately (no need to wait for sync)
+      // Remove pending message from UI immediately (no need to wait for sync)
+      if (mounted) {
+        setState(() {
+          final removedCount = _pendingMessages.length;
+          _pendingMessages.removeWhere(
+            (m) => m.messageId == 'pending:$groupMessageId',
+          );
+          print(
+            '🗑️ [PENDING_DEBUG] Removed pending from UI: pending:$groupMessageId',
+          );
+          print(
+            '   - Removed: ${removedCount - _pendingMessages.length} messages',
+          );
+          print('   - Remaining pending: ${_pendingMessages.length}');
+
+          // Keep local files mapped to the cloud keys for offline access
+          for (int i = 0; i < uploadedMetadata.length; i++) {
+            final r2Key = uploadedMetadata[i].r2Key;
+            final messageId = '${groupMessageId}_$i';
+            _localSenderMediaPaths[r2Key] = localPaths[i];
+            _localSenderMediaPaths.remove(messageId);
+            // Clean up progress notifiers
+            _pendingUploadNotifiers[messageId]?.dispose();
+            _pendingUploadNotifiers.remove(messageId);
+            _lastUploadPercent.remove(messageId);
+          }
+        });
+      }
+
+      // ✅ Scroll to bottom after cleanup
+      if (mounted) {
+        _scrollToBottom();
+      }
+    } catch (e) {
+      print('❌ [UPLOAD_DEBUG] Upload failed: $e');
+      print('❌ [UPLOAD_DEBUG] Stack trace: ${StackTrace.current}');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to upload images: $e')));
+        // Remove pending message on error
+        setState(() {
+          _pendingMessages.removeWhere(
+            (m) => m.messageId == 'pending:$groupMessageId',
+          );
+          // Clean up progress notifiers
+          for (int i = 0; i < files.length; i++) {
+            final messageId = '${groupMessageId}_$i';
+            _pendingUploadNotifiers[messageId]?.dispose();
+            _pendingUploadNotifiers.remove(messageId);
+            _lastUploadPercent.remove(messageId);
+          }
+        });
+
+        // Delete pending message from cache on error
+        try {
+          await _localRepo.deletePendingMessage(groupMessageId);
+        } catch (e) {
+          print('⚠️ Failed to delete pending message from cache: $e');
+        }
       }
     }
   }
@@ -2984,6 +3683,271 @@ class _ParentGroupMessageSearchScreenState
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ✅ FULL-SCREEN IMAGE GALLERY VIEWER with zoom, pinch, and swipe
+/// Features:
+/// 1. Horizontal swipe between images (PageView)
+/// 2. Pinch-to-zoom (InteractiveViewer with 2-finger detection)
+/// 3. Double-tap toggle zoom (1x ↔ 2.5x)
+/// 4. Smart scroll lock (disables PageView when zoomed)
+/// 5. CachedNetworkImage with aggressive caching
+/// 6. Loading indicators and error fallbacks
+class _ImageGalleryViewer extends StatefulWidget {
+  final List<MediaMetadata> mediaList;
+  final int initialIndex;
+  final Map<String, String> localFilePaths;
+
+  const _ImageGalleryViewer({
+    required this.mediaList,
+    required this.initialIndex,
+    required this.localFilePaths,
+  });
+
+  @override
+  State<_ImageGalleryViewer> createState() => _ImageGalleryViewerState();
+}
+
+class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+  late Map<int, TransformationController> _transformationControllers;
+  late Map<int, bool> _zoomStates;
+  bool _isInteracting = false; // Track if user is zooming
+  int _pointerCount = 0; // Track number of fingers on screen
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+    _transformationControllers = {};
+    _zoomStates = {};
+
+    // Initialize transformation controllers and zoom states for all images
+    for (int i = 0; i < widget.mediaList.length; i++) {
+      final controller = TransformationController();
+      _transformationControllers[i] = controller;
+      _zoomStates[i] = false;
+
+      // Listen to transformation changes to track zoom state
+      controller.addListener(() {
+        final scale = controller.value.getMaxScaleOnAxis();
+        final isZoomed = scale > 1.01;
+        if (_zoomStates[i] != isZoomed) {
+          setState(() {
+            _zoomStates[i] = isZoomed;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    for (var controller in _transformationControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  // Disable horizontal scroll when zoomed or interacting
+  bool get _shouldDisableScroll =>
+      _isInteracting || (_zoomStates[_currentIndex] ?? false);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.mediaList.length}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        centerTitle: true,
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.horizontal,
+        physics: _shouldDisableScroll
+            ? const NeverScrollableScrollPhysics() // Lock scroll when zoomed
+            : const AlwaysScrollableScrollPhysics(),
+        onPageChanged: (index) {
+          // Reset zoom of previous image when switching pages
+          if (_transformationControllers[_currentIndex] != null) {
+            _transformationControllers[_currentIndex]!.value =
+                Matrix4.identity();
+          }
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        itemCount: widget.mediaList.length,
+        itemBuilder: (context, index) {
+          final media = widget.mediaList[index];
+          final publicUrl = media.publicUrl;
+          final localPath =
+              widget.localFilePaths[media.r2Key] ?? media.thumbnail;
+
+          return _buildImageViewer(index, localPath, publicUrl);
+        },
+      ),
+    );
+  }
+
+  Widget _buildImageViewer(int index, String? localPath, String? publicUrl) {
+    // Priority: Local file > Network image
+    final file = (localPath != null && localPath.isNotEmpty)
+        ? File(localPath)
+        : null;
+    final hasLocalFile = file != null && file.existsSync();
+    final hasNetwork = publicUrl != null && publicUrl.isNotEmpty;
+
+    Widget imageWidget;
+
+    if (hasLocalFile) {
+      // ✅ Local image with high-quality rendering
+      imageWidget = RepaintBoundary(
+        child: Image.file(
+          file,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          cacheWidth: 1200, // Cache optimization
+          errorBuilder: (_, __, ___) => _buildFallbackImage(),
+        ),
+      );
+    } else if (hasNetwork) {
+      // ✅ Network image with aggressive caching and loading indicator
+      imageWidget = RepaintBoundary(
+        child: CachedNetworkImage(
+          imageUrl: publicUrl,
+          key: ValueKey(publicUrl), // Widget identity
+          cacheKey: publicUrl, // Explicit cache key
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          memCacheWidth: 1200, // Memory cache optimization
+          maxWidthDiskCache: 1200, // Disk cache optimization
+          fadeInDuration: const Duration(milliseconds: 0), // No fade for cached
+          fadeOutDuration: const Duration(milliseconds: 0),
+          useOldImageOnUrlChange: true, // Keep showing old while loading new
+          imageBuilder: (context, imageProvider) => Image(
+            image: imageProvider,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            gaplessPlayback: true, // Seamless transition
+          ),
+          placeholder: (context, url) => const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  color: Color(0xFFFFA929),
+                  strokeWidth: 3,
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Loading image...',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          errorWidget: (context, url, error) => _buildFallbackImage(),
+        ),
+      );
+    } else {
+      imageWidget = _buildFallbackImage();
+    }
+
+    // ✅ Wrap with gesture detection for zoom control
+    return Listener(
+      onPointerDown: (event) {
+        setState(() {
+          _pointerCount++;
+          // Enable interaction mode when 2+ fingers detected
+          if (_pointerCount >= 2) {
+            _isInteracting = true;
+          }
+        });
+      },
+      onPointerUp: (event) {
+        setState(() {
+          _pointerCount--;
+          // Re-enable PageView when less than 2 fingers
+          if (_pointerCount < 2) {
+            // Small delay to prevent accidental swipe during zoom release
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (mounted && _pointerCount < 2) {
+                setState(() {
+                  _isInteracting = false;
+                });
+              }
+            });
+          }
+        });
+      },
+      onPointerCancel: (event) {
+        setState(() {
+          _pointerCount--;
+          if (_pointerCount < 2) {
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (mounted && _pointerCount < 2) {
+                setState(() {
+                  _isInteracting = false;
+                });
+              }
+            });
+          }
+        });
+      },
+      child: GestureDetector(
+        onDoubleTap: () {
+          // ✅ Double-tap toggle: 1x ↔ 2.5x zoom
+          final controller = _transformationControllers[index]!;
+          final scale = controller.value.getMaxScaleOnAxis();
+
+          if (scale > 1.1) {
+            // Zoom out to 1x
+            controller.value = Matrix4.identity();
+          } else {
+            // Zoom in to 2.5x at center
+            final matrix = Matrix4.identity()..scale(2.5);
+            controller.value = matrix;
+          }
+          setState(() {});
+        },
+        child: InteractiveViewer(
+          transformationController: _transformationControllers[index],
+          minScale: 1.0, // No zoom out below original size
+          maxScale: 5.0, // Max 5x zoom
+          panEnabled: _pointerCount >= 2, // Only pan with 2+ fingers
+          scaleEnabled: true, // Enable pinch zoom
+          boundaryMargin: const EdgeInsets.all(double.infinity),
+          clipBehavior: Clip.none,
+          child: Center(child: imageWidget),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFallbackImage() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.image, size: 64, color: Colors.white54),
+          SizedBox(height: 16),
+          Text('Image not available', style: TextStyle(color: Colors.white70)),
         ],
       ),
     );

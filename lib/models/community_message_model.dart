@@ -90,10 +90,14 @@ class CommunityMessageModel {
                 .toList()
           : null,
       createdAt: data['createdAt'] != null
-          ? (data['createdAt'] as Timestamp).toDate()
+          ? (data['createdAt'] is Timestamp
+                ? (data['createdAt'] as Timestamp).toDate()
+                : DateTime.fromMillisecondsSinceEpoch(data['createdAt'] as int))
           : DateTime.now(),
       updatedAt: data['updatedAt'] != null
-          ? (data['updatedAt'] as Timestamp).toDate()
+          ? (data['updatedAt'] is Timestamp
+                ? (data['updatedAt'] as Timestamp).toDate()
+                : DateTime.fromMillisecondsSinceEpoch(data['updatedAt'] as int))
           : null,
       isEdited: data['isEdited'] ?? false,
       isDeleted: data['isDeleted'] ?? false,
