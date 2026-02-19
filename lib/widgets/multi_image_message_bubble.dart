@@ -29,8 +29,8 @@ class MultiImageMessageBubble extends StatelessWidget {
     required this.onImageTap,
     this.uploadProgress,
     this.bubbleRadius = 18,
-    this.tileRadius = 14,
-    this.gap = 6,
+    this.tileRadius = 4,
+    this.gap = 1,
     this.maxScrollableHeight = 240,
   });
 
@@ -52,7 +52,6 @@ class MultiImageMessageBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: bubbleColor,
         borderRadius: BorderRadius.circular(bubbleRadius),
-        border: Border.all(color: borderColor, width: 0.5),
         boxShadow: [
           BoxShadow(
             color: theme.primaryColor.withOpacity(isDark ? 0.14 : 0.08),

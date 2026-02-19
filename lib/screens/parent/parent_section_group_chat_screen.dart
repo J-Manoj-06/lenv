@@ -1217,8 +1217,14 @@ class _ParentSectionGroupChatScreenState
                                                                       )
                                                                 : primaryColor,
                                                             width: isSelected
-                                                                ? 2.5
-                                                                : 1.5,
+                                                                ? 1.0
+                                                                : ((msg.multipleMedia !=
+                                                                              null &&
+                                                                          msg
+                                                                              .multipleMedia!
+                                                                              .isNotEmpty)
+                                                                      ? 0.5
+                                                                      : 1.5),
                                                           )
                                                         : (isSelected
                                                               ? Border.all(
