@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:async';
 import '../../services/chat_service.dart';
@@ -64,6 +65,15 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
   final bool _isUploading = false;
+
+  // Audio recording
+  final ValueNotifier<bool> _isRecording = ValueNotifier<bool>(false);
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  Timer? _recordingTimer;
+  String? _recordingPath;
+
+  // Pending uploads tracking
+  final Map<String, ValueNotifier<double>> _pendingUploadNotifiers = {};
 
   Future<void> _batchUpdateIncoming(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
@@ -194,6 +204,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
   void dispose() {
     _controller.dispose();
     _audioRecorder.dispose();
+    _recordingTimer?.cancel();
+    _isRecording.dispose();
+    _recordingDuration.dispose();
     super.dispose();
   }
 
@@ -239,6 +252,107 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
             }
           }
         });
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final directory = await getTemporaryDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        _recordingPath = '${directory.path}/recording_$timestamp.m4a';
+
+        await _audioRecorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.aacHe,
+            bitRate: 128000,
+            sampleRate: 44100,
+          ),
+          path: _recordingPath!,
+        );
+
+        _isRecording.value = true;
+        _recordingDuration.value = 0;
+        _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          _recordingDuration.value++;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission denied')),
+        );
+      }
+    } catch (e) {
+      print('❌ Error starting recording: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error starting recording: $e')));
+    }
+  }
+
+  Future<void> _stopAndDeleteRecording() async {
+    try {
+      await _audioRecorder.stop();
+      _recordingTimer?.cancel();
+      _isRecording.value = false;
+      _recordingDuration.value = 0;
+
+      if (_recordingPath != null) {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+        _recordingPath = null;
+      }
+    } catch (e) {
+      print('❌ Error deleting recording: $e');
+    }
+  }
+
+  Future<void> _stopAndSendRecording() async {
+    try {
+      final path = await _audioRecorder.stop();
+      _recordingTimer?.cancel();
+      _isRecording.value = false;
+      final duration = _recordingDuration.value;
+      _recordingDuration.value = 0;
+
+      if (path == null || _conversationId == null) {
+        print('❌ Recording path or conversation ID is null');
+        return;
+      }
+
+      final file = File(path);
+      if (!await file.exists()) {
+        print('❌ Recording file does not exist');
+        return;
+      }
+
+      // Queue upload in background service
+      final uploadId = await BackgroundUploadService().queueUpload(
+        file: file,
+        conversationId: _conversationId!,
+        senderId: widget.teacherId,
+        senderRole: 'teacher',
+        mediaType: 'message',
+      );
+
+      // Show confirmation
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Voice message queued for upload')),
+      );
+
+      _recordingPath = null;
+    } catch (e) {
+      print('❌ Error sending recording: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error sending recording: $e')));
+    }
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -397,50 +511,117 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
             minimum: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: _isUploading ? null : _showMediaOptions,
-                    icon: Icon(
-                      Icons.attach_file,
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade700,
-                    ),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      decoration: InputDecoration(
-                        hintText: 'Type your message...',
-                        filled: true,
-                        fillColor: isDark
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _isRecording,
+                builder: (context, isRecording, _) {
+                  if (isRecording) {
+                    // Recording UI
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: isDark
                             ? const Color(0xFF2A2A2A)
                             : Colors.grey.shade200,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(9999),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+                        borderRadius: BorderRadius.circular(9999),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: _stopAndDeleteRecording,
+                            icon: Icon(
+                              Icons.delete,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(Icons.mic, color: Colors.red),
+                          const SizedBox(width: 8),
+                          ValueListenableBuilder<int>(
+                            valueListenable: _recordingDuration,
+                            builder: (context, duration, _) {
+                              return Text(
+                                _formatDuration(duration),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              );
+                            },
+                          ),
+                          const Spacer(),
+                          CircleAvatar(
+                            backgroundColor: const Color(0xFF1362EB),
+                            child: IconButton(
+                              onPressed: _stopAndSendRecording,
+                              icon: const Icon(Icons.send, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Normal input UI
+                  return Row(
+                    children: [
+                      IconButton(
+                        onPressed: _isUploading ? null : _showMediaOptions,
+                        icon: Icon(
+                          Icons.attach_file,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade700,
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: _isUploading
-                        ? Colors.grey
-                        : const Color(0xFF1362EB),
-                    child: IconButton(
-                      onPressed: (_isUploading || _conversationId == null)
-                          ? null
-                          : () => _sendMessage(),
-                      icon: const Icon(Icons.send, color: Colors.white),
-                    ),
-                  ),
-                ],
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: 'Type your message...',
+                            filled: true,
+                            fillColor: isDark
+                                ? const Color(0xFF2A2A2A)
+                                : Colors.grey.shade200,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(9999),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      CircleAvatar(
+                        backgroundColor: _isUploading
+                            ? Colors.grey
+                            : const Color(0xFF1362EB),
+                        child: IconButton(
+                          onPressed: (_isUploading || _conversationId == null)
+                              ? null
+                              : _controller.text.trim().isNotEmpty
+                              ? () => _sendMessage()
+                              : () => _startRecording(),
+                          icon: Icon(
+                            _controller.text.trim().isNotEmpty
+                                ? Icons.send
+                                : Icons.mic,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),

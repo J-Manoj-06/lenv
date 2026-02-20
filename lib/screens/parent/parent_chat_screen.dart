@@ -1,7 +1,11 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import '../../services/chat_service.dart';
 import '../../providers/parent_provider.dart';
 
@@ -33,6 +37,23 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   String? _conversationId;
   // Track messages already scheduled for read marking to avoid re-scheduling.
   final Set<String> _scheduledReadIds = <String>{};
+
+  // Audio recording
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  final ValueNotifier<bool> _isRecording = ValueNotifier<bool>(false);
+  final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
+  Timer? _recordingTimer;
+  String? _recordingPath;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _audioRecorder.dispose();
+    _recordingTimer?.cancel();
+    _isRecording.dispose();
+    _recordingDuration.dispose();
+    super.dispose();
+  }
 
   Future<void> _batchUpdateIncoming(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
@@ -98,7 +119,6 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
     final teacherId = widget.teacherId;
     final studentId = child.uid;
 
-
     final id = await _chat.ensureConversation(
       schoolCode: schoolCode,
       teacherId: teacherId,
@@ -109,8 +129,79 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
       section: widget.section,
     );
 
-
     setState(() => _conversationId = id);
+  }
+
+  Future<void> _startRecording() async {
+    if (!await _audioRecorder.hasPermission()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Microphone permission needed')),
+      );
+      return;
+    }
+
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/ptc_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    await _audioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacHe, bitRate: 128000),
+      path: path,
+    );
+
+    setState(() {
+      _isRecording.value = true;
+      _recordingPath = path;
+      _recordingDuration.value = 0;
+    });
+
+    _recordingTimer?.cancel();
+    _recordingTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _recordingDuration.value++,
+    );
+  }
+
+  Future<void> _stopAndDeleteRecording() async {
+    _recordingTimer?.cancel();
+    await _audioRecorder.stop();
+
+    if (_recordingPath != null) {
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        print('Error deleting recording: $e');
+      }
+    }
+
+    setState(() {
+      _isRecording.value = false;
+      _recordingPath = null;
+      _recordingDuration.value = 0;
+    });
+  }
+
+  Future<void> _stopAndSendRecording() async {
+    if (!_isRecording.value) return;
+    _recordingTimer?.cancel();
+
+    final path = await _audioRecorder.stop();
+    setState(() => _isRecording.value = false);
+
+    if (path == null || _conversationId == null) return;
+
+    // TODO: Implement audio message upload similar to group chat
+    // For now, just show a message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Audio upload feature coming soon')),
+    );
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${minutes.toString().padLeft(1, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -265,55 +356,166 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
             minimum: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () {},
-                    icon: Icon(
-                      Icons.add_circle_outline,
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade700,
-                    ),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      decoration: InputDecoration(
-                        hintText: 'Type your message...',
-                        filled: true,
-                        fillColor: isDark
-                            ? const Color(0xFF2A2A2A)
-                            : Colors.grey.shade200,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(9999),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _isRecording,
+                builder: (context, isRecording, _) {
+                  if (isRecording) {
+                    // Show recording UI
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Row(
+                        children: [
+                          // Delete button
+                          Material(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(26),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(26),
+                              onTap: _stopAndDeleteRecording,
+                              child: const SizedBox(
+                                width: 52,
+                                height: 52,
+                                child: Icon(
+                                  Icons.delete,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Timer
+                          Expanded(
+                            child: ValueListenableBuilder<int>(
+                              valueListenable: _recordingDuration,
+                              builder: (context, duration, _) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 12,
+                                        height: 12,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _formatDuration(duration),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Send button
+                          Material(
+                            color: const Color(0xFF1362EB),
+                            borderRadius: BorderRadius.circular(26),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(26),
+                              onTap: _stopAndSendRecording,
+                              child: const SizedBox(
+                                width: 52,
+                                height: 52,
+                                child: Icon(
+                                  Icons.send,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Normal input UI
+                  return Row(
+                    children: [
+                      IconButton(
+                        onPressed: () {},
+                        icon: Icon(
+                          Icons.add_circle_outline,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade700,
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: const Color(0xFF1362EB),
-                    child: IconButton(
-                      onPressed: () async {
-                        final text = _controller.text.trim();
-                        if (text.isEmpty || _conversationId == null) return;
-                        await _chat.sendMessage(
-                          conversationId: _conversationId!,
-                          text: text,
-                          senderRole: 'parent',
-                        );
-                        _controller.clear();
-                      },
-                      icon: const Icon(Icons.send, color: Colors.white),
-                    ),
-                  ),
-                ],
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: 'Type your message...',
+                            filled: true,
+                            fillColor: isDark
+                                ? const Color(0xFF2A2A2A)
+                                : Colors.grey.shade200,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(9999),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      CircleAvatar(
+                        backgroundColor: const Color(0xFF1362EB),
+                        child: IconButton(
+                          onPressed: _controller.text.trim().isNotEmpty
+                              ? () async {
+                                  final text = _controller.text.trim();
+                                  if (text.isEmpty || _conversationId == null)
+                                    return;
+                                  await _chat.sendMessage(
+                                    conversationId: _conversationId!,
+                                    text: text,
+                                    senderRole: 'parent',
+                                  );
+                                  _controller.clear();
+                                }
+                              : _startRecording,
+                          icon: Icon(
+                            _controller.text.trim().isNotEmpty
+                                ? Icons.send
+                                : Icons.mic,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
