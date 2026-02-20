@@ -1204,35 +1204,48 @@ class _ParentSectionGroupChatScreenState
                                                 ),
                                                 child: DecoratedBox(
                                                   decoration: BoxDecoration(
-                                                    color: isSelected
-                                                        ? primaryColor
-                                                              .withOpacity(0.2)
-                                                        : bubbleColor,
-                                                    border: hasMedia
-                                                        ? Border.all(
-                                                            color: isSelected
-                                                                ? primaryColor
-                                                                      .withOpacity(
-                                                                        0.8,
-                                                                      )
-                                                                : primaryColor,
-                                                            width: isSelected
-                                                                ? 1.0
-                                                                : ((msg.multipleMedia !=
-                                                                              null &&
-                                                                          msg
-                                                                              .multipleMedia!
-                                                                              .isNotEmpty)
-                                                                      ? 0.5
-                                                                      : 1.5),
-                                                          )
+                                                    color:
+                                                        (msg.multipleMedia !=
+                                                                null &&
+                                                            msg
+                                                                .multipleMedia!
+                                                                .isNotEmpty)
+                                                        ? Colors.transparent
                                                         : (isSelected
+                                                              ? primaryColor
+                                                                    .withOpacity(
+                                                                      0.2,
+                                                                    )
+                                                              : bubbleColor),
+                                                    border:
+                                                        (msg.multipleMedia !=
+                                                                null &&
+                                                            msg
+                                                                .multipleMedia!
+                                                                .isNotEmpty)
+                                                        ? null
+                                                        : (hasMedia
                                                               ? Border.all(
                                                                   color:
-                                                                      primaryColor,
-                                                                  width: 2.5,
+                                                                      isSelected
+                                                                      ? primaryColor
+                                                                            .withOpacity(
+                                                                              0.8,
+                                                                            )
+                                                                      : primaryColor,
+                                                                  width:
+                                                                      isSelected
+                                                                      ? 1.0
+                                                                      : 1.5,
                                                                 )
-                                                              : null),
+                                                              : (isSelected
+                                                                    ? Border.all(
+                                                                        color:
+                                                                            primaryColor,
+                                                                        width:
+                                                                            2.5,
+                                                                      )
+                                                                    : null)),
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                           12,
@@ -1280,72 +1293,84 @@ class _ParentSectionGroupChatScreenState
                                                             msg
                                                                 .multipleMedia!
                                                                 .isNotEmpty) ...[
-                                                          MultiImageMessageBubble(
-                                                            imageUrls: msg
-                                                                .multipleMedia!
-                                                                .map((m) {
-                                                                  // Priority: publicUrl > localPath > thumbnail
-                                                                  if (m
-                                                                      .publicUrl
-                                                                      .isNotEmpty) {
-                                                                    return m
-                                                                        .publicUrl; // Uploaded image
-                                                                  }
-                                                                  final localPath =
-                                                                      _localSenderMediaPaths[m
-                                                                          .r2Key];
-                                                                  if (localPath !=
-                                                                          null &&
-                                                                      localPath
-                                                                          .isNotEmpty) {
-                                                                    return localPath; // Pending upload
-                                                                  }
-                                                                  // Fallback to thumbnail (local path stored during pending)
-                                                                  return m
-                                                                          .thumbnail
-                                                                          .isNotEmpty
-                                                                      ? m.thumbnail
-                                                                      : '';
-                                                                })
-                                                                .where(
-                                                                  (url) => url
-                                                                      .isNotEmpty,
-                                                                ) // Filter empty URLs
-                                                                .toList(),
-                                                            isMe: isCurrentUser,
-                                                            // ✅ Show upload progress for pending images
-                                                            uploadProgress:
-                                                                isPending
-                                                                ? msg.multipleMedia!.map((
-                                                                    m,
-                                                                  ) {
-                                                                    final notifier =
-                                                                        _pendingUploadNotifiers[m
-                                                                            .messageId];
-                                                                    return notifier !=
-                                                                            null
-                                                                        ? notifier.value /
-                                                                              100.0
-                                                                        : null;
-                                                                  }).toList()
-                                                                : null,
-                                                            onImageTap: (index) {
-                                                              // ✅ Open full-screen viewer with zoom, pinch, and swipe
-                                                              Navigator.of(
-                                                                context,
-                                                              ).push(
-                                                                MaterialPageRoute(
-                                                                  builder: (_) => _ImageGalleryViewer(
-                                                                    mediaList: msg
-                                                                        .multipleMedia!,
-                                                                    initialIndex:
-                                                                        index,
-                                                                    localFilePaths:
-                                                                        _localSenderMediaPaths,
-                                                                  ),
+                                                          Container(
+                                                            decoration:
+                                                                BoxDecoration(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        12,
+                                                                      ),
                                                                 ),
-                                                              );
-                                                            },
+                                                            clipBehavior:
+                                                                Clip.antiAlias,
+                                                            child: MultiImageMessageBubble(
+                                                              imageUrls: msg
+                                                                  .multipleMedia!
+                                                                  .map((m) {
+                                                                    // Priority: publicUrl > localPath > thumbnail
+                                                                    if (m
+                                                                        .publicUrl
+                                                                        .isNotEmpty) {
+                                                                      return m
+                                                                          .publicUrl; // Uploaded image
+                                                                    }
+                                                                    final localPath =
+                                                                        _localSenderMediaPaths[m
+                                                                            .r2Key];
+                                                                    if (localPath !=
+                                                                            null &&
+                                                                        localPath
+                                                                            .isNotEmpty) {
+                                                                      return localPath; // Pending upload
+                                                                    }
+                                                                    // Fallback to thumbnail (local path stored during pending)
+                                                                    return m
+                                                                            .thumbnail
+                                                                            .isNotEmpty
+                                                                        ? m.thumbnail
+                                                                        : '';
+                                                                  })
+                                                                  .where(
+                                                                    (url) => url
+                                                                        .isNotEmpty,
+                                                                  ) // Filter empty URLs
+                                                                  .toList(),
+                                                              isMe:
+                                                                  isCurrentUser,
+                                                              // ✅ Show upload progress for pending images
+                                                              uploadProgress:
+                                                                  isPending
+                                                                  ? msg.multipleMedia!.map((
+                                                                      m,
+                                                                    ) {
+                                                                      final notifier =
+                                                                          _pendingUploadNotifiers[m
+                                                                              .messageId];
+                                                                      return notifier !=
+                                                                              null
+                                                                          ? notifier.value /
+                                                                                100.0
+                                                                          : null;
+                                                                    }).toList()
+                                                                  : null,
+                                                              onImageTap: (index) {
+                                                                // ✅ Open full-screen viewer with zoom, pinch, and swipe
+                                                                Navigator.of(
+                                                                  context,
+                                                                ).push(
+                                                                  MaterialPageRoute(
+                                                                    builder: (_) => _ImageGalleryViewer(
+                                                                      mediaList:
+                                                                          msg.multipleMedia!,
+                                                                      initialIndex:
+                                                                          index,
+                                                                      localFilePaths:
+                                                                          _localSenderMediaPaths,
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              },
+                                                            ),
                                                           ),
                                                           if (msg
                                                               .content

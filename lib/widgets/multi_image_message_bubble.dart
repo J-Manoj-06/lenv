@@ -54,7 +54,7 @@ class MultiImageMessageBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(bubbleRadius),
         boxShadow: [
           BoxShadow(
-            color: theme.primaryColor.withOpacity(isDark ? 0.14 : 0.08),
+            color: theme.primaryColor.withOpacity(isDark ? 0.03 : 0.02),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
