@@ -28,8 +28,8 @@ class MultiImageMessageBubble extends StatelessWidget {
     required this.isMe,
     required this.onImageTap,
     this.uploadProgress,
-    this.bubbleRadius = 18,
-    this.tileRadius = 4,
+    this.bubbleRadius = 4,
+    this.tileRadius = 0,
     this.gap = 1,
     this.maxScrollableHeight = 240,
   });
@@ -60,7 +60,7 @@ class MultiImageMessageBubble extends StatelessWidget {
       ),
       padding: EdgeInsets.zero,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(bubbleRadius - 2),
+        borderRadius: BorderRadius.circular(bubbleRadius),
         child: content,
       ),
     );

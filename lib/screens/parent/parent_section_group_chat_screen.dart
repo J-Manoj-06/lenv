@@ -1226,9 +1226,9 @@ class _ParentSectionGroupChatScreenState
                                                         ? Border.all(
                                                             color: primaryColor
                                                                 .withOpacity(
-                                                                  0.4,
+                                                                  0.8,
                                                                 ),
-                                                            width: 0.5,
+                                                            width: 2.5,
                                                           )
                                                         : (hasMedia
                                                               ? Border.all(
@@ -1278,7 +1278,7 @@ class _ParentSectionGroupChatScreenState
                                                               msg
                                                                   .multipleMedia!
                                                                   .isNotEmpty)
-                                                          ? 0
+                                                          ? 2
                                                           : (hasMedia ? 4 : 12),
                                                       vertical:
                                                           (msg.multipleMedia !=
@@ -1286,7 +1286,7 @@ class _ParentSectionGroupChatScreenState
                                                               msg
                                                                   .multipleMedia!
                                                                   .isNotEmpty)
-                                                          ? 0
+                                                          ? 2
                                                           : (hasMedia ? 4 : 8),
                                                     ),
                                                     child: Column(
@@ -1671,7 +1671,7 @@ class _ParentSectionGroupChatScreenState
         : parentGreen;
 
     return Container(
-      color: primaryBackground,
+      color: isDark ? primaryBackground : Colors.grey.shade50,
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
       child: SafeArea(
         top: false,
@@ -1684,7 +1684,7 @@ class _ParentSectionGroupChatScreenState
               height: 42,
               margin: const EdgeInsets.only(right: 6),
               decoration: BoxDecoration(
-                color: secondaryBackground,
+                color: isDark ? secondaryBackground : Colors.white,
                 shape: BoxShape.circle,
               ),
               child: Material(
