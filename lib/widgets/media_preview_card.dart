@@ -631,11 +631,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       ),
     );
 
-    // Hide overlay when upload completes (progress reaches 1.0), even if still marked as "uploading"
-    // This allows the pending message to stay visible without blocking interaction
-    final shouldShowOverlay =
-        widget.uploading && ((widget.uploadProgress ?? 0.0) < 0.99);
-    if (!shouldShowOverlay) return card;
+    // Show overlay when uploading - parent will remove pending message when complete
+    if (!widget.uploading) return card;
 
     return Stack(
       alignment: Alignment.center,
@@ -877,7 +874,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
               // Uploading overlay centered inside the image (for sender pending)
               // Only show if actually uploading (pending message with progress)
-              if (widget.uploading && !_isDownloaded)
+              if (widget.uploading)
                 Positioned.fill(
                   child: AbsorbPointer(
                     absorbing: true,

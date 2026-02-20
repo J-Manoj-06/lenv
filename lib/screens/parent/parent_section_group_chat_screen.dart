@@ -107,7 +107,7 @@ class _ParentSectionGroupChatScreenState
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
-  bool _isRecording = false;
+  final ValueNotifier<bool> _isRecording = ValueNotifier<bool>(false);
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   Timer? _recordingTimer;
@@ -146,6 +146,7 @@ class _ParentSectionGroupChatScreenState
     }
     _selectedMessages.dispose();
     _hasText.dispose();
+    _isRecording.dispose();
     _isLoadingMoreNotifier.dispose();
     _controller.dispose();
     scrollController.dispose();
@@ -1670,176 +1671,235 @@ class _ParentSectionGroupChatScreenState
         ? teacherViolet
         : parentGreen;
 
-    return Container(
-      color: isDark ? primaryBackground : Colors.grey.shade50,
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // Attachment button - outside input
-            Container(
-              width: 42,
-              height: 42,
-              margin: const EdgeInsets.only(right: 6),
-              decoration: BoxDecoration(
-                color: isDark ? secondaryBackground : Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: _isUploading ? null : _showAttachmentSheet,
-                  borderRadius: BorderRadius.circular(21),
-                  child: Icon(
-                    Icons.add_rounded,
-                    color: _isUploading ? mutedText : primaryColor,
-                    size: 24,
-                  ),
-                ),
-              ),
-            ),
-            // Main input field - compact pill shape
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(
-                  minHeight: 42,
-                  maxHeight: 100,
-                ),
-                decoration: BoxDecoration(
-                  color: secondaryBackground,
-                  borderRadius: BorderRadius.circular(21),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        focusNode: _focusNode,
-                        minLines: 1,
-                        maxLines: 4,
-                        cursorColor: primaryColor,
-                        style: const TextStyle(
-                          color: primaryText,
-                          fontSize: 15,
-                          height: 1.4,
-                        ),
-                        decoration: const InputDecoration(
-                          hintText: 'Message',
-                          hintStyle: TextStyle(color: mutedText, fontSize: 15),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.fromLTRB(16, 11, 8, 11),
-                          isDense: true,
-                        ),
-                        keyboardType: TextInputType.multiline,
-                        textCapitalization: TextCapitalization.sentences,
-                        readOnly: _isRecording,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            // Send/Mic button - circular FAB
-            ValueListenableBuilder<bool>(
-              valueListenable: _hasText,
-              builder: (context, hasText, _) {
-                return Container(
+    return ValueListenableBuilder<bool>(
+      valueListenable: _isRecording,
+      builder: (context, isRecording, _) {
+        if (isRecording) {
+          return _buildRecordingBar(isDark, primaryColor);
+        }
+
+        return Container(
+          color: isDark ? primaryBackground : Colors.grey.shade50,
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+          child: SafeArea(
+            top: false,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Attachment button - outside input
+                Container(
                   width: 42,
                   height: 42,
+                  margin: const EdgeInsets.only(right: 6),
                   decoration: BoxDecoration(
-                    color: primaryColor,
+                    color: isDark ? secondaryBackground : Colors.white,
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
                   ),
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: _isRecording
-                          ? _stopAndSendRecording
-                          : (hasText ? _sendMessage : _startRecording),
+                      onTap: _isUploading ? null : _showAttachmentSheet,
                       borderRadius: BorderRadius.circular(21),
                       child: Icon(
-                        _isRecording
-                            ? Icons.send_rounded
-                            : (hasText
-                                  ? Icons.send_rounded
-                                  : Icons.mic_rounded),
-                        color: Colors.white,
-                        size: 20,
+                        Icons.add_rounded,
+                        color: _isUploading ? mutedText : primaryColor,
+                        size: 24,
                       ),
                     ),
                   ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecordingBar(bool isDark, Color primaryColor) {
-    return Container(
-      key: const ValueKey('recording'),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: primaryColor.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: primaryColor.withOpacity(isDark ? 0.4 : 0.6),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            margin: const EdgeInsets.only(right: 10),
-            decoration: BoxDecoration(
-              color: Colors.redAccent,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.redAccent.withOpacity(0.5),
-                  blurRadius: 8,
-                  spreadRadius: 1,
+                ),
+                // Main input field - compact pill shape
+                Expanded(
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minHeight: 42,
+                      maxHeight: 100,
+                    ),
+                    decoration: BoxDecoration(
+                      color: secondaryBackground,
+                      borderRadius: BorderRadius.circular(21),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            minLines: 1,
+                            maxLines: 4,
+                            cursorColor: primaryColor,
+                            style: const TextStyle(
+                              color: primaryText,
+                              fontSize: 15,
+                              height: 1.4,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Message',
+                              hintStyle: TextStyle(
+                                color: mutedText,
+                                fontSize: 15,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.fromLTRB(
+                                16,
+                                11,
+                                8,
+                                11,
+                              ),
+                              isDense: true,
+                            ),
+                            keyboardType: TextInputType.multiline,
+                            textCapitalization: TextCapitalization.sentences,
+                            readOnly: _isRecording.value,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                // Send/Mic button - circular FAB
+                ValueListenableBuilder<bool>(
+                  valueListenable: _hasText,
+                  builder: (context, hasText, _) {
+                    return Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: primaryColor,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _isRecording.value
+                              ? _stopAndSendRecording
+                              : (hasText ? _sendMessage : _startRecording),
+                          borderRadius: BorderRadius.circular(21),
+                          child: Icon(
+                            _isRecording.value
+                                ? Icons.send_rounded
+                                : (hasText
+                                      ? Icons.send_rounded
+                                      : Icons.mic_rounded),
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
           ),
-          ValueListenableBuilder<int>(
-            valueListenable: _recordingDuration,
-            builder: (context, duration, _) {
-              return Text(
-                _formatDuration(duration),
-                style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black87,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
+        );
+      },
+    );
+  }
+
+  Widget _buildRecordingBar(bool isDark, Color primaryColor) {
+    return ValueListenableBuilder<int>(
+      valueListenable: _recordingDuration,
+      builder: (context, duration, _) {
+        final minutes = duration ~/ 60;
+        final seconds = duration % 60;
+        final timeStr =
+            '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          color: isDark ? primaryBackground : Colors.grey.shade50,
+          child: SafeArea(
+            top: false,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Delete button
+                GestureDetector(
+                  onTap: _deleteRecording,
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.delete,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
                 ),
-              );
-            },
+
+                const SizedBox(width: 12),
+
+                // Recording indicator dot
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+
+                const SizedBox(width: 16),
+
+                // Timer
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.all(Radius.circular(18)),
+                  ),
+                  child: Text(
+                    timeStr,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Send button
+                GestureDetector(
+                  onTap: _stopAndSendRecording,
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.send,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-            onPressed: _deleteRecording,
-            splashRadius: 22,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -2713,7 +2773,7 @@ class _ParentSectionGroupChatScreenState
 
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
-        _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0);
+        _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0.01);
         _lastUploadPercent[pendingId] = -1;
       });
 
@@ -2809,7 +2869,7 @@ class _ParentSectionGroupChatScreenState
     );
 
     setState(() {
-      _isRecording = true;
+      _isRecording.value = true;
       _recordingPath = path;
       _recordingDuration.value = 0;
     });
@@ -2822,11 +2882,11 @@ class _ParentSectionGroupChatScreenState
   }
 
   Future<void> _stopAndSendRecording() async {
-    if (!_isRecording) return;
+    if (!_isRecording.value) return;
     _recordingTimer?.cancel();
 
     final path = await _audioRecorder.stop();
-    setState(() => _isRecording = false);
+    setState(() => _isRecording.value = false);
 
     if (path == null) return;
     final file = File(path);
@@ -2834,14 +2894,75 @@ class _ParentSectionGroupChatScreenState
     final user = auth.currentUser;
     if (user == null) return;
 
+    final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
+    final fileName = file.path.split('/').last;
+
     try {
-      setState(() => _isUploading = true);
+      // Create optimistic pending message
+      final pendingMetadata = MediaMetadata(
+        messageId: pendingId,
+        r2Key: 'pending/$fileName',
+        publicUrl: '',
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: await file.length(),
+        mimeType: 'audio/mp4',
+        originalFileName: fileName,
+      );
+
+      final pendingMessage = CommunityMessageModel(
+        messageId: pendingId,
+        communityId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name,
+        senderRole: widget.senderRole,
+        senderAvatar: user.profileImage ?? '',
+        type: 'audio',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: fileName,
+        mediaMetadata: pendingMetadata,
+        createdAt: DateTime.now(),
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+      );
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0.01);
+        _localSenderMediaPaths[pendingId] = file.path;
+        _lastUploadPercent[pendingId] = -1;
+      });
+
+      // Scroll to bottom to show new message
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (scrollController.hasClients) {
+          scrollController.jumpTo(0);
+        }
+      });
+
+      // Upload in background
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: file,
         conversationId: widget.groupId,
         senderId: user.uid,
         senderRole: widget.senderRole,
         mediaType: 'community',
+        onProgress: (progress) {
+          final percent = (progress * 100).toInt();
+          if (_lastUploadPercent[pendingId] != percent) {
+            _lastUploadPercent[pendingId] = percent;
+            _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
+          }
+        },
       );
 
       final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
@@ -2871,15 +2992,30 @@ class _ParentSectionGroupChatScreenState
       await _mediaRepository.cacheUploadedMedia(
         r2Key: r2Key,
         localPath: file.path,
-        fileName: file.path.split('/').last,
+        fileName: fileName,
         mimeType: mediaMessage.fileType,
         fileSize: mediaMessage.fileSize,
       );
+
+      // Remove pending message after successful upload
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.messageId == pendingId);
+          _pendingUploadNotifiers.remove(pendingId)?.dispose();
+          _lastUploadPercent.remove(pendingId);
+        });
+      }
 
       // ✅ Scroll to bottom to show newly sent voice message
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
+        // Remove pending message on error
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.messageId == pendingId);
+          _pendingUploadNotifiers.remove(pendingId)?.dispose();
+          _lastUploadPercent.remove(pendingId);
+        });
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send recording: $e')));
@@ -2894,13 +3030,13 @@ class _ParentSectionGroupChatScreenState
 
   Future<void> _deleteRecording() async {
     _recordingTimer?.cancel();
-    if (_isRecording) {
+    if (_isRecording.value) {
       try {
         await _audioRecorder.stop();
       } catch (_) {}
     }
     setState(() {
-      _isRecording = false;
+      _isRecording.value = false;
       _recordingDuration.value = 0;
     });
     try {
