@@ -696,16 +696,16 @@ class _ParentSectionGroupChatScreenState
         : parentGreen;
 
     return Scaffold(
-      backgroundColor: primaryBackground,
+      backgroundColor: isDark ? primaryBackground : Colors.white,
       appBar: AppBar(
-        backgroundColor: secondaryBackground,
+        backgroundColor: isDark ? secondaryBackground : Colors.grey.shade50,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: Icon(
             _selectionMode ? Icons.close : Icons.arrow_back_ios_new_rounded,
           ),
-          color: primaryText,
+          color: isDark ? primaryText : Colors.black87,
           onPressed: () {
             if (_selectionMode) {
               setState(() => _selectionMode = false);
@@ -723,8 +723,8 @@ class _ParentSectionGroupChatScreenState
                 builder: (context, selectedSet, _) {
                   return Text(
                     '${selectedSet.length} selected',
-                    style: const TextStyle(
-                      color: primaryText,
+                    style: TextStyle(
+                      color: isDark ? primaryText : Colors.black87,
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
                     ),
@@ -736,8 +736,8 @@ class _ParentSectionGroupChatScreenState
                 children: [
                   Text(
                     widget.groupName,
-                    style: const TextStyle(
-                      color: primaryText,
+                    style: TextStyle(
+                      color: isDark ? primaryText : Colors.black87,
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
                     ),
@@ -747,8 +747,8 @@ class _ParentSectionGroupChatScreenState
                   const SizedBox(height: 4),
                   Text(
                     '${widget.className ?? ''}${widget.section != null ? ' - ${widget.section}' : ''}',
-                    style: const TextStyle(
-                      color: mutedText,
+                    style: TextStyle(
+                      color: isDark ? mutedText : Colors.grey.shade600,
                       fontSize: 13,
                       fontWeight: FontWeight.normal,
                     ),
@@ -1223,7 +1223,13 @@ class _ParentSectionGroupChatScreenState
                                                             msg
                                                                 .multipleMedia!
                                                                 .isNotEmpty)
-                                                        ? null
+                                                        ? Border.all(
+                                                            color: primaryColor
+                                                                .withOpacity(
+                                                                  0.4,
+                                                                ),
+                                                            width: 0.5,
+                                                          )
                                                         : (hasMedia
                                                               ? Border.all(
                                                                   color:
@@ -1265,15 +1271,24 @@ class _ParentSectionGroupChatScreenState
                                                         ),
                                                   ),
                                                   child: Padding(
-                                                    padding:
-                                                        EdgeInsets.symmetric(
-                                                          horizontal: hasMedia
-                                                              ? 4
-                                                              : 12,
-                                                          vertical: hasMedia
-                                                              ? 4
-                                                              : 8,
-                                                        ),
+                                                    padding: EdgeInsets.symmetric(
+                                                      horizontal:
+                                                          (msg.multipleMedia !=
+                                                                  null &&
+                                                              msg
+                                                                  .multipleMedia!
+                                                                  .isNotEmpty)
+                                                          ? 0
+                                                          : (hasMedia ? 4 : 12),
+                                                      vertical:
+                                                          (msg.multipleMedia !=
+                                                                  null &&
+                                                              msg
+                                                                  .multipleMedia!
+                                                                  .isNotEmpty)
+                                                          ? 0
+                                                          : (hasMedia ? 4 : 8),
+                                                    ),
                                                     child: Column(
                                                       crossAxisAlignment:
                                                           isCurrentUser

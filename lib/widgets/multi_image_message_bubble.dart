@@ -41,16 +41,14 @@ class MultiImageMessageBubble extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final maxBubbleWidth = screenWidth * 0.7; // 70% of screen
 
-    final bubbleColor = isDark
-        ? const Color(0xFF11141B)
-        : const Color(0xFFF6F7FA);
+    final bubbleColor = isDark ? const Color(0xFF11141B) : Colors.white;
     final borderColor = const Color(0xFFFFA929).withOpacity(0.6);
 
     final content = _buildContent(context);
     //summa
     final bubbleContent = Container(
       decoration: BoxDecoration(
-        color: bubbleColor,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(bubbleRadius),
         boxShadow: [
           BoxShadow(
@@ -60,7 +58,7 @@ class MultiImageMessageBubble extends StatelessWidget {
           ),
         ],
       ),
-      padding: EdgeInsets.all(gap * 0.5),
+      padding: EdgeInsets.zero,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(bubbleRadius - 2),
         child: content,
@@ -369,6 +367,7 @@ class _ImageTileState extends State<_ImageTile>
   @override
   Widget build(BuildContext context) {
     super.build(context); // Must call super for AutomaticKeepAliveClientMixin
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ClipRRect(
       borderRadius: BorderRadius.circular(widget.radius),
       child: GestureDetector(
@@ -383,7 +382,9 @@ class _ImageTileState extends State<_ImageTile>
               opacity: _loaded ? 0.0 : 1.0,
               duration: const Duration(milliseconds: 250),
               child: Container(
-                decoration: BoxDecoration(color: Colors.grey.shade800),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                ),
                 child: const Center(
                   child: SizedBox(
                     width: 24,
@@ -526,25 +527,31 @@ class _ImageTileState extends State<_ImageTile>
   }
 
   Widget _errorFallback() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: Colors.grey.shade800,
-      child: const Center(
-        child: Icon(Icons.broken_image, color: Colors.white54, size: 36),
+      color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+      child: Center(
+        child: Icon(
+          Icons.broken_image,
+          color: isDark ? Colors.white54 : Colors.grey.shade600,
+          size: 36,
+        ),
       ),
     );
   }
 
   Widget _downloadPromptFallback() {
     _markLoadedAsync();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: Colors.grey.shade900,
+      color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.cloud_download_outlined,
-              color: Colors.white54,
+              color: isDark ? Colors.white54 : Colors.grey.shade600,
               size: 32,
             ),
             const SizedBox(height: 8),
