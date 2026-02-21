@@ -667,7 +667,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
     showModernAttachmentSheet(
       context,
       onCameraTap: _pickAndSendCamera,
-      onImageTap: _pickAndSendImage,
+      onImageTap: _pickAndSendImages, // Changed to multi-image
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
     );
@@ -790,6 +790,74 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to queue image: $e')));
+    }
+  }
+
+  /// Pick and send multiple images (up to 5)
+  Future<void> _pickAndSendImages() async {
+    if (_conversationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Initializing conversation...')),
+      );
+      return;
+    }
+
+    try {
+      // Pick multiple images (up to 5)
+      final List<XFile> pickedFiles = await _imagePicker.pickMultiImage(
+        limit: 5,
+        imageQuality: 70,
+      );
+
+      if (pickedFiles.isEmpty) return;
+
+      print('📸 Picked ${pickedFiles.length} images');
+
+      // Queue each image for upload with a shared group ID
+      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final groupMessageId = 'upload_${baseTimestamp}_${widget.teacherId.hashCode}';
+
+      for (int i = 0; i < pickedFiles.length; i++) {
+        final xFile = pickedFiles[i];
+        final file = File(xFile.path);
+        
+        if (!file.existsSync()) {
+          print('⚠️ File does not exist: ${xFile.path}');
+          continue;
+        }
+
+        final messageId = '${groupMessageId}_$i';
+        
+        // Queue upload in background service
+        await BackgroundUploadService().queueUpload(
+          file: file,
+          conversationId: _conversationId!,
+          senderId: widget.teacherId,
+          senderRole: 'teacher',
+          mediaType: 'message',
+          messageId: messageId,
+          groupId: groupMessageId, // Link all images together
+        );
+      }
+
+      // Show confirmation
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${pickedFiles.length} image${pickedFiles.length > 1 ? 's' : ''} queued for upload'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+      print('✅ ${pickedFiles.length} images queued for upload');
+    } catch (e) {
+      print('❌ Error in _pickAndSendImages: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick images: $e')),
+        );
+      }
     }
   }
 
