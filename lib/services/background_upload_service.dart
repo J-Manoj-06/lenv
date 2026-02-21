@@ -376,7 +376,7 @@ class BackgroundUploadService extends ChangeNotifier {
             await _chatService.sendMessage(
               conversationId: upload.conversationId,
               senderRole: upload.senderRole,
-              text: 'Sent a file: ${upload.fileName}',
+              text: '',
               mediaMetadata: metadata.toFirestore(),
             );
           }

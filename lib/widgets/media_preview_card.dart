@@ -484,6 +484,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: theme.cardColor,
+          border: Border.all(color: _accentColor.withOpacity(0.3), width: 1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(

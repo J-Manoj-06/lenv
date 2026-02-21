@@ -582,59 +582,72 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
                               constraints: const BoxConstraints(maxWidth: 360),
                               child: Stack(
                                 children: [
-                                  DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: isTeacher
-                                          ? const Color(0xFF1362EB)
-                                          : (isDark
-                                                ? const Color(0xFF2A2A2A)
-                                                : Colors.grey.shade200),
-                                      borderRadius: BorderRadius.circular(12)
-                                          .copyWith(
-                                            bottomRight: isTeacher
-                                                ? const Radius.circular(4)
-                                                : null,
-                                            bottomLeft: !isTeacher
-                                                ? const Radius.circular(4)
-                                                : null,
-                                          ),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          // Media handling
-                                          if (msg['mediaMetadata'] != null) ...[
-                                            _buildMediaAttachment(
-                                              msg['mediaMetadata'],
-                                              isTeacher,
-                                              isPending: isPending,
-                                              messageId: msg['messageId'],
+                                  // If message has ONLY media (no text), show media without bubble
+                                  if (msg['mediaMetadata'] != null &&
+                                      (msg['text'] ?? '').isEmpty)
+                                    _buildMediaAttachment(
+                                      msg['mediaMetadata'],
+                                      isTeacher,
+                                      isPending: isPending,
+                                      messageId: msg['messageId'],
+                                    )
+                                  else
+                                    // Otherwise show message bubble with media/text
+                                    DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: isTeacher
+                                            ? const Color(0xFF1362EB)
+                                            : (isDark
+                                                  ? const Color(0xFF2A2A2A)
+                                                  : Colors.grey.shade200),
+                                        borderRadius: BorderRadius.circular(12)
+                                            .copyWith(
+                                              bottomRight: isTeacher
+                                                  ? const Radius.circular(4)
+                                                  : null,
+                                              bottomLeft: !isTeacher
+                                                  ? const Radius.circular(4)
+                                                  : null,
                                             ),
-                                            if ((msg['text'] ?? '').isNotEmpty)
-                                              const SizedBox(height: 8),
-                                          ],
-                                          if ((msg['text'] ?? '').isNotEmpty)
-                                            Text(
-                                              msg['text'] ?? '',
-                                              style: TextStyle(
-                                                color: isTeacher
-                                                    ? Colors.white
-                                                    : (isDark
-                                                          ? Colors.white
-                                                          : Colors.black87),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 12,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            // Media handling
+                                            if (msg['mediaMetadata'] !=
+                                                null) ...[
+                                              _buildMediaAttachment(
+                                                msg['mediaMetadata'],
+                                                isTeacher,
+                                                isPending: isPending,
+                                                messageId: msg['messageId'],
                                               ),
-                                            ),
-                                        ],
+                                              if ((msg['text'] ?? '')
+                                                  .isNotEmpty)
+                                                const SizedBox(height: 8),
+                                            ],
+                                            if ((msg['text'] ?? '').isNotEmpty)
+                                              Text(
+                                                msg['text'] ?? '',
+                                                style: TextStyle(
+                                                  color: isTeacher
+                                                      ? Colors.white
+                                                      : (isDark
+                                                            ? Colors.white
+                                                            : Colors.black87),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
                                   // Show upload progress overlay for pending messages
                                   if (isPending &&
                                       _pendingUploadProgress.containsKey(
