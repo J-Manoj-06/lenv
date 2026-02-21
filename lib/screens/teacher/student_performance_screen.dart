@@ -1443,11 +1443,36 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
 
   Future<void> _startParentChat() async {
     setState(() => _parentChatLoading = true);
+
+    // Show loading dialog
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Row(
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 16),
+                const Expanded(child: Text('Finding parent contact...')),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final teacherId = auth.currentUser?.uid;
       if (teacherId == null) {
         if (mounted) {
+          Navigator.of(
+            context,
+            rootNavigator: true,
+          ).pop(); // Dismiss loading dialog
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text('Teacher ID not found')));
@@ -1468,6 +1493,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       );
 
       if (!mounted) return;
+
+      // Dismiss loading dialog
+      Navigator.of(context, rootNavigator: true).pop();
 
       if (parentData == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1544,6 +1572,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       );
     } catch (e) {
       if (mounted) {
+        Navigator.of(
+          context,
+          rootNavigator: true,
+        ).pop(); // Dismiss loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error opening chat: ${e.toString()}'),

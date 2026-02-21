@@ -495,8 +495,9 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                           onPressed: _controller.text.trim().isNotEmpty
                               ? () async {
                                   final text = _controller.text.trim();
-                                  if (text.isEmpty || _conversationId == null)
+                                  if (text.isEmpty || _conversationId == null) {
                                     return;
+                                  }
                                   await _chat.sendMessage(
                                     conversationId: _conversationId!,
                                     text: text,

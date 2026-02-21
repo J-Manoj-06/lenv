@@ -957,6 +957,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return;
     }
 
+    // Show loading dialog
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Row(
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 16),
+                const Expanded(child: Text('Finding parent contact...')),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     try {
       final messagingService = MessagingService();
 
@@ -985,6 +1005,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
 
       if (!mounted) return;
+
+      // Dismiss loading dialog
+      Navigator.of(context, rootNavigator: true).pop();
 
       if (parentData == null) {
         print('❌ No parent found for student: ${student['name']}');
@@ -1093,6 +1116,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       print('🔙 Returned from chat screen');
     } catch (e, stackTrace) {
       print('❌ Error in _openChat: $e');
+      if (mounted) {
+        Navigator.of(
+          context,
+          rootNavigator: true,
+        ).pop(); // Dismiss loading dialog
+      }
       print('📜 Stack trace: $stackTrace');
 
       if (mounted) {
