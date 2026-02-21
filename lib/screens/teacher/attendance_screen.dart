@@ -957,11 +957,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return;
     }
 
-    // Show loading dialog
+    // Show loading dialog (use rootNavigator: false to preserve local context)
     if (mounted) {
       showDialog(
         context: context,
         barrierDismissible: false,
+        useRootNavigator: false,
         builder: (ctx) => PopScope(
           canPop: false,
           child: AlertDialog(
@@ -1006,8 +1007,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       if (!mounted) return;
 
-      // Dismiss loading dialog
-      Navigator.of(context, rootNavigator: true).pop();
+      // Dismiss loading dialog and navigate on next frame
+      Navigator.of(context).pop();
+
+      if (!mounted) return;
 
       if (parentData == null) {
         print('❌ No parent found for student: ${student['name']}');
@@ -1088,39 +1091,42 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       print('🚀 Attempting navigation...');
 
-      // Create the screen first
-      print('📱 Creating TeacherChatScreen instance...');
-      final chatScreen = TeacherChatScreen(
-        schoolCode: schoolCode,
-        teacherId: teacherId,
-        parentId: parentId,
-        studentId: studentId,
-        parentName: parentName,
-        className: className.isEmpty ? 'Grade ?' : className,
-        section: section,
-        parentAvatarUrl: parentPhotoUrl,
-      );
-      print('✅ TeacherChatScreen instance created');
+      // Small delay to ensure dialog is fully dismissed
+      await Future.delayed(const Duration(milliseconds: 100));
 
-      // Navigate directly without any delays
-      print('📱 Calling Navigator.push...');
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (ctx) {
-            print('🎯 MaterialPageRoute builder called!');
-            return chatScreen;
-          },
-        ),
-      );
+      if (!mounted) {
+        print('❌ Widget not mounted after delay');
+        return;
+      }
 
-      print('🔙 Returned from chat screen');
+      print('📱 Navigating to chat...');
+
+      try {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (ctx) {
+              print('🎯 MaterialPageRoute builder called!');
+              return TeacherChatScreen(
+                schoolCode: schoolCode,
+                teacherId: teacherId,
+                parentId: parentId,
+                studentId: studentId,
+                parentName: parentName,
+                className: className.isEmpty ? 'Grade ?' : className,
+                section: section,
+                parentAvatarUrl: parentPhotoUrl,
+              );
+            },
+          ),
+        );
+        print('🔙 Returned from chat screen');
+      } catch (e) {
+        print('❌ Navigation error: $e');
+      }
     } catch (e, stackTrace) {
       print('❌ Error in _openChat: $e');
       if (mounted) {
-        Navigator.of(
-          context,
-          rootNavigator: true,
-        ).pop(); // Dismiss loading dialog
+        Navigator.of(context).pop(); // Dismiss loading dialog
       }
       print('📜 Stack trace: $stackTrace');
 

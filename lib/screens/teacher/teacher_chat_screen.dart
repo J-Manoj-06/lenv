@@ -1091,15 +1091,28 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
       await batch.commit();
 
       if (mounted) {
+        final deletedCount = _selectedMessages.length;
+
         setState(() {
           _selectionMode = false;
           _selectedMessages.clear();
         });
 
+        // Scroll to bottom after deletion
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (scrollController.hasClients) {
+            scrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${_selectedMessages.length} message${_selectedMessages.length != 1 ? 's' : ''} deleted for everyone',
+              '$deletedCount message${deletedCount != 1 ? 's' : ''} deleted for everyone',
             ),
             backgroundColor: Colors.green,
           ),
