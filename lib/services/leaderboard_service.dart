@@ -74,7 +74,6 @@ class LeaderboardService {
       final studentsSnap = await q.get();
       if (studentsSnap.docs.isEmpty) return <LeaderboardEntry>[];
 
-
       // 2) Batch fetch rewardPoints from users collection
       final entries = <LeaderboardEntry>[];
 
@@ -211,7 +210,6 @@ class LeaderboardService {
       yield [];
       return;
     }
-
 
     // ✅ STEP 1: Emit cached data IMMEDIATELY for instant display (0 seconds!)
     final cachedData = await CacheManager.getLeaderboardCache(

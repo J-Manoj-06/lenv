@@ -77,7 +77,7 @@ class InsightsTeacherPerformanceCard extends StatelessWidget {
                   ),
                 ),
               ],
-            ),    
+            ),
           ],
         ),
       ),

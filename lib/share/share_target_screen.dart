@@ -574,7 +574,7 @@ class _ShareTargetScreenState extends State<ShareTargetScreen> {
         messageData['fileSize'] = mediaMessage.fileSize;
         messageData['thumbnailUrl'] = mediaMessage.thumbnailUrl;
         messageData['mediaId'] = mediaMessage.id;
-            }
+      }
 
       // Send to appropriate destination based on type
       switch (destination.type) {

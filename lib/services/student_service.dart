@@ -150,8 +150,7 @@ class StudentService {
       if ((resolvedSchoolCode == null || resolvedSchoolCode.isEmpty) &&
           studentRefData != null) {
         resolvedSchoolCode = studentRefData['schoolCode'] as String?;
-      } else {
-      }
+      } else {}
 
       // Resolve school name via schoolCode -> schools collection lookup
       String? resolvedSchoolName = base.schoolName;
@@ -219,15 +218,13 @@ class StudentService {
         } catch (e) {
           // ignore; UI will still use resolved values even if persist fails
         }
-      } else {
-      }
+      } else {}
 
       // ✅ CRITICAL FIX: Also sync back to students collection if data was enriched
       if (studentRefData != null && updates.isNotEmpty) {
         try {
           await _firestore.collection('students').doc(user.uid).update(updates);
-        } catch (e) {
-        }
+        } catch (e) {}
       }
 
       // ✅ ENSURE students/{uid} document has ALL profile fields
@@ -265,8 +262,7 @@ class StudentService {
             });
           }
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       // Return enriched model for UI
       return base.copyWith(
@@ -303,8 +299,7 @@ class StudentService {
         final pts = data['pointsEarned'];
         if (pts is num) totalPoints += pts.toDouble();
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     return StudentModel(
       uid: user.uid,
@@ -463,8 +458,7 @@ class StudentService {
       await _firestore.collection('notifications').doc(notificationId).update({
         'isRead': true,
       });
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // Mark all notifications as read
@@ -481,8 +475,7 @@ class StudentService {
         batch.update(doc.reference, {'isRead': true});
       }
       await batch.commit();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // Submit daily challenge answer
@@ -516,7 +509,6 @@ class StudentService {
 
       // If correct, update student points AND create student_rewards entry
       if (isCorrect) {
-
         // Create student_rewards entry (same as test points)
         final rewardDoc = _firestore.collection('student_rewards').doc();
         await rewardDoc.set({
@@ -535,7 +527,6 @@ class StudentService {
           'rewardPoints': FieldValue.increment(challenge.points),
           'totalPoints': FieldValue.increment(challenge.points),
         }, SetOptions(merge: true));
-
       }
 
       return isCorrect;

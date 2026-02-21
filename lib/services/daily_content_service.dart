@@ -79,7 +79,9 @@ class DailyContent {
       quote: DailyQuote.fromMap(map['quote'] ?? {}),
       fact: DailyFact.fromMap(map['fact'] ?? {}),
       history: DailyHistory.fromMap(map['history'] ?? {}),
-      fetchedAt: DateTime.parse(map['fetchedAt'] ?? DateTime.now().toIso8601String()),
+      fetchedAt: DateTime.parse(
+        map['fetchedAt'] ?? DateTime.now().toIso8601String(),
+      ),
       status: map['status'] ?? 'unknown',
       errors: map['errors'] != null ? List<String>.from(map['errors']) : null,
     );
@@ -92,11 +94,7 @@ class DailyQuote {
   final String author;
   final String source;
 
-  DailyQuote({
-    required this.text,
-    required this.author,
-    required this.source,
-  });
+  DailyQuote({required this.text, required this.author, required this.source});
 
   factory DailyQuote.fromMap(Map<String, dynamic> map) {
     return DailyQuote(
@@ -108,27 +106,29 @@ class DailyQuote {
 
   /// Fallback quotes when Firestore data unavailable
   static List<DailyQuote> get fallbacks => [
-        DailyQuote(
-          text: 'Success is not final, failure is not fatal: it is the courage to continue that counts.',
-          author: 'Winston Churchill',
-          source: 'fallback',
-        ),
-        DailyQuote(
-          text: 'Believe you can and you\'re halfway there.',
-          author: 'Theodore Roosevelt',
-          source: 'fallback',
-        ),
-        DailyQuote(
-          text: 'The only way to do great work is to love what you do.',
-          author: 'Steve Jobs',
-          source: 'fallback',
-        ),
-        DailyQuote(
-          text: 'Education is the most powerful weapon which you can use to change the world.',
-          author: 'Nelson Mandela',
-          source: 'fallback',
-        ),
-      ];
+    DailyQuote(
+      text:
+          'Success is not final, failure is not fatal: it is the courage to continue that counts.',
+      author: 'Winston Churchill',
+      source: 'fallback',
+    ),
+    DailyQuote(
+      text: 'Believe you can and you\'re halfway there.',
+      author: 'Theodore Roosevelt',
+      source: 'fallback',
+    ),
+    DailyQuote(
+      text: 'The only way to do great work is to love what you do.',
+      author: 'Steve Jobs',
+      source: 'fallback',
+    ),
+    DailyQuote(
+      text:
+          'Education is the most powerful weapon which you can use to change the world.',
+      author: 'Nelson Mandela',
+      source: 'fallback',
+    ),
+  ];
 
   static DailyQuote randomFallback() {
     final fallbackList = fallbacks;
@@ -142,41 +142,33 @@ class DailyFact {
   final String text;
   final String source;
 
-  DailyFact({
-    required this.text,
-    required this.source,
-  });
+  DailyFact({required this.text, required this.source});
 
   factory DailyFact.fromMap(Map<String, dynamic> map) {
-    return DailyFact(
-      text: map['text'] ?? '',
-      source: map['source'] ?? '',
-    );
+    return DailyFact(text: map['text'] ?? '', source: map['source'] ?? '');
   }
 
   /// Fallback facts when Firestore data unavailable
   static List<DailyFact> get fallbacks => [
-        DailyFact(
-          text: 'The Eiffel Tower can be 15 cm taller during hot days due to thermal expansion.',
-          source: 'fallback',
-        ),
-        DailyFact(
-          text: 'Octopuses have three hearts and blue blood.',
-          source: 'fallback',
-        ),
-        DailyFact(
-          text: 'Bananas are berries, but strawberries are not.',
-          source: 'fallback',
-        ),
-        DailyFact(
-          text: 'Honeybees can recognize human faces.',
-          source: 'fallback',
-        ),
-        DailyFact(
-          text: 'A day on Venus is longer than its year.',
-          source: 'fallback',
-        ),
-      ];
+    DailyFact(
+      text:
+          'The Eiffel Tower can be 15 cm taller during hot days due to thermal expansion.',
+      source: 'fallback',
+    ),
+    DailyFact(
+      text: 'Octopuses have three hearts and blue blood.',
+      source: 'fallback',
+    ),
+    DailyFact(
+      text: 'Bananas are berries, but strawberries are not.',
+      source: 'fallback',
+    ),
+    DailyFact(text: 'Honeybees can recognize human faces.', source: 'fallback'),
+    DailyFact(
+      text: 'A day on Venus is longer than its year.',
+      source: 'fallback',
+    ),
+  ];
 
   static DailyFact randomFallback() {
     final fallbackList = fallbacks;
@@ -190,43 +182,49 @@ class DailyHistory {
   final List<HistoryEvent> events;
   final String source;
 
-  DailyHistory({
-    required this.events,
-    required this.source,
-  });
+  DailyHistory({required this.events, required this.source});
 
   factory DailyHistory.fromMap(Map<String, dynamic> map) {
     final eventsList = map['events'] as List?;
     return DailyHistory(
-      events: eventsList?.map((e) => HistoryEvent.fromMap(e as Map<String, dynamic>)).toList() ?? [],
+      events:
+          eventsList
+              ?.map((e) => HistoryEvent.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       source: map['source'] ?? '',
     );
   }
 
   /// Fallback history events when Firestore data unavailable
   static List<HistoryEvent> get fallbacks => [
-        HistoryEvent(
-          text: 'The Wright Brothers made the first powered, sustained, and controlled airplane flight',
-          year: '1903',
-          title: 'Wright Brothers\' First Flight',
-          thumb: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/First_flight2.jpg/240px-First_flight2.jpg',
-          category: 'Technology',
-        ),
-        HistoryEvent(
-          text: 'The Declaration of Independence was adopted by the Continental Congress',
-          year: '1776',
-          title: 'Declaration of Independence',
-          thumb: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Declaration_of_Independence.jpg/240px-Declaration_of_Independence.jpg',
-          category: 'Politics',
-        ),
-        HistoryEvent(
-          text: 'Albert Einstein published his theory of Special Relativity',
-          year: '1905',
-          title: 'Theory of Special Relativity',
-          thumb: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Albert_Einstein_Head.jpg/240px-Albert_Einstein_Head.jpg',
-          category: 'Science',
-        ),
-      ];
+    HistoryEvent(
+      text:
+          'The Wright Brothers made the first powered, sustained, and controlled airplane flight',
+      year: '1903',
+      title: 'Wright Brothers\' First Flight',
+      thumb:
+          'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/First_flight2.jpg/240px-First_flight2.jpg',
+      category: 'Technology',
+    ),
+    HistoryEvent(
+      text:
+          'The Declaration of Independence was adopted by the Continental Congress',
+      year: '1776',
+      title: 'Declaration of Independence',
+      thumb:
+          'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Declaration_of_Independence.jpg/240px-Declaration_of_Independence.jpg',
+      category: 'Politics',
+    ),
+    HistoryEvent(
+      text: 'Albert Einstein published his theory of Special Relativity',
+      year: '1905',
+      title: 'Theory of Special Relativity',
+      thumb:
+          'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Albert_Einstein_Head.jpg/240px-Albert_Einstein_Head.jpg',
+      category: 'Science',
+    ),
+  ];
 
   static DailyHistory randomFallback() {
     final fallbackList = fallbacks;

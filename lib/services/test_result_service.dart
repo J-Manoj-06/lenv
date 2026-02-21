@@ -29,7 +29,6 @@ class TestResultService {
           .limit(50) // fetch a reasonable number, then sort locally
           .get();
 
-
       final results = snapshot.docs.map((doc) {
         final data = doc.data();
         // Normalize numeric fields from Firestore (which may be int or double)

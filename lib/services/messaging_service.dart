@@ -15,7 +15,6 @@ class MessagingService {
     String? studentEmail,
   }) async {
     try {
-
       // ✅ OPTIMIZATION: Strategy 1 - Direct lookup via student.parentId
       final studentDoc = await _firestore
           .collection('students')
@@ -31,7 +30,6 @@ class MessagingService {
         final parentPhone = studentData['parentPhone'] as String?;
 
         if (parentId != null && parentId.isNotEmpty) {
-
           // If we have parentAuthUid, return immediately (1 read total)
           if (parentAuthUid != null && parentAuthUid.isNotEmpty) {
             return {
@@ -82,7 +80,6 @@ class MessagingService {
           };
         }
       }
-
 
       // ✅ FALLBACK: Legacy method - scan parents (only if parentId not set)
       final allParents = await _firestore
@@ -140,7 +137,6 @@ class MessagingService {
 
       // Strategy 3: Match by phone number if available
       if (parentPhone != null && parentPhone.isNotEmpty) {
-
         for (final phoneField in ['phoneNumber', 'phone', 'parent_contact']) {
           final byPhone = await _firestore
               .collection('parents')

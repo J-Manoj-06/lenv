@@ -31,8 +31,7 @@ class MediaStorageHelper {
         }
         return mediaDir;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     // Fallback 1: External storage
     try {
@@ -46,8 +45,7 @@ class MediaStorageHelper {
         }
         return mediaDir;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     // Fallback 2: App documents
     try {
@@ -119,7 +117,6 @@ class MediaStorageHelper {
           final finalPath = resolvedPath ?? uri;
           return finalPath;
         }
-
       } catch (e) {
         // Fall through to non-Android path
       }
@@ -195,8 +192,7 @@ class MediaStorageHelper {
       );
 
       await prefs.setString(_storageKey, json.encode(jsonMap));
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get metadata for a specific media key
@@ -243,8 +239,7 @@ class MediaStorageHelper {
       );
 
       await prefs.setString(_storageKey, json.encode(jsonMap));
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Clear all downloaded media (files + metadata)
@@ -259,9 +254,7 @@ class MediaStorageHelper {
       // Clear metadata
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_storageKey);
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get total storage used by downloaded media

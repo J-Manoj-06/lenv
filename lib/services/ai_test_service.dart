@@ -251,7 +251,6 @@ class AITestService {
       final jitter = _random.nextInt(1000); // 0-1000ms jitter
       final totalDelay = delay.inMilliseconds + jitter;
 
-
       await Future.delayed(Duration(milliseconds: totalDelay));
 
       // Exponential backoff
@@ -282,7 +281,6 @@ class AITestService {
         'temperature': AITestConfig.temperature,
         'max_tokens': AITestConfig.maxTokens,
       });
-
 
       final response = await _client
           .post(

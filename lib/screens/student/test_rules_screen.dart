@@ -195,9 +195,7 @@ class TestRulesScreen extends StatelessWidget {
                             builder: (context) => AlertDialog(
                               title: const Text('Test not started'),
                               content: Text(
-                                'This test will be available starting on ${'${test.startDate.toLocal()}'.split(
-                                      '.',
-                                    )[0]}. Please try again later.',
+                                'This test will be available starting on ${'${test.startDate.toLocal()}'.split('.')[0]}. Please try again later.',
                               ),
                               actions: [
                                 TextButton(

@@ -60,7 +60,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
             userRole: 'parent',
             schoolId: user.instituteId,
           );
-          
+
           // Initialize unread count provider
           if (mounted) {
             final unreadProvider = Provider.of<UnreadCountProvider>(
@@ -69,7 +69,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
             );
             unreadProvider.initialize(user.uid);
           }
-          
+
           if (mounted) {
             Navigator.pushReplacementNamed(context, '/parent-dashboard');
           }
@@ -101,9 +101,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
   void _handleForgotPassword() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const ForgotPasswordScreen(
-          role: 'parent',
-        ),
+        builder: (_) => const ForgotPasswordScreen(role: 'parent'),
       ),
     );
   }

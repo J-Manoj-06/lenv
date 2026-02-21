@@ -32,7 +32,6 @@ class TestCompletionHelper {
 
       // Save to Firestore
       await _testService.saveTestResult(studentId, testResult);
-
     } catch (e) {
       rethrow;
     }
@@ -60,14 +59,13 @@ class TestCompletionHelper {
       // Wait a bit to get different timestamps
       await Future.delayed(const Duration(milliseconds: 500));
     }
-
   }
 }
 
 // USAGE IN YOUR TEST SCREEN:
-// 
+//
 // After student completes test:
-// 
+//
 // final helper = TestCompletionHelper();
 // await helper.saveTestResult(
 //   studentId: currentUser.uid,

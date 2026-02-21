@@ -10,7 +10,6 @@ class BadgeService {
     String badgeId, {
     String? testId,
   }) async {
-
     // Prefer dedicated collection: student_badges/{studentId}
     final badgeDocRef = _firestore.collection('student_badges').doc(studentId);
     final badgeDoc = await badgeDocRef.get();
@@ -29,7 +28,6 @@ class BadgeService {
       if (testId != null) 'testId': testId,
     };
 
-
     // Write to dedicated badges document (create if missing)
     if (!badgeDoc.exists) {
       await badgeDocRef.set({
@@ -46,24 +44,19 @@ class BadgeService {
       await _firestore.collection('students').doc(studentId).update({
         'badges': FieldValue.arrayUnion([entry]),
       });
-    } catch (e) {
-    }
-
+    } catch (e) {}
   }
 
   Future<List<Map<String, dynamic>>> fetchEarnedBadgesRaw(
     String studentId,
   ) async {
-
     // Read from dedicated collection first
     final badgeDoc = await _firestore
         .collection('student_badges')
         .doc(studentId)
         .get();
 
-
     List<dynamic> earned = (badgeDoc.data()?['badges'] ?? []) as List<dynamic>;
-
 
     // Fallback: students/{id}.badges array
     if (earned.isEmpty) {
@@ -74,8 +67,7 @@ class BadgeService {
             .get();
         final sdata = sdoc.data();
         earned = (sdata?['badges'] ?? []) as List<dynamic>;
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     return earned.cast<Map<String, dynamic>>();

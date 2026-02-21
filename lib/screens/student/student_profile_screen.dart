@@ -51,8 +51,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       // Start live streams (attendance and class rank) after student data loads
       _startLiveAttendanceStream();
       _startLiveClassRankStream();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   void _startLiveAttendanceStream() {
@@ -137,18 +136,14 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           section: section,
           limit: 200,
         )
-        .listen(
-          (entries) {
-            final idx = entries.indexWhere((e) => e.studentId == s.uid);
-            if (mounted) {
-              setState(() {
-                _classRank = idx == -1 ? _classRank : (idx + 1);
-              });
-            }
-          },
-          onError: (e) {
-          },
-        );
+        .listen((entries) {
+          final idx = entries.indexWhere((e) => e.studentId == s.uid);
+          if (mounted) {
+            setState(() {
+              _classRank = idx == -1 ? _classRank : (idx + 1);
+            });
+          }
+        }, onError: (e) {});
   }
 
   @override

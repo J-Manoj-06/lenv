@@ -42,10 +42,12 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
   Widget build(BuildContext context) {
     final title = widget.quizData['title']?.toString() ?? 'Quiz';
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF121212) : Colors.white;
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF121212)
+        : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
-    
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(

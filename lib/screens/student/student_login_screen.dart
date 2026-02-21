@@ -121,7 +121,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
               userRole: 'student',
               schoolId: user.instituteId,
             );
-            
+
             // Initialize unread count provider
             if (mounted) {
               final unreadProvider = Provider.of<UnreadCountProvider>(
@@ -130,7 +130,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
               );
               unreadProvider.initialize(user.uid);
             }
-            
+
             if (mounted) {
               Navigator.pushReplacementNamed(context, '/student-dashboard');
             }
@@ -164,9 +164,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     // Navigate to shared Forgot Password screen so users can edit email calmly
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const ForgotPasswordScreen(
-          role: 'student',
-        ),
+        builder: (_) => const ForgotPasswordScreen(role: 'student'),
       ),
     );
   }

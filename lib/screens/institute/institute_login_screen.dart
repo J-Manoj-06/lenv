@@ -122,7 +122,7 @@ class _InstituteLoginScreenState extends State<InstituteLoginScreen> {
               userRole: 'institute',
               schoolId: user.instituteId,
             );
-            
+
             // Initialize unread count provider for institute user
             if (mounted) {
               final unreadProvider = Provider.of<UnreadCountProvider>(
@@ -131,11 +131,12 @@ class _InstituteLoginScreenState extends State<InstituteLoginScreen> {
               );
               unreadProvider.initialize(user.uid);
             }
-            
+
             // Trigger cleanup of expired announcements (non-blocking)
-            AnnouncementCleanupService.runAllCleanup()
-              .catchError((e) => print('Cleanup error: $e'));
-            
+            AnnouncementCleanupService.runAllCleanup().catchError(
+              (e) => print('Cleanup error: $e'),
+            );
+
             if (mounted) {
               Navigator.pushReplacementNamed(context, '/institute-dashboard');
             }
@@ -166,9 +167,7 @@ class _InstituteLoginScreenState extends State<InstituteLoginScreen> {
   void _handleForgotPassword() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const ForgotPasswordScreen(
-          role: 'institute',
-        ),
+        builder: (_) => const ForgotPasswordScreen(role: 'institute'),
       ),
     );
   }

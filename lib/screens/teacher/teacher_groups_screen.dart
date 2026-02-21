@@ -46,7 +46,6 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
 
       _teacherId = currentUser.uid;
 
-
       // Query all classes where this teacher teaches any subject
       final classesSnapshot = await _firestore.collection('classes').get();
 
@@ -86,7 +85,6 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
         if (sectionCompare != 0) return sectionCompare;
         return a['subject'].compareTo(b['subject']);
       });
-
 
       setState(() {
         _teacherGroups = groups;

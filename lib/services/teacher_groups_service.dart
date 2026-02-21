@@ -33,7 +33,6 @@ class TeacherGroupsService {
         return _cachedTeacherGroups;
       }
 
-
       final doc = await _firestore
           .collection('teacher_groups')
           .doc(teacherId)
@@ -88,9 +87,7 @@ class TeacherGroupsService {
         unreadCounts[groupId] = 0;
         _cachedTeacherGroups!['unreadCounts'] = unreadCounts;
       }
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Increment unread count for a group
@@ -106,9 +103,7 @@ class TeacherGroupsService {
       if (_cachedTeacherId == teacherId) {
         clearCache();
       }
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get unread count for a specific group
@@ -167,7 +162,6 @@ class TeacherGroupsService {
   /// This should ideally be done server-side
   Future<bool> rebuildTeacherGroupsIndex(String teacherId) async {
     try {
-
       // Scan classes to find teacher's subjects
       final classesSnapshot = await _firestore.collection('classes').get();
 

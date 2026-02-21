@@ -7,7 +7,11 @@ class ForgotPasswordScreen extends StatefulWidget {
   final String role; // 'student' | 'teacher' | 'parent' | 'institute'
   final String? initialEmail;
 
-  const ForgotPasswordScreen({super.key, required this.role, this.initialEmail});
+  const ForgotPasswordScreen({
+    super.key,
+    required this.role,
+    this.initialEmail,
+  });
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -48,7 +52,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Navigator.pop(context, true);
       } else {
         if (mounted) {
-          showErrorSnackbar(context, 'Failed to send reset email', role: widget.role);
+          showErrorSnackbar(
+            context,
+            'Failed to send reset email',
+            role: widget.role,
+          );
         }
       }
     } catch (e) {
@@ -65,10 +73,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reset Password'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Reset Password'), centerTitle: true),
       backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
       body: SafeArea(
         child: Padding(

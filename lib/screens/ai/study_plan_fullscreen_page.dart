@@ -33,12 +33,16 @@ class StudyPlanFullScreenPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final dayPlans = _parseDays(planText);
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF121212) : Colors.white;
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF121212)
+        : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
-    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final cardColor = isDarkTheme
+        ? const Color(0xFF2A2A2A)
+        : Colors.grey.shade100;
     final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
-    
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(

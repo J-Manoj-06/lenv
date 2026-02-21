@@ -11,11 +11,13 @@ class BrainGamesMenuScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF1A1A1A)
+        : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
-    
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -126,7 +128,7 @@ class _GameCard extends StatelessWidget {
     final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
-    
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),

@@ -31,7 +31,8 @@ class ImageCompressionService {
       return await compute(_compressImageIsolate, {
         'bytes': bytes,
         'quality': customQuality ?? (aggressive ? aggressiveQuality : quality),
-        'maxWidth': customMaxWidth ?? (aggressive ? aggressiveMaxWidth : maxWidth),
+        'maxWidth':
+            customMaxWidth ?? (aggressive ? aggressiveMaxWidth : maxWidth),
         'maxHeight': aggressive ? aggressiveMaxHeight : maxHeight,
       });
     } catch (e) {

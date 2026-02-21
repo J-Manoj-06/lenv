@@ -29,8 +29,7 @@ class CacheManager {
         _studentDataTimestampKey,
         DateTime.now().millisecondsSinceEpoch,
       );
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Restore cached student data
@@ -107,8 +106,7 @@ class CacheManager {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_studentDataKey);
       await prefs.remove(_studentDataTimestampKey);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // ==================== TOPPER POINTS CACHE ====================
@@ -127,8 +125,7 @@ class CacheManager {
 
       await prefs.setInt(cacheKey, points);
       await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get cached topper points if still valid (within 5 minutes)
@@ -152,11 +149,9 @@ class CacheManager {
         // Cache valid for 5 minutes (300000 milliseconds)
         if (age < 300000) {
           return cachedPoints;
-        } else {
-        }
+        } else {}
       }
-    } catch (e) {
-    }
+    } catch (e) {}
     return null;
   }
 
@@ -172,8 +167,7 @@ class CacheManager {
 
       await prefs.remove(cacheKey);
       await prefs.remove(timestampKey);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // ==================== GENERIC DATA CACHE ====================
@@ -188,8 +182,7 @@ class CacheManager {
         '${key}_timestamp',
         DateTime.now().millisecondsSinceEpoch,
       );
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Generic restore method for any JSON-serializable data
@@ -234,8 +227,7 @@ class CacheManager {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(key);
       await prefs.remove('${key}_timestamp');
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // ==================== BULK OPERATIONS ====================
@@ -254,9 +246,7 @@ class CacheManager {
           await prefs.remove(key);
         }
       }
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get cache statistics (for debugging)
@@ -301,8 +291,7 @@ class CacheManager {
       final leaderboardJson = jsonEncode(entries);
       await prefs.setString(cacheKey, leaderboardJson);
       await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get cached leaderboard data for instant display

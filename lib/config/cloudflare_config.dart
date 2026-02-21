@@ -108,7 +108,7 @@ class CloudflareConfigEnv {
 }
 
 /// Setup Instructions:
-/// 
+///
 /// 1. Go to: https://dash.cloudflare.com
 /// 2. Select your account
 /// 3. Go to R2 (Cloudflare's object storage)
@@ -124,7 +124,7 @@ class CloudflareConfigEnv {
 /// 9. Copy Access Key ID and Secret Access Key
 /// 10. (Optional) Setup custom domain in R2 Settings
 /// 11. Update this file with actual credentials
-/// 
+///
 /// For Production Security:
 /// 1. Use Firebase Cloud Functions to generate signed URLs
 /// 2. Store credentials in Cloudflare environment variables

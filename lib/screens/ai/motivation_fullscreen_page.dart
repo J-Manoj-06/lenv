@@ -10,11 +10,13 @@ class MotivationFullScreenPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF121212) : Colors.white;
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF121212)
+        : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final iconColor = isDarkTheme ? Colors.white : Colors.black87;
-    
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(

@@ -23,7 +23,9 @@ class _PathEchoContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<PathEchoProvider>();
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF1A1A1A)
+        : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
@@ -84,7 +86,9 @@ class _PathEchoContent extends StatelessWidget {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
-    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final cardColor = isDarkTheme
+        ? const Color(0xFF2A2A2A)
+        : Colors.grey.shade100;
 
     return Center(
       child: Padding(
@@ -206,7 +210,9 @@ class _PathEchoContent extends StatelessWidget {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
-    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final cardColor = isDarkTheme
+        ? const Color(0xFF2A2A2A)
+        : Colors.grey.shade100;
     final dividerColor = secondaryTextColor.withOpacity(0.3);
 
     return Column(

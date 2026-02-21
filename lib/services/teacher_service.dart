@@ -279,7 +279,6 @@ class TeacherService {
         return await getStudentsByTeacher(schoolId, classesHandled, sections);
       }
 
-
       final students = await getStudentsByTeacher(
         schoolId,
         classesHandled,

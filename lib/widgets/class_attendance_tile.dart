@@ -32,9 +32,10 @@ class _ClassAttendanceTileState extends State<ClassAttendanceTile>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    _iconTurns = Tween<double>(begin: 0.0, end: 0.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _iconTurns = Tween<double>(
+      begin: 0.0,
+      end: 0.5,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -61,10 +62,7 @@ class _ClassAttendanceTileState extends State<ClassAttendanceTile>
       decoration: BoxDecoration(
         color: widget.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
       ),
       child: Column(
         children: [
@@ -115,10 +113,13 @@ class _ClassAttendanceTileState extends State<ClassAttendanceTile>
                           const SizedBox(height: 4),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: widget.classData.statusColor
-                                  .withOpacity(0.2),
+                              color: widget.classData.statusColor.withOpacity(
+                                0.2,
+                              ),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -231,10 +232,7 @@ class _ClassAttendanceTileState extends State<ClassAttendanceTile>
                   ),
                   Text(
                     'Roll ${student.rollNo}',
-                    style: TextStyle(
-                      color: widget.subtitleColor,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: widget.subtitleColor, fontSize: 12),
                   ),
                 ],
               ),

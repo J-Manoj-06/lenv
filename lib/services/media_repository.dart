@@ -79,7 +79,6 @@ class MediaRepository {
     String? thumbnailBase64,
   }) async {
     try {
-
       // Check if already downloaded
       if (await isDownloaded(r2Key)) {
         final metadata = await _storageHelper.getMediaMetadata(r2Key);
@@ -92,7 +91,7 @@ class MediaRepository {
 
       // Normalize r2Key: add 'media/' prefix if missing (for backward compatibility with old messages)
       final normalizedKey = r2Key.startsWith('media/') ? r2Key : 'media/$r2Key';
-      
+
       // Build Cloudflare Worker URL
       final url = '$cloudflareBaseUrl/$normalizedKey';
 
@@ -138,8 +137,7 @@ class MediaRepository {
         if (contentLength > 0 && onProgress != null) {
           final progress = downloadedBytes / contentLength;
           onProgress(progress);
-          if (downloadedBytes % (1024 * 100) == 0) {
-          }
+          if (downloadedBytes % (1024 * 100) == 0) {}
         }
       }
 

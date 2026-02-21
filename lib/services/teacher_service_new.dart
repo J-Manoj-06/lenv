@@ -57,7 +57,6 @@ class TeacherService {
 
       // First, try using classesHandled + sections if available
       if (classesHandled != null && classesHandled.isNotEmpty) {
-
         final sectionList = _normalizeSections(sections);
         if (sectionList.isEmpty) {
           return [];

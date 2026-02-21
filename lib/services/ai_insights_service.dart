@@ -27,8 +27,7 @@ class AiInsightsService {
         .where((test) => !test.isAttempted)
         .toList();
 
-    for (var test in results) {
-    }
+    for (var test in results) {}
 
     if (attemptedTests.isEmpty) {
       return InsightResult(

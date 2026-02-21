@@ -9,12 +9,14 @@ class HistoryFullScreenPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF121212) : Colors.white;
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF121212)
+        : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final subtitleColor = isDarkTheme ? Colors.grey.shade400 : Colors.black54;
     final iconColor = isDarkTheme ? Colors.white : Colors.black87;
-    
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -38,10 +40,7 @@ class HistoryFullScreenPage extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Swipe to explore • ${cards.length} events',
-              style: TextStyle(
-                color: subtitleColor,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: subtitleColor, fontSize: 12),
             ),
           ],
         ),

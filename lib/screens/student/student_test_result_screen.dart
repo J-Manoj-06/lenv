@@ -120,8 +120,7 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
         break;
       }
     }
-    if (val == null) {
-    }
+    if (val == null) {}
 
     // Resolve single-letter answers against options list when available
     if (forCorrect && val is String && val.trim().length == 1) {
@@ -189,12 +188,12 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
           final derivedTotal = result.totalQuestions > 0
               ? result.totalQuestions
               : (result.answers.isNotEmpty ? result.answers.length : 0);
-          final derivedCorrect = (result.correctAnswers > 0 ||
-                  result.answers.isEmpty)
+          final derivedCorrect =
+              (result.correctAnswers > 0 || result.answers.isEmpty)
               ? result.correctAnswers
               : result.answers
-                  .where((a) => (a['isCorrect'] ?? false) == true)
-                  .length;
+                    .where((a) => (a['isCorrect'] ?? false) == true)
+                    .length;
 
           final double pct = (() {
             if (result.percentage != null) {
@@ -272,14 +271,13 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                               children: [
                                 Text(
                                   'Question Breakdown',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleLarge
+                                  style: Theme.of(context).textTheme.titleLarge
                                       ?.copyWith(fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 12),
-                                ..._buildQuestionResults(result)
-                                    .map((q) => _buildQuestionTile(q)),
+                                ..._buildQuestionResults(
+                                  result,
+                                ).map((q) => _buildQuestionTile(q)),
                               ],
                             );
                           }
@@ -366,12 +364,15 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     } catch (_) {}
 
     final now = DateTime.now();
-    final canShow = resultsPublished || (endDate != null && now.isAfter(endDate));
+    final canShow =
+        resultsPublished || (endDate != null && now.isAfter(endDate));
     return _PublishGate(canShow: canShow, endDate: endDate);
   }
 
   Widget _lockedUntilCard(DateTime? endDate, bool isDark) {
-    final dateText = endDate != null ? DateFormat('MMM d, yyyy h:mm a').format(endDate) : 'the due time';
+    final dateText = endDate != null
+        ? DateFormat('MMM d, yyyy h:mm a').format(endDate)
+        : 'the due time';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -401,8 +402,10 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                 const SizedBox(height: 4),
                 Text(
                   'Answer details will be visible after the test due time.',
-                  style:
-                      TextStyle(fontSize: 14, color: isDark ? Colors.white70 : Colors.grey),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white70 : Colors.grey,
+                  ),
                 ),
               ],
             ),
@@ -442,14 +445,15 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
           Text(
             'This test result does not contain detailed answer information.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: isDark ? Colors.white70 : Colors.grey),
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.white70 : Colors.grey,
+            ),
           ),
         ],
       ),
     );
   }
-
-  
 
   Widget _buildStudentInfo() {
     return FutureBuilder<Map<String, dynamic>>(

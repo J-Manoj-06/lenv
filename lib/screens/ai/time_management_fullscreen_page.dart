@@ -150,11 +150,13 @@ class _TimeManagementFullScreenPageState
   @override
   Widget build(BuildContext context) {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF121212) : Colors.white;
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF121212)
+        : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final secondaryTextColor = isDarkTheme ? Colors.white54 : Colors.black54;
-    
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -187,7 +189,10 @@ class _TimeManagementFullScreenPageState
                         const SizedBox(width: 8),
                         Text(
                           'Stay focused. Stay disciplined.',
-                          style: TextStyle(color: secondaryTextColor, fontSize: 14),
+                          style: TextStyle(
+                            color: secondaryTextColor,
+                            fontSize: 14,
+                          ),
                         ),
                       ],
                     ),
@@ -271,7 +276,7 @@ class _PomodoroCard extends StatelessWidget {
                 CustomPaint(
                   size: const Size(170, 170),
                   painter: _RingPainter(
-                    progress: progress, 
+                    progress: progress,
                     active: running,
                     isDarkTheme: isDark,
                   ),
@@ -344,7 +349,7 @@ class _StudyTimerCard extends StatelessWidget {
     final mutedColor = isDark ? Colors.grey.shade400 : Colors.black54;
     final chipBg = isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade200;
     final progressBg = isDark ? const Color(0xFF3A3A3A) : Colors.grey.shade200;
-    
+
     // Ensure progress is a double for LinearProgressIndicator
     final double progress = running
         ? 1 - (remainingSeconds / (durationMinutes * 60))
@@ -360,10 +365,7 @@ class _StudyTimerCard extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 'Custom Study Timer',
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -381,9 +383,7 @@ class _StudyTimerCard extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: selected
-                        ? const Color(0xFF7AB8FF)
-                        : chipBg,
+                    color: selected ? const Color(0xFF7AB8FF) : chipBg,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Text(
@@ -440,11 +440,13 @@ class StitchedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
-    final shadowColor = isDarkTheme 
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF2A2A2A)
+        : Colors.white;
+    final shadowColor = isDarkTheme
         ? Colors.black.withOpacity(0.3)
         : Colors.black.withOpacity(0.08);
-    
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
@@ -471,7 +473,7 @@ class _RingPainter extends CustomPainter {
   final bool active;
   final bool isDarkTheme;
   _RingPainter({
-    required this.progress, 
+    required this.progress,
     required this.active,
     required this.isDarkTheme,
   });
@@ -515,7 +517,7 @@ class _RingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RingPainter oldDelegate) =>
-      oldDelegate.progress != progress || 
+      oldDelegate.progress != progress ||
       oldDelegate.active != active ||
       oldDelegate.isDarkTheme != isDarkTheme;
 }
@@ -584,4 +586,3 @@ class _StatBadge extends StatelessWidget {
     );
   }
 }
-

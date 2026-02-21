@@ -58,7 +58,6 @@ class CloudFunctionUploadService {
       // Get MIME type
       final mimeType = getMimeType(fileName) ?? 'application/octet-stream';
 
-
       // Prepare request body
       final requestBody = {
         'fileName': fileName,
@@ -89,7 +88,6 @@ class CloudFunctionUploadService {
 
       onProgress?.call(80);
 
-
       if (response.statusCode != 200) {
         throw Exception('Upload failed: ${response.statusCode}');
       }
@@ -102,7 +100,6 @@ class CloudFunctionUploadService {
       }
 
       onProgress?.call(100);
-
 
       return {
         'publicUrl': responseData['publicUrl'] as String,

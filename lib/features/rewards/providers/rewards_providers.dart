@@ -19,18 +19,16 @@ final rewardsCatalogProvider = FutureProvider<List<ProductModel>>((ref) async {
 });
 
 /// Provides search results for products by query string
-final productsSearchProvider = FutureProvider.family<List<ProductModel>, String>((
-  ref,
-  query,
-) async {
-  try {
-    final repository = ref.watch(rewardsRepositoryProvider);
-    final results = await repository.searchProducts(query);
-    return results;
-  } catch (e) {
-    rethrow;
-  }
-});
+final productsSearchProvider =
+    FutureProvider.family<List<ProductModel>, String>((ref, query) async {
+      try {
+        final repository = ref.watch(rewardsRepositoryProvider);
+        final results = await repository.searchProducts(query);
+        return results;
+      } catch (e) {
+        rethrow;
+      }
+    });
 
 /// Provides current user's available points (real-time)
 final studentPointsProvider = StreamProvider.family<double, String>((

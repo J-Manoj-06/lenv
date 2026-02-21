@@ -23,8 +23,7 @@ class ThemeProvider extends ChangeNotifier {
         );
         notifyListeners();
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -36,8 +35,7 @@ class ThemeProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_themeModeKey, mode.toString());
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   String get themeModeLabel {

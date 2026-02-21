@@ -33,7 +33,6 @@ class UserCommunitiesService {
         return _cachedUserCommunities;
       }
 
-
       final doc = await _firestore
           .collection('user_communities')
           .doc(userId)
@@ -181,9 +180,7 @@ class UserCommunitiesService {
         _cachedUserCommunities!['communities'] = communities;
         _cachedUserCommunities!['totalUnread'] = newTotalUnread;
       }
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Increment unread count for a community
@@ -229,9 +226,7 @@ class UserCommunitiesService {
       if (_cachedUserId == userId) {
         clearCache();
       }
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Update last message info for a community
@@ -273,15 +268,13 @@ class UserCommunitiesService {
       if (_cachedUserId == userId && _cachedUserCommunities != null) {
         _cachedUserCommunities!['communities'] = communities;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Rebuild user_communities index (fallback if data is missing)
   /// This should ideally be done server-side
   Future<bool> rebuildUserCommunitiesIndex(String userId) async {
     try {
-
       // Scan community members to find user's communities
       final memberQuery = await _firestore
           .collectionGroup('members')

@@ -147,7 +147,6 @@ class MediaChatProvider extends ChangeNotifier {
       _uploadProgress.remove(mediaId);
       _currentError = null;
       notifyListeners();
-
     } catch (e) {
       _setError('Upload failed: $e');
     }
@@ -176,7 +175,6 @@ class MediaChatProvider extends ChangeNotifier {
       // Get file name
       final fileName = file.path.split('/').last;
 
-
       // Upload via Cloudflare Worker (no Firebase dependency)
       final result = await _workerUploadService.uploadFile(
         file: file,
@@ -190,7 +188,6 @@ class MediaChatProvider extends ChangeNotifier {
           notifyListeners();
         },
       );
-
 
       // Create MediaMessage with the returned URL
       final media = MediaMessage(
@@ -216,7 +213,6 @@ class MediaChatProvider extends ChangeNotifier {
       _mediaMessages.insert(0, media);
       _uploadProgress.remove(messageId);
       notifyListeners();
-
     } catch (e) {
       _setError('Cloud Function upload failed: $e');
       _uploadProgress.remove(messageId);

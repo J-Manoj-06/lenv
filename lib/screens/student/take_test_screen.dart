@@ -388,10 +388,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
             testsCompleted: testsCompleted,
             previousScorePercent: previousScorePercent,
           );
-        } catch (e) {
-        }
-      } else {
-      }
+        } catch (e) {}
+      } else {}
 
       if (!mounted) return;
 

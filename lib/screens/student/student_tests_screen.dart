@@ -280,10 +280,9 @@ class _AllTestsTabState extends State<_AllTestsTab> {
                   ),
                 );
                 if (status != 'completed') {
-                  matchingDoc.reference.update({'status': 'completed'}).catchError((
-                    e,
-                  ) {
-                  });
+                  matchingDoc.reference
+                      .update({'status': 'completed'})
+                      .catchError((e) {});
                 }
               } catch (e) {
                 items.add(_TestListItem.pending(test: t));
@@ -464,7 +463,6 @@ class _CompletedTab extends StatelessWidget {
           return const _EmptyState(message: 'No completed tests');
         }
 
-
         // Fetch test details from scheduledTests collection
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
@@ -487,8 +485,7 @@ class _CompletedTab extends StatelessWidget {
                   doc.data() as Map<String, dynamic>,
                 );
                 testById[test.id] = test;
-              } catch (e) {
-              }
+              } catch (e) {}
             }
 
             // Build items from completed assignments directly
@@ -529,8 +526,7 @@ class _CompletedTab extends StatelessWidget {
                     endDate: endDate,
                   ),
                 );
-              } catch (e) {
-              }
+              } catch (e) {}
             }
 
             if (items.isEmpty) {

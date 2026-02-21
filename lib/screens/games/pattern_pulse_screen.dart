@@ -22,7 +22,9 @@ class _PatternPulseContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<PatternPulseProvider>();
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
+    final backgroundColor = isDarkTheme
+        ? const Color(0xFF1A1A1A)
+        : Colors.white;
     final appBarColor = isDarkTheme ? const Color(0xFF1A1A1A) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
@@ -85,8 +87,10 @@ class _PatternPulseContent extends StatelessWidget {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
-    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
-    
+    final cardColor = isDarkTheme
+        ? const Color(0xFF2A2A2A)
+        : Colors.grey.shade100;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -204,9 +208,11 @@ class _PatternPulseContent extends StatelessWidget {
   Widget _buildGameScreen(BuildContext context, PatternPulseProvider provider) {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
-    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
+    final cardColor = isDarkTheme
+        ? const Color(0xFF2A2A2A)
+        : Colors.grey.shade100;
     final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
-    
+
     return Column(
       children: [
         // Status indicator
@@ -381,8 +387,10 @@ class _PatternPulseContent extends StatelessWidget {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
-    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
-    
+    final cardColor = isDarkTheme
+        ? const Color(0xFF2A2A2A)
+        : Colors.grey.shade100;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -495,7 +503,9 @@ class _PatternPulseContent extends StatelessWidget {
                 Navigator.pop(context);
               },
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: isDarkTheme ? Colors.white54 : Colors.black54),
+                side: BorderSide(
+                  color: isDarkTheme ? Colors.white54 : Colors.black54,
+                ),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 32,
                   vertical: 14,

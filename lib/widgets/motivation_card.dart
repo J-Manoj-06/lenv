@@ -233,7 +233,9 @@ class _MotivationCardState extends State<MotivationCard>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFFF9500).withOpacity(0.25),
+                                color: const Color(
+                                  0xFFFF9500,
+                                ).withOpacity(0.25),
                                 blurRadius: 12,
                                 spreadRadius: 2,
                               ),

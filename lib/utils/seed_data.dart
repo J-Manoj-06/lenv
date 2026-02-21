@@ -9,7 +9,6 @@ class FirestoreSeedData {
   /// Seed schools data - run this first before creating users
   static Future<void> seedSchools() async {
     try {
-
       final schools = [
         {
           'id': 'sunrise',
@@ -31,7 +30,6 @@ class FirestoreSeedData {
             .doc(school['id'] as String)
             .set(school);
       }
-
     } catch (e) {
       rethrow;
     }
@@ -40,7 +38,6 @@ class FirestoreSeedData {
   /// Seed all test data for a student
   static Future<void> seedStudentData(String studentUid) async {
     try {
-
       // 1. Create student document
       await _seedStudentDocument(studentUid);
 
@@ -55,7 +52,6 @@ class FirestoreSeedData {
 
       // 5. Create sample test results
       await _seedTestResults(studentUid);
-
     } catch (e) {
       rethrow;
     }
@@ -349,13 +345,11 @@ class FirestoreSeedData {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       await seedStudentData(user.uid);
-    } else {
-    }
+    } else {}
   }
 
   /// Delete all test data (use carefully!)
   static Future<void> clearTestData(String studentUid) async {
-
     // Delete notifications
     final notificationsQuery = await _firestore
         .collection('notifications')
@@ -385,6 +379,5 @@ class FirestoreSeedData {
 
     // Delete student document
     await _firestore.collection('users').doc(studentUid).delete();
-
   }
 }
