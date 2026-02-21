@@ -72,8 +72,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
   Timer? _recordingTimer;
   String? _recordingPath;
 
-  // Pending uploads tracking
-  final Map<String, ValueNotifier<double>> _pendingUploadNotifiers = {};
+  // Pending uploads tracking - immediate preview
+  final List<Map<String, dynamic>> _pendingMessages = [];
+  final Map<String, double> _pendingUploadProgress = {};
 
   Future<void> _batchUpdateIncoming(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
@@ -142,6 +143,29 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
     );
 
     _controller.addListener(() => setState(() {}));
+
+    // Listen to background upload progress
+    BackgroundUploadService()
+        .onUploadProgress = (String messageId, bool isUploading, double progress) {
+      if (!mounted) return;
+      print(
+        '📊 Upload progress: $messageId - isUploading: $isUploading, progress: ${(progress * 100).toInt()}%',
+      );
+
+      setState(() {
+        if (isUploading) {
+          _pendingUploadProgress[messageId] = progress;
+        } else {
+          // Upload complete - just remove progress tracking
+          // Keep the pending message until Firestore message arrives
+          _pendingUploadProgress.remove(messageId);
+          print(
+            '✅ Upload complete: $messageId - Keeping pending message until Firestore updates',
+          );
+        }
+      });
+    };
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureConversation();
       _initOfflineFirst();
@@ -207,6 +231,10 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
     _recordingTimer?.cancel();
     _isRecording.dispose();
     _recordingDuration.dispose();
+
+    // Clear upload progress callback
+    BackgroundUploadService().onUploadProgress = null;
+
     super.dispose();
   }
 
@@ -326,18 +354,45 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         return;
       }
 
+      // Create messageId for tracking
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${widget.teacherId.hashCode}';
+      final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      // Create pending message immediately
+      final pendingMetadata = {
+        'messageId': messageId,
+        'r2Key': 'pending/$messageId',
+        'publicUrl': '',
+        'localPath': file.path,
+        'thumbnail': '',
+        'fileSize': await file.length(),
+        'mimeType': 'audio/m4a',
+        'originalFileName': fileName,
+      };
+
+      final pendingMessage = {
+        'messageId': messageId,
+        'senderRole': 'teacher',
+        'text': '',
+        'mediaMetadata': pendingMetadata,
+        'createdAt': DateTime.now(),
+        'isPending': true,
+      };
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[messageId] = 0.0;
+      });
+
       // Queue upload in background service
-      final uploadId = await BackgroundUploadService().queueUpload(
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: _conversationId!,
         senderId: widget.teacherId,
         senderRole: 'teacher',
         mediaType: 'message',
-      );
-
-      // Show confirmation
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice message queued for upload')),
+        messageId: messageId,
       );
 
       _recordingPath = null;
@@ -366,6 +421,15 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         backgroundColor: isDark ? Colors.black : Colors.white,
         elevation: 0.5,
         titleSpacing: 0,
+        iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: isDark ? Colors.white : Colors.black,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Row(
           children: [
             const SizedBox(width: 8),
@@ -405,7 +469,10 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
+            icon: Icon(
+              Icons.search,
+              color: isDark ? Colors.white : Colors.black,
+            ),
             onPressed: _openSearch,
             tooltip: 'Search messages',
           ),
@@ -425,83 +492,202 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
                       if (_conversationId != null &&
                           docs.isNotEmpty &&
                           docs.length != _lastMessageCount) {
+                        final oldCount = _lastMessageCount;
                         _lastMessageCount = docs.length;
+                        print(
+                          '📨 New messages detected: $oldCount -> ${docs.length}',
+                        );
+
                         // Schedule batch update without addPostFrameCallback to avoid flickering
                         Future.microtask(() => _batchUpdateIncoming(docs));
+
+                        // Auto-scroll to bottom only if user is already at or near the bottom
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (scrollController.hasClients) {
+                            final currentOffset = scrollController.offset;
+                            final isAtBottom = currentOffset < 300;
+                            print(
+                              '🔍 StreamBuilder scroll check: offset=$currentOffset, isAtBottom=$isAtBottom',
+                            );
+
+                            if (isAtBottom) {
+                              print(
+                                '⬇️ Auto-scrolling to bottom from StreamBuilder',
+                              );
+                              scrollController.animateTo(
+                                0,
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeOut,
+                              );
+                            } else {
+                              print('⏸️ Not auto-scrolling - user scrolled up');
+                            }
+                          } else {
+                            print('❌ Cannot check scroll - no clients');
+                          }
+                        });
                       }
+
+                      // Combine pending messages with Firestore messages
+                      // Filter out pending messages if a Firestore message with same content exists
+                      final firestoreMessages = docs
+                          .map((d) => d.data())
+                          .toList();
+
+                      // Remove pending messages that have been uploaded (no progress tracking)
+                      final activePending = _pendingMessages.where((pending) {
+                        final messageId = pending['messageId'] as String;
+                        // Keep if still uploading (has progress tracking)
+                        return _pendingUploadProgress.containsKey(messageId);
+                      }).toList();
+
+                      final combinedMessages = [
+                        ...activePending,
+                        ...firestoreMessages,
+                      ];
+
+                      // Sort by timestamp descending (newest first)
+                      // Since ListView has reverse: true, newest first = displayed at bottom (index 0)
+                      combinedMessages.sort((a, b) {
+                        final aTime = a['timestamp'];
+                        final bTime = b['timestamp'];
+                        if (aTime == null)
+                          return -1; // pending messages go to beginning (bottom)
+                        if (bTime == null) return 1;
+                        return bTime.compareTo(aTime); // descending
+                      });
+
+                      print(
+                        '📋 Messages: ${activePending.length} pending + ${firestoreMessages.length} firestore = ${combinedMessages.length} total',
+                      );
 
                       return ListView.separated(
                         controller: scrollController,
                         reverse: true, // Show newest messages at bottom
                         padding: const EdgeInsets.all(16),
                         itemBuilder: (context, index) {
-                          final msg = docs[index].data();
+                          final msg = combinedMessages[index];
+                          final isPending = msg['isPending'] == true;
                           final isTeacher = msg['senderRole'] == 'teacher';
                           final deliveredToParent =
                               (msg['deliveredToParent'] ?? false) as bool;
                           final readByParent =
                               (msg['readByParent'] ?? false) as bool;
+
                           return Align(
                             alignment: isTeacher
                                 ? Alignment.centerRight
                                 : Alignment.centerLeft,
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 360),
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: isTeacher
-                                      ? const Color(0xFF1362EB)
-                                      : (isDark
-                                            ? const Color(0xFF2A2A2A)
-                                            : Colors.grey.shade200),
-                                  borderRadius: BorderRadius.circular(12)
-                                      .copyWith(
-                                        bottomRight: isTeacher
-                                            ? const Radius.circular(4)
-                                            : null,
-                                        bottomLeft: !isTeacher
-                                            ? const Radius.circular(4)
-                                            : null,
+                              child: Stack(
+                                children: [
+                                  DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: isTeacher
+                                          ? const Color(0xFF1362EB)
+                                          : (isDark
+                                                ? const Color(0xFF2A2A2A)
+                                                : Colors.grey.shade200),
+                                      borderRadius: BorderRadius.circular(12)
+                                          .copyWith(
+                                            bottomRight: isTeacher
+                                                ? const Radius.circular(4)
+                                                : null,
+                                            bottomLeft: !isTeacher
+                                                ? const Radius.circular(4)
+                                                : null,
+                                          ),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
                                       ),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          // Media handling
+                                          if (msg['mediaMetadata'] != null) ...[
+                                            _buildMediaAttachment(
+                                              msg['mediaMetadata'],
+                                              isTeacher,
+                                              isPending: isPending,
+                                              messageId: msg['messageId'],
+                                            ),
+                                            if ((msg['text'] ?? '').isNotEmpty)
+                                              const SizedBox(height: 8),
+                                          ],
+                                          if ((msg['text'] ?? '').isNotEmpty)
+                                            Text(
+                                              msg['text'] ?? '',
+                                              style: TextStyle(
+                                                color: isTeacher
+                                                    ? Colors.white
+                                                    : (isDark
+                                                          ? Colors.white
+                                                          : Colors.black87),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      // Media handling
-                                      if (msg['mediaMetadata'] != null) ...[
-                                        _buildMediaAttachment(
-                                          msg['mediaMetadata'],
-                                          isTeacher,
-                                        ),
-                                        if ((msg['text'] ?? '').isNotEmpty)
-                                          const SizedBox(height: 8),
-                                      ],
-                                      if ((msg['text'] ?? '').isNotEmpty)
-                                        Text(
-                                          msg['text'] ?? '',
-                                          style: TextStyle(
-                                            color: isTeacher
-                                                ? Colors.white
-                                                : (isDark
-                                                      ? Colors.white
-                                                      : Colors.black87),
+                                  // Show upload progress overlay for pending messages
+                                  if (isPending &&
+                                      _pendingUploadProgress.containsKey(
+                                        msg['messageId'],
+                                      ))
+                                    Positioned.fill(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.5),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
                                           ),
                                         ),
-                                    ],
-                                  ),
-                                ),
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              SizedBox(
+                                                width: 48,
+                                                height: 48,
+                                                child: CircularProgressIndicator(
+                                                  value:
+                                                      _pendingUploadProgress[msg['messageId']],
+                                                  strokeWidth: 4,
+                                                  valueColor:
+                                                      const AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Colors.white),
+                                                  backgroundColor: Colors.white
+                                                      .withOpacity(0.3),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                '${(_pendingUploadProgress[msg['messageId']]! * 100).toInt()}%',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           );
                         },
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemCount: docs.length,
+                        itemCount: combinedMessages.length,
                       );
                     },
                   ),
@@ -630,7 +816,12 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
     );
   }
 
-  Widget _buildMediaAttachment(Map<String, dynamic> metadata, bool isMe) {
+  Widget _buildMediaAttachment(
+    Map<String, dynamic> metadata,
+    bool isMe, {
+    bool isPending = false,
+    String? messageId,
+  }) {
     // Convert map to MediaMetadata
     final r2Key = metadata['r2Key'] as String? ?? '';
     final fileName = _fileNameFromR2Key(r2Key);
@@ -696,21 +887,45 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         return;
       }
 
+      // Create messageId for tracking
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${widget.teacherId.hashCode}';
+
+      // Create pending message immediately
+      final pendingMetadata = {
+        'messageId': messageId,
+        'r2Key': 'pending/$messageId',
+        'publicUrl': '',
+        'localPath': file.path,
+        'thumbnail': file.path,
+        'fileSize': await file.length(),
+        'mimeType': 'image/jpeg',
+        'originalFileName':
+            'camera_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      };
+
+      final pendingMessage = {
+        'messageId': messageId,
+        'senderRole': 'teacher',
+        'text': '',
+        'mediaMetadata': pendingMetadata,
+        'createdAt': DateTime.now(),
+        'isPending': true,
+      };
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[messageId] = 0.0;
+      });
+
       // Queue upload in background service
-      final uploadId = await BackgroundUploadService().queueUpload(
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: _conversationId!,
         senderId: widget.teacherId,
         senderRole: 'teacher',
         mediaType: 'message',
-      );
-
-      // Show confirmation
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Image queued for upload'),
-          action: SnackBarAction(label: 'View', onPressed: () {}),
-        ),
+        messageId: messageId,
       );
     } catch (e) {
       ScaffoldMessenger.of(
@@ -818,6 +1033,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
       final groupMessageId =
           'upload_${baseTimestamp}_${widget.teacherId.hashCode}';
 
+      // Create pending messages for immediate display
+      final List<Map<String, dynamic>> pendingMetadataList = [];
+
       for (int i = 0; i < pickedFiles.length; i++) {
         final xFile = pickedFiles[i];
         final file = File(xFile.path);
@@ -828,6 +1046,20 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         }
 
         final messageId = '${groupMessageId}_$i';
+
+        // Create pending metadata
+        final pendingMetadata = {
+          'messageId': messageId,
+          'r2Key': 'pending/$messageId',
+          'publicUrl': '',
+          'localPath': file.path,
+          'thumbnail': file.path, // Use local path as thumbnail
+          'fileSize': await file.length(),
+          'mimeType': 'image/jpeg',
+          'originalFileName': 'image_$i.jpg',
+        };
+
+        pendingMetadataList.add(pendingMetadata);
 
         // Queue upload in background service
         await BackgroundUploadService().queueUpload(
@@ -841,19 +1073,28 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         );
       }
 
-      // Show confirmation
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${pickedFiles.length} image${pickedFiles.length > 1 ? 's' : ''} queued for upload',
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+      // Add pending messages to UI immediately
+      if (pendingMetadataList.isNotEmpty && mounted) {
+        setState(() {
+          for (var metadata in pendingMetadataList) {
+            final messageId = metadata['messageId'] as String;
+            final pendingMessage = {
+              'messageId': messageId,
+              'senderRole': 'teacher',
+              'text': '',
+              'mediaMetadata': metadata,
+              'createdAt': DateTime.now(),
+              'isPending': true,
+            };
+            _pendingMessages.insert(0, pendingMessage);
+            _pendingUploadProgress[messageId] = 0.0;
+          }
+        });
       }
 
-      print('✅ ${pickedFiles.length} images queued for upload');
+      print(
+        '✅ ${pickedFiles.length} images queued for upload with immediate preview',
+      );
     } catch (e) {
       print('❌ Error in _pickAndSendImages: $e');
       if (mounted) {
@@ -901,21 +1142,45 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         return;
       }
 
+      // Create messageId for tracking
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${widget.teacherId.hashCode}';
+      final fileName = result.files.single.name;
+
+      // Create pending message immediately
+      final pendingMetadata = {
+        'messageId': messageId,
+        'r2Key': 'pending/$messageId',
+        'publicUrl': '',
+        'localPath': file.path,
+        'thumbnail': '',
+        'fileSize': await file.length(),
+        'mimeType': 'application/${fileName.split('.').last}',
+        'originalFileName': fileName,
+      };
+
+      final pendingMessage = {
+        'messageId': messageId,
+        'senderRole': 'teacher',
+        'text': '',
+        'mediaMetadata': pendingMetadata,
+        'createdAt': DateTime.now(),
+        'isPending': true,
+      };
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[messageId] = 0.0;
+      });
+
       // Queue upload in background service
-      final uploadId = await BackgroundUploadService().queueUpload(
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: _conversationId!,
         senderId: widget.teacherId,
         senderRole: 'teacher',
         mediaType: 'message',
-      );
-
-      // Show confirmation
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('PDF queued for upload'),
-          action: SnackBarAction(label: 'View', onPressed: () {}),
-        ),
+        messageId: messageId,
       );
     } catch (e) {
       ScaffoldMessenger.of(
@@ -944,21 +1209,45 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         return;
       }
 
+      // Create messageId for tracking
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${widget.teacherId.hashCode}';
+      final fileName = result.files.single.name;
+
+      // Create pending message immediately
+      final pendingMetadata = {
+        'messageId': messageId,
+        'r2Key': 'pending/$messageId',
+        'publicUrl': '',
+        'localPath': file.path,
+        'thumbnail': '',
+        'fileSize': await file.length(),
+        'mimeType': 'audio/${fileName.split('.').last}',
+        'originalFileName': fileName,
+      };
+
+      final pendingMessage = {
+        'messageId': messageId,
+        'senderRole': 'teacher',
+        'text': '',
+        'mediaMetadata': pendingMetadata,
+        'createdAt': DateTime.now(),
+        'isPending': true,
+      };
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _pendingUploadProgress[messageId] = 0.0;
+      });
+
       // Queue upload in background service
-      final uploadId = await BackgroundUploadService().queueUpload(
+      await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: _conversationId!,
         senderId: widget.teacherId,
         senderRole: 'teacher',
         mediaType: 'message',
-      );
-
-      // Show confirmation
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Audio queued for upload'),
-          action: SnackBarAction(label: 'View', onPressed: () {}),
-        ),
+        messageId: messageId,
       );
     } catch (e) {
       ScaffoldMessenger.of(

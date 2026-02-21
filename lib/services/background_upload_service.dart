@@ -232,6 +232,7 @@ class BackgroundUploadService extends ChangeNotifier {
                   : p.toDouble();
               upload.progress = normalized;
               notifyListeners();
+              print('📤 Upload ${upload.id}: ${(normalized * 100).toInt()}%');
               onUploadProgress?.call(upload.id, true, normalized);
             },
           );
@@ -320,10 +321,18 @@ class BackgroundUploadService extends ChangeNotifier {
               _completedGroups.remove(upload.groupId);
               _uploads.removeWhere((u) => u.groupId == upload.groupId);
 
-              // Notify UI that group upload is complete
+              // Notify UI that group upload is complete (remove all pending messages in group)
               if (onGroupComplete != null) {
                 onGroupComplete!(upload.groupId!);
               }
+
+              // Remove pending messages for all uploads in the group
+              for (final groupUpload in groupUploads) {
+                onUploadProgress?.call(groupUpload.id, false, 1.0);
+              }
+            } else {
+              // This individual upload is complete, but group isn't done yet
+              // Keep showing progress overlay at 100% until all complete
             }
             continue; // Don't send individual message for grouped uploads
           }
@@ -371,9 +380,18 @@ class BackgroundUploadService extends ChangeNotifier {
               mediaMetadata: metadata.toFirestore(),
             );
           }
+
+          // Notify UI that upload is complete (remove pending message)
+          print(
+            '✅ Upload complete: ${upload.id} - Notifying UI to remove pending message',
+          );
+          onUploadProgress?.call(upload.id, false, 1.0);
         } catch (e) {
           upload.status = UploadStatus.failed;
           upload.error = e.toString();
+          print('❌ Upload failed: ${upload.id} - $e');
+          // Notify UI that upload failed
+          onUploadProgress?.call(upload.id, false, 0.0);
         }
 
         notifyListeners();
