@@ -530,9 +530,12 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
 
                       // Combine pending messages with Firestore messages
                       // Filter out pending messages if a Firestore message with same content exists
-                      final firestoreMessages = docs
-                          .map((d) => d.data())
-                          .toList();
+                      final firestoreMessages = docs.map((d) {
+                        final data = d.data();
+                        data['messageId'] =
+                            d.id; // Add document ID as messageId
+                        return data;
+                      }).toList();
 
                       // Remove pending messages that have been uploaded (no progress tracking)
                       final activePending = _pendingMessages.where((pending) {
@@ -573,128 +576,189 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
                               (msg['deliveredToParent'] ?? false) as bool;
                           final readByParent =
                               (msg['readByParent'] ?? false) as bool;
+                          final messageId = msg['messageId'] as String?;
+                          final isDeleted = msg['isDeleted'] == true;
 
-                          return Align(
-                            alignment: isTeacher
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 360),
-                              child: Stack(
-                                children: [
-                                  // If message has ONLY media (no text), show media without bubble
-                                  if (msg['mediaMetadata'] != null &&
-                                      (msg['text'] ?? '').isEmpty)
-                                    _buildMediaAttachment(
-                                      msg['mediaMetadata'],
-                                      isTeacher,
-                                      isPending: isPending,
-                                      messageId: msg['messageId'],
-                                    )
-                                  else
-                                    // Otherwise show message bubble with media/text
-                                    DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: isTeacher
-                                            ? const Color(0xFF1362EB)
-                                            : (isDark
-                                                  ? const Color(0xFF2A2A2A)
-                                                  : Colors.grey.shade200),
-                                        borderRadius: BorderRadius.circular(12)
-                                            .copyWith(
-                                              bottomRight: isTeacher
-                                                  ? const Radius.circular(4)
-                                                  : null,
-                                              bottomLeft: !isTeacher
-                                                  ? const Radius.circular(4)
-                                                  : null,
-                                            ),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 12,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            // Media handling
-                                            if (msg['mediaMetadata'] !=
-                                                null) ...[
-                                              _buildMediaAttachment(
-                                                msg['mediaMetadata'],
-                                                isTeacher,
-                                                isPending: isPending,
-                                                messageId: msg['messageId'],
-                                              ),
-                                              if ((msg['text'] ?? '')
-                                                  .isNotEmpty)
-                                                const SizedBox(height: 8),
-                                            ],
-                                            if ((msg['text'] ?? '').isNotEmpty)
-                                              Text(
-                                                msg['text'] ?? '',
-                                                style: TextStyle(
-                                                  color: isTeacher
-                                                      ? Colors.white
-                                                      : (isDark
-                                                            ? Colors.white
-                                                            : Colors.black87),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
+                          // If message is deleted, show placeholder
+                          if (isDeleted) {
+                            return Align(
+                              alignment: isTeacher
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? Colors.grey.shade800.withOpacity(0.3)
+                                      : Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.block,
+                                      size: 16,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'This message was deleted',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontStyle: FontStyle.italic,
+                                        fontSize: 13,
                                       ),
                                     ),
-                                  // Show upload progress overlay for pending messages
-                                  if (isPending &&
-                                      _pendingUploadProgress.containsKey(
-                                        msg['messageId'],
-                                      ))
-                                    Positioned.fill(
-                                      child: Container(
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
+                          return GestureDetector(
+                            onLongPress:
+                                isTeacher && !isPending && messageId != null
+                                ? () {
+                                    print(
+                                      '🔍 Long press detected - messageId: $messageId, isTeacher: $isTeacher, isPending: $isPending',
+                                    );
+                                    _showDeleteDialog(messageId);
+                                  }
+                                : null,
+                            child: Align(
+                              alignment: isTeacher
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 360,
+                                ),
+                                child: Stack(
+                                  children: [
+                                    // If message has ONLY media (no text), show media without bubble
+                                    if (msg['mediaMetadata'] != null &&
+                                        (msg['text'] ?? '').isEmpty)
+                                      _buildMediaAttachment(
+                                        msg['mediaMetadata'],
+                                        isTeacher,
+                                        isPending: isPending,
+                                        messageId: msg['messageId'],
+                                      )
+                                    else
+                                      // Otherwise show message bubble with media/text
+                                      DecoratedBox(
                                         decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.5),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
+                                          color: isTeacher
+                                              ? const Color(0xFF1362EB)
+                                              : (isDark
+                                                    ? const Color(0xFF2A2A2A)
+                                                    : Colors.grey.shade200),
+                                          borderRadius:
+                                              BorderRadius.circular(
+                                                12,
+                                              ).copyWith(
+                                                bottomRight: isTeacher
+                                                    ? const Radius.circular(4)
+                                                    : null,
+                                                bottomLeft: !isTeacher
+                                                    ? const Radius.circular(4)
+                                                    : null,
+                                              ),
                                         ),
-                                        child: Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
                                           child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              SizedBox(
-                                                width: 48,
-                                                height: 48,
-                                                child: CircularProgressIndicator(
-                                                  value:
-                                                      _pendingUploadProgress[msg['messageId']],
-                                                  strokeWidth: 4,
-                                                  valueColor:
-                                                      const AlwaysStoppedAnimation<
-                                                        Color
-                                                      >(Colors.white),
-                                                  backgroundColor: Colors.white
-                                                      .withOpacity(0.3),
+                                              // Media handling
+                                              if (msg['mediaMetadata'] !=
+                                                  null) ...[
+                                                _buildMediaAttachment(
+                                                  msg['mediaMetadata'],
+                                                  isTeacher,
+                                                  isPending: isPending,
+                                                  messageId: msg['messageId'],
                                                 ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                '${(_pendingUploadProgress[msg['messageId']]! * 100).toInt()}%',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
+                                                if ((msg['text'] ?? '')
+                                                    .isNotEmpty)
+                                                  const SizedBox(height: 8),
+                                              ],
+                                              if ((msg['text'] ?? '')
+                                                  .isNotEmpty)
+                                                Text(
+                                                  msg['text'] ?? '',
+                                                  style: TextStyle(
+                                                    color: isTeacher
+                                                        ? Colors.white
+                                                        : (isDark
+                                                              ? Colors.white
+                                                              : Colors.black87),
+                                                  ),
                                                 ),
-                                              ),
                                             ],
                                           ),
                                         ),
                                       ),
-                                    ),
-                                ],
+                                    // Show upload progress overlay for pending messages
+                                    if (isPending &&
+                                        _pendingUploadProgress.containsKey(
+                                          msg['messageId'],
+                                        ))
+                                      Positioned.fill(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(
+                                              0.5,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                SizedBox(
+                                                  width: 48,
+                                                  height: 48,
+                                                  child: CircularProgressIndicator(
+                                                    value:
+                                                        _pendingUploadProgress[msg['messageId']],
+                                                    strokeWidth: 4,
+                                                    valueColor:
+                                                        const AlwaysStoppedAnimation<
+                                                          Color
+                                                        >(Colors.white),
+                                                    backgroundColor: Colors
+                                                        .white
+                                                        .withOpacity(0.3),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  '${(_pendingUploadProgress[msg['messageId']]! * 100).toInt()}%',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           );
@@ -827,6 +891,102 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         ],
       ),
     );
+  }
+
+  void _showDeleteDialog(String messageId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B141A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text(
+                  'Delete for Everyone',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _deleteMessageForEveryone(messageId);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteMessageForEveryone(String messageId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Text(
+            'Delete Message?',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'This message will be deleted for everyone in this conversation.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || _conversationId == null) return;
+
+    try {
+      await _chat.deleteMessage(
+        conversationId: _conversationId!,
+        messageId: messageId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message deleted for everyone'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete message: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildMediaAttachment(

@@ -197,4 +197,22 @@ class ChatService {
       viewerRole == 'parent' ? 'unreadForParent' : 'unreadForTeacher': 0,
     });
   }
+
+  /// Delete a message for everyone (only sender can delete)
+  Future<void> deleteMessage({
+    required String conversationId,
+    required String messageId,
+  }) async {
+    final msgRef = _db
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .doc(messageId);
+
+    await msgRef.update({
+      'text': '',
+      'isDeleted': true,
+      'mediaMetadata': FieldValue.delete(),
+    });
+  }
 }
