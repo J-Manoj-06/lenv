@@ -1447,7 +1447,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final teacherId = auth.currentUser?.uid;
-      
+
       if (teacherId == null) {
         if (mounted) {
           ScaffoldMessenger.of(

@@ -815,19 +815,20 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
 
       // Queue each image for upload with a shared group ID
       final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
-      final groupMessageId = 'upload_${baseTimestamp}_${widget.teacherId.hashCode}';
+      final groupMessageId =
+          'upload_${baseTimestamp}_${widget.teacherId.hashCode}';
 
       for (int i = 0; i < pickedFiles.length; i++) {
         final xFile = pickedFiles[i];
         final file = File(xFile.path);
-        
+
         if (!file.existsSync()) {
           print('⚠️ File does not exist: ${xFile.path}');
           continue;
         }
 
         final messageId = '${groupMessageId}_$i';
-        
+
         // Queue upload in background service
         await BackgroundUploadService().queueUpload(
           file: file,
@@ -844,7 +845,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${pickedFiles.length} image${pickedFiles.length > 1 ? 's' : ''} queued for upload'),
+            content: Text(
+              '${pickedFiles.length} image${pickedFiles.length > 1 ? 's' : ''} queued for upload',
+            ),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -854,9 +857,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
     } catch (e) {
       print('❌ Error in _pickAndSendImages: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to pick images: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick images: $e')));
       }
     }
   }
