@@ -660,7 +660,10 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                 return _buildMyAnnouncementAvatar(myAnnouncements, currentUser);
               } else if (index == 1) {
                 // Teacher Announcements (second)
-                return _buildTeacherAnnouncementsAvatar(instituteId);
+                return _buildTeacherAnnouncementsAvatar(
+                  instituteId,
+                  currentUserId ?? '',
+                );
               } else {
                 // Other Principals
                 final principalEntry = otherPrincipals[index - 2];
@@ -827,7 +830,10 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   }
 
   /// Build Teacher Announcements Avatar
-  Widget _buildTeacherAnnouncementsAvatar(String instituteId) {
+  Widget _buildTeacherAnnouncementsAvatar(
+    String instituteId,
+    String currentUserId,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
     final subtitleColor = isDark
@@ -844,42 +850,90 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
       builder: (context, snapshot) {
         final hasTeacherAnnouncements =
             snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+        final statuses = hasTeacherAnnouncements
+            ? (snapshot.data!.docs
+                  .map((d) => StatusModel.fromFirestore(d))
+                  .toList()
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt)))
+            : <StatusModel>[];
+        final latestTeacherName = statuses.isNotEmpty
+            ? _stripTitle(statuses.first.teacherName)
+            : 'Teachers';
+        final hasUnviewed =
+            currentUserId.isNotEmpty &&
+            statuses.any((s) => !s.viewedBy.contains(currentUserId));
+        final borderColor = hasUnviewed
+            ? purpleColor
+            : (isDark ? Colors.grey.shade600 : Colors.grey.shade400);
 
         return GestureDetector(
           onTap: () {
             if (hasTeacherAnnouncements) {
-              final docs = snapshot.data!.docs;
-              final statuses =
-                  docs.map((d) => StatusModel.fromFirestore(d)).toList()
-                    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
               _openTeacherAnnouncements(statuses);
             }
           },
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: purpleColor, width: 2),
-                  color: cardColor,
-                ),
-                child: const Icon(Icons.school, color: purpleColor, size: 28),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: borderColor, width: 2),
+                      color: cardColor,
+                    ),
+                    child: Icon(
+                      Icons.school,
+                      color: hasUnviewed ? purpleColor : borderColor,
+                      size: 28,
+                    ),
+                  ),
+                  if (statuses.isNotEmpty)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: hasUnviewed
+                              ? purpleColor
+                              : (isDark
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade500),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: cardColor, width: 1),
+                        ),
+                        child: Text(
+                          '${statuses.length}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 2),
               SizedBox(
                 width: 64,
                 child: Text(
-                  'Teachers',
+                  latestTeacherName.split(' ').first,
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 10,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: hasUnviewed ? FontWeight.w700 : FontWeight.w600,
                     color: subtitleColor,
                   ),
                 ),
@@ -889,6 +943,31 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         );
       },
     );
+  }
+
+  String _stripTitle(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return trimmed;
+    final parts = trimmed.split(RegExp(r'\s+'));
+    if (parts.isEmpty) return trimmed;
+
+    const titles = {
+      'mr',
+      'mr.',
+      'mrs',
+      'mrs.',
+      'ms',
+      'ms.',
+      'dr',
+      'dr.',
+      'sir',
+      'madam',
+    };
+
+    final first = parts.first.toLowerCase();
+    final startIndex = titles.contains(first) ? 1 : 0;
+    if (startIndex >= parts.length) return trimmed;
+    return parts.sublist(startIndex).join(' ');
   }
 
   Future<void> _openTeacherAnnouncements(List<StatusModel> statuses) async {
