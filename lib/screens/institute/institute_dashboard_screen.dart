@@ -7,8 +7,10 @@ import './principal_announcement_viewer.dart';
 import './attendance_history_screen.dart';
 import '../attendance_details_page.dart';
 import '../messages/staff_room_chat_page.dart';
+import '../common/announcement_pageview_screen.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/institute_announcement_model.dart';
+import '../../models/status_model.dart';
 import '../../services/media_repository.dart';
 import '../../services/institute_announcement_service.dart';
 import '../../services/attendance_service.dart';
@@ -752,8 +754,8 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
             children: [
               // Main Avatar Circle
               Container(
-                width: 64,
-                height: 64,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: hasAnnouncement ? tealColor : cardColor,
@@ -846,12 +848,12 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         return GestureDetector(
           onTap: () {
             if (hasTeacherAnnouncements) {
-              // Navigate to teacher announcements view
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Teacher announcements coming soon'),
-                ),
-              );
+              final docs = snapshot.data!.docs;
+              final statuses =
+                  docs.map((d) => StatusModel.fromFirestore(d)).toList()
+                    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+              _openTeacherAnnouncements(statuses);
             }
           },
           child: Column(
@@ -867,16 +869,16 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                 ),
                 child: const Icon(Icons.school, color: purpleColor, size: 28),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               SizedBox(
-                width: 68,
+                width: 64,
                 child: Text(
                   'Teachers',
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: subtitleColor,
                   ),
@@ -886,6 +888,36 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _openTeacherAnnouncements(List<StatusModel> statuses) async {
+    if (statuses.isEmpty) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUserId = authProvider.currentUser?.uid ?? '';
+
+    final announcements = statuses
+        .map(
+          (status) => {
+            'role': 'teacher',
+            'title': status.text,
+            'subtitle': '',
+            'postedByLabel': 'Posted by ${status.teacherName}',
+            'avatarUrl': status.imageUrl,
+            'imageCaptions': status.imageCaptions,
+            'postedAt': status.createdAt,
+            'expiresAt': status.expiresAt,
+            '_originalData': status,
+          },
+        )
+        .toList();
+
+    await openAnnouncementPageView(
+      context,
+      announcements: announcements,
+      initialIndex: 0,
+      currentUserId: currentUserId,
     );
   }
 
