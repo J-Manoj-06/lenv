@@ -156,18 +156,19 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         '📊 Upload progress: $messageId - isUploading: $isUploading, progress: ${(progress * 100).toInt()}%',
       );
 
-      setState(() {
-        if (isUploading) {
+      if (isUploading) {
+        // Only setState for upload progress updates
+        setState(() {
           _pendingUploadProgress[messageId] = progress;
-        } else {
-          // Upload complete - just remove progress tracking
-          // Keep the pending message until Firestore message arrives
-          _pendingUploadProgress.remove(messageId);
-          print(
-            '✅ Upload complete: $messageId - Keeping pending message until Firestore updates',
-          );
-        }
-      });
+        });
+      } else {
+        // Upload complete - remove silently without setState
+        // StreamBuilder will rebuild when Firestore syncs
+        _pendingUploadProgress.remove(messageId);
+        print(
+          '✅ Upload complete: $messageId - Removed silently, waiting for Firestore sync',
+        );
+      }
     };
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -426,51 +427,73 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         elevation: 0.5,
         titleSpacing: 0,
         iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new,
-            size: 20,
-            color: isDark ? Colors.white : Colors.black,
-          ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Row(
-          children: [
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.grey.shade800,
-              backgroundImage: widget.parentAvatarUrl != null
-                  ? NetworkImage(widget.parentAvatarUrl!)
-                  : null,
-              child: widget.parentAvatarUrl == null
-                  ? const Icon(Icons.person, color: Colors.white)
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+        leading: _selectionMode
+            ? IconButton(
+                icon: const Icon(Icons.close, size: 24),
+                onPressed: () {
+                  setState(() {
+                    _selectionMode = false;
+                    _selectedMessages.clear();
+                  });
+                },
+              )
+            : IconButton(
+                icon: Icon(
+                  Icons.arrow_back_ios_new,
+                  size: 20,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+        title: _selectionMode
+            ? Text(
+                '${_selectedMessages.length} selected',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              )
+            : Row(
                 children: [
-                  Text(
-                    widget.parentName,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
-                    ),
+                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.grey.shade800,
+                    backgroundImage: widget.parentAvatarUrl != null
+                        ? NetworkImage(widget.parentAvatarUrl!)
+                        : null,
+                    child: widget.parentAvatarUrl == null
+                        ? const Icon(Icons.person, color: Colors.white)
+                        : null,
                   ),
-                  Text(
-                    '${widget.className}${widget.section != null ? ' - ${widget.section}' : ''}',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.parentName,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
+                          ),
+                        ),
+                        Text(
+                          '${widget.className}${widget.section != null ? ' - ${widget.section}' : ''}',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
         actions: [
           if (_selectionMode)
             IconButton(
@@ -550,11 +573,17 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
                         return data;
                       }).toList();
 
-                      // Remove pending messages that have been uploaded (no progress tracking)
+                      // Create set of Firestore message IDs for quick lookup
+                      final firestoreMessageIds = firestoreMessages
+                          .map((m) => m['messageId'] as String)
+                          .toSet();
+
+                      // Remove pending messages that have been uploaded or already exist in Firestore
                       final activePending = _pendingMessages.where((pending) {
                         final messageId = pending['messageId'] as String;
-                        // Keep if still uploading (has progress tracking)
-                        return _pendingUploadProgress.containsKey(messageId);
+                        // Keep only if still uploading AND not yet in Firestore
+                        return _pendingUploadProgress.containsKey(messageId) &&
+                            !firestoreMessageIds.contains(messageId);
                       }).toList();
 
                       final combinedMessages = [
@@ -567,8 +596,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
                       combinedMessages.sort((a, b) {
                         final aTime = a['timestamp'];
                         final bTime = b['timestamp'];
-                        if (aTime == null)
+                        if (aTime == null) {
                           return -1; // pending messages go to beginning (bottom)
+                        }
                         if (bTime == null) return 1;
                         return bTime.compareTo(aTime); // descending
                       });
@@ -909,6 +939,14 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
                               borderRadius: BorderRadius.circular(9999),
                               borderSide: BorderSide.none,
                             ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(9999),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(9999),
+                              borderSide: BorderSide.none,
+                            ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,
@@ -1153,6 +1191,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
       thumbnailBase64: thumbnailBase64,
       localPath: localPath,
       isMe: isMe,
+      selectionMode: _selectionMode, // Disable interactions in selection mode
     );
   }
 
