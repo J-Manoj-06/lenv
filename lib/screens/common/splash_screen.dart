@@ -187,7 +187,7 @@ class _SplashScreenState extends State<SplashScreen>
         SessionManager.getInitialScreen(),
       ]);
 
-      final initialRoute = results[1] as String;
+      final initialRoute = results[1];
 
       // Minimal splash delay for smooth animation
       await Future.delayed(const Duration(milliseconds: 500));
@@ -231,7 +231,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       // Normal navigation
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, initialRoute);
+      Navigator.pushReplacementNamed(context, initialRoute as String);
     } catch (e) {
       print('Error in _resolveAndNavigate: $e');
       if (!mounted) return;

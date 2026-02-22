@@ -99,6 +99,18 @@ class _TeacherAnnouncementComposeScreenState
     if (_posting) return;
 
     final messageText = _controller.text.trim();
+
+    // Validate text length
+    if (messageText.length > 1000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Announcement text cannot exceed 1000 characters'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (messageText.isEmpty && _imageItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a message or add images')),
@@ -177,6 +189,13 @@ class _TeacherAnnouncementComposeScreenState
         // Viewing tracking
         'viewedBy': [], // Initialize empty array
       };
+
+      // Debug: Check what's being stored
+      print('📝 Posting announcement:');
+      print('   Text length: ${messageText.length}');
+      print(
+        '   Text content: ${messageText.substring(0, messageText.length > 50 ? 50 : messageText.length)}...',
+      );
 
       await FirebaseFirestore.instance.collection('class_highlights').add(data);
 
@@ -443,7 +462,7 @@ class _MessageFieldState extends State<_MessageField> {
           controller: widget.controller,
           maxLines: null,
           minLines: 5,
-          maxLength: _maxLength,
+          maxLength: null,
           style: TextStyle(color: widget.textColor, fontSize: 16),
           decoration: InputDecoration(
             hintText: 'Write your announcement...',
@@ -468,7 +487,15 @@ class _MessageFieldState extends State<_MessageField> {
           bottom: 8,
           child: Text(
             '${widget.controller.text.length}/$_maxLength',
-            style: TextStyle(color: widget.mutedColor, fontSize: 12),
+            style: TextStyle(
+              color: widget.controller.text.length > _maxLength
+                  ? Colors.red
+                  : widget.mutedColor,
+              fontSize: 12,
+              fontWeight: widget.controller.text.length > _maxLength
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+            ),
           ),
         ),
       ],

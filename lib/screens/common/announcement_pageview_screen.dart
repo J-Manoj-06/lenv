@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -546,18 +547,15 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
 
     // Show text only if no images
     if ((announcement['title'] as String?)?.isNotEmpty ?? false) {
+      final title = announcement['title'] as String;
+
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            announcement['title'] ?? '',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
-              height: 1.4,
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: _ExpandableAnnouncementText(
+            text: title,
+            textColor: Colors.white,
+            accentColor: const Color(0xFF7A5CFF),
           ),
         ),
       );
@@ -1012,4 +1010,95 @@ Future<void> openAnnouncementPageView(
       ),
     ),
   );
+}
+
+/// Simple expandable text widget with Read More/Read Less functionality
+class _ExpandableAnnouncementText extends StatefulWidget {
+  final String text;
+  final Color textColor;
+  final Color accentColor;
+  final int maxCollapsedLines;
+
+  const _ExpandableAnnouncementText({
+    required this.text,
+    required this.textColor,
+    required this.accentColor,
+    this.maxCollapsedLines = 8,
+  });
+
+  @override
+  State<_ExpandableAnnouncementText> createState() =>
+      _ExpandableAnnouncementTextState();
+}
+
+class _ExpandableAnnouncementTextState
+    extends State<_ExpandableAnnouncementText> {
+  bool _isExpanded = false;
+  bool _needsReadMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkIfNeedsReadMore();
+    });
+  }
+
+  void _checkIfNeedsReadMore() {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: widget.text,
+        style: const TextStyle(fontSize: 16, height: 1.5),
+      ),
+      maxLines: widget.maxCollapsedLines,
+      textDirection: ui.TextDirection.ltr,
+    );
+
+    textPainter.layout(maxWidth: MediaQuery.of(context).size.width - 48);
+
+    if (mounted) {
+      setState(() {
+        _needsReadMore = textPainter.didExceedMaxLines;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.text,
+            style: TextStyle(
+              fontSize: 16,
+              color: widget.textColor,
+              height: 1.5,
+            ),
+            maxLines: _isExpanded ? null : widget.maxCollapsedLines,
+            overflow: _isExpanded ? null : TextOverflow.ellipsis,
+          ),
+          if (_needsReadMore) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                });
+              },
+              child: Text(
+                _isExpanded ? 'Read Less' : 'Read More',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: widget.accentColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

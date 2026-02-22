@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 
 /// Auto-scrolling announcement widget with "Read More" functionality
 ///
@@ -25,7 +26,7 @@ class AutoScrollAnnouncement extends StatefulWidget {
     required this.content,
     this.postedBy,
     this.timestamp,
-    this.maxCollapsedHeight = 150.0,
+    this.maxCollapsedHeight = 100.0,
     this.scrollDuration = const Duration(seconds: 15),
     this.backgroundColor,
     this.textColor,
@@ -85,6 +86,11 @@ class _AutoScrollAnnouncementState extends State<AutoScrollAnnouncement>
 
     setState(() {
       _needsReadMore = _contentHeight > widget.maxCollapsedHeight;
+
+      // Debug print
+      print(
+        '📏 Content height: $_contentHeight, Max: ${widget.maxCollapsedHeight}, Needs Read More: $_needsReadMore',
+      );
 
       // Start auto-scroll if content is long
       if (_needsReadMore) {
@@ -202,68 +208,73 @@ class _AutoScrollAnnouncementState extends State<AutoScrollAnnouncement>
                   ? const BoxConstraints(maxHeight: 400)
                   : null,
               child: _isExpanded
-                  ? _buildExpandedContent(txtColor)
-                  : _buildCollapsedContent(txtColor),
+                  ? _buildExpandedContent(txtColor, accent)
+                  : _buildCollapsedContent(txtColor, accent),
             ),
-
-            // Read More / Read Less button
-            if (_needsReadMore) ...[
-              const SizedBox(height: 8),
-              Center(
-                child: TextButton.icon(
-                  onPressed: _toggleExpanded,
-                  icon: Icon(
-                    _isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    size: 20,
-                    color: accent,
-                  ),
-                  label: Text(
-                    _isExpanded ? 'Read Less' : 'Read More',
-                    style: TextStyle(
-                      color: accent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCollapsedContent(Color textColor) {
-    return ClipRect(
-      child: AnimatedBuilder(
-        animation: _scrollAnimation,
-        builder: (context, child) {
-          final maxScroll = _contentHeight - widget.maxCollapsedHeight;
-          final scrollOffset = maxScroll > 0
-              ? maxScroll * _scrollAnimation.value
-              : 0.0;
+  Widget _buildCollapsedContent(Color textColor, Color accentColor) {
+    return SizedBox(
+      height: widget.maxCollapsedHeight,
+      child: ClipRect(
+        child: AnimatedBuilder(
+          animation: _scrollAnimation,
+          builder: (context, child) {
+            final maxScroll = _contentHeight - widget.maxCollapsedHeight;
+            final scrollOffset = maxScroll > 0
+                ? maxScroll * _scrollAnimation.value
+                : 0.0;
 
-          return Transform.translate(
-            offset: Offset(0, -scrollOffset),
-            child: child,
-          );
-        },
-        child: Text(
-          widget.content,
-          style: TextStyle(fontSize: 14, color: textColor, height: 1.5),
+            return Transform.translate(
+              offset: Offset(0, -scrollOffset),
+              child: child,
+            );
+          },
+          child: RichText(
+            text: TextSpan(
+              style: TextStyle(fontSize: 14, color: textColor, height: 1.5),
+              children: [
+                TextSpan(text: widget.content),
+                if (_needsReadMore)
+                  TextSpan(
+                    text: '\n\nRead More',
+                    style: TextStyle(
+                      color: accentColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    recognizer: TapGestureRecognizer()..onTap = _toggleExpanded,
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildExpandedContent(Color textColor) {
+  Widget _buildExpandedContent(Color textColor, Color accentColor) {
     return SingleChildScrollView(
       controller: _manualScrollController,
-      child: Text(
-        widget.content,
-        style: TextStyle(fontSize: 14, color: textColor, height: 1.5),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(fontSize: 14, color: textColor, height: 1.5),
+          children: [
+            TextSpan(text: widget.content),
+            if (_needsReadMore)
+              TextSpan(
+                text: '\n\nRead Less',
+                style: TextStyle(
+                  color: accentColor,
+                  fontWeight: FontWeight.w600,
+                ),
+                recognizer: TapGestureRecognizer()..onTap = _toggleExpanded,
+              ),
+          ],
+        ),
       ),
     );
   }
