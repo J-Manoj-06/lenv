@@ -523,7 +523,9 @@ class _ChatScreenState extends State<ChatScreen> {
             backgroundImage:
                 widget.parentPhotoUrl != null &&
                     widget.parentPhotoUrl!.isNotEmpty
-                ? NetworkImage(widget.parentPhotoUrl!)
+                ? (widget.parentPhotoUrl!.isNotEmpty
+                      ? NetworkImage(widget.parentPhotoUrl!)
+                      : null)
                 : null,
             child:
                 widget.parentPhotoUrl == null || widget.parentPhotoUrl!.isEmpty

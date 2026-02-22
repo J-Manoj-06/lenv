@@ -706,7 +706,10 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                             width: 2,
                                           ),
                                           image:
-                                              announcement['avatarUrl'] != null
+                                              announcement['avatarUrl'] !=
+                                                      null &&
+                                                  announcement['avatarUrl']!
+                                                      .isNotEmpty
                                               ? DecorationImage(
                                                   image: NetworkImage(
                                                     announcement['avatarUrl']!,
@@ -715,7 +718,10 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                                                 )
                                               : null,
                                           color:
-                                              announcement['avatarUrl'] == null
+                                              announcement['avatarUrl'] ==
+                                                      null ||
+                                                  announcement['avatarUrl']!
+                                                      .isEmpty
                                               ? Colors.grey.shade400
                                               : null,
                                         ),

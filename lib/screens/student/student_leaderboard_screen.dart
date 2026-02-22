@@ -595,7 +595,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
               ),
               const SizedBox(width: 12),
               // Avatar (if available)
-              if (imageUrl != null) ...[
+              if (imageUrl != null && imageUrl.isNotEmpty) ...[
                 Container(
                   width: 40,
                   height: 40,

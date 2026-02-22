@@ -96,7 +96,7 @@ class ParentProfileScreen extends StatelessWidget {
               shape: BoxShape.circle,
               color: parentGreen.withOpacity(0.2),
             ),
-            child: photoUrl != null
+            child: photoUrl != null && photoUrl.isNotEmpty
                 ? ClipOval(child: Image.network(photoUrl, fit: BoxFit.cover))
                 : const Icon(Icons.person, color: parentGreen, size: 28),
           ),

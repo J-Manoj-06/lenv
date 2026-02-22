@@ -223,7 +223,9 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
               radius: 20,
               backgroundColor: Colors.grey.shade800,
               backgroundImage: widget.teacherAvatarUrl != null
-                  ? NetworkImage(widget.teacherAvatarUrl!)
+                  ? (widget.teacherAvatarUrl!.isNotEmpty
+                        ? NetworkImage(widget.teacherAvatarUrl!)
+                        : null)
                   : null,
               child: widget.teacherAvatarUrl == null
                   ? const Icon(Icons.person, color: Colors.white)

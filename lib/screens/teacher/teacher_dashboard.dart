@@ -22,6 +22,7 @@ import 'attendance_screen.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../../services/media_repository.dart';
 import 'teacher_announcement_target_screen.dart';
+import '../../widgets/auto_scroll_announcement.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});

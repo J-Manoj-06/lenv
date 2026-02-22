@@ -96,7 +96,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     if (mounted) {
       setState(() {
         _isDownloaded = downloaded;
-        _localPath = path;
+        // Only set _localPath if it's not empty to prevent file:/// errors
+        _localPath = (path != null && path.isNotEmpty) ? path : null;
       });
     }
 
@@ -712,7 +713,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             fit: StackFit.expand,
             children: [
               // Show downloaded image or thumbnail
-              if (_isDownloaded && _localPath != null)
+              if (_isDownloaded && _localPath != null && _localPath!.isNotEmpty)
                 () {
                   // Double-check the file is actually an image before loading
                   final filePath = _localPath!.toLowerCase();
@@ -754,7 +755,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   widget.thumbnailBase64!.isNotEmpty)
                 () {
                   // Check if it's a file path, URL, or base64 data
-                  if (widget.thumbnailBase64!.startsWith('/')) {
+                  if (widget.thumbnailBase64!.startsWith('/') &&
+                      widget.thumbnailBase64!.length > 1) {
                     // It's a file path, use Image.file (NO BLUR for better UX)
                     return Image.file(
                       File(widget.thumbnailBase64!),
@@ -950,7 +952,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     }
 
     // Check if it's a local file path (pending upload)
-    if (thumb.startsWith('/') || thumb.contains(':\\')) {
+    if ((thumb.startsWith('/') || thumb.contains(':\\')) && thumb.length > 1) {
       final file = File(thumb);
       if (file.existsSync()) {
         return Image.file(
@@ -1030,12 +1032,16 @@ class _FullImageViewer extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: PhotoView(
-        imageProvider: FileImage(File(imagePath)),
-        minScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.covered * 2,
-        backgroundDecoration: const BoxDecoration(color: Colors.black),
-      ),
+      body: imagePath.isNotEmpty
+          ? PhotoView(
+              imageProvider: FileImage(File(imagePath)),
+              minScale: PhotoViewComputedScale.contained,
+              maxScale: PhotoViewComputedScale.covered * 2,
+              backgroundDecoration: const BoxDecoration(color: Colors.black),
+            )
+          : Center(
+              child: Icon(Icons.broken_image, size: 64, color: Colors.white54),
+            ),
     );
   }
 }

@@ -214,7 +214,9 @@ class _AnnouncementViewScreenState extends State<AnnouncementViewScreen>
                                       blurRadius: 8,
                                     ),
                                   ],
-                                  image: widget.avatarUrl != null
+                                  image:
+                                      widget.avatarUrl != null &&
+                                          widget.avatarUrl!.isNotEmpty
                                       ? DecorationImage(
                                           image: NetworkImage(
                                             widget.avatarUrl!,
@@ -222,7 +224,9 @@ class _AnnouncementViewScreenState extends State<AnnouncementViewScreen>
                                           fit: BoxFit.cover,
                                         )
                                       : null,
-                                  color: widget.avatarUrl == null
+                                  color:
+                                      widget.avatarUrl == null ||
+                                          widget.avatarUrl!.isEmpty
                                       ? Colors.grey.shade400
                                       : null,
                                 ),

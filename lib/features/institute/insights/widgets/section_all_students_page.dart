@@ -53,7 +53,9 @@ class SectionAllStudentsPage extends StatelessWidget {
                     backgroundColor: const Color(0xFF146D7A).withOpacity(0.1),
                     backgroundImage:
                         student.photoUrl != null && student.photoUrl!.isNotEmpty
-                        ? NetworkImage(student.photoUrl!)
+                        ? (student.photoUrl!.isNotEmpty
+                              ? NetworkImage(student.photoUrl!)
+                              : null)
                         : null,
                     child: student.photoUrl == null || student.photoUrl!.isEmpty
                         ? Text(

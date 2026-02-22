@@ -460,10 +460,14 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
                   CircleAvatar(
                     radius: 20,
                     backgroundColor: Colors.grey.shade800,
-                    backgroundImage: widget.parentAvatarUrl != null
+                    backgroundImage:
+                        widget.parentAvatarUrl != null &&
+                            widget.parentAvatarUrl!.isNotEmpty
                         ? NetworkImage(widget.parentAvatarUrl!)
                         : null,
-                    child: widget.parentAvatarUrl == null
+                    child:
+                        widget.parentAvatarUrl == null ||
+                            widget.parentAvatarUrl!.isEmpty
                         ? const Icon(Icons.person, color: Colors.white)
                         : null,
                   ),

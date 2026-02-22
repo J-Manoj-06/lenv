@@ -482,7 +482,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
                     ),
                   ],
                 ),
-                child: profileImage != null
+                child: profileImage != null && profileImage.isNotEmpty
                     ? ClipOval(
                         child: Image.network(
                           profileImage,
