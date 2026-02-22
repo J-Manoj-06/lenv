@@ -649,16 +649,19 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             scrollDirection: Axis.horizontal,
             physics: const ClampingScrollPhysics(),
-            itemCount: 1 + otherPrincipals.length,
+            itemCount: 2 + otherPrincipals.length,
             addRepaintBoundaries: true,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               if (index == 0) {
                 // My Announcement (always first)
                 return _buildMyAnnouncementAvatar(myAnnouncements, currentUser);
+              } else if (index == 1) {
+                // Teacher Announcements (second)
+                return _buildTeacherAnnouncementsAvatar(instituteId);
               } else {
                 // Other Principals
-                final principalEntry = otherPrincipals[index - 1];
+                final principalEntry = otherPrincipals[index - 2];
                 final announcements = principalEntry.value;
                 final latestAnnouncement = announcements.first;
                 return _buildOtherPrincipalAvatar(
@@ -818,6 +821,71 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Build Teacher Announcements Avatar
+  Widget _buildTeacherAnnouncementsAvatar(String instituteId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final subtitleColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
+    const purpleColor = Color(0xFF7A5CFF);
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('class_highlights')
+          .where('instituteId', isEqualTo: instituteId)
+          .where('expiresAt', isGreaterThan: Timestamp.now())
+          .snapshots(),
+      builder: (context, snapshot) {
+        final hasTeacherAnnouncements =
+            snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+
+        return GestureDetector(
+          onTap: () {
+            if (hasTeacherAnnouncements) {
+              // Navigate to teacher announcements view
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Teacher announcements coming soon'),
+                ),
+              );
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: purpleColor, width: 2),
+                  color: cardColor,
+                ),
+                child: const Icon(Icons.school, color: purpleColor, size: 28),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 68,
+                child: Text(
+                  'Teachers',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: subtitleColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
