@@ -549,14 +549,14 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     if ((announcement['title'] as String?)?.isNotEmpty ?? false) {
       final title = announcement['title'] as String;
 
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: _ExpandableAnnouncementText(
-            text: title,
-            textColor: Colors.white,
-            accentColor: const Color(0xFF7A5CFF),
-          ),
+      return Container(
+        height: double.infinity,
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+        child: _ExpandableAnnouncementText(
+          text: title,
+          textColor: Colors.white,
+          accentColor: const Color(0xFF7A5CFF),
         ),
       );
     }
@@ -1048,7 +1048,7 @@ class _ExpandableAnnouncementTextState
     final textPainter = TextPainter(
       text: TextSpan(
         text: widget.text,
-        style: const TextStyle(fontSize: 16, height: 1.5),
+        style: const TextStyle(fontSize: 20, height: 1.5),
       ),
       maxLines: widget.maxCollapsedLines,
       textDirection: ui.TextDirection.ltr,
@@ -1072,7 +1072,7 @@ class _ExpandableAnnouncementTextState
           Text(
             widget.text,
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 20,
               color: widget.textColor,
               height: 1.5,
             ),
@@ -1090,7 +1090,7 @@ class _ExpandableAnnouncementTextState
               child: Text(
                 _isExpanded ? 'Read Less' : 'Read More',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   color: widget.accentColor,
                   fontWeight: FontWeight.w600,
                 ),
