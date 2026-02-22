@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -549,15 +550,10 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     if ((announcement['title'] as String?)?.isNotEmpty ?? false) {
       final title = announcement['title'] as String;
 
-      return Container(
-        height: double.infinity,
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-        child: _ExpandableAnnouncementText(
-          text: title,
-          textColor: Colors.white,
-          accentColor: const Color(0xFF7A5CFF),
-        ),
+      return _ExpandablePostText(
+        text: title,
+        textColor: Colors.white,
+        accentColor: const Color(0xFF7A5CFF),
       );
     }
 
@@ -1012,7 +1008,207 @@ Future<void> openAnnouncementPageView(
   );
 }
 
-/// Simple expandable text widget with Read More/Read Less functionality
+/// Adaptive expandable post text widget that fills available space
+class _ExpandablePostText extends StatefulWidget {
+  final String text;
+  final Color textColor;
+  final Color accentColor;
+
+  const _ExpandablePostText({
+    required this.text,
+    required this.textColor,
+    required this.accentColor,
+  });
+
+  @override
+  State<_ExpandablePostText> createState() => _ExpandablePostTextState();
+}
+
+class _ExpandablePostTextState extends State<_ExpandablePostText> {
+  bool _needsReadMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkIfNeedsReadMore();
+    });
+  }
+
+  void _checkIfNeedsReadMore() {
+    final availableHeight = MediaQuery.of(context).size.height - 200;
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: widget.text,
+        style: const TextStyle(fontSize: 18, height: 1.6),
+      ),
+      textDirection: ui.TextDirection.ltr,
+    );
+
+    textPainter.layout(maxWidth: MediaQuery.of(context).size.width - 48);
+
+    if (mounted) {
+      setState(() {
+        _needsReadMore = textPainter.height > availableHeight;
+      });
+    }
+  }
+
+  void _showExpandedContent() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.95,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const SizedBox(width: 24),
+                  const Text(
+                    'Full Announcement',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  child: Text(
+                    widget.text,
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: widget.textColor,
+                      height: 1.6,
+                    ),
+                    textAlign: TextAlign.left,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          height: constraints.maxHeight,
+          width: constraints.maxWidth,
+          color: Colors.black,
+          child: _needsReadMore
+              ? // Long text: scrollable with Read More button
+                Column(
+                  children: [
+                    // Text content - scrollable
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 24,
+                        ),
+                        child: SingleChildScrollView(
+                          child: Text(
+                            widget.text,
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: widget.textColor,
+                              height: 1.6,
+                            ),
+                            textAlign: TextAlign.left,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Read More button
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: 32,
+                        left: 24,
+                        right: 24,
+                        top: 16,
+                      ),
+                      child: GestureDetector(
+                        onTap: _showExpandedContent,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: widget.accentColor,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Read More',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: widget.accentColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : // Short text: centered nicely
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 24,
+                    ),
+                    child: Text(
+                      widget.text,
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: widget.textColor,
+                        height: 1.6,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+        );
+      },
+    );
+  }
+}
+
+/// Old widget - keeping for compatibility
 class _ExpandableAnnouncementText extends StatefulWidget {
   final String text;
   final Color textColor;
@@ -1065,40 +1261,93 @@ class _ExpandableAnnouncementTextState
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.text,
-            style: TextStyle(
-              fontSize: 20,
-              color: widget.textColor,
-              height: 1.5,
-            ),
-            maxLines: _isExpanded ? null : widget.maxCollapsedLines,
-            overflow: _isExpanded ? null : TextOverflow.ellipsis,
-          ),
-          if (_needsReadMore) ...[
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  _isExpanded = !_isExpanded;
-                });
-              },
+    if (_isExpanded) {
+      // Expanded view: scrollable full content with Read Less button
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               child: Text(
-                _isExpanded ? 'Read Less' : 'Read More',
+                widget.text,
                 style: TextStyle(
-                  fontSize: 18,
-                  color: widget.accentColor,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 20,
+                  color: widget.textColor,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            if (_needsReadMore)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _isExpanded = !_isExpanded;
+                    });
+                  },
+                  child: Text(
+                    'Read Less',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: widget.accentColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    } else {
+      // Collapsed view: centered content with ellipsis + Read More button at bottom
+      return Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 24,
+                  ),
+                  child: Text(
+                    widget.text,
+                    style: TextStyle(
+                      fontSize: 20,
+                      color: widget.textColor,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: widget.maxCollapsedLines,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ),
-          ],
+          ),
+          if (_needsReadMore)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isExpanded = !_isExpanded;
+                  });
+                },
+                child: Text(
+                  'Read More',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: widget.accentColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
         ],
-      ),
-    );
+      );
+    }
   }
 }
