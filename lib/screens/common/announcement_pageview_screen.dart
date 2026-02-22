@@ -1102,7 +1102,7 @@ class _ExpandablePostTextState extends State<_ExpandablePostText> {
                   child: Text(
                     widget.text,
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 24,
                       color: widget.textColor,
                       height: 1.6,
                     ),
@@ -1140,7 +1140,7 @@ class _ExpandablePostTextState extends State<_ExpandablePostText> {
                           child: Text(
                             widget.text,
                             style: TextStyle(
-                              fontSize: 18,
+                              fontSize: 24,
                               color: widget.textColor,
                               height: 1.6,
                             ),
@@ -1194,7 +1194,7 @@ class _ExpandablePostTextState extends State<_ExpandablePostText> {
                     child: Text(
                       widget.text,
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 24,
                         color: widget.textColor,
                         height: 1.6,
                       ),
