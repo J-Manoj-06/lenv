@@ -232,7 +232,10 @@ class BackgroundUploadService extends ChangeNotifier {
                   : p.toDouble();
               upload.progress = normalized;
               notifyListeners();
-              print('📤 Upload ${upload.id}: ${(normalized * 100).toInt()}%');
+              final percent = (normalized * 100).toInt();
+              print(
+                '📤 Upload ${upload.id}: $percent% (raw: $p, normalized: ${normalized.toStringAsFixed(2)})',
+              );
               onUploadProgress?.call(upload.id, true, normalized);
             },
           );

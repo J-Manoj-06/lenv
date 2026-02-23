@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:io';
 import '../../providers/auth_provider.dart';
@@ -1507,8 +1508,13 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         final allMessages = <Map<String, dynamic>>[];
         final pendingIdsToRemove = <String>[];
 
+        final deletedCount = firestoreMessages.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['isDeleted'] == true;
+        }).length;
+
         print(
-          '📋 Merging messages - Pending: ${_pendingMessages.length}, Firestore: ${firestoreMessages.length}',
+          '📋 Merging messages - Pending: ${_pendingMessages.length}, Firestore: ${firestoreMessages.length} (${deletedCount} deleted)',
         );
 
         // Add pending messages first, but check if they have a Firestore version
@@ -1537,14 +1543,11 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                 ? serverTimestamp.millisecondsSinceEpoch
                 : (serverTimestamp as int? ?? 0);
 
-            // Match by sender and timestamp (within reasonable window)
+            // Match by sender and timestamp
             final senderMatch = serverSenderId == pendingSenderId;
             final timeDiff = serverTimestampMs - pendingTimestamp;
-            final timeMatch =
-                timeDiff >= 0 &&
-                timeDiff < 10000; // 10 seconds window for network delays
 
-            if (!senderMatch || !timeMatch) return false;
+            if (!senderMatch) return false;
 
             // PERMANENT FIX: Match by attachment metadata for precise identification
             // This prevents false matches with other messages from same sender
@@ -1557,27 +1560,38 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                   serverAttachmentName == pendingAttachmentName &&
                   serverAttachmentSize == pendingAttachmentSize;
 
-              if (attachmentMatch) {
-                print('   ✅ Exact match found: ${doc.id}');
+              if (senderMatch) {
+                print('   ⚠️ Potential match - Checking attachment: ${doc.id}');
                 print(
-                  '      Attachment: $pendingAttachmentName (${pendingAttachmentSize} bytes)',
+                  '      Pending: $pendingAttachmentName ($pendingAttachmentSize bytes)',
                 );
-                print('      Time diff: $timeDiff ms');
+                print(
+                  '      Server: $serverAttachmentName ($serverAttachmentSize bytes)',
+                );
+                print('      Match: $attachmentMatch, Time diff: $timeDiff ms');
               }
 
-              return attachmentMatch;
+              if (attachmentMatch) {
+                print('   ✅ Exact match found: ${doc.id}');
+              }
+
+              // For attachments, allow any time difference as long as server message is not older
+              // This prevents duplicates when uploads take longer than the previous 10s window
+              return attachmentMatch && timeDiff >= 0;
             }
 
-            // For multi-media messages, match by sender + time + multipleMedia presence
+            // For multi-media messages, match by sender + time window + multipleMedia presence
             if (pendingHasMultipleMedia) {
               final serverHasMultipleMedia =
                   data['multipleMedia'] != null &&
                   (data['multipleMedia'] as List).isNotEmpty;
-              return serverHasMultipleMedia;
+              final timeMatch = timeDiff >= 0 && timeDiff < 10000;
+              return serverHasMultipleMedia && timeMatch;
             }
 
-            // For text messages, just sender + time is sufficient
-            return true;
+            // For text messages, use a time window to avoid mismatches
+            final timeMatch = timeDiff >= 0 && timeDiff < 10000;
+            return timeMatch;
           }).firstOrNull;
 
           if (matchingServerDoc != null) {
@@ -2527,8 +2541,20 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
       for (final key in keys) {
         try {
           await r2Service.deleteFile(key: key);
+
+          // Verify deletion by checking if file still exists
+          await Future.delayed(
+            Duration(milliseconds: 500),
+          ); // Wait for deletion propagation
+          final stillExists = await _checkFileExistsInR2(r2Service, key);
+
           successCount++;
-          print('  ✅ Deleted: $key');
+          print('  ✅ Deleted: $key (Verified: ${!stillExists})');
+          if (stillExists) {
+            print(
+              '     ⚠️  WARNING: File still exists after deletion attempt!',
+            );
+          }
         } catch (e) {
           print('  ⚠️  Failed to delete $key: $e');
           // Continue with next file
@@ -2541,6 +2567,22 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     } catch (e) {
       print('❌ R2 cleanup failed: $e');
       // Non-critical error - don't show to user
+    }
+  }
+
+  /// Check if a file exists in R2 storage
+  Future<bool> _checkFileExistsInR2(
+    CloudflareR2Service r2Service,
+    String key,
+  ) async {
+    try {
+      // Try to get file metadata - if it throws 404, file doesn't exist
+      final response = await http.head(
+        Uri.parse('${CloudflareConfig.r2Domain}/$key'),
+      );
+      return response.statusCode == 200; // File exists
+    } catch (e) {
+      return false; // File doesn't exist or error occurred
     }
   }
 }
