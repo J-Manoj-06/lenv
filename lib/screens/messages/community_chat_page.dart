@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
@@ -156,6 +157,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   final Map<String, String> _localSenderMediaPaths = {};
   DateTime? _lastMarkedMessageAt;
 
+  // Notification for background uploads
+  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  int _activeUploads = 0;
+
   // Selection mode for delete (ValueNotifiers for flicker-free updates)
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
@@ -183,19 +189,102 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Start polling for progress updates every 2 seconds
     _startProgressPolling();
 
-    // Track upload progress so pending bubbles show overlays
+    // Initialize background upload service
+    _initBackgroundUploadService();
+
+    // Setup last read stream for unread divider
+    _setupLastReadStream();
+
+    // Scroll to bottom on initial load only and mark as read after frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom(force: true);
+      // Mark as read and refresh unread counts after frame
+      _markAsRead();
+      try {
+        final unread = Provider.of<UnreadCountProvider>(context, listen: false);
+        unread.refreshChat(widget.communityId);
+      } catch (_) {}
+    });
+  }
+
+  void _startProgressPolling() {
+    _progressPollTimer?.cancel();
+    _progressPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_pendingMessages.isNotEmpty) {
+        _checkCacheForProgressUpdates();
+      }
+    });
+  }
+
+  Future<void> _showUploadNotification(double progress) async {
+    final progressPercent = (progress * 100).toInt();
+
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'upload_channel',
+          'File Uploads',
+          channelDescription: 'Shows progress of file uploads',
+          importance: Importance.low,
+          priority: Priority.low,
+          ongoing: true,
+          autoCancel: false,
+          showProgress: true,
+          maxProgress: 100,
+          progress: progressPercent,
+          playSound: false,
+          enableVibration: false,
+        );
+
+    final NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+    );
+
+    await _flutterLocalNotificationsPlugin.show(
+      998, // Fixed ID for community upload notification
+      'Uploading to Community',
+      progressPercent < 100
+          ? 'Upload in progress... $progressPercent%'
+          : 'Upload complete',
+      notificationDetails,
+    );
+  }
+
+  Future<void> _cancelUploadNotification() async {
+    await _flutterLocalNotificationsPlugin.cancel(998);
+  }
+
+  void _initBackgroundUploadService() async {
+    await BackgroundUploadService().initialize();
+
+    // Track upload progress and show persistent notification
     BackgroundUploadService()
         .onUploadProgress = (messageId, isUploading, progress) async {
       if (!mounted) return;
+
       setState(() {
         if (isUploading) {
+          if (!_uploadingMessageIds.contains(messageId)) {
+            _activeUploads++;
+          }
           _uploadingMessageIds.add(messageId);
           _pendingUploadProgress[messageId] = progress;
         } else {
+          // Upload to R2 complete - but DON'T remove pending message yet!
+          // Keep it until Firestore sync completes (message appears in stream)
+          if (_uploadingMessageIds.contains(messageId)) {
+            _activeUploads--;
+          }
           _uploadingMessageIds.remove(messageId);
           _pendingUploadProgress.remove(messageId);
         }
       });
+
+      // Show/update persistent notification
+      if (_activeUploads > 0) {
+        await _showUploadNotification(progress);
+      } else {
+        await _cancelUploadNotification();
+      }
 
       // Save progress to cache at 5% intervals
       final progressPercent = (progress * 100).round();
@@ -247,40 +336,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
     // Handle group upload completion
     BackgroundUploadService().onGroupComplete = (groupId) async {
-      print('🎉 Group upload complete: $groupId');
-
-      // Wait for Firestore to propagate the message before removing pending
-      // Poll for up to 5 seconds to check if the message exists in local DB
-      bool messageExists = false;
-      for (int i = 0; i < 10; i++) {
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Check if message exists in local DB (which gets updated from Firestore sync)
-        final messages = await _localRepo.getMessagesForChat(
-          widget.communityId,
-        );
-        messageExists = messages.any(
-          (m) =>
-              m.messageText?.contains(groupId) == true ||
-              m.messageId.contains(groupId) ||
-              (m.timestamp >
-                      DateTime.now()
-                          .subtract(const Duration(seconds: 10))
-                          .millisecondsSinceEpoch &&
-                  m.attachmentType == 'multiple'),
-        );
-
-        if (messageExists) {
-          print('✅ Confirmed Firestore message exists, safe to remove pending');
-          break;
-        }
-      }
-
-      if (!messageExists) {
-        print(
-          '⚠️ Timeout waiting for Firestore message, removing pending anyway',
-        );
-      }
+      print(
+        '🎉 Group upload complete: $groupId - Waiting for Firestore sync...',
+      );
 
       // Delete pending message from cache
       try {
@@ -290,40 +348,16 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         print('⚠️ Failed to delete pending message from cache: $e');
       }
 
-      // Remove pending message from UI
+      // DON'T remove pending message here - let Firestore sync handle it
+      // Clean up tracking data only
       if (mounted) {
         setState(() {
-          _pendingMessages.removeWhere((m) => m.id == 'pending:$groupId');
-          // Clean up tracking maps
           _uploadingMessageIds.removeWhere((id) => id.startsWith(groupId));
           _pendingUploadProgress.removeWhere((k, v) => k.startsWith(groupId));
           _localSenderMediaPaths.removeWhere((k, v) => k.startsWith(groupId));
         });
-        print('✅ Removed pending message from UI: $groupId');
       }
     };
-
-    // Setup last read stream for unread divider
-    _setupLastReadStream();
-    // Scroll to bottom on initial load only and mark as read after frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToBottom(force: true);
-      // Mark as read and refresh unread counts after frame
-      _markAsRead();
-      try {
-        final unread = Provider.of<UnreadCountProvider>(context, listen: false);
-        unread.refreshChat(widget.communityId);
-      } catch (_) {}
-    });
-  }
-
-  void _startProgressPolling() {
-    _progressPollTimer?.cancel();
-    _progressPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (_pendingMessages.isNotEmpty) {
-        _checkCacheForProgressUpdates();
-      }
-    });
   }
 
   Future<void> _checkCacheForProgressUpdates() async {
@@ -333,6 +367,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
     for (final pendingMsg in _pendingMessages) {
       final messageId = pendingMsg.id;
+
+      // Skip cache checks for BackgroundUploadService pending messages
+      if (messageId.startsWith('pending:')) {
+        continue;
+      }
 
       try {
         final cachedMsg = await _localRepo.getMessageById(messageId);
@@ -599,6 +638,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Dispose selection notifiers
     _selectedMessages.dispose();
     _isSelectionMode.dispose();
+
+    // Cancel upload notification
+    _cancelUploadNotification();
 
     super.dispose();
   }
@@ -954,10 +996,65 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           return CreatePollScreen(
             chatId: widget.communityId,
             chatType: 'community',
+            onPollSent: _handlePollSent,
           );
         },
       ),
     );
+  }
+
+  /// Handle when a poll is sent - add it to pending messages for immediate display
+  void _handlePollSent(PollModel poll, String messageId) {
+    print('✅ Poll sent! Adding to pending messages...');
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      // Create pending message for the poll with proper structure
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final pendingPoll = GroupChatMessage(
+        id: messageId,
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
+        message: 'Poll: ${poll.question}',
+        timestamp: now,
+        isDeleted: false,
+        type: 'poll',
+        rawData: {
+          'type': 'poll',
+          'question': poll.question,
+          'options': poll.options
+              .map(
+                (opt) => {
+                  'id': opt.id,
+                  'text': opt.text,
+                  'voteCount': opt.voteCount,
+                },
+              )
+              .toList(),
+          'allowMultiple': poll.allowMultiple,
+          'createdBy': currentUser.uid,
+          'createdByName': currentUser.name,
+          'createdByRole': currentUser.role.toString().split('.').last,
+          'timestamp': now,
+          'createdAt': now,
+          'message': 'Poll: ${poll.question}',
+          'senderId': currentUser.uid,
+          'senderName': currentUser.name,
+        },
+      );
+
+      // Add to pending messages
+      if (mounted) {
+        setState(() {
+          _pendingMessages.add(pendingPoll);
+          print('   ➕ Added pending poll to _pendingMessages');
+        });
+      }
+    } catch (e) {
+      print('   ❌ Error handling poll sent: $e');
+    }
   }
 
   void _showAttachmentPicker() {
@@ -1581,6 +1678,24 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                         );
                       }
 
+                      final pendingAttachmentKeys = <String>{};
+                      if (pendingMsg.mediaMetadata?.originalFileName != null &&
+                          pendingMsg.mediaMetadata?.fileSize != null) {
+                        pendingAttachmentKeys.add(
+                          '${pendingMsg.mediaMetadata!.originalFileName}|${pendingMsg.mediaMetadata!.fileSize}',
+                        );
+                      }
+                      if (pendingMsg.multipleMedia != null) {
+                        for (final m in pendingMsg.multipleMedia!) {
+                          if (m.originalFileName != null &&
+                              m.fileSize != null) {
+                            pendingAttachmentKeys.add(
+                              '${m.originalFileName}|${m.fileSize}',
+                            );
+                          }
+                        }
+                      }
+
                       final hasMatchingMedia =
                           pendingMediaIds.isNotEmpty &&
                           firestoreMessages.any((fsMsg) {
@@ -1598,8 +1713,36 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                             return fsMediaIds.any(pendingMediaIds.contains);
                           });
 
+                      final hasMatchingAttachment =
+                          pendingAttachmentKeys.isNotEmpty &&
+                          firestoreMessages.any((fsMsg) {
+                            if (fsMsg.id.startsWith('pending:')) return false;
+                            final fsAttachmentKeys = <String>{};
+                            if (fsMsg.mediaMetadata?.originalFileName != null &&
+                                fsMsg.mediaMetadata?.fileSize != null) {
+                              fsAttachmentKeys.add(
+                                '${fsMsg.mediaMetadata!.originalFileName}|${fsMsg.mediaMetadata!.fileSize}',
+                              );
+                            }
+                            if (fsMsg.multipleMedia != null) {
+                              for (final m in fsMsg.multipleMedia!) {
+                                if (m.originalFileName != null &&
+                                    m.fileSize != null) {
+                                  fsAttachmentKeys.add(
+                                    '${m.originalFileName}|${m.fileSize}',
+                                  );
+                                }
+                              }
+                            }
+                            if (fsAttachmentKeys.isEmpty) return false;
+                            return fsAttachmentKeys.any(
+                              pendingAttachmentKeys.contains,
+                            );
+                          });
+
                       final hasServerVersion =
                           hasMatchingMedia ||
+                          hasMatchingAttachment ||
                           firestoreMessages.any((fsMsg) {
                             final senderMatch =
                                 fsMsg.senderId == pendingMsg.senderId;

@@ -41,11 +41,31 @@ class MultiImageMessageBubble extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final maxBubbleWidth = screenWidth * 0.7; // 70% of screen
 
-    final bubbleColor = isDark ? const Color(0xFF11141B) : Colors.white;
-    final borderColor = const Color(0xFFFFA929).withOpacity(0.6);
+    // Check if any image is still uploading - use more stable calculation
+    bool isUploading = false;
+    double overallProgress = 0.0;
+
+    if (uploadProgress != null && uploadProgress!.isNotEmpty) {
+      final activeUploads = uploadProgress!
+          .where((p) => p != null && p < 1.0)
+          .toList();
+      if (activeUploads.isNotEmpty) {
+        isUploading = true;
+        // Calculate average progress across ALL images (not just active ones)
+        final progressValues = uploadProgress!
+            .where((p) => p != null)
+            .cast<double>()
+            .toList();
+        if (progressValues.isNotEmpty) {
+          // Average of all progress values for stable calculation
+          overallProgress =
+              progressValues.reduce((a, b) => a + b) / progressValues.length;
+        }
+      }
+    }
 
     final content = _buildContent(context);
-    //summa
+
     final bubbleContent = Container(
       decoration: BoxDecoration(
         color: Colors.transparent,
@@ -59,9 +79,53 @@ class MultiImageMessageBubble extends StatelessWidget {
         ],
       ),
       padding: EdgeInsets.zero,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(bubbleRadius),
-        child: content,
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(bubbleRadius),
+            child: content,
+          ),
+          // Unified loading overlay when uploading - properly sized and centered
+          if (isUploading)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(bubbleRadius),
+                child: Container(
+                  color: Colors.black.withOpacity(0.65),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 70,
+                          height: 70,
+                          child: CircularProgressIndicator(
+                            value: overallProgress.clamp(0.0, 1.0),
+                            strokeWidth: 5,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFFFFA929),
+                            ),
+                            backgroundColor: Colors.white24,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '${(overallProgress * 100).toInt()}%',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
 
@@ -398,50 +462,8 @@ class _ImageTileState extends State<_ImageTile>
             // Image (network or file)
             _buildImage(widget.url),
 
-            // Upload progress overlay
-            if (widget.uploadProgress != null && widget.uploadProgress! < 1.0)
-              Container(
-                color: Colors.black.withOpacity(0.7),
-                child: Center(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final tileSize = constraints.biggest.shortestSide;
-                      final indicatorSize = tileSize.clamp(24.0, 40.0);
-                      final spacing = tileSize <= 48 ? 4.0 : 8.0;
-                      final fontSize = tileSize <= 48 ? 11.0 : 12.0;
-
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: indicatorSize,
-                            height: indicatorSize,
-                            child: CircularProgressIndicator(
-                              value: widget.uploadProgress,
-                              strokeWidth: 3,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Color(0xFFFFA929),
-                              ),
-                              backgroundColor: Colors.white24,
-                            ),
-                          ),
-                          SizedBox(height: spacing),
-                          Text(
-                            '${(widget.uploadProgress! * 100).toInt()}%',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: fontSize,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ),
-
             // "+N" overlay on 4th tile when total > 4
+            // (Individual progress overlays removed - use unified overlay at bubble level)
             if (widget.showOverlay)
               Container(
                 color: Colors.black.withOpacity(0.55),

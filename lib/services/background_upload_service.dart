@@ -232,10 +232,6 @@ class BackgroundUploadService extends ChangeNotifier {
                   : p.toDouble();
               upload.progress = normalized;
               notifyListeners();
-              final percent = (normalized * 100).toInt();
-              print(
-                '📤 Upload ${upload.id}: $percent% (raw: $p, normalized: ${normalized.toStringAsFixed(2)})',
-              );
               onUploadProgress?.call(upload.id, true, normalized);
             },
           );
@@ -430,14 +426,10 @@ class BackgroundUploadService extends ChangeNotifier {
           }
 
           // Notify UI that upload is complete (remove pending message)
-          print(
-            '✅ Upload complete: ${upload.id} - Notifying UI to remove pending message',
-          );
           onUploadProgress?.call(upload.id, false, 1.0);
         } catch (e) {
           upload.status = UploadStatus.failed;
           upload.error = e.toString();
-          print('❌ Upload failed: ${upload.id} - $e');
           // Notify UI that upload failed
           onUploadProgress?.call(upload.id, false, 0.0);
         }

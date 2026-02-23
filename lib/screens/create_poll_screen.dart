@@ -13,11 +13,13 @@ import '../providers/auth_provider.dart' as local_auth;
 class CreatePollScreen extends StatefulWidget {
   final String chatId;
   final String chatType;
+  final Function(PollModel, String)? onPollSent; // callback(poll, messageId)
 
   const CreatePollScreen({
     super.key,
     required this.chatId,
     required this.chatType,
+    this.onPollSent,
   });
 
   @override
@@ -162,11 +164,14 @@ class _CreatePollScreenState extends State<CreatePollScreen>
       );
 
       final pollService = PollService();
-      await pollService.sendPoll(
+      final messageId = await pollService.sendPoll(
         chatId: widget.chatId,
         poll: poll,
         chatType: widget.chatType,
       );
+
+      // Call the callback to notify parent screen of the sent poll
+      widget.onPollSent?.call(poll, messageId);
 
       if (mounted) {
         Navigator.pop(context);
