@@ -2107,30 +2107,70 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
         validMessages.add(messageId);
 
-        // Collect media for deletion
-        if (data?['attachmentUrl'] != null &&
-            data!['attachmentUrl'].toString().contains(
-              'r2.cloudflarestorage.com',
-            )) {
-          try {
-            final url = data['attachmentUrl'] as String;
-            final uri = Uri.parse(url);
-            final key = uri.pathSegments.last;
-            mediaToDelete.add(key);
-          } catch (e) {
-            // Ignore parsing errors
+        // Collect ALL media for deletion (comprehensive extraction)
+        // Extract from mediaMetadata (primary source)
+        final mediaMetadata = data?['mediaMetadata'] as Map<String, dynamic>?;
+        if (mediaMetadata != null) {
+          final r2Key = mediaMetadata['r2Key'] as String?;
+          if (r2Key != null && r2Key.isNotEmpty) {
+            mediaToDelete.add(r2Key);
+          }
+          // Also check for thumbnail
+          final thumbnailKey = mediaMetadata['thumbnailR2Key'] as String?;
+          if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+            mediaToDelete.add(thumbnailKey);
           }
         }
 
-        // Add to batch
+        // Extract from attachmentUrl (legacy field)
+        if (data?['attachmentUrl'] != null) {
+          final attachmentUrl = data!['attachmentUrl'] as String;
+          if (attachmentUrl.contains(CloudflareConfig.r2Domain)) {
+            try {
+              final uri = Uri.parse(attachmentUrl);
+              // Remove leading slash from path
+              final key = uri.path.startsWith('/')
+                  ? uri.path.substring(1)
+                  : uri.path;
+              if (key.isNotEmpty && !mediaToDelete.contains(key)) {
+                mediaToDelete.add(key);
+              }
+            } catch (e) {
+              print('⚠️  Failed to parse attachmentUrl: $e');
+            }
+          }
+        }
+
+        // Extract from thumbnailUrl (legacy field)
+        if (data?['thumbnailUrl'] != null) {
+          final thumbnailUrl = data!['thumbnailUrl'] as String;
+          if (thumbnailUrl.contains(CloudflareConfig.r2Domain)) {
+            try {
+              final uri = Uri.parse(thumbnailUrl);
+              final key = uri.path.startsWith('/')
+                  ? uri.path.substring(1)
+                  : uri.path;
+              if (key.isNotEmpty && !mediaToDelete.contains(key)) {
+                mediaToDelete.add(key);
+              }
+            } catch (e) {
+              print('⚠️  Failed to parse thumbnailUrl: $e');
+            }
+          }
+        }
+
+        // Add to batch - clear all media references
         batch.update(messageRef, {
           'isDeleted': true,
-          'text': '',
+          'deletedAt': FieldValue.serverTimestamp(),
+          'text': 'This message was deleted',
           'attachmentUrl': null,
           'attachmentType': null,
           'attachmentName': null,
           'attachmentSize': null,
           'thumbnailUrl': null,
+          'mediaMetadata': null, // Clear new mediaMetadata field
+          'multipleMedia': null, // Clear multiple media if exists
         });
       }
 
@@ -2167,7 +2207,13 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     }
   }
 
+  /// Delete media files from R2 storage to prevent storage bloat
+  /// Runs in background after Firestore deletion
   void _deleteMediaFiles(List<String> keys) async {
+    if (keys.isEmpty) return;
+
+    print('🗑️  Deleting ${keys.length} media file(s) from R2...');
+
     try {
       final r2Service = CloudflareR2Service(
         accountId: CloudflareConfig.accountId,
@@ -2177,15 +2223,24 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         r2Domain: CloudflareConfig.r2Domain,
       );
 
+      int successCount = 0;
       for (final key in keys) {
         try {
           await r2Service.deleteFile(key: key);
+          successCount++;
+          print('  ✅ Deleted: $key');
         } catch (e) {
-          // Ignore individual file deletion errors
+          print('  ⚠️  Failed to delete $key: $e');
+          // Continue with next file
         }
       }
+
+      print(
+        '✅ R2 cleanup complete: $successCount/${keys.length} files deleted',
+      );
     } catch (e) {
-      // Ignore media deletion errors
+      print('❌ R2 cleanup failed: $e');
+      // Non-critical error - don't show to user
     }
   }
 }

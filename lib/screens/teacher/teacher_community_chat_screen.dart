@@ -2917,18 +2917,30 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
     if (confirmed != true) return;
 
     try {
-      await FirebaseFirestore.instance
-          .collection('communities')
-          .doc(widget.community.id)
-          .collection('messages')
-          .doc(message.messageId)
-          .update({'isDeleted': true, 'content': ''});
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
+
+      if (currentUserId == null) {
+        throw Exception('User not found');
+      }
+
+      // Use CommunityService for comprehensive R2 cleanup (4 sources)
+      final communityService = CommunityService();
+      final success = await communityService.deleteMessage(
+        communityId: widget.community.id,
+        messageId: message.messageId,
+        userId: currentUserId,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Message deleted for everyone'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(
+              success
+                  ? 'Message deleted for everyone'
+                  : 'Failed to delete message',
+            ),
+            backgroundColor: success ? Colors.green : Colors.red,
           ),
         );
       }
@@ -2978,15 +2990,105 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
     if (confirmed != true) return;
 
     try {
-      final batch = FirebaseFirestore.instance.batch();
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = authProvider.currentUser?.uid;
+
+      if (currentUserId == null) {
+        throw Exception('User not found');
+      }
+
+      // Collect R2 keys from all selected messages before deletion
+      final mediaToDelete = <String>{};
       final communityRef = FirebaseFirestore.instance
           .collection('communities')
           .doc(widget.community.id);
+
+      // First pass: Extract R2 keys
+      for (final messageId in selectedSet) {
+        try {
+          final doc = await communityRef
+              .collection('messages')
+              .doc(messageId)
+              .get();
+
+          if (doc.exists) {
+            final data = doc.data();
+            if (data != null) {
+              // Extract from mediaMetadata
+              final metadata = data['mediaMetadata'] as Map<String, dynamic>?;
+              if (metadata != null) {
+                final r2Key = metadata['r2Key'] as String?;
+                if (r2Key != null && r2Key.isNotEmpty) mediaToDelete.add(r2Key);
+                final thumbKey = metadata['thumbnailR2Key'] as String?;
+                if (thumbKey != null && thumbKey.isNotEmpty)
+                  mediaToDelete.add(thumbKey);
+              }
+
+              // Extract from multipleMedia
+              final multipleMedia = data['multipleMedia'] as List<dynamic>?;
+              if (multipleMedia != null) {
+                for (final media in multipleMedia) {
+                  if (media is Map<String, dynamic>) {
+                    final r2Key = media['r2Key'] as String?;
+                    if (r2Key != null && r2Key.isNotEmpty)
+                      mediaToDelete.add(r2Key);
+                    final thumbKey = media['thumbnailR2Key'] as String?;
+                    if (thumbKey != null && thumbKey.isNotEmpty)
+                      mediaToDelete.add(thumbKey);
+                  }
+                }
+              }
+
+              // Extract from legacy imageUrl
+              final imageUrl = data['imageUrl'] as String?;
+              if (imageUrl != null && imageUrl.isNotEmpty) {
+                try {
+                  final uri = Uri.parse(imageUrl);
+                  final path = uri.path;
+                  final key = path.startsWith('/') ? path.substring(1) : path;
+                  if (key.isNotEmpty) mediaToDelete.add(key);
+                } catch (e) {}
+              }
+            }
+          }
+        } catch (e) {
+          print('⚠️ Error extracting R2 keys from message $messageId: $e');
+        }
+      }
+
+      // Delete files from R2
+      if (mediaToDelete.isNotEmpty) {
+        try {
+          final r2Service = CloudflareR2Service(
+            accountId: CloudflareConfig.accountId,
+            bucketName: CloudflareConfig.bucketName,
+            accessKeyId: CloudflareConfig.accessKeyId,
+            secretAccessKey: CloudflareConfig.secretAccessKey,
+            r2Domain: CloudflareConfig.r2Domain,
+          );
+
+          for (final key in mediaToDelete) {
+            try {
+              await r2Service.deleteFile(key: key);
+            } catch (e) {
+              print('⚠️ Failed to delete R2 file $key: $e');
+            }
+          }
+        } catch (e) {
+          print('❌ R2 service initialization failed: $e');
+        }
+      }
+
+      // Batch update Firestore
+      final batch = FirebaseFirestore.instance.batch();
 
       for (final messageId in selectedSet) {
         batch.update(communityRef.collection('messages').doc(messageId), {
           'isDeleted': true,
           'content': '',
+          'mediaMetadata': FieldValue.delete(),
+          'multipleMedia': FieldValue.delete(),
+          'imageUrl': FieldValue.delete(),
         });
       }
 

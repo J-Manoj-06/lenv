@@ -2200,28 +2200,78 @@ class _CommunityChatScreenState extends State<CommunityChatScreen>
           continue;
         }
 
-        // Delete media from Cloudflare if exists
+        // Delete media from R2 - Extract from ALL sources (4 sources)
+        final mediaToDelete = <String>{};
+
+        // Source 1: mediaMetadata.r2Key + thumbnailR2Key
         if (data?['mediaMetadata'] != null) {
-          final r2Key = data!['mediaMetadata']['r2Key'] as String?;
-          if (r2Key != null) {
-            try {
-              await CloudflareR2Service(
-                accountId: CloudflareConfig.accountId,
-                bucketName: CloudflareConfig.bucketName,
-                accessKeyId: CloudflareConfig.accessKeyId,
-                secretAccessKey: CloudflareConfig.secretAccessKey,
-                r2Domain: CloudflareConfig.r2Domain,
-              ).deleteFile(key: r2Key);
-            } catch (e) {}
+          final metadata = data!['mediaMetadata'] as Map<String, dynamic>;
+          final r2Key = metadata['r2Key'] as String?;
+          if (r2Key != null && r2Key.isNotEmpty) {
+            mediaToDelete.add(r2Key);
+          }
+          final thumbnailKey = metadata['thumbnailR2Key'] as String?;
+          if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+            mediaToDelete.add(thumbnailKey);
           }
         }
 
-        // ✅ FIXED: Mark message as deleted instead of completely deleting
-        // This preserves chat history and allows proper filtering
+        // Source 2: multipleMedia array
+        final multipleMedia = data?['multipleMedia'] as List<dynamic>?;
+        if (multipleMedia != null) {
+          for (final media in multipleMedia) {
+            if (media is Map<String, dynamic>) {
+              final r2Key = media['r2Key'] as String?;
+              if (r2Key != null && r2Key.isNotEmpty) {
+                mediaToDelete.add(r2Key);
+              }
+              final thumbnailKey = media['thumbnailR2Key'] as String?;
+              if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+                mediaToDelete.add(thumbnailKey);
+              }
+            }
+          }
+        }
+
+        // Source 3: Legacy imageUrl
+        final imageUrl = data?['imageUrl'] as String?;
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          try {
+            final uri = Uri.parse(imageUrl);
+            final path = uri.path;
+            final key = path.startsWith('/') ? path.substring(1) : path;
+            if (key.isNotEmpty) mediaToDelete.add(key);
+          } catch (e) {}
+        }
+
+        // Delete all media files from R2
+        if (mediaToDelete.isNotEmpty) {
+          try {
+            final r2Service = CloudflareR2Service(
+              accountId: CloudflareConfig.accountId,
+              bucketName: CloudflareConfig.bucketName,
+              accessKeyId: CloudflareConfig.accessKeyId,
+              secretAccessKey: CloudflareConfig.secretAccessKey,
+              r2Domain: CloudflareConfig.r2Domain,
+            );
+
+            for (final key in mediaToDelete) {
+              try {
+                await r2Service.deleteFile(key: key);
+              } catch (e) {
+                // Continue with other files
+              }
+            }
+          } catch (e) {}
+        }
+
+        // ✅ FIXED: Mark message as deleted with comprehensive field clearing
         await messageRef.update({
           'isDeleted': true,
-          'content': '', // Clear content
-          'mediaMetadata': null, // Clear media metadata
+          'content': '',
+          'mediaMetadata': null,
+          'multipleMedia': FieldValue.delete(),
+          'imageUrl': FieldValue.delete(),
         });
       }
 

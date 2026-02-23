@@ -2315,6 +2315,11 @@ class _GroupChatPageState extends State<GroupChatPage>
         throw Exception('User not found');
       }
 
+      // Collect all R2 keys to delete (deduplication)
+      final mediaToDelete = <String>{};
+      final validMessages = <String>[];
+
+      // First pass: Verify ownership and collect media keys
       for (final messageId in messagesToDelete) {
         final messageRef = FirebaseFirestore.instance
             .collection('classes')
@@ -2324,15 +2329,12 @@ class _GroupChatPageState extends State<GroupChatPage>
             .collection('messages')
             .doc(messageId);
 
-        // Get message to check sender and media
         final docSnapshot = await messageRef.get();
-
-        if (!docSnapshot.exists) {
-          continue;
-        }
+        if (!docSnapshot.exists) continue;
 
         final data = docSnapshot.data();
         final senderId = data?['senderId'] as String?;
+
         if (senderId == null || senderId != currentUserId) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -2345,32 +2347,82 @@ class _GroupChatPageState extends State<GroupChatPage>
           continue;
         }
 
-        // Delete media from Cloudflare if exists
-        if (data?['mediaMetadata'] != null) {
-          final r2Key = data!['mediaMetadata']['r2Key'] as String?;
-          if (r2Key != null) {
-            try {
-              final r2Service = CloudflareR2Service(
-                accountId: CloudflareConfig.accountId,
-                bucketName: CloudflareConfig.bucketName,
-                accessKeyId: CloudflareConfig.accessKeyId,
-                secretAccessKey: CloudflareConfig.secretAccessKey,
-                r2Domain: CloudflareConfig.r2Domain,
-              );
-              await r2Service.deleteFile(key: r2Key);
-            } catch (e) {}
+        validMessages.add(messageId);
+
+        // Extract R2 keys from mediaMetadata (primary source)
+        final mediaMetadata = data?['mediaMetadata'] as Map<String, dynamic>?;
+        if (mediaMetadata != null) {
+          final r2Key = mediaMetadata['r2Key'] as String?;
+          if (r2Key != null && r2Key.isNotEmpty) {
+            mediaToDelete.add(r2Key);
+          }
+
+          final thumbnailKey = mediaMetadata['thumbnailR2Key'] as String?;
+          if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+            mediaToDelete.add(thumbnailKey);
           }
         }
 
-        // ✅ FIXED: Mark message as deleted instead of completely deleting
-        // This preserves chat history and allows proper filtering
-        await messageRef.update({
+        // Extract from multipleMedia array
+        final multipleMedia = data?['multipleMedia'] as List<dynamic>?;
+        if (multipleMedia != null) {
+          for (final media in multipleMedia) {
+            if (media is Map<String, dynamic>) {
+              final r2Key = media['r2Key'] as String?;
+              if (r2Key != null && r2Key.isNotEmpty) {
+                mediaToDelete.add(r2Key);
+              }
+
+              final thumbnailKey = media['thumbnailR2Key'] as String?;
+              if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+                mediaToDelete.add(thumbnailKey);
+              }
+            }
+          }
+        }
+
+        // Extract from legacy imageUrl field
+        final imageUrl = data?['imageUrl'] as String?;
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          try {
+            final uri = Uri.parse(imageUrl);
+            final path = uri.path;
+            final key = path.startsWith('/') ? path.substring(1) : path;
+            if (key.isNotEmpty && !mediaToDelete.contains(key)) {
+              mediaToDelete.add(key);
+            }
+          } catch (e) {
+            // Invalid URL, skip
+          }
+        }
+      }
+
+      // Delete media files from R2
+      if (mediaToDelete.isNotEmpty) {
+        await _deleteMediaFiles(mediaToDelete.toList());
+      }
+
+      // Update messages to mark as deleted
+      final batch = FirebaseFirestore.instance.batch();
+      for (final messageId in validMessages) {
+        final messageRef = FirebaseFirestore.instance
+            .collection('classes')
+            .doc(widget.classId)
+            .collection('subjects')
+            .doc(widget.subjectId)
+            .collection('messages')
+            .doc(messageId);
+
+        batch.update(messageRef, {
           'isDeleted': true,
-          'message': '', // Clear content
-          'mediaMetadata': null, // Clear media metadata
-          'imageUrl': null,
+          'message': '',
+          'mediaMetadata': FieldValue.delete(),
+          'multipleMedia': FieldValue.delete(),
+          'imageUrl': FieldValue.delete(),
         });
       }
+
+      await batch.commit();
 
       setState(() {
         _selectedMessages.clear();
@@ -2394,6 +2446,41 @@ class _GroupChatPageState extends State<GroupChatPage>
           ),
         );
       }
+    }
+  }
+
+  /// Delete media files from R2 storage with detailed logging
+  Future<void> _deleteMediaFiles(List<String> keys) async {
+    if (keys.isEmpty) return;
+
+    print('🗑️  Deleting ${keys.length} media file(s) from R2...');
+
+    try {
+      final r2Service = CloudflareR2Service(
+        accountId: CloudflareConfig.accountId,
+        bucketName: CloudflareConfig.bucketName,
+        accessKeyId: CloudflareConfig.accessKeyId,
+        secretAccessKey: CloudflareConfig.secretAccessKey,
+        r2Domain: CloudflareConfig.r2Domain,
+      );
+
+      int successCount = 0;
+      for (final key in keys) {
+        try {
+          await r2Service.deleteFile(key: key);
+          successCount++;
+          print('  ✅ Deleted: $key');
+        } catch (e) {
+          print('  ⚠️  Failed to delete $key: $e');
+          // Continue with next file
+        }
+      }
+
+      print(
+        '✅ R2 cleanup complete: $successCount/${keys.length} files deleted',
+      );
+    } catch (e) {
+      print('❌ R2 cleanup failed: $e');
     }
   }
 

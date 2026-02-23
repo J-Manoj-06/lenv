@@ -3,6 +3,8 @@ import '../models/parent_teacher_group.dart';
 import '../models/community_message_model.dart';
 import '../models/student_model.dart';
 import '../models/media_metadata.dart';
+import 'cloudflare_r2_service.dart';
+import '../config/cloudflare_config.dart';
 
 class ParentTeacherGroupService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -324,6 +326,8 @@ class ParentTeacherGroupService {
   }
 
   /// Delete messages for everyone
+  /// Extracts R2 keys from all media sources and deletes files from R2 storage
+  /// to prevent storage bloat before soft-deleting messages in Firestore.
   Future<void> deleteMessagesForEveryone({
     required String groupId,
     required List<String> messageIds,
@@ -336,19 +340,149 @@ class ParentTeacherGroupService {
         .doc(groupId)
         .collection('messages');
 
+    // Collect all R2 keys to delete
+    final r2KeysToDelete = <String>{};
+
+    // First pass: Extract R2 keys from all messages
     for (final messageId in messageIds) {
-      // Mark as deleted instead of actually deleting to preserve chat history structure
-      batch.update(messagesRef.doc(messageId), {
-        'isDeleted': true,
-        'deletedAt': FieldValue.serverTimestamp(),
-        'content': '',
-        'imageUrl': '',
-        'fileUrl': '',
-        'mediaMetadata': null,
-      });
+      try {
+        final docSnapshot = await messagesRef.doc(messageId).get();
+        if (!docSnapshot.exists) continue;
+
+        final data = docSnapshot.data();
+        if (data == null) continue;
+
+        // Extract R2 keys from message data
+        final keys = _extractR2KeysFromMessage(data);
+        r2KeysToDelete.addAll(keys);
+
+        // Mark as deleted in batch
+        batch.update(messagesRef.doc(messageId), {
+          'isDeleted': true,
+          'deletedAt': FieldValue.serverTimestamp(),
+          'content': '',
+          'imageUrl': '',
+          'fileUrl': '',
+          'mediaMetadata': null,
+          'multipleMedia': FieldValue.delete(),
+        });
+      } catch (e) {
+        print('⚠️  Error processing message $messageId: $e');
+      }
     }
 
+    // Delete files from R2 storage
+    if (r2KeysToDelete.isNotEmpty) {
+      try {
+        final r2Service = CloudflareR2Service(
+          accountId: CloudflareConfig.accountId,
+          bucketName: CloudflareConfig.bucketName,
+          accessKeyId: CloudflareConfig.accessKeyId,
+          secretAccessKey: CloudflareConfig.secretAccessKey,
+          r2Domain: CloudflareConfig.r2Domain,
+        );
+
+        print(
+          '🗑️  Deleting ${r2KeysToDelete.length} media file(s) from R2...',
+        );
+        int successCount = 0;
+
+        for (final key in r2KeysToDelete) {
+          try {
+            await r2Service.deleteFile(key: key);
+            successCount++;
+          } catch (e) {
+            print('⚠️  Failed to delete R2 file $key: $e');
+            // Continue with other files
+          }
+        }
+
+        print(
+          '✅ R2 cleanup complete: $successCount/${r2KeysToDelete.length} files deleted',
+        );
+      } catch (e) {
+        print('❌ R2 service initialization failed: $e');
+      }
+    }
+
+    // Commit soft-delete batch
     await batch.commit();
+  }
+
+  /// Extract R2 keys from message data
+  /// Handles: mediaMetadata.r2Key, thumbnailR2Key, multipleMedia, legacy imageUrl/fileUrl
+  List<String> _extractR2KeysFromMessage(Map<String, dynamic> data) {
+    final keys = <String>[];
+
+    // 1. Extract from mediaMetadata (primary source)
+    final mediaMetadata = data['mediaMetadata'] as Map<String, dynamic>?;
+    if (mediaMetadata != null) {
+      final r2Key = mediaMetadata['r2Key'] as String?;
+      if (r2Key != null && r2Key.isNotEmpty) {
+        keys.add(r2Key);
+      }
+
+      final thumbnailKey = mediaMetadata['thumbnailR2Key'] as String?;
+      if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+        keys.add(thumbnailKey);
+      }
+    }
+
+    // 2. Extract from multipleMedia array
+    final multipleMedia = data['multipleMedia'] as List<dynamic>?;
+    if (multipleMedia != null) {
+      for (final media in multipleMedia) {
+        if (media is Map<String, dynamic>) {
+          final r2Key = media['r2Key'] as String?;
+          if (r2Key != null && r2Key.isNotEmpty) {
+            keys.add(r2Key);
+          }
+
+          final thumbnailKey = media['thumbnailR2Key'] as String?;
+          if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+            keys.add(thumbnailKey);
+          }
+        }
+      }
+    }
+
+    // 3. Extract from legacy imageUrl (old format with full URL)
+    final imageUrl = data['imageUrl'] as String?;
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      final key = _extractR2KeyFromUrl(imageUrl);
+      if (key != null) {
+        keys.add(key);
+      }
+    }
+
+    // 4. Extract from legacy fileUrl (old format with full URL)
+    final fileUrl = data['fileUrl'] as String?;
+    if (fileUrl != null && fileUrl.isNotEmpty) {
+      final key = _extractR2KeyFromUrl(fileUrl);
+      if (key != null) {
+        keys.add(key);
+      }
+    }
+
+    return keys;
+  }
+
+  /// Extract R2 key from full URL
+  /// Example: https://files.lenv1.tech/parent_teacher_groups/abc123.jpg -> parent_teacher_groups/abc123.jpg
+  String? _extractR2KeyFromUrl(String url) {
+    try {
+      if (url.isEmpty) return null;
+
+      final uri = Uri.parse(url);
+      final path = uri.path;
+
+      if (path.isEmpty) return null;
+
+      // Remove leading slash
+      return path.startsWith('/') ? path.substring(1) : path;
+    } catch (e) {
+      return null;
+    }
   }
 
   // Search parent-teacher group messages by content or file names
@@ -375,6 +509,11 @@ class ParentTeacherGroupService {
       for (final doc in messagesSnapshot.docs) {
         try {
           final message = CommunityMessageModel.fromFirestore(doc);
+
+          // Skip deleted messages
+          if (message.isDeleted ?? false) {
+            continue;
+          }
 
           // Search in message text
           if (message.content.toLowerCase().contains(lowerQuery)) {

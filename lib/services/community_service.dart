@@ -4,6 +4,8 @@ import '../models/community_member_model.dart';
 import '../models/community_message_model.dart';
 import '../models/student_model.dart';
 import '../models/media_metadata.dart';
+import 'cloudflare_r2_service.dart';
+import '../config/cloudflare_config.dart';
 
 class MessageSearchPage {
   final List<CommunityMessageModel> messages;
@@ -960,6 +962,7 @@ class CommunityService {
       final snapshot = await query.get();
       return snapshot.docs
           .map((doc) => CommunityMessageModel.fromFirestore(doc))
+          .where((m) => !(m.isDeleted ?? false)) // Exclude deleted messages
           .toList();
     } catch (e) {
       return [];
@@ -1017,6 +1020,7 @@ class CommunityService {
 
       final messages = snap.docs
           .map((doc) => CommunityMessageModel.fromFirestore(doc))
+          .where((m) => !(m.isDeleted ?? false)) // Exclude deleted messages
           .where(matches)
           .toList();
 
@@ -1108,6 +1112,7 @@ class CommunityService {
 
   /// Delete message (soft delete)
   /// Only the original sender can delete for everyone.
+  /// Also deletes associated R2 files (images, PDFs, audio) to prevent storage bloat.
   Future<bool> deleteMessage({
     required String communityId,
     required String messageId,
@@ -1131,6 +1136,35 @@ class CommunityService {
         return false;
       }
 
+      // Extract R2 keys before deleting (to clean up storage)
+      final r2Keys = _extractR2KeysFromMessage(data);
+
+      // Delete files from R2 to prevent storage bloat
+      if (r2Keys.isNotEmpty) {
+        try {
+          final r2Service = CloudflareR2Service(
+            accountId: CloudflareConfig.accountId,
+            bucketName: CloudflareConfig.bucketName,
+            accessKeyId: CloudflareConfig.accessKeyId,
+            secretAccessKey: CloudflareConfig.secretAccessKey,
+            r2Domain: CloudflareConfig.r2Domain,
+          );
+
+          for (final key in r2Keys) {
+            try {
+              await r2Service.deleteFile(key: key);
+            } catch (e) {
+              // Continue deleting other files even if one fails
+              print('⚠️  Failed to delete R2 file $key: $e');
+            }
+          }
+        } catch (e) {
+          print('⚠️  R2 cleanup failed: $e');
+          // Continue with Firestore deletion even if R2 cleanup fails
+        }
+      }
+
+      // Soft delete in Firestore
       await messageRef.update({
         'isDeleted': true,
         'deletedAt': FieldValue.serverTimestamp(),
@@ -1145,6 +1179,57 @@ class CommunityService {
       return true;
     } catch (e) {
       return false;
+    }
+  }
+
+  /// Extract R2 keys from message data for cleanup
+  List<String> _extractR2KeysFromMessage(Map<String, dynamic>? data) {
+    if (data == null) return [];
+
+    final keys = <String>[];
+
+    // Extract from mediaMetadata (primary source)
+    final mediaMetadata = data['mediaMetadata'] as Map<String, dynamic>?;
+    if (mediaMetadata != null) {
+      final r2Key = mediaMetadata['r2Key'] as String?;
+      if (r2Key != null && r2Key.isNotEmpty) {
+        keys.add(r2Key);
+      }
+      // Also check for thumbnail
+      final thumbnailKey = mediaMetadata['thumbnailR2Key'] as String?;
+      if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+        keys.add(thumbnailKey);
+      }
+    }
+
+    // Fallback: Extract from legacy imageUrl/fileUrl fields
+    final imageUrl = data['imageUrl'] as String?;
+    if (imageUrl != null && imageUrl.contains(CloudflareConfig.r2Domain)) {
+      final key = _extractR2KeyFromUrl(imageUrl);
+      if (key.isNotEmpty && !keys.contains(key)) {
+        keys.add(key);
+      }
+    }
+
+    final fileUrl = data['fileUrl'] as String?;
+    if (fileUrl != null && fileUrl.contains(CloudflareConfig.r2Domain)) {
+      final key = _extractR2KeyFromUrl(fileUrl);
+      if (key.isNotEmpty && !keys.contains(key)) {
+        keys.add(key);
+      }
+    }
+
+    return keys;
+  }
+
+  /// Extract R2 key from full URL
+  String _extractR2KeyFromUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      // Remove leading slash
+      return uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+    } catch (e) {
+      return '';
     }
   }
 

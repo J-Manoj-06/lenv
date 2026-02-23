@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'cloudflare_r2_service.dart';
+import '../config/cloudflare_config.dart';
 
 class ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -199,6 +201,8 @@ class ChatService {
   }
 
   /// Delete a message for everyone (only sender can delete)
+  /// Extracts R2 keys from all media sources and deletes files from R2 storage
+  /// to prevent storage bloat before soft-deleting the message in Firestore.
   Future<void> deleteMessage({
     required String conversationId,
     required String messageId,
@@ -209,10 +213,129 @@ class ChatService {
         .collection('messages')
         .doc(messageId);
 
+    try {
+      // Get message data to extract R2 keys
+      final snapshot = await msgRef.get();
+      if (snapshot.exists) {
+        final data = snapshot.data();
+        if (data != null) {
+          // Extract R2 keys from all media sources
+          final r2Keys = _extractR2KeysFromMessage(data);
+
+          // Delete files from R2 storage
+          if (r2Keys.isNotEmpty) {
+            try {
+              final r2Service = CloudflareR2Service(
+                accountId: CloudflareConfig.accountId,
+                bucketName: CloudflareConfig.bucketName,
+                accessKeyId: CloudflareConfig.accessKeyId,
+                secretAccessKey: CloudflareConfig.secretAccessKey,
+                r2Domain: CloudflareConfig.r2Domain,
+              );
+
+              for (final key in r2Keys) {
+                try {
+                  await r2Service.deleteFile(key: key);
+                } catch (e) {
+                  print('⚠️  Failed to delete R2 file $key: $e');
+                  // Continue with other files
+                }
+              }
+            } catch (e) {
+              print('⚠️  R2 service initialization failed: $e');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('⚠️  Error extracting R2 keys: $e');
+    }
+
+    // Soft-delete message in Firestore
     await msgRef.update({
       'text': '',
       'isDeleted': true,
       'mediaMetadata': FieldValue.delete(),
+      'multipleMedia': FieldValue.delete(),
+      'imageUrl': FieldValue.delete(),
+      'fileUrl': FieldValue.delete(),
+      'attachmentUrl': FieldValue.delete(),
+      'thumbnailUrl': FieldValue.delete(),
     });
+  }
+
+  /// Extract R2 keys from message data
+  /// Handles: mediaMetadata, multipleMedia, legacy fields
+  List<String> _extractR2KeysFromMessage(Map<String, dynamic> data) {
+    final keys = <String>[];
+
+    // 1. Extract from mediaMetadata (primary source)
+    final mediaMetadata = data['mediaMetadata'] as Map<String, dynamic>?;
+    if (mediaMetadata != null) {
+      final r2Key = mediaMetadata['r2Key'] as String?;
+      if (r2Key != null && r2Key.isNotEmpty) {
+        keys.add(r2Key);
+      }
+
+      final thumbnailKey = mediaMetadata['thumbnailR2Key'] as String?;
+      if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+        keys.add(thumbnailKey);
+      }
+    }
+
+    // 2. Extract from multipleMedia array
+    final multipleMedia = data['multipleMedia'] as List<dynamic>?;
+    if (multipleMedia != null) {
+      for (final media in multipleMedia) {
+        if (media is Map<String, dynamic>) {
+          final r2Key = media['r2Key'] as String?;
+          if (r2Key != null && r2Key.isNotEmpty) {
+            keys.add(r2Key);
+          }
+
+          final thumbnailKey = media['thumbnailR2Key'] as String?;
+          if (thumbnailKey != null && thumbnailKey.isNotEmpty) {
+            keys.add(thumbnailKey);
+          }
+        }
+      }
+    }
+
+    // 3. Extract from legacy fields (imageUrl, fileUrl, attachmentUrl)
+    final legacyFields = [
+      'imageUrl',
+      'fileUrl',
+      'attachmentUrl',
+      'thumbnailUrl',
+    ];
+    for (final field in legacyFields) {
+      final url = data[field] as String?;
+      if (url != null && url.isNotEmpty) {
+        final key = _extractR2KeyFromUrl(url);
+        if (key != null && !keys.contains(key)) {
+          keys.add(key);
+        }
+      }
+    }
+
+    return keys;
+  }
+
+  /// Extract R2 key from full URL
+  /// Example: https://files.lenv1.tech/conversations/abc123.jpg -> conversations/abc123.jpg
+  String? _extractR2KeyFromUrl(String url) {
+    try {
+      if (url.isEmpty) return null;
+
+      final uri = Uri.parse(url);
+      final path = uri.path;
+
+      if (path.isEmpty) return null;
+
+      // Remove leading slash
+      return path.startsWith('/') ? path.substring(1) : path;
+    } catch (e) {
+      return null;
+    }
   }
 }
