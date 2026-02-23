@@ -275,17 +275,26 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     final currentUser = authProvider.currentUser;
     if (currentUser == null) return;
 
+    print('🔄 [RESTORE] Loading pending messages from cache...');
+
     // Load pending messages for this chat from cache
     final pendingMessages = await _localRepo.getPendingMessages(
       chatId: widget.instituteId,
       senderId: currentUser.uid,
     );
 
+    print('   Found ${pendingMessages.length} pending messages in cache');
+
     if (pendingMessages.isNotEmpty && mounted) {
       setState(() {
         // Convert LocalMessage to widget format
         for (final msg in pendingMessages) {
+          print('   Restoring message: ${msg.messageId}');
+
           if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+            print(
+              '     Type: Multi-image (${msg.multipleMedia!.length} images)',
+            );
             _pendingMessages.add({
               'id': msg.messageId,
               'text': msg.messageText ?? '',
@@ -298,7 +307,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             });
 
             // Restore local file paths, uploading state, and actual progress
-            for (final media in msg.multipleMedia!) {
+            for (int i = 0; i < msg.multipleMedia!.length; i++) {
+              final media = msg.multipleMedia![i];
               final mediaId = media['messageId'] as String?;
               final localPath = media['localPath'] as String?;
               final uploadProgress = media['uploadProgress'] as double?;
@@ -309,18 +319,26 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                 // Restore local file path for thumbnail display
                 if (localPath != null) {
                   _localFilePaths[mediaId] = localPath;
+                  final file = File(localPath);
+                  print('       Image $i: path exists=${file.existsSync()}');
                 }
 
-                // Restore actual upload progress from cache
-                _pendingUploadProgress[mediaId] = uploadProgress ?? 0.0;
+                // Restore actual upload progress from cache, use 0.01 if null to trigger UI
+                final restoredProgress = uploadProgress ?? 0.01;
+                _pendingUploadProgress[mediaId] = restoredProgress;
+                print('       Image $i: progress=${restoredProgress * 100}%');
               }
             }
           }
+          // Note: Single file attachments cannot be restored from cache
+          // because LocalMessage model doesn't have fields for:
+          // - localFilePath, attachmentName, attachmentSize, thumbnailUrl, uploadProgress
+          // Only multi-image messages (using multipleMedia field) can be restored.
         }
       });
-      print(
-        '🔄 Restored ${pendingMessages.length} pending messages from cache',
-      );
+      print('✅ Restored ${pendingMessages.length} pending messages from cache');
+    } else {
+      print('   No pending messages to restore');
     }
   }
 
@@ -342,6 +360,22 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
   @override
   void dispose() {
+    print('⚠️ [DISPOSE] Staff Room Chat Page');
+    print('   Pending messages: ${_pendingMessages.length}');
+    print('   Uploading message IDs: ${_uploadingMessageIds.length}');
+    print('   Local file paths: ${_localFilePaths.length}');
+    print('   Pending upload progress: ${_pendingUploadProgress.length}');
+    print('   Progress notifiers: ${_progressNotifiers.length}');
+
+    if (_pendingMessages.isNotEmpty) {
+      print('   ⚠️ WARNING: Disposing with pending uploads!');
+      for (final msg in _pendingMessages) {
+        print(
+          '     - ${msg['id']}: ${msg['attachmentName'] ?? 'multi-images'}',
+        );
+      }
+    }
+
     _messageController.dispose();
     disposeScrollController(); // Use mixin's disposal method
     _audioRecorder.dispose();
@@ -525,18 +559,19 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
       final messageId = '${groupMessageId}_$i';
       final fileSize = await file.length();
       final fileName = file.path.split('/').last;
-      localPaths.add(file.path);
+      final absolutePath = file.absolute.path;
+      localPaths.add(absolutePath);
 
       mediaList.add({
         'messageId': messageId,
         'r2Key': 'pending/$messageId',
         'publicUrl': '',
-        'thumbnail': file.path,
-        'localPath': file.path,
+        'thumbnail': absolutePath,
+        'localPath': absolutePath,
         'originalFileName': fileName,
         'fileSize': fileSize,
         'mimeType': 'image/jpeg',
-        'uploadProgress': 0.0, // Track upload progress
+        'uploadProgress': 0.01, // Start at 1% to show as uploading, not 0%
       });
     }
 
@@ -583,14 +618,32 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
       print('⚠️ Failed to cache pending message: $e');
     }
 
+    // Store local file paths BEFORE adding pending message to ensure they're available for rendering
+    print('🎯 [MULTI-IMAGE UPLOAD] Initialized:');
+    print('   Group Message ID: $groupMessageId');
+    print('   Number of images: ${mediaList.length}');
+    for (int i = 0; i < mediaList.length; i++) {
+      final messageId = mediaList[i]['messageId'];
+      final localPath = localPaths[i];
+      _localFilePaths[messageId] = localPath;
+      _pendingUploadProgress[messageId] =
+          0.01; // Start at 1% to trigger upload UI
+      _uploadingMessageIds.add(messageId);
+
+      final file = File(localPath);
+      print('   Image $i:');
+      print('     - messageId: $messageId');
+      print('     - localPath: $localPath');
+      print('     - exists: ${file.existsSync()}');
+      print('     - size: ${mediaList[i]['fileSize'] / 1024} KB');
+    }
+    print('   Total uploadingMessageIds: ${_uploadingMessageIds.length}');
+    print('   Total localFilePaths: ${_localFilePaths.length}');
+    print('   Total pendingUploadProgress: ${_pendingUploadProgress.length}');
+
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
-      for (int i = 0; i < mediaList.length; i++) {
-        final messageId = mediaList[i]['messageId'];
-        _uploadingMessageIds.add(messageId);
-        _pendingUploadProgress[messageId] = 0.0;
-        _localFilePaths[messageId] = localPaths[i];
-      }
+      print('   ✅ Pending message added (count: ${_pendingMessages.length})');
     });
 
     try {
@@ -803,14 +856,50 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     };
 
     // Create progress notifier
-    final progressNotifier = ValueNotifier<double>(0.0);
+    final progressNotifier = ValueNotifier<double>(0.01); // Start at 1%
     _progressNotifiers[messageId] = progressNotifier;
+
+    // Store file path and progress BEFORE adding to pending messages
+    final absolutePath = file.absolute.path;
+    _localFilePaths[messageId] = absolutePath;
+    _pendingUploadProgress[messageId] = 0.01; // Start at 1%
+    _uploadingMessageIds.add(messageId);
+
+    print('🎯 [SINGLE FILE UPLOAD] Initialized:');
+    print('   Message ID: $messageId');
+    print('   File: $fileName');
+    print('   Absolute Path: $absolutePath');
+    print('   File exists: ${file.existsSync()}');
+    print('   File size: ${fileSize / 1024} KB');
+    print('   MIME type: $mimeType');
+    print('   isPending: true');
+    print('   uploadProgress: 0.01 (1%)');
+    print('   uploadingMessageIds: ${_uploadingMessageIds.length}');
+    print('   localFilePaths count: ${_localFilePaths.length}');
+    print('   pendingUploadProgress count: ${_pendingUploadProgress.length}');
+    print('   progressNotifiers count: ${_progressNotifiers.length}');
+
+    // Save pending message to cache IMMEDIATELY (survives navigation)
+    try {
+      // Note: LocalMessage doesn't have all attachment fields,
+      // so we can't fully restore single file pending messages after navigation.
+      // Multi-images use multipleMedia field which has full metadata.
+      // Single files will restart upload if user navigates away.
+      print(
+        '   ⚠️ Note: Single file pending messages do not survive navigation',
+      );
+      print(
+        '   ⚠️ (LocalMessage model needs attachment fields to support this)',
+      );
+    } catch (e) {
+      print('   ⚠️ Cache note failed: $e');
+    }
 
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
-      _uploadingMessageIds.add(messageId);
-      _pendingUploadProgress[messageId] = 0.0;
-      _localFilePaths[messageId] = file.path;
+      print(
+        '   ✅ Pending message added to list (count: ${_pendingMessages.length})',
+      );
     });
 
     try {
@@ -825,6 +914,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           final normalizedProgress = progress / 100.0;
           progressNotifier.value = normalizedProgress;
           _pendingUploadProgress[messageId] = normalizedProgress;
+
+          if (progress % 25 == 0 || progress == 100) {
+            print('📊 [SINGLE FILE PROGRESS] $messageId: ${progress.toInt()}%');
+          }
         },
       );
 
@@ -847,8 +940,21 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             'thumbnailUrl': mediaMessage.thumbnailUrl,
           });
 
-      // Don't remove pending message here - let StreamBuilder handle it automatically
-      // This prevents flickering by avoiding double rebuild
+      print('✅ [SINGLE FILE UPLOAD] Completed: $messageId');
+
+      // Remove pending message immediately after successful upload
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m['id'] == messageId);
+          _uploadingMessageIds.remove(messageId);
+          _pendingUploadProgress.remove(messageId);
+          _localFilePaths.remove(messageId);
+        });
+      }
+
+      // Dispose and remove progress notifier
+      _progressNotifiers[messageId]?.dispose();
+      _progressNotifiers.remove(messageId);
 
       // Scroll to bottom only if user hasn't scrolled away
       if (!_userHasScrolled) {
@@ -1147,6 +1253,43 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     } catch (e) {
       print('❌ Error sending recording: $e');
     }
+  }
+
+  String _formatDayLabel(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final d = DateTime(dt.year, dt.month, dt.day);
+    if (d == today) return 'Today';
+    if (d == yesterday) return 'Yesterday';
+    return DateFormat('MMM dd, yyyy').format(dt);
+  }
+
+  Widget _buildDayDivider(DateTime dt) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF262A30) : Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(14),
+            border: isDark
+                ? null
+                : Border.all(color: Colors.grey.shade300, width: 1),
+          ),
+          child: Text(
+            _formatDayLabel(dt),
+            style: TextStyle(
+              color: isDark ? const Color(0xFF9E9E9E) : Colors.grey.shade700,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -1546,6 +1689,54 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             final messageId = message['id'] as String? ?? '';
             final isPending = message['isPending'] == true;
 
+            // Debug logging for pending messages
+            if (isPending && index == 0) {
+              print('🔍 [RENDER] Pending message at top:');
+              print('   ID: $messageId');
+              print('   isPending: $isPending');
+              print(
+                '   Has multipleMedia: ${message['multipleMedia'] != null}',
+              );
+              print(
+                '   Has attachmentUrl: ${message['attachmentUrl'] != null}',
+              );
+              print(
+                '   isUploading: ${_uploadingMessageIds.contains(messageId)}',
+              );
+
+              if (message['multipleMedia'] != null) {
+                final multipleMedia = message['multipleMedia'] as List;
+                print('   MultipleMedia count: ${multipleMedia.length}');
+                for (int i = 0; i < multipleMedia.length; i++) {
+                  final media = multipleMedia[i] as Map;
+                  final mediaId = media['messageId'];
+                  print('     Media $i:');
+                  print('       - messageId: $mediaId');
+                  print('       - localPath: ${media['localPath']}');
+                  print(
+                    '       - progress: ${_pendingUploadProgress[mediaId]}',
+                  );
+                  print(
+                    '       - in uploadingIds: ${_uploadingMessageIds.contains(mediaId)}',
+                  );
+                  print(
+                    '       - has local file path: ${_localFilePaths.containsKey(mediaId)}',
+                  );
+                }
+              }
+
+              if (message['attachmentUrl'] != null) {
+                print('   Single attachment:');
+                print('     - progress: ${_pendingUploadProgress[messageId]}');
+                print(
+                  '     - localPath from map: ${_localFilePaths[messageId]}',
+                );
+                print(
+                  '     - hasProgressNotifier: ${_progressNotifiers.containsKey(messageId)}',
+                );
+              }
+            }
+
             final authProvider = Provider.of<AuthProvider>(
               context,
               listen: false,
@@ -1555,95 +1746,130 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             // Check if this message is highlighted
             final isHighlighted = highlightedMessageId == messageId;
 
+            // Date separator logic
+            final createdAt = message['createdAt'];
+            final currentMillis = createdAt is Timestamp
+                ? createdAt.millisecondsSinceEpoch
+                : (createdAt as int? ?? 0);
+            final currentDate = DateTime.fromMillisecondsSinceEpoch(
+              currentMillis,
+            );
+
+            final isOldest = index == allMessages.length - 1;
+            DateTime? nextDate;
+            if (!isOldest) {
+              final nextCreatedAt = allMessages[index + 1]['createdAt'];
+              final nextMillis = nextCreatedAt is Timestamp
+                  ? nextCreatedAt.millisecondsSinceEpoch
+                  : (nextCreatedAt as int? ?? 0);
+              nextDate = DateTime.fromMillisecondsSinceEpoch(nextMillis);
+            }
+
+            final showDayDivider =
+                isOldest ||
+                _formatDayLabel(currentDate) != _formatDayLabel(nextDate!);
+
             // Simplified container without heavy animations for pending messages
             if (isPending) {
-              return ValueListenableBuilder<bool>(
-                valueListenable: _isSelectionMode,
-                builder: (context, isSelectionMode, _) {
-                  return ValueListenableBuilder<Set<String>>(
-                    valueListenable: _selectedMessages,
-                    builder: (context, selectedMessages, _) {
-                      return HighlightedMessageWrapper(
-                        key: getMessageKey(messageId),
-                        isHighlighted: isHighlighted,
-                        child: _MessageBubble(
-                          key: ValueKey('bubble_$messageId'),
-                          message: message,
-                          isMe: isMe,
-                          primaryColor: primaryColor,
-                          uploadingMessageIds: _uploadingMessageIds,
-                          pendingUploadProgress: _pendingUploadProgress,
-                          localFilePaths: _localFilePaths,
-                          progressNotifiers: _progressNotifiers,
-                          selectionMode: isSelectionMode,
-                          isSelected: selectedMessages.contains(messageId),
-                          staffRoomId: widget.instituteId,
-                        ),
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (showDayDivider) _buildDayDivider(currentDate),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: _isSelectionMode,
+                    builder: (context, isSelectionMode, _) {
+                      return ValueListenableBuilder<Set<String>>(
+                        valueListenable: _selectedMessages,
+                        builder: (context, selectedMessages, _) {
+                          return HighlightedMessageWrapper(
+                            key: getMessageKey(messageId),
+                            isHighlighted: isHighlighted,
+                            child: _MessageBubble(
+                              key: ValueKey('bubble_$messageId'),
+                              message: message,
+                              isMe: isMe,
+                              primaryColor: primaryColor,
+                              uploadingMessageIds: _uploadingMessageIds,
+                              pendingUploadProgress: _pendingUploadProgress,
+                              localFilePaths: _localFilePaths,
+                              progressNotifiers: _progressNotifiers,
+                              selectionMode: isSelectionMode,
+                              isSelected: selectedMessages.contains(messageId),
+                              staffRoomId: widget.instituteId,
+                            ),
+                          );
+                        },
                       );
                     },
-                  );
-                },
+                  ),
+                ],
               );
             }
 
             // Full featured container with animations for non-pending messages
-            return ValueListenableBuilder<bool>(
-              valueListenable: _isSelectionMode,
-              builder: (context, isSelectionMode, _) {
-                return ValueListenableBuilder<Set<String>>(
-                  valueListenable: _selectedMessages,
-                  builder: (context, selectedMessages, _) {
-                    final isSelected = selectedMessages.contains(messageId);
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (showDayDivider) _buildDayDivider(currentDate),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _isSelectionMode,
+                  builder: (context, isSelectionMode, _) {
+                    return ValueListenableBuilder<Set<String>>(
+                      valueListenable: _selectedMessages,
+                      builder: (context, selectedMessages, _) {
+                        final isSelected = selectedMessages.contains(messageId);
 
-                    return GestureDetector(
-                      onLongPress: isMe
-                          ? () {
-                              _isSelectionMode.value = true;
-                              _selectedMessages.value = {
-                                ...selectedMessages,
-                                messageId,
-                              };
-                            }
-                          : null,
-                      onTap: isSelectionMode && isMe
-                          ? () {
-                              if (isSelected) {
-                                final newSelection = Set<String>.from(
-                                  selectedMessages,
-                                )..remove(messageId);
-                                _selectedMessages.value = newSelection;
-                                if (newSelection.isEmpty) {
-                                  _isSelectionMode.value = false;
+                        return GestureDetector(
+                          onLongPress: isMe
+                              ? () {
+                                  _isSelectionMode.value = true;
+                                  _selectedMessages.value = {
+                                    ...selectedMessages,
+                                    messageId,
+                                  };
                                 }
-                              } else {
-                                _selectedMessages.value = {
-                                  ...selectedMessages,
-                                  messageId,
-                                };
-                              }
-                            }
-                          : null,
-                      child: HighlightedMessageWrapper(
-                        key: getMessageKey(messageId),
-                        isHighlighted: isHighlighted,
-                        child: _MessageBubble(
-                          key: ValueKey('bubble_$messageId'),
-                          message: message,
-                          isMe: isMe,
-                          primaryColor: primaryColor,
-                          uploadingMessageIds: _uploadingMessageIds,
-                          pendingUploadProgress: _pendingUploadProgress,
-                          localFilePaths: _localFilePaths,
-                          progressNotifiers: _progressNotifiers,
-                          selectionMode: isSelectionMode,
-                          isSelected: isSelected,
-                          staffRoomId: widget.instituteId,
-                        ),
-                      ),
+                              : null,
+                          onTap: isSelectionMode && isMe
+                              ? () {
+                                  if (isSelected) {
+                                    final newSelection = Set<String>.from(
+                                      selectedMessages,
+                                    )..remove(messageId);
+                                    _selectedMessages.value = newSelection;
+                                    if (newSelection.isEmpty) {
+                                      _isSelectionMode.value = false;
+                                    }
+                                  } else {
+                                    _selectedMessages.value = {
+                                      ...selectedMessages,
+                                      messageId,
+                                    };
+                                  }
+                                }
+                              : null,
+                          child: HighlightedMessageWrapper(
+                            key: getMessageKey(messageId),
+                            isHighlighted: isHighlighted,
+                            child: _MessageBubble(
+                              key: ValueKey('bubble_$messageId'),
+                              message: message,
+                              isMe: isMe,
+                              primaryColor: primaryColor,
+                              uploadingMessageIds: _uploadingMessageIds,
+                              pendingUploadProgress: _pendingUploadProgress,
+                              localFilePaths: _localFilePaths,
+                              progressNotifiers: _progressNotifiers,
+                              selectionMode: isSelectionMode,
+                              isSelected: isSelected,
+                              staffRoomId: widget.instituteId,
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
-                );
-              },
+                ),
+              ],
             );
           },
         );

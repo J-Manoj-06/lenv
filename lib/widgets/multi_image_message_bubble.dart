@@ -463,6 +463,15 @@ class _ImageTileState extends State<_ImageTile>
   }
 
   Widget _buildImage(String url) {
+    // Handle empty URLs (pending uploads)
+    if (url.isEmpty) {
+      if (widget.uploadProgress != null && widget.uploadProgress! < 1.0) {
+        return _loadingSkeleton();
+      } else {
+        return _errorFallback();
+      }
+    }
+
     if (url.startsWith('/')) {
       // Local file path
       final file = File(url);
@@ -478,8 +487,14 @@ class _ImageTileState extends State<_ImageTile>
           ),
         );
       } else {
-        // File not found, show download prompt
-        return _downloadPromptFallback();
+        // File not found - if uploading, show loading skeleton, else show download prompt
+        if (widget.uploadProgress != null && widget.uploadProgress! < 1.0) {
+          // Currently uploading, show skeleton (upload overlay will appear on top)
+          return _loadingSkeleton();
+        } else {
+          // Not uploading and file missing, show download prompt
+          return _downloadPromptFallback();
+        }
       }
     }
 
@@ -536,6 +551,16 @@ class _ImageTileState extends State<_ImageTile>
           color: isDark ? Colors.white54 : Colors.grey.shade600,
           size: 36,
         ),
+      ),
+    );
+  }
+
+  Widget _loadingSkeleton() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+      child: const Center(
+        child: SizedBox.shrink(), // Empty - the upload overlay will show on top
       ),
     );
   }
