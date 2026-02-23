@@ -315,6 +315,32 @@ class BackgroundUploadService extends ChangeNotifier {
                   mediaMetadata: allMetadata.first,
                   multipleMedia: allMetadata.length > 1 ? allMetadata : null,
                 );
+              } else if (upload.chatType == 'staff_room') {
+                // Send grouped staff room message with multipleMedia
+                await FirebaseFirestore.instance
+                    .collection('staff_rooms')
+                    .doc(upload.conversationId)
+                    .collection('messages')
+                    .add({
+                      'text': '',
+                      'senderId': upload.senderId,
+                      'senderName': upload.senderName ?? 'Teacher',
+                      'senderRole': upload.senderRole,
+                      'timestamp': FieldValue.serverTimestamp(),
+                      'createdAt': DateTime.now().millisecondsSinceEpoch,
+                      'multipleMedia': allMetadata
+                          .map(
+                            (m) => {
+                              'messageId': m.messageId,
+                              'publicUrl': m.publicUrl,
+                              'thumbnail': m.thumbnail,
+                              'originalFileName': m.originalFileName,
+                              'fileSize': m.fileSize,
+                              'mimeType': m.mimeType,
+                            },
+                          )
+                          .toList(),
+                    });
               }
 
               // Clean up completed group
@@ -371,6 +397,25 @@ class BackgroundUploadService extends ChangeNotifier {
               mediaType: inferredType,
               mediaMetadata: metadata,
             );
+          } else if (upload.chatType == 'staff_room') {
+            // conversationId is instituteId here
+            await FirebaseFirestore.instance
+                .collection('staff_rooms')
+                .doc(upload.conversationId)
+                .collection('messages')
+                .add({
+                  'text': '',
+                  'senderId': upload.senderId,
+                  'senderName': upload.senderName ?? 'Teacher',
+                  'senderRole': upload.senderRole,
+                  'timestamp': FieldValue.serverTimestamp(),
+                  'createdAt': DateTime.now().millisecondsSinceEpoch,
+                  'attachmentUrl': metadata.publicUrl,
+                  'attachmentType': metadata.mimeType,
+                  'attachmentName': metadata.originalFileName,
+                  'attachmentSize': metadata.fileSize,
+                  'thumbnailUrl': metadata.thumbnail,
+                });
           } else {
             // Default: direct teacher-parent conversation
             await _chatService.sendMessage(
