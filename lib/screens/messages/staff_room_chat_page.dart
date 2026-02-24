@@ -94,6 +94,13 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
   Timer? _rebuildThrottleTimer;
   bool _pendingRebuild = false;
 
+  // Throttle cache updates to prevent excessive disk writes
+  final Map<String, double> _lastSavedProgress =
+      {}; // Track last saved progress per media
+
+  // Track last upload timestamp to maintain message order
+  int _lastUploadTimestamp = 0;
+
   // Message cache to maintain stable Map instances (prevents flickering)
   final Map<String, Map<String, dynamic>> _messageCache = {};
 
@@ -659,8 +666,19 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
   }
 
   // Update cached message with latest upload progress
+  // Throttled: Only saves if progress changed by 5% or reached 100%
   void _updateCachedProgress(String mediaId, double progress) async {
     try {
+      // Throttle: Only update cache if progress changed by 5% or completed
+      final lastSaved = _lastSavedProgress[mediaId] ?? 0.0;
+      final progressDiff = (progress - lastSaved).abs();
+      final shouldSave = progressDiff >= 0.05 || progress >= 1.0;
+
+      if (!shouldSave) return; // Skip this update
+
+      // Update tracking
+      _lastSavedProgress[mediaId] = progress;
+
       // Find which pending message this media belongs to
       for (final pendingMsg in _pendingMessages) {
         final multipleMedia = pendingMsg['multipleMedia'] as List<dynamic>?;
@@ -882,7 +900,13 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     final currentUser = authProvider.currentUser;
     if (currentUser == null) return;
 
-    final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+    // Ensure each message has unique timestamp to maintain send order
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final baseTimestamp = now > _lastUploadTimestamp
+        ? now
+        : _lastUploadTimestamp + 1; // Increment if sending too quickly
+    _lastUploadTimestamp = baseTimestamp;
+
     final groupMessageId =
         'pending_${baseTimestamp}_${currentUser.uid.hashCode}';
     final List<Map<String, dynamic>> mediaList = [];
@@ -1061,7 +1085,14 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     // Get file info
     final fileSize = await file.length();
     final fileName = file.path.split('/').last;
-    final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+
+    // Ensure each message has unique timestamp to maintain send order
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final baseTimestamp = now > _lastUploadTimestamp
+        ? now
+        : _lastUploadTimestamp + 1; // Increment if sending too quickly
+    _lastUploadTimestamp = baseTimestamp;
+
     final messageId = 'pending_${baseTimestamp}_${currentUser.uid.hashCode}';
 
     // Determine mime type

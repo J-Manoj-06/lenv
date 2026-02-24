@@ -845,17 +845,34 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
       stream: FirebaseFirestore.instance
           .collection('class_highlights')
           .where('instituteId', isEqualTo: instituteId)
-          .where('expiresAt', isGreaterThan: Timestamp.now())
           .snapshots(),
       builder: (context, snapshot) {
-        final hasTeacherAnnouncements =
-            snapshot.hasData && snapshot.data!.docs.isNotEmpty;
-        final statuses = hasTeacherAnnouncements
-            ? (snapshot.data!.docs
+        var statuses = <StatusModel>[];
+
+        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+          statuses =
+              snapshot.data!.docs
                   .map((d) => StatusModel.fromFirestore(d))
                   .toList()
-                ..sort((a, b) => b.createdAt.compareTo(a.createdAt)))
-            : <StatusModel>[];
+                // Filter out expired announcements (handles both missing and past expiresAt)
+                // This catches old documents without expiresAt field too
+                ..removeWhere((status) => !status.isValid)
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+          print(
+            '🎓 DEBUG: Teacher Announcements - Found ${statuses.length} valid announcements',
+          );
+          for (final status in statuses) {
+            print(
+              '  - ${status.teacherName}: ${status.text.substring(0, status.text.length > 30 ? 30 : status.text.length)}..., expiresAt: ${status.expiresAt}, isValid: ${status.isValid}',
+            );
+          }
+        } else {
+          print('🎓 DEBUG: No teacher announcement docs found');
+        }
+
+        // hasTeacherAnnouncements should be based on FILTERED statuses
+        final hasTeacherAnnouncements = statuses.isNotEmpty;
         final latestTeacherName = statuses.isNotEmpty
             ? _stripTitle(statuses.first.teacherName)
             : 'Teachers';
@@ -868,78 +885,96 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
         return GestureDetector(
           onTap: () {
+            print(
+              '🎓 DEBUG: Teachers icon tapped - hasTeacherAnnouncements=$hasTeacherAnnouncements, statuses.length=${statuses.length}',
+            );
             if (hasTeacherAnnouncements) {
+              print('🎓 DEBUG: Opening teacher announcements...');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Opening ${statuses.length} announcements'),
+                ),
+              );
               _openTeacherAnnouncements(statuses);
+            } else {
+              print('🎓 DEBUG: No announcements to show');
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No teacher announcements')),
+              );
             }
           },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: borderColor, width: 2),
-                      color: cardColor,
-                    ),
-                    child: Icon(
-                      Icons.school,
-                      color: hasUnviewed ? purpleColor : borderColor,
-                      size: 28,
-                    ),
-                  ),
-                  if (statuses.isNotEmpty)
-                    Positioned(
-                      right: -2,
-                      top: -2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: hasUnviewed
-                              ? purpleColor
-                              : (isDark
-                                    ? Colors.grey.shade700
-                                    : Colors.grey.shade500),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: cardColor, width: 1),
-                        ),
-                        child: Text(
-                          '${statuses.length}',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            height: 1,
+          child: !hasTeacherAnnouncements
+              ? const SizedBox.shrink() // Don't show Teachers avatar if no announcements
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: borderColor, width: 2),
+                            color: cardColor,
                           ),
+                          child: Icon(
+                            Icons.school,
+                            color: hasUnviewed ? purpleColor : borderColor,
+                            size: 28,
+                          ),
+                        ),
+                        if (statuses.isNotEmpty)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: hasUnviewed
+                                    ? purpleColor
+                                    : (isDark
+                                          ? Colors.grey.shade700
+                                          : Colors.grey.shade500),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: cardColor, width: 1),
+                              ),
+                              child: Text(
+                                '${statuses.length}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    SizedBox(
+                      width: 64,
+                      child: Text(
+                        latestTeacherName.split(' ').first,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: hasUnviewed
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                          color: subtitleColor,
                         ),
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              SizedBox(
-                width: 64,
-                child: Text(
-                  latestTeacherName.split(' ').first,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: hasUnviewed ? FontWeight.w700 : FontWeight.w600,
-                    color: subtitleColor,
-                  ),
+                  ],
                 ),
-              ),
-            ],
-          ),
         );
       },
     );

@@ -52,6 +52,10 @@ class InstituteAnnouncementModel {
           .toList();
     }
 
+    // Parse createdAt first
+    final createdAt =
+        (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+
     return InstituteAnnouncementModel(
       id: doc.id,
       principalId: data['principalId'] ?? '',
@@ -61,10 +65,10 @@ class InstituteAnnouncementModel {
       text: data['text'] ?? '',
       imageUrl: data['imageUrl'],
       imageCaptions: imageCaptions,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: createdAt,
       expiresAt:
           (data['expiresAt'] as Timestamp?)?.toDate() ??
-          DateTime.now().add(const Duration(hours: 24)),
+          createdAt.add(const Duration(hours: 24)),
       audienceType: data['audienceType'] ?? 'school',
       standards: List<String>.from(data['standards'] ?? []),
     );
@@ -128,4 +132,7 @@ class InstituteAnnouncementModel {
 
   /// Check if announcement is expired
   bool get isExpired => DateTime.now().isAfter(expiresAt);
+
+  /// Check if announcement is still valid (not expired)
+  bool get isValid => !isExpired;
 }

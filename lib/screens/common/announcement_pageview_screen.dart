@@ -154,20 +154,28 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                 }),
           );
         } else {
+          // No image - mark as loaded immediately
           _imageLoadedState[i] = true;
         }
       }
     }
 
-    // Wait for all images to preload (or at least the first one)
-    if (imagesToPreload.isNotEmpty) {
-      // Wait for first image at minimum
-      await Future.any([
-        imagesToPreload.first,
-        Future.delayed(const Duration(seconds: 2)), // Timeout after 2s
-      ]);
+    // Always wait with a timeout to ensure we don't get stuck on loading
+    try {
+      if (imagesToPreload.isNotEmpty) {
+        await Future.any([
+          Future.wait(imagesToPreload),
+          Future.delayed(const Duration(seconds: 2)),
+        ]);
+      } else {
+        // No images to preload, but still add a small delay for UI stability
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    } catch (e) {
+      // Ignore any errors
     }
 
+    // Always set preloading to false
     if (mounted) {
       setState(() {
         _isPreloadingImages = false;

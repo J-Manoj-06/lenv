@@ -53,7 +53,7 @@ class CommunityChatPage extends StatefulWidget {
 }
 
 class _CommunityChatPageState extends State<CommunityChatPage>
-    with MessageScrollAndHighlightMixin {
+    with MessageScrollAndHighlightMixin, WidgetsBindingObserver {
   final GroupMessagingService _messagingService = GroupMessagingService();
   final CommunityService _communityService = CommunityService();
   final TextEditingController _messageController = TextEditingController();
@@ -77,6 +77,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   double _lastScrollPosition = 0.0;
   int _lastItemCount = 0;
   bool _isProcessingScroll = false;
+
+  // Track if we're initialized
+  bool _isInitialized = false;
 
   // ===== Date helpers for day separators =====
   String _formatDayLabel(DateTime dt) {
@@ -169,9 +172,20 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   // Timer to poll cache for progress updates
   Timer? _progressPollTimer;
 
+  // Throttle setState calls to prevent excessive rebuilds
+  Timer? _rebuildThrottleTimer;
+  bool _pendingRebuild = false;
+
+  // Throttle cache updates to prevent excessive disk writes
+  final Map<String, double> _lastSavedProgress = {};
+
+  // Track last upload timestamp to maintain message order
+  int _lastUploadTimestamp = 0;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _messageController.addListener(() => setState(() {}));
     _messageFocusNode.addListener(() {
@@ -204,7 +218,27 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         final unread = Provider.of<UnreadCountProvider>(context, listen: false);
         unread.refreshChat(widget.communityId);
       } catch (_) {}
+      // Mark as initialized
+      _isInitialized = true;
+      print('✅ [LIFECYCLE] Community chat page initialized');
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    print(
+      '🔄 [LIFECYCLE] App state changed: $state (isInitialized: $_isInitialized)',
+    );
+    if (state == AppLifecycleState.resumed && _isInitialized) {
+      print('🔄 [LIFECYCLE] App RESUMED - reloading pending messages');
+      print(
+        '   Current pending count before reload: ${_pendingMessages.length}',
+      );
+      _loadPendingMessages().then((_) {
+        print('🔄 [LIFECYCLE] Pending messages reloaded');
+        print('   Pending count after reload: ${_pendingMessages.length}');
+      });
+    }
   }
 
   void _startProgressPolling() {
@@ -261,13 +295,16 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         .onUploadProgress = (messageId, isUploading, progress) async {
       if (!mounted) return;
 
-      setState(() {
+      _throttledSetState(() {
         if (isUploading) {
           if (!_uploadingMessageIds.contains(messageId)) {
             _activeUploads++;
           }
           _uploadingMessageIds.add(messageId);
           _pendingUploadProgress[messageId] = progress;
+
+          // Update cache with progress so it survives navigation
+          _updateCachedProgress(messageId, progress);
         } else {
           // Upload to R2 complete - but DON'T remove pending message yet!
           // Keep it until Firestore sync completes (message appears in stream)
@@ -358,6 +395,79 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         });
       }
     };
+  }
+
+  // Throttled setState to prevent excessive rebuilds
+  void _throttledSetState(VoidCallback fn) {
+    fn(); // Apply state change immediately
+
+    if (_pendingRebuild) return; // Already scheduled
+
+    _pendingRebuild = true;
+    _rebuildThrottleTimer?.cancel();
+    _rebuildThrottleTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _pendingRebuild = false;
+        setState(() {});
+      }
+    });
+  }
+
+  // Update cached message with latest upload progress
+  // Throttled: Only saves if progress changed by 5% or reached 100%
+  void _updateCachedProgress(String mediaId, double progress) async {
+    try {
+      // Throttle: Only update cache if progress changed by 5% or completed
+      final lastSaved = _lastSavedProgress[mediaId] ?? 0.0;
+      final progressDiff = (progress - lastSaved).abs();
+      final shouldSave = progressDiff >= 0.05 || progress >= 1.0;
+
+      if (!shouldSave) return; // Skip this update
+
+      // Update tracking
+      _lastSavedProgress[mediaId] = progress;
+
+      // Find which pending message this media belongs to
+      for (final pendingMsg in _pendingMessages) {
+        if (pendingMsg.multipleMedia == null) continue;
+
+        for (final media in pendingMsg.multipleMedia!) {
+          if (media.messageId == mediaId) {
+            // Found the media item - get parent message ID
+            final parentMessageId = pendingMsg.id.replaceFirst('pending:', '');
+
+            // Load message from cache
+            final cachedMsg = await _localRepo.getMessageById(parentMessageId);
+            if (cachedMsg != null && cachedMsg.multipleMedia != null) {
+              // Update progress in the cached message
+              final updatedMedia = cachedMsg.multipleMedia!.map((m) {
+                if (m['messageId'] == mediaId) {
+                  return {...m, 'uploadProgress': progress};
+                }
+                return m;
+              }).toList();
+
+              // Save updated message back to cache
+              final updatedMessage = LocalMessage(
+                messageId: cachedMsg.messageId,
+                chatId: cachedMsg.chatId,
+                chatType: cachedMsg.chatType,
+                senderId: cachedMsg.senderId,
+                senderName: cachedMsg.senderName,
+                messageText: cachedMsg.messageText,
+                timestamp: cachedMsg.timestamp,
+                multipleMedia: updatedMedia,
+                isPending: cachedMsg.isPending,
+              );
+              await _localRepo.saveMessage(updatedMessage);
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      // Silent fail - cache update is not critical
+    }
   }
 
   Future<void> _checkCacheForProgressUpdates() async {
@@ -567,6 +677,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                 }
                 if (uploadProgress != null) {
                   _pendingUploadProgress[mediaId] = uploadProgress;
+                  print(
+                    '   📊 Restored progress for $mediaId: ${(uploadProgress * 100).toStringAsFixed(1)}%',
+                  );
                 }
               }
             }
@@ -619,7 +732,12 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   }
 
   @override
+  @override
   void dispose() {
+    _isInitialized = false;
+    _rebuildThrottleTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+
     // Mark chat as read when leaving to prevent self-unread badges
     try {
       final unread = Provider.of<UnreadCountProvider>(context, listen: false);
@@ -768,7 +886,14 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       }
 
       final conversationId = widget.communityId;
-      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+
+      // Ensure each message has unique timestamp to maintain send order
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final baseTimestamp = now > _lastUploadTimestamp
+          ? now
+          : _lastUploadTimestamp + 1; // Increment if sending too quickly
+      _lastUploadTimestamp = baseTimestamp;
+
       final groupMessageId =
           'upload_${baseTimestamp}_${currentUser.uid.hashCode}';
       final List<MediaMetadata> mediaList = [];
@@ -918,7 +1043,14 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       }
 
       final conversationId = widget.communityId;
-      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+
+      // Ensure each message has unique timestamp to maintain send order
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final baseTimestamp = now > _lastUploadTimestamp
+          ? now
+          : _lastUploadTimestamp + 1;
+      _lastUploadTimestamp = baseTimestamp;
+
       final groupMessageId =
           'upload_${baseTimestamp}_${currentUser.uid.hashCode}';
       final messageId = '${groupMessageId}_0';

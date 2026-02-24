@@ -57,6 +57,10 @@ class StatusModel {
           .toList();
     }
 
+    // Parse createdAt first
+    final createdAt =
+        (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+
     return StatusModel(
       id: doc.id,
       teacherId: data['teacherId'] ?? '',
@@ -67,10 +71,10 @@ class StatusModel {
       text: data['text'] ?? '',
       imageUrl: data['imageUrl'],
       imageCaptions: imageCaptions,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: createdAt,
       expiresAt:
           (data['expiresAt'] as Timestamp?)?.toDate() ??
-          DateTime.now().add(const Duration(hours: 24)),
+          createdAt.add(const Duration(hours: 24)),
       audienceType: data['audienceType'] ?? 'school',
       standards:
           (data['standards'] as List<dynamic>?)

@@ -542,7 +542,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 final status = StatusModel.fromFirestore(
                   doc['snapshot'] as DocumentSnapshot,
                 );
+                // Check if announcement is still valid (not expired) and meets visibility criteria
                 if (status.teacherId.isNotEmpty &&
+                    status.isValid &&
                     status.isVisibleTo(
                       userStandard: userStandard,
                       userSection: userSection,
@@ -553,10 +555,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 final announcement = InstituteAnnouncementModel.fromFirestore(
                   doc['snapshot'] as DocumentSnapshot,
                 );
-                // Only show school-wide or matching standard announcements
-                if (announcement.audienceType == 'school' ||
-                    (announcement.audienceType == 'standard' &&
-                        announcement.standards.contains(userStandard))) {
+                // Only show school-wide or matching standard announcements that haven't expired
+                if (announcement.isValid &&
+                    (announcement.audienceType == 'school' ||
+                        (announcement.audienceType == 'standard' &&
+                            announcement.standards.contains(userStandard)))) {
                   announcements.add({
                     'type': 'principal',
                     'data': announcement,
@@ -986,14 +989,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         in FirebaseFirestore.instance
             .collection('class_highlights')
             .where('instituteId', isEqualTo: instituteId)
-            .where('expiresAt', isGreaterThan: Timestamp.now())
             .snapshots()) {
-      // Get principal announcements with expiry filter
-      final now = Timestamp.now();
+      // Get principal announcements (no expiry filter in query - will filter in code)
       final principalSnapshot = await FirebaseFirestore.instance
           .collection('institute_announcements')
           .where('instituteId', isEqualTo: instituteId)
-          .where('expiresAt', isGreaterThan: now)
           .get();
 
       final combined = <Map<String, dynamic>>[];
