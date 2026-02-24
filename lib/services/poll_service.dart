@@ -177,6 +177,12 @@ class PollService {
           .doc(chatId)
           .collection('messages')
           .doc(messageId);
+    } else if (chatType == 'staff_room') {
+      messageRef = _firestore
+          .collection('staff_rooms')
+          .doc(chatId)
+          .collection('messages')
+          .doc(messageId);
     } else {
       messageRef = _firestore
           .collection('conversations')
@@ -185,12 +191,32 @@ class PollService {
           .doc(messageId);
     }
 
-    return messageRef.snapshots().map((snapshot) {
-      if (!snapshot.exists) return null;
-      final data = snapshot.data() as Map<String, dynamic>?;
-      if (data == null || data['type'] != 'poll') return null;
-      return PollModel.fromMap(data, snapshot.id);
-    });
+    return messageRef
+        .snapshots()
+        .map((snapshot) {
+          if (!snapshot.exists) return null;
+          final data = snapshot.data() as Map<String, dynamic>?;
+          if (data == null || data['type'] != 'poll') return null;
+          return PollModel.fromMap(data, snapshot.id);
+        })
+        .distinct((prev, next) {
+          // Avoid rebuilds if the poll data hasn't changed
+          if (prev == null || next == null) return prev == next;
+
+          // Compare key poll data: total votes and vote counts
+          if (prev.totalVotes != next.totalVotes) return false;
+          if (prev.options.length != next.options.length) return false;
+
+          // Compare vote counts for each option
+          for (int i = 0; i < prev.options.length; i++) {
+            if (prev.options[i].voteCount != next.options[i].voteCount) {
+              return false;
+            }
+          }
+
+          // If nothing changed, return true (they're equal)
+          return true;
+        });
   }
 
   /// Vote on a poll option

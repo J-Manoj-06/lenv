@@ -116,45 +116,51 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
     final accentGradient = _getAccentGradient(accentColor, accentDark);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Use real-time stream for live updates
-    return StreamBuilder<PollModel?>(
-      stream: _pollService.pollStream(
-        chatId: widget.chatId,
-        messageId: widget.poll.id!,
-        chatType: widget.chatType,
-      ),
-      initialData: widget.poll,
-      builder: (context, snapshot) {
-        final poll = snapshot.data ?? widget.poll;
-        final userVotes = poll.getUserVotes(currentUserId).toSet();
-        final hasVoted = poll.hasUserVotedAny(currentUserId);
-        final totalVotes = poll.totalVotes;
+    // Use real-time stream for live updates with optimization
+    return RepaintBoundary(
+      child: StreamBuilder<PollModel?>(
+        stream: _pollService.pollStream(
+          chatId: widget.chatId,
+          messageId: widget.poll.id!,
+          chatType: widget.chatType,
+        ),
+        initialData: widget.poll,
+        builder: (context, snapshot) {
+          final poll = snapshot.data ?? widget.poll;
 
-        return Align(
-          alignment: widget.isOwnMessage
-              ? Alignment.centerRight
-              : Alignment.centerLeft,
-          child: Container(
-            margin: const EdgeInsets.only(
-              top: 6,
-              bottom: 6,
-              left: 12,
-              right: 12,
+          // Cache computed values to avoid recalculation
+          final userVotes = poll.getUserVotes(currentUserId).toSet();
+          final hasVoted = poll.hasUserVotedAny(currentUserId);
+          final totalVotes = poll.totalVotes;
+
+          return Align(
+            alignment: widget.isOwnMessage
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: RepaintBoundary(
+              child: Container(
+                margin: const EdgeInsets.only(
+                  top: 6,
+                  bottom: 6,
+                  left: 12,
+                  right: 12,
+                ),
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: _buildPollCard(
+                  poll: poll,
+                  hasVoted: hasVoted,
+                  userVotes: userVotes,
+                  totalVotes: totalVotes,
+                  currentUserId: currentUserId,
+                  isDark: isDark,
+                  accentColor: accentColor,
+                  accentGradient: accentGradient,
+                ),
+              ),
             ),
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: _buildPollCard(
-              poll: poll,
-              hasVoted: hasVoted,
-              userVotes: userVotes,
-              totalVotes: totalVotes,
-              currentUserId: currentUserId,
-              isDark: isDark,
-              accentColor: accentColor,
-              accentGradient: accentGradient,
-            ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
