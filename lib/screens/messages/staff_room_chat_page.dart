@@ -28,6 +28,7 @@ import '../../models/local_message.dart';
 import 'offline_message_search_page.dart';
 import '../../services/background_upload_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:uuid/uuid.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
 class StaffRoomChatPage extends StatefulWidget {
@@ -1449,8 +1450,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
   Future<void> _sendRecording() async {
     // Prevent duplicate sends
-    if (_isUploading.value || !_isRecording.value) {
-      print('⚠️ Already uploading or not recording');
+    if (!_isRecording.value) {
+      print('⚠️ Not recording');
       return;
     }
 
@@ -1469,45 +1470,77 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           final currentUser = authProvider.currentUser;
           if (currentUser == null) return;
 
-          try {
-            _isUploading.value = true;
-            _isRecording.value = false;
+          _isRecording.value = false;
 
+          try {
             // Get audio file size
             final fileSize = await file.length();
 
-            // Upload audio using MediaUploadService
-            final mediaMessage = await _mediaUploadService.uploadMedia(
+            // Create a unique message ID for this audio
+            final messageId = const Uuid().v4();
+            final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+
+            // Add pending message immediately with loading state
+            final pendingMessage = {
+              'id': messageId,
+              'text': '',
+              'senderId': currentUser.uid,
+              'senderName': currentUser.name,
+              'senderRole': currentUser.role.toString().split('.').last,
+              'createdAt': baseTimestamp,
+              'attachmentUrl': 'pending',
+              'attachmentType': 'audio/m4a',
+              'attachmentName': 'recording.m4a',
+              'attachmentSize': fileSize,
+              'isPending': true,
+            };
+
+            // Store file path and progress for UI tracking
+            final absolutePath = file.absolute.path;
+            _localFilePaths[messageId] = absolutePath;
+            _pendingUploadProgress[messageId] = 0.01; // Start at 1%
+            _uploadingMessageIds.add(messageId);
+
+            // Create progress notifier for UI updates
+            final progressNotifier = ValueNotifier<double>(0.01);
+            _progressNotifiers[messageId] = progressNotifier;
+
+            print(
+              '🎤 [RECORDING UPLOAD] Initialized with BackgroundUploadService:',
+            );
+            print('   Message ID: $messageId');
+            print('   File size: ${fileSize / 1024} KB');
+            print('   File path: $absolutePath');
+
+            setState(() {
+              _pendingMessages.insert(0, pendingMessage);
+              print(
+                '   ✅ Pending audio message added (count: ${_pendingMessages.length})',
+              );
+              print(
+                '   📊 Uploading message IDs: ${_uploadingMessageIds.length}',
+              );
+            });
+
+            // Add a small delay to ensure setState completes
+            await Future.delayed(const Duration(milliseconds: 50));
+
+            // Use BackgroundUploadService to enable background upload
+            await BackgroundUploadService().queueUpload(
               file: file,
               conversationId: widget.instituteId,
               senderId: currentUser.uid,
               senderRole: currentUser.role.toString().split('.').last,
-              mediaType: 'message',
+              mediaType: 'staff_room',
+              chatType: 'staff_room',
+              senderName: currentUser.name,
+              messageId:
+                  messageId, // Use our pending messageId for progress tracking
             );
 
-            // Send message with attachment
-            await FirebaseFirestore.instance
-                .collection('staff_rooms')
-                .doc(widget.instituteId)
-                .collection('messages')
-                .add({
-                  'text': '',
-                  'senderId': currentUser.uid,
-                  'senderName': currentUser.name,
-                  'senderRole': currentUser.role.toString().split('.').last,
-                  'timestamp': FieldValue.serverTimestamp(),
-                  'createdAt': DateTime.now().millisecondsSinceEpoch,
-                  'attachmentUrl': mediaMessage.r2Url,
-                  'attachmentType': 'audio/m4a',
-                  'attachmentName': mediaMessage.fileName,
-                  'attachmentSize': fileSize,
-                  'thumbnailUrl': mediaMessage.thumbnailUrl,
-                });
-
-            _isUploading.value = false;
-            _isRecording.value = false;
-            _recordingPath = null;
-            _recordingDuration.value = 0;
+            print(
+              '✅ [RECORDING UPLOAD] Queued for background upload: $messageId',
+            );
 
             // Scroll to bottom only if user hasn't scrolled away
             if (!_userHasScrolled) {
@@ -1521,18 +1554,8 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                 }
               });
             }
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Audio sent successfully'),
-                  duration: Duration(milliseconds: 800),
-                ),
-              );
-            }
           } catch (e) {
             print('❌ Error uploading audio: $e');
-            _isUploading.value = false;
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Failed to send audio: $e')),
@@ -1542,11 +1565,11 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         }
       }
 
-      _isRecording.value = false;
       _recordingPath = null;
       _recordingDuration.value = 0;
     } catch (e) {
       print('❌ Error sending recording: $e');
+      _isRecording.value = false;
     }
   }
 
@@ -2461,124 +2484,96 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
                 const SizedBox(width: 8),
                 // Mic/Send button
                 ValueListenableBuilder<bool>(
-                  valueListenable: _isUploading,
-                  builder: (context, isUploading, _) {
+                  valueListenable: _isRecording,
+                  builder: (context, isRecording, _) {
                     return ValueListenableBuilder<bool>(
-                      valueListenable: _isRecording,
-                      builder: (context, isRecording, _) {
-                        return ValueListenableBuilder<bool>(
-                          valueListenable: _hasText,
-                          builder: (context, hasText, _) {
-                            return ValueListenableBuilder<int>(
-                              valueListenable: _recordingDuration,
-                              builder: (context, duration, _) {
-                                return GestureDetector(
-                                  onTap: isUploading
-                                      ? null
-                                      : hasText
-                                      ? _sendMessage
-                                      : isRecording
-                                      ? _sendRecording // Stop and send recording
-                                      : () async {
-                                          try {
-                                            // Start recording
-                                            final permission =
-                                                await _audioRecorder
-                                                    .hasPermission();
-                                            if (!permission) {
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Microphone permission required',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                              return;
-                                            }
-
-                                            final directory =
-                                                Directory.systemTemp;
-                                            final timestamp = DateTime.now()
-                                                .millisecondsSinceEpoch;
-                                            final recordingPath =
-                                                '${directory.path}/audio_$timestamp.m4a';
-
-                                            await _audioRecorder.start(
-                                              const RecordConfig(
-                                                encoder: AudioEncoder.aacLc,
-                                                sampleRate: 44100,
-                                                numChannels: 2,
-                                                bitRate: 128000,
-                                              ),
-                                              path: recordingPath,
-                                            );
-
-                                            _isRecording.value = true;
-                                            _recordingPath = recordingPath;
-                                            _recordingDuration.value = 0;
-
-                                            _recordingTimer = Timer.periodic(
-                                              const Duration(seconds: 1),
-                                              (_) {
-                                                _recordingDuration.value++;
-                                              },
-                                            );
-
-                                            print(
-                                              '🎤 Recording started: $recordingPath',
-                                            );
-                                          } catch (e) {
-                                            print(
-                                              '❌ Error starting recording: $e',
-                                            );
-                                          }
-                                        },
-                                  child: Opacity(
-                                    opacity: isUploading ? 0.5 : 1.0,
-                                    child: Container(
-                                      width: 48,
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        color: isRecording
-                                            ? Colors.red
-                                            : primaryColor,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: isUploading
-                                          ? const Center(
-                                              child: SizedBox(
-                                                width: 20,
-                                                height: 20,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                        Color
-                                                      >(Colors.white),
+                      valueListenable: _hasText,
+                      builder: (context, hasText, _) {
+                        return ValueListenableBuilder<int>(
+                          valueListenable: _recordingDuration,
+                          builder: (context, duration, _) {
+                            return GestureDetector(
+                              onTap: hasText
+                                  ? _sendMessage
+                                  : isRecording
+                                  ? _sendRecording // Stop and send recording
+                                  : () async {
+                                      try {
+                                        // Start recording
+                                        final permission = await _audioRecorder
+                                            .hasPermission();
+                                        if (!permission) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Microphone permission required',
                                                 ),
                                               ),
-                                            )
-                                          : IconButton(
-                                              icon: Icon(
-                                                hasText
-                                                    ? Icons.send_rounded
-                                                    : (isRecording
-                                                          ? Icons.send_rounded
-                                                          : Icons.mic),
-                                                color: Colors.white,
-                                                size: 24,
-                                              ),
-                                              padding: EdgeInsets.zero,
-                                              onPressed: null,
-                                            ),
-                                    ),
+                                            );
+                                          }
+                                          return;
+                                        }
+
+                                        final directory = Directory.systemTemp;
+                                        final timestamp = DateTime.now()
+                                            .millisecondsSinceEpoch;
+                                        final recordingPath =
+                                            '${directory.path}/audio_$timestamp.m4a';
+
+                                        await _audioRecorder.start(
+                                          const RecordConfig(
+                                            encoder: AudioEncoder.aacLc,
+                                            sampleRate: 44100,
+                                            numChannels: 2,
+                                            bitRate: 128000,
+                                          ),
+                                          path: recordingPath,
+                                        );
+
+                                        _isRecording.value = true;
+                                        _recordingPath = recordingPath;
+                                        _recordingDuration.value = 0;
+
+                                        _recordingTimer = Timer.periodic(
+                                          const Duration(seconds: 1),
+                                          (_) {
+                                            _recordingDuration.value++;
+                                          },
+                                        );
+
+                                        print(
+                                          '🎤 Recording started: $recordingPath',
+                                        );
+                                      } catch (e) {
+                                        print('❌ Error starting recording: $e');
+                                      }
+                                    },
+                              child: Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: isRecording
+                                      ? Colors.red
+                                      : primaryColor,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: Icon(
+                                    hasText
+                                        ? Icons.send_rounded
+                                        : (isRecording
+                                              ? Icons.send_rounded
+                                              : Icons.mic),
+                                    color: Colors.white,
+                                    size: 24,
                                   ),
-                                );
-                              },
+                                  padding: EdgeInsets.zero,
+                                  onPressed: null,
+                                ),
+                              ),
                             );
                           },
                         );
