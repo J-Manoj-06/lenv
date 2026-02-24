@@ -3020,8 +3020,9 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                 final r2Key = metadata['r2Key'] as String?;
                 if (r2Key != null && r2Key.isNotEmpty) mediaToDelete.add(r2Key);
                 final thumbKey = metadata['thumbnailR2Key'] as String?;
-                if (thumbKey != null && thumbKey.isNotEmpty)
+                if (thumbKey != null && thumbKey.isNotEmpty) {
                   mediaToDelete.add(thumbKey);
+                }
               }
 
               // Extract from multipleMedia
@@ -3030,11 +3031,13 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                 for (final media in multipleMedia) {
                   if (media is Map<String, dynamic>) {
                     final r2Key = media['r2Key'] as String?;
-                    if (r2Key != null && r2Key.isNotEmpty)
+                    if (r2Key != null && r2Key.isNotEmpty) {
                       mediaToDelete.add(r2Key);
+                    }
                     final thumbKey = media['thumbnailR2Key'] as String?;
-                    if (thumbKey != null && thumbKey.isNotEmpty)
+                    if (thumbKey != null && thumbKey.isNotEmpty) {
                       mediaToDelete.add(thumbKey);
+                    }
                   }
                 }
               }

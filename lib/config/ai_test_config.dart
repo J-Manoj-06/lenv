@@ -15,7 +15,7 @@ library;
 class AITestConfig {
   // 🔒 SECURE: Cloudflare Worker endpoint (API key stored on server)
   static const String workerUrl =
-      'https://deepseek-ai.giridharannj.workers.dev/generate';
+      'https://deepseek-ai-worker.giridharannj.workers.dev/generate';
 
   // 🎯 DEPRECATED: Direct API mode removed for security
   // All requests now go through the secure Cloudflare Worker

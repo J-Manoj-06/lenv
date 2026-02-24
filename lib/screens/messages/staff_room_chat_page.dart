@@ -280,22 +280,35 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     _localRepo = LocalMessageRepository();
     _syncService = FirebaseMessageSyncService(_localRepo);
 
+    print('🔍 [DEBUG-INIT] Initializing local repo...');
     await _localRepo.initialize();
+    print('✅ [DEBUG-INIT] Local repo initialized');
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
 
     if (currentUser != null) {
+      print('🔍 [DEBUG-INIT] Current user: ${currentUser.uid}');
+      print('🔍 [DEBUG-INIT] Institute ID: ${widget.instituteId}');
+
       // Load pending messages from cache (survive navigation during upload)
+      print('🔍 [DEBUG-INIT] Loading pending messages from cache...');
       await _loadPendingMessages();
+      print(
+        '✅ [DEBUG-INIT] Pending messages load complete. Current pending: ${_pendingMessages.length}',
+      );
+
       // Load from cache first (works offline)
       final cachedMessages = await _localRepo.getMessagesForChat(
         widget.instituteId,
         limit: 50, // Initial load: 50 messages
       );
 
+      print('🔍 [DEBUG-INIT] Cached messages: ${cachedMessages.length}');
+
       if (cachedMessages.isEmpty) {
         // No cache: fetch initial batch from Firebase
+        print('🔍 [DEBUG-INIT] No cache, fetching from Firebase...');
         await _syncService.initialSyncForChat(
           chatId: widget.instituteId,
           chatType: 'staff_room',
@@ -303,6 +316,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         );
       } else {
         // Sync new messages in background (if online)
+        print('🔍 [DEBUG-INIT] Syncing new messages in background...');
         _syncService.syncNewMessages(
           chatId: widget.instituteId,
           chatType: 'staff_room',
@@ -311,6 +325,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
       }
 
       // Start real-time listener for new messages
+      print('🔍 [DEBUG-INIT] Starting real-time listener...');
       await _syncService.startSyncForChat(
         chatId: widget.instituteId,
         chatType: 'staff_room',
@@ -320,8 +335,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
       // Mark initialization as complete
       if (mounted) {
         _isInitialized = true;
-        print('✅ [LIFECYCLE] Staff room page initialized');
+        print('✅ [DEBUG-INIT] ✓ Initialization complete');
       }
+    } else {
+      print('❌ [DEBUG-INIT] No current user');
     }
   }
 
@@ -344,13 +361,25 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     );
 
     print(
-      '📝 [PENDING-LOAD] Found ${pendingMessages.length} pending messages in cache',
+      '📝 [DEBUG-LOAD] Found ${pendingMessages.length} pending messages in cache',
     );
 
-    if (pendingMessages.isEmpty || !mounted) return;
+    if (pendingMessages.isEmpty || !mounted) {
+      print(
+        '📝 [DEBUG-LOAD] Returning early - pending empty: ${pendingMessages.isEmpty}, mounted: $mounted',
+      );
+      // ✅ Clear pending messages if no pending uploads
+      if (!mounted) return;
+      setState(() {
+        _pendingMessages.clear();
+        print('📝 [DEBUG-LOAD] Cleared pending messages (empty)');
+      });
+      return;
+    }
 
     try {
       // Get current Firestore messages to filter out already-uploaded ones
+      print('📝 [DEBUG-LOAD] Fetching Firestore messages...');
       final firestoreSnap = await FirebaseFirestore.instance
           .collection('staff_rooms')
           .doc(widget.instituteId)
@@ -358,105 +387,272 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           .limit(500)
           .get();
       final firestoreDocs = firestoreSnap.docs;
+      print('📝 [DEBUG-LOAD] Firestore has ${firestoreDocs.length} messages');
 
-      if (!mounted) return;
+      if (!mounted) {
+        print('📝 [DEBUG-LOAD] Mounted changed to false before processing');
+        return;
+      }
 
       setState(() {
-        // Get current pending message IDs to avoid duplicates
-        final currentPendingIds = _pendingMessages.map((m) => m['id']).toSet();
+        print('📝 [DEBUG-LOAD] ★ Entering setState...');
+
+        // ✅ CRITICAL FIX: Clear old pending messages before reloading
+        // This prevents the duplicate detection from skipping messages on navigation
+        _pendingMessages.clear();
+        _uploadingMessageIds.clear();
+        print('📝 [DEBUG-LOAD] ✓ Cleared old pending messages');
+
         int addedCount = 0;
 
         // Convert LocalMessage to widget format
         for (final msg in pendingMessages) {
-          if (msg.multipleMedia == null || msg.multipleMedia!.isEmpty) {
-            continue;
-          }
+          final isMultiMedia =
+              msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty;
+          final isSingleAttachment =
+              msg.attachmentUrl != null && msg.attachmentUrl!.isNotEmpty;
+          final messageType = isMultiMedia
+              ? 'MULTI_MEDIA'
+              : (isSingleAttachment ? 'SINGLE_ATTACHMENT' : 'TEXT_ONLY');
 
-          // Skip if already in pending list
-          if (currentPendingIds.contains(msg.messageId)) {
-            print('📝 [PENDING-LOAD] Skipping duplicate: ${msg.messageId}');
-            continue;
+          print('📝 [PENDING-LOAD] ★ Processing message: ${msg.messageId}');
+          print('   Type: $messageType');
+          if (isMultiMedia) {
+            print('      (${msg.multipleMedia!.length} media items)');
+          } else if (isSingleAttachment) {
+            print('      (${msg.attachmentType}: ${msg.attachmentUrl})');
           }
 
           // Check if this message is already uploaded to Firestore
           bool isAlreadyUploaded = false;
-          for (final doc in firestoreDocs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final docMultipleMedia = data['multipleMedia'];
 
-            if (docMultipleMedia is List && docMultipleMedia.isNotEmpty) {
-              // Check if all media items match
-              if (docMultipleMedia.length == msg.multipleMedia!.length) {
-                bool allMatch = true;
-                for (int i = 0; i < msg.multipleMedia!.length; i++) {
-                  final pendingMedia = msg.multipleMedia![i];
-                  final serverMedia = docMultipleMedia[i] is Map
-                      ? Map<String, dynamic>.from(docMultipleMedia[i] as Map)
-                      : <String, dynamic>{};
+          // Match based on message type
+          if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+            // MULTI-MEDIA MESSAGE: Match by comparing all media items
+            for (final doc in firestoreDocs) {
+              final data = doc.data();
+              final docMultipleMedia = data['multipleMedia'];
 
-                  if (pendingMedia['originalFileName'] !=
-                          serverMedia['originalFileName'] ||
-                      pendingMedia['fileSize'] != serverMedia['fileSize']) {
-                    allMatch = false;
+              if (docMultipleMedia is List && docMultipleMedia.isNotEmpty) {
+                // Check if all media items match
+                if (docMultipleMedia.length == msg.multipleMedia!.length) {
+                  bool allMatch = true;
+                  for (int i = 0; i < msg.multipleMedia!.length; i++) {
+                    final pendingMedia = msg.multipleMedia![i];
+                    final serverMedia = docMultipleMedia[i] is Map
+                        ? Map<String, dynamic>.from(docMultipleMedia[i] as Map)
+                        : <String, dynamic>{};
+
+                    if (pendingMedia['originalFileName'] !=
+                            serverMedia['originalFileName'] ||
+                        pendingMedia['fileSize'] != serverMedia['fileSize']) {
+                      allMatch = false;
+                      break;
+                    }
+                  }
+                  if (allMatch) {
+                    isAlreadyUploaded = true;
+                    print('   ⚠️ Already uploaded to Firestore');
                     break;
                   }
                 }
-                if (allMatch) {
+              }
+            }
+          } else if (msg.attachmentUrl != null &&
+              msg.attachmentUrl!.isNotEmpty &&
+              msg.attachmentUrl != 'pending') {
+            // SINGLE ATTACHMENT: Already has URL from Firestore, skip
+            print('   ⚠️ Already has URL from Firestore, skipping');
+            isAlreadyUploaded = true;
+          } else {
+            // SINGLE ATTACHMENT (still uploading): Check if attachmentUrl is still "pending"
+            // If it's "pending", DO NOT mark as already uploaded
+            // Only mark if we can definitively match it in Firestore
+
+            if (msg.attachmentUrl == 'pending') {
+              // Still uploading - don't mark as complete
+              print(
+                '   📤 Still uploading (attachmentUrl: pending) - will restore to pending list',
+              );
+              isAlreadyUploaded = false;
+            } else if (msg.messageId.contains('pending_')) {
+              // This is a newly created pending message with no URL yet
+              // Very cautious matching - only mark if we find EXACT same message
+              for (final doc in firestoreDocs) {
+                final docMessageId = doc.id;
+
+                // Only match if the messageId itself appears in Firestore
+                // This means the upload already completed and synced
+                if (docMessageId == msg.messageId) {
                   isAlreadyUploaded = true;
+                  print('   ⚠️ Found exact match in Firestore: $docMessageId');
                   break;
+                }
+              }
+
+              // Also check by checking if Firestore has a recently uploaded message from this user
+              // with same timestamp (within 10 seconds) and matching file size
+              // But only if no exact message ID match was found
+              if (!isAlreadyUploaded) {
+                for (final doc in firestoreDocs) {
+                  final data = doc.data();
+                  final serverTimestamp = data['createdAt'] as int?;
+                  final serverAttachmentSize = data['attachmentSize'] as int?;
+
+                  if (data['senderId'] == currentUser.uid &&
+                      serverTimestamp != null &&
+                      serverAttachmentSize != null) {
+                    // Check if timestamps are very close (within 30 seconds)
+                    // AND server has an attachment with exact same size
+                    final timeDiff = (serverTimestamp - msg.timestamp).abs();
+
+                    // Only consider it a match if:
+                    // 1. Timestamps are within 30 seconds
+                    // 2. File sizes match exactly
+                    // 3. Message was sent from same user
+                    if (timeDiff < 30000 && serverAttachmentSize == 0) {
+                      // Server file size is 0 means it hasn't been uploaded yet
+                      // Don't mark as complete
+                      print('   📤 Server has pending upload record (size: 0)');
+                      break;
+                    }
+                  }
                 }
               }
             }
           }
 
           // Only restore as pending if not already uploaded
+
           if (!isAlreadyUploaded) {
             addedCount++;
-            _pendingMessages.add({
+            // ✅ CRITICAL: Extract attachment metadata from stored data
+            // For single attachments, store name/size in a map structure we can retrieve
+            String? attachmentName;
+            int? attachmentSize;
+
+            // Check multipleMedia for metadata (even for single files)
+            if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+              final first = msg.multipleMedia!.first;
+              if (first is Map<String, dynamic>) {
+                attachmentName = first['originalFileName'] as String?;
+                attachmentSize = first['fileSize'] as int?;
+              }
+            }
+
+            final messageData = {
               'id': msg.messageId,
               'text': msg.messageText ?? '',
               'senderId': msg.senderId,
               'senderName': msg.senderName,
-              'senderRole': 'teacher',
+              'senderRole': msg.messageId.contains('teacher')
+                  ? 'teacher'
+                  : 'principal',
               'createdAt': msg.timestamp,
+              'attachmentUrl': msg.attachmentUrl,
+              'attachmentType': msg.attachmentType,
+              'attachmentName': attachmentName,
+              'attachmentSize': attachmentSize,
+              'thumbnailUrl': null,
               'multipleMedia': msg.multipleMedia,
               'isPending': true,
-            });
+            };
+
+            _pendingMessages.add(messageData);
+            print('   ✅ RESTORED to pending list');
 
             // Restore local file paths and uploading state
-            for (int i = 0; i < msg.multipleMedia!.length; i++) {
-              final media = msg.multipleMedia![i];
-              final mediaId = media['messageId'] as String?;
-              final localPath = media['localPath'] as String?;
-              final cachedProgress = media['uploadProgress'] as double?;
+            if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+              // Multi-media message
+              for (int i = 0; i < msg.multipleMedia!.length; i++) {
+                final media = msg.multipleMedia![i];
+                final mediaId = media['messageId'] as String?;
+                final localPath = media['localPath'] as String?;
+                final cachedProgress = media['uploadProgress'] as double?;
 
-              if (mediaId != null) {
-                // Only add if not already tracked
-                if (!_uploadingMessageIds.contains(mediaId)) {
-                  _uploadingMessageIds.add(mediaId);
-                }
+                if (mediaId != null) {
+                  // Only add if not already tracked
+                  if (!_uploadingMessageIds.contains(mediaId)) {
+                    _uploadingMessageIds.add(mediaId);
+                  }
 
-                // Restore local file path for thumbnail display
-                if (localPath != null &&
-                    !_localFilePaths.containsKey(mediaId)) {
-                  _localFilePaths[mediaId] = localPath;
-                }
+                  // Restore local file path for thumbnail display
+                  if (localPath != null &&
+                      !_localFilePaths.containsKey(mediaId)) {
+                    _localFilePaths[mediaId] = localPath;
+                  }
 
-                // Restore upload progress from cache (maintains continuity)
-                if (!_pendingUploadProgress.containsKey(mediaId)) {
-                  _pendingUploadProgress[mediaId] = cachedProgress ?? 0.01;
+                  // Restore upload progress from cache (maintains continuity)
+                  if (!_pendingUploadProgress.containsKey(mediaId)) {
+                    _pendingUploadProgress[mediaId] = cachedProgress ?? 0.01;
+                  }
+
+                  // Recreate progress notifier for UI updates
+                  if (!_progressNotifiers.containsKey(mediaId)) {
+                    _progressNotifiers[mediaId] = ValueNotifier<double>(
+                      cachedProgress ?? 0.01,
+                    );
+                  }
+
                   print(
-                    '   📊 Restored progress for $mediaId: ${(cachedProgress ?? 0.01) * 100}%',
+                    '      📊 Multi-media[$i]: $mediaId (${(cachedProgress ?? 0.01) * 100}%)',
                   );
                 }
               }
+            } else if (msg.attachmentUrl != null &&
+                msg.attachmentUrl!.isNotEmpty) {
+              // ✅ FIXED: Handle BOTH uploaded and still-uploading single attachments
+              // Show loading for pending, hide for uploaded
+              final isStillUploading = msg.attachmentUrl == 'pending';
+
+              print(
+                '      📊 Single attachment: ${msg.messageId} (${msg.attachmentType})',
+              );
+              print(
+                '         - Status: ${isStillUploading ? 'UPLOADING' : 'UPLOADED'}',
+              );
+
+              // ✅ CRITICAL: Add to uploading set if still pending
+              if (isStillUploading) {
+                if (!_uploadingMessageIds.contains(msg.messageId)) {
+                  _uploadingMessageIds.add(msg.messageId);
+                  print(
+                    '         - Added to uploading set for loading indicator',
+                  );
+                }
+
+                // Set initial progress to show loading
+                if (!_pendingUploadProgress.containsKey(msg.messageId)) {
+                  _pendingUploadProgress[msg.messageId] = 0.01;
+                  print('         - Set initial progress to show loading');
+                }
+
+                // Create progress notifier for UI updates
+                if (!_progressNotifiers.containsKey(msg.messageId)) {
+                  _progressNotifiers[msg.messageId] = ValueNotifier<double>(
+                    0.01,
+                  );
+                  print('         - Created progress notifier');
+                }
+              }
             }
+          } else {
+            // ✅ CLEANUP: Message already uploaded, mark as no longer pending in local DB
+            // Queue cleanup after setState completes
+            print('   🧹 Cleanup: Will mark as no longer pending in local DB');
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _cleanupUploadedMessage(msg);
+            });
           }
         }
-        print(
-          '📝 [PENDING-LOAD] Added $addedCount messages back to pending list',
-        );
-        print('   Total pending now: ${_pendingMessages.length}');
+        print('');
+        print('========== PENDING MESSAGE LOAD SUMMARY ==========');
+        print('   Total in local DB: ${pendingMessages.length}');
+        print('   Already uploaded: ${pendingMessages.length - addedCount}');
+        print('   Restored to pending: $addedCount');
+        print('   Current pending list: ${_pendingMessages.length}');
+        print('=================================================');
+        print('');
       });
     } catch (e) {
       print('❌ [PENDING-LOAD] Error loading from Firestore: $e');
@@ -468,49 +664,55 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         int addedCount = 0;
 
         for (final msg in pendingMessages) {
-          if (msg.multipleMedia == null || msg.multipleMedia!.isEmpty) {
-            continue;
-          }
-
           // Skip if already in pending list
           if (currentPendingIds.contains(msg.messageId)) {
             continue;
           }
 
           addedCount++;
-          _pendingMessages.add({
+          final messageData = {
             'id': msg.messageId,
             'text': msg.messageText ?? '',
             'senderId': msg.senderId,
             'senderName': msg.senderName,
-            'senderRole': 'teacher',
+            'senderRole': msg.messageId.contains('teacher')
+                ? 'teacher'
+                : 'principal',
             'createdAt': msg.timestamp,
+            'attachmentUrl': msg.attachmentUrl,
+            'attachmentType': msg.attachmentType,
             'multipleMedia': msg.multipleMedia,
             'isPending': true,
-          });
+          };
 
-          for (int i = 0; i < msg.multipleMedia!.length; i++) {
-            final media = msg.multipleMedia![i];
-            final mediaId = media['messageId'] as String?;
-            final localPath = media['localPath'] as String?;
-            final cachedProgress = media['uploadProgress'] as double?;
-            if (mediaId != null) {
-              if (!_uploadingMessageIds.contains(mediaId)) {
-                _uploadingMessageIds.add(mediaId);
-              }
-              if (localPath != null && !_localFilePaths.containsKey(mediaId)) {
-                _localFilePaths[mediaId] = localPath;
-              }
-              if (!_pendingUploadProgress.containsKey(mediaId)) {
-                _pendingUploadProgress[mediaId] = cachedProgress ?? 0.01;
+          _pendingMessages.add(messageData);
+
+          // Restore upload tracking for multi-media
+          if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+            for (int i = 0; i < msg.multipleMedia!.length; i++) {
+              final media = msg.multipleMedia![i];
+              final mediaId = media['messageId'] as String?;
+              final localPath = media['localPath'] as String?;
+              final cachedProgress = media['uploadProgress'] as double?;
+
+              if (mediaId != null) {
+                if (!_uploadingMessageIds.contains(mediaId)) {
+                  _uploadingMessageIds.add(mediaId);
+                }
+
+                if (localPath != null &&
+                    !_localFilePaths.containsKey(mediaId)) {
+                  _localFilePaths[mediaId] = localPath;
+                }
+
+                if (!_pendingUploadProgress.containsKey(mediaId)) {
+                  _pendingUploadProgress[mediaId] = cachedProgress ?? 0.01;
+                }
               }
             }
           }
         }
-        print(
-          '📝 [PENDING-LOAD-FALLBACK] Added $addedCount messages (no upload check)',
-        );
-        print('   Total pending now: ${_pendingMessages.length}');
+        print('📝 [PENDING-LOAD] Fallback: Added $addedCount messages');
       });
     }
   }
@@ -667,13 +869,21 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
   }
 
   // Update cached message with latest upload progress
-  // Throttled: Only saves if progress changed by 5% or reached 100%
+  // Only saves at milestones (10%, 25%, 50%, 75%, 90%, 100%) to reduce writes
+  // UI updates smoothly via ValueNotifier in real-time
   void _updateCachedProgress(String mediaId, double progress) async {
     try {
-      // Throttle: Only update cache if progress changed by 5% or completed
+      // Only save to cache at milestones to avoid excessive database writes
       final lastSaved = _lastSavedProgress[mediaId] ?? 0.0;
-      final progressDiff = (progress - lastSaved).abs();
-      final shouldSave = progressDiff >= 0.05 || progress >= 1.0;
+      final milestones = [0.1, 0.25, 0.5, 0.75, 0.9, 1.0];
+
+      bool shouldSave = false;
+      for (final milestone in milestones) {
+        if (progress >= milestone && lastSaved < milestone) {
+          shouldSave = true;
+          break;
+        }
+      }
 
       if (!shouldSave) return; // Skip this update
 
@@ -890,6 +1100,114 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
     if (result != null && result.files.single.path != null) {
       await _uploadFile(File(result.files.single.path!));
+    }
+  }
+
+  /// Save a pending message to local repository for persistence across navigation
+  /// WHY: Ensures pending messages survive page navigation and app restarts
+  Future<void> _savePendingMessageToLocal(
+    String messageId,
+    Map<String, dynamic> messageData,
+    String? attachmentName,
+    List<dynamic>? multipleMedia,
+  ) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) {
+        print('❌ [DEBUG-SAVE] No current user, cannot save');
+        return;
+      }
+
+      print('🔍 [DEBUG-SAVE] Saving pending message: $messageId');
+      print('   - messageData: ${messageData.toString().substring(0, 100)}...');
+      print('   - attachmentName: $attachmentName');
+      print('   - multipleMedia count: ${multipleMedia?.length ?? 0}');
+
+      // ✅ CRITICAL: Preserve single attachment metadata in multipleMedia structure
+      // This way when we reload, we can extract the name and size
+      List<dynamic>? metadataList = multipleMedia;
+      if (multipleMedia == null &&
+          attachmentName != null &&
+          messageData['attachmentSize'] != null) {
+        // Convert single attachment to multipleMedia format for consistent storage
+        metadataList = [
+          {
+            'originalFileName': attachmentName,
+            'fileSize': messageData['attachmentSize'] as int? ?? 0,
+            'mimeType':
+                messageData['attachmentType'] ?? 'application/octet-stream',
+            'messageId': messageId,
+          },
+        ];
+        print('   - Converted single attachment to multipleMedia format');
+      }
+
+      final localMessage = LocalMessage(
+        messageId: messageId,
+        chatId: widget.instituteId,
+        chatType: 'staff_room',
+        senderId: messageData['senderId'] ?? currentUser.uid,
+        senderName: messageData['senderName'] ?? currentUser.name,
+        messageText: messageData['text'] ?? '',
+        timestamp:
+            messageData['createdAt'] as int? ??
+            DateTime.now().millisecondsSinceEpoch,
+        attachmentUrl: messageData['attachmentUrl'],
+        attachmentType: messageData['attachmentType'],
+        isPending: true,
+        multipleMedia: metadataList,
+      );
+
+      print(
+        '   - LocalMessage created: id=${localMessage.messageId}, isPending=${localMessage.isPending}',
+      );
+
+      await _localRepo.saveMessage(localMessage);
+
+      // Verify it was saved
+      final saved = await _localRepo.getMessageById(messageId);
+      if (saved != null) {
+        print('✅ [DEBUG-SAVE] ✓ Confirmed saved in local repo: $messageId');
+      } else {
+        print('❌ [DEBUG-SAVE] ✗ Message NOT found after save: $messageId');
+      }
+    } catch (e) {
+      print('⚠️ [DEBUG-SAVE] Exception: $e');
+      print('   Stack: ${StackTrace.current}');
+      // Don't fail the upload just because local save failed
+    }
+  }
+
+  /// Clean up uploaded messages by marking them as no longer pending
+  /// This allows them to appear in the regular message stream instead of pending list
+  Future<void> _cleanupUploadedMessage(LocalMessage originalMsg) async {
+    try {
+      print(
+        '🧹 [CLEANUP] Marking message as no longer pending: ${originalMsg.messageId}',
+      );
+
+      // Create a new message with isPending: false (since isPending is final)
+      final updatedMessage = LocalMessage(
+        messageId: originalMsg.messageId,
+        chatId: originalMsg.chatId,
+        chatType: originalMsg.chatType,
+        senderId: originalMsg.senderId,
+        senderName: originalMsg.senderName,
+        messageText: originalMsg.messageText,
+        timestamp: originalMsg.timestamp,
+        attachmentUrl: originalMsg.attachmentUrl,
+        attachmentType: originalMsg.attachmentType,
+        isPending: false, // ✅ Now marked as uploaded
+        multipleMedia: originalMsg.multipleMedia,
+      );
+
+      // Save the updated message
+      await _localRepo.saveMessage(updatedMessage);
+      print('   ✅ Message marked as uploaded in local DB');
+      print('   ✅ Now it will appear in regular message stream');
+    } catch (e) {
+      print('❌ [CLEANUP] Error: $e');
     }
   }
 
@@ -1161,6 +1479,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
       print('   📊 Pending message structure: $pendingMessage');
       print('   📊 Calling setState - widget should rebuild now');
     });
+
+    // Save pending message to local repository for persistence
+    await _savePendingMessageToLocal(messageId, pendingMessage, fileName, null);
 
     // Add a small delay to ensure setState completes
     await Future.delayed(const Duration(milliseconds: 50));
@@ -1522,6 +1843,14 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
               );
             });
 
+            // Save pending message to local repository for persistence
+            await _savePendingMessageToLocal(
+              messageId,
+              pendingMessage,
+              'recording.m4a',
+              null,
+            );
+
             // Add a small delay to ensure setState completes
             await Future.delayed(const Duration(milliseconds: 50));
 
@@ -1785,13 +2114,19 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         //   '🔄 StreamBuilder rebuilding - Pending: ${_pendingMessages.length}, Connection: ${snapshot.connectionState}',
         // );
 
+        // ✅ CRITICAL FIX: Show pending messages immediately while Firestore loads
+        // Don't wait for Firestore stream to emit if we have pending messages
         if (snapshot.connectionState == ConnectionState.waiting &&
             _pendingMessages.isEmpty) {
           return Center(child: CircularProgressIndicator(color: primaryColor));
         }
 
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          // Show pending messages even if Firestore has error
+          if (_pendingMessages.isEmpty) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          // Continue building with pending messages
         }
 
         final firestoreMessages = snapshot.data?.docs ?? [];
@@ -1815,122 +2150,179 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           final pendingId = pendingMsg['id'] as String;
           final pendingSenderId = pendingMsg['senderId'];
           final pendingTimestamp = pendingMsg['createdAt'] as int;
-          final pendingHasMultipleMedia = pendingMsg['multipleMedia'] != null;
 
-          // Get pending message attachment metadata for robust matching
+          // Get pending message attachment metadata
           final pendingAttachmentName = pendingMsg['attachmentName'] as String?;
           final pendingAttachmentSize = pendingMsg['attachmentSize'] as int?;
 
           // Check if this pending message now exists in Firestore
-          final matchingServerDoc = firestoreMessages.where((doc) {
+          bool foundMatch = false;
+
+          // ✅ CRITICAL: Try to find exact message ID match FIRST
+          // This is the most reliable way to identify the same message
+          for (final doc in firestoreMessages) {
             final data = doc.data() as Map<String, dynamic>;
-            if (data['isDeleted'] == true) return false;
+            if (data['isDeleted'] == true) continue;
 
-            final serverSenderId = data['senderId'];
-            final serverTimestamp = data['createdAt'];
-            final serverTimestampMs = serverTimestamp is Timestamp
-                ? serverTimestamp.millisecondsSinceEpoch
-                : (serverTimestamp as int? ?? 0);
+            final docId = doc.id;
 
-            // Match by sender and timestamp
-            final senderMatch = serverSenderId == pendingSenderId;
-            final timeDiff = serverTimestampMs - pendingTimestamp;
-
-            if (!senderMatch) return false;
-
-            // PERMANENT FIX: Match by attachment metadata for precise identification
-            // This prevents false matches with other messages from same sender
-            if (pendingAttachmentName != null &&
-                pendingAttachmentSize != null) {
-              final serverAttachmentName = data['attachmentName'] as String?;
-              final serverAttachmentSize = data['attachmentSize'] as int?;
-
-              final attachmentMatch =
-                  serverAttachmentName == pendingAttachmentName &&
-                  serverAttachmentSize == pendingAttachmentSize;
-
-              // For attachments, allow any time difference as long as server message is not older
-              // This prevents duplicates when uploads take longer than the previous 10s window
-              return attachmentMatch && timeDiff >= 0;
+            // 1️⃣ FIRST: Check for exact messageId match
+            // If pending ID matches exactly, it's definitely the same message
+            if (pendingId == docId) {
+              foundMatch = true;
+              print('✅ [DEDUPE] Exact ID match: $pendingId == $docId');
+              break;
             }
+          }
 
-            // For multi-media messages, match by comparing the actual media items
-            if (pendingHasMultipleMedia) {
-              final serverMultipleMedia = data['multipleMedia'];
+          // If no exact match, try content-based matching
+          if (!foundMatch) {
+            final pendingHasMultipleMedia =
+                pendingMsg['multipleMedia'] != null &&
+                (pendingMsg['multipleMedia'] as List?)?.isNotEmpty == true;
 
-              // Check if server has multipleMedia as a list
-              if (serverMultipleMedia is! List || serverMultipleMedia.isEmpty) {
-                return false;
-              }
+            final hasSingleAttachmentUrl =
+                pendingMsg['attachmentUrl'] != null &&
+                (pendingMsg['attachmentUrl'] as String?)?.isNotEmpty == true &&
+                (pendingMsg['attachmentUrl'] as String) != 'pending';
 
-              final pendingMediaList =
-                  pendingMsg['multipleMedia'] as List<dynamic>? ?? [];
+            final hasSingleAttachmentMetadata =
+                pendingAttachmentName != null && pendingAttachmentSize != null;
 
-              // Ensure we have List<dynamic>
-              final serverMediaList = serverMultipleMedia;
+            final pendingHasSingleAttachment =
+                hasSingleAttachmentUrl || hasSingleAttachmentMetadata;
 
-              // Must have same number of items
-              if (pendingMediaList.length != serverMediaList.length) {
-                return false;
-              }
+            for (final doc in firestoreMessages) {
+              final data = doc.data() as Map<String, dynamic>;
+              if (data['isDeleted'] == true) continue;
 
-              // Check if all pending media items exist in server message
-              // by matching originalFileName and fileSize
-              bool allMediaMatch = true;
-              for (final pendingMedia in pendingMediaList) {
-                // Handle both Map<String, dynamic> and Map<dynamic, dynamic>
-                final pm = pendingMedia is Map
-                    ? Map<String, dynamic>.from(pendingMedia)
-                    : <String, dynamic>{};
-                final pendingFileName = pm['originalFileName'] as String?;
-                final pendingFileSize = pm['fileSize'] as int?;
+              final serverSenderId = data['senderId'];
+              final serverTimestamp = data['createdAt'];
+              final serverTimestampMs = serverTimestamp is Timestamp
+                  ? serverTimestamp.millisecondsSinceEpoch
+                  : (serverTimestamp as int? ?? 0);
 
-                if (pendingFileName == null || pendingFileSize == null) {
-                  allMediaMatch = false;
-                  break;
+              // Match by sender first (required for all message types)
+              if (serverSenderId != pendingSenderId) continue;
+
+              final timeDiff = serverTimestampMs - pendingTimestamp;
+
+              // MATCHING LOGIC FOR DIFFERENT MESSAGE TYPES
+              bool isMatch = false;
+
+              if (pendingHasMultipleMedia) {
+                // MULTI-MEDIA MESSAGE: Match by comparing all media items
+                final serverMultipleMedia = data['multipleMedia'];
+
+                if (serverMultipleMedia is List &&
+                    serverMultipleMedia.isNotEmpty) {
+                  final pendingMediaList =
+                      pendingMsg['multipleMedia'] as List<dynamic>? ?? [];
+
+                  // Must have same number of items
+                  if (pendingMediaList.length == serverMultipleMedia.length) {
+                    bool allMediaMatch = true;
+
+                    for (final pendingMedia in pendingMediaList) {
+                      final pm = pendingMedia is Map
+                          ? Map<String, dynamic>.from(pendingMedia)
+                          : <String, dynamic>{};
+                      final pendingFileName = pm['originalFileName'] as String?;
+                      final pendingFileSize = pm['fileSize'] as int?;
+
+                      if (pendingFileName == null || pendingFileSize == null) {
+                        allMediaMatch = false;
+                        break;
+                      }
+
+                      // Find matching item in server media
+                      final hasMatch = serverMultipleMedia.any((sm) {
+                        final serverMedia = sm is Map
+                            ? Map<String, dynamic>.from(sm)
+                            : <String, dynamic>{};
+                        return serverMedia['originalFileName'] ==
+                                pendingFileName &&
+                            serverMedia['fileSize'] == pendingFileSize;
+                      });
+
+                      if (!hasMatch) {
+                        allMediaMatch = false;
+                        break;
+                      }
+                    }
+
+                    // For multi-media, allow up to 5 minutes for upload to complete
+                    if (allMediaMatch && timeDiff >= 0 && timeDiff < 300000) {
+                      isMatch = true;
+                    }
+                  }
                 }
+              } else if (pendingHasSingleAttachment ||
+                  (pendingAttachmentName != null &&
+                      pendingAttachmentSize != null)) {
+                // SINGLE ATTACHMENT: Match by filename and size (case-insensitive)
+                final serverAttachmentName = data['attachmentName'] as String?;
+                final serverAttachmentSize = data['attachmentSize'] as int?;
 
-                // Find matching item in server media
-                final hasMatch = serverMediaList.any((sm) {
-                  // Handle both Map<String, dynamic> and Map<dynamic, dynamic>
-                  final serverMedia = sm is Map
-                      ? Map<String, dynamic>.from(sm)
-                      : <String, dynamic>{};
-                  return serverMedia['originalFileName'] == pendingFileName &&
-                      serverMedia['fileSize'] == pendingFileSize;
-                });
+                if (serverAttachmentName != null &&
+                    serverAttachmentSize != null) {
+                  // Try to match by attachment name (case-insensitive) and size
+                  final pendingName =
+                      (pendingAttachmentName ??
+                          pendingMsg['attachmentName'] as String?) ??
+                      '';
+                  final matchByNameAndSize =
+                      serverAttachmentName.toLowerCase() ==
+                          pendingName.toLowerCase() &&
+                      serverAttachmentSize ==
+                          (pendingAttachmentSize ??
+                              pendingMsg['attachmentSize']);
 
-                if (!hasMatch) {
-                  allMediaMatch = false;
-                  break;
+                  if (matchByNameAndSize &&
+                      timeDiff >= 0 &&
+                      timeDiff < 300000) {
+                    isMatch = true;
+                    print('✅ [DEDUPE] Single attachment matched: $pendingId');
+                    print(
+                      '   - Pending: $pendingName (${pendingAttachmentSize ?? pendingMsg['attachmentSize']} bytes)',
+                    );
+                    print(
+                      '   - Server: $serverAttachmentName ($serverAttachmentSize bytes)',
+                    );
+                  }
                 }
-              }
-
-              if (allMediaMatch) {
-                // Exact match found for multi-media message
               } else {
-                // Media mismatch - keep pending for now
+                // TEXT-ONLY MESSAGE: Match by timestamp proximity
+                // For text messages, use a small time window to avoid mismatches
+                final timeMatch =
+                    timeDiff >= 0 && timeDiff < 10000; // 10 seconds
+                if (timeMatch &&
+                    (pendingMsg['text'] as String?)?.trim().isNotEmpty ==
+                        true &&
+                    (data['text'] as String?)?.trim() == pendingMsg['text']) {
+                  isMatch = true;
+                }
               }
 
-              // For multi-media, allow up to 5 minutes for upload to complete
-              final timeMatch = timeDiff >= 0 && timeDiff < 300000; // 5 minutes
-              return allMediaMatch && timeMatch;
+              if (isMatch) {
+                foundMatch = true;
+                print(
+                  '✅ [DEDUPE] Pending message matched to Firestore: $pendingId',
+                );
+                break;
+              }
             }
+          }
 
-            // For text messages, use a time window to avoid mismatches
-            final timeMatch = timeDiff >= 0 && timeDiff < 10000;
-            return timeMatch;
-          }).firstOrNull;
-
-          if (matchingServerDoc != null) {
-            // Found matching server version - remove pending
-            pendingIdsToRemove.add(pendingId);
-          } else {
+          if (!foundMatch) {
             // Still uploading - keep in list
             // Use cached instance to maintain widget identity
             final cachedMsg = _messageCache[pendingId] ??=
                 Map<String, dynamic>.from(pendingMsg);
             allMessages.add(cachedMsg);
+          } else {
+            // Mark for removal after frame
+            pendingIdsToRemove.add(pendingId);
           }
         }
 

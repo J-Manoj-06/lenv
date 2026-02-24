@@ -14,7 +14,7 @@ class AIConfig {
 
   // 🔒 SECURE: Cloudflare Worker endpoint (no API key needed in app)
   static const String workerUrl =
-      'https://deepseek-ai.giridharannj.workers.dev/generate';
+      'https://deepseek-ai-worker.giridharannj.workers.dev/generate';
 
   // DeepSeek Model Configuration
   static const String model = 'deepseek-chat';

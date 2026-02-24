@@ -316,11 +316,15 @@ class BackgroundUploadService extends ChangeNotifier {
                 );
               } else if (upload.chatType == 'staff_room') {
                 // Send grouped staff room message with multipleMedia
+                // ✅ CRITICAL FIX: Use the group ID as Firestore doc ID for deduplication
                 await FirebaseFirestore.instance
                     .collection('staff_rooms')
                     .doc(upload.conversationId)
                     .collection('messages')
-                    .add({
+                    .doc(upload.groupId) // ✅ Use group ID as document ID
+                    .set({
+                      'id': upload
+                          .groupId, // ✅ Store ID in document for reference
                       'text': '',
                       'senderId': upload.senderId,
                       'senderName': upload.senderName ?? 'Teacher',
@@ -398,11 +402,17 @@ class BackgroundUploadService extends ChangeNotifier {
             );
           } else if (upload.chatType == 'staff_room') {
             // conversationId is instituteId here
+            // ✅ CRITICAL FIX: Use the pending messageId as Firestore doc ID
+            // This allows deduplication to work by exact ID match
             await FirebaseFirestore.instance
                 .collection('staff_rooms')
                 .doc(upload.conversationId)
                 .collection('messages')
-                .add({
+                .doc(
+                  upload.id,
+                ) // ✅ Use upload.id (pending messageId) as the document ID
+                .set({
+                  'id': upload.id, // ✅ Also store ID in document for reference
                   'text': '',
                   'senderId': upload.senderId,
                   'senderName': upload.senderName ?? 'Teacher',

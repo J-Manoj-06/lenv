@@ -307,16 +307,40 @@ class LocalMessageRepository {
   }) async {
     await _ensureInitialized();
 
+    print('🔍 [DEBUG-REPO] Getting pending messages for chat: $chatId');
+    print('   Total messages in DB: ${_messageBox!.length}');
+
     final pendingMessages = _messageBox!.values.where((msg) {
-      return msg.chatId == chatId &&
+      final matches =
+          msg.chatId == chatId &&
           msg.senderId == senderId &&
-          msg.isPending == true &&
-          msg.multipleMedia != null &&
-          msg.multipleMedia!.isNotEmpty;
+          msg.isPending == true;
+
+      // ✅ FIXED: Include messages with EITHER multipleMedia OR single attachment
+      final hasContent =
+          (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) ||
+          (msg.attachmentUrl != null && msg.attachmentUrl!.isNotEmpty);
+
+      if (matches && !hasContent) {
+        print(
+          '   ⚠️ [DEBUG-REPO] Pending text message (no attachments): ${msg.messageId}',
+        );
+      }
+
+      return matches && hasContent;
     }).toList();
 
     // Sort by timestamp (newest first)
     pendingMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    print('   ✅ [DEBUG-REPO] Found ${pendingMessages.length} pending messages');
+    for (final msg in pendingMessages) {
+      final isMulti =
+          msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty;
+      print(
+        '      - ${msg.messageId}: ${isMulti ? 'MULTI_MEDIA (${msg.multipleMedia!.length} items)' : 'SINGLE_ATTACHMENT (${msg.attachmentType})'}',
+      );
+    }
 
     return pendingMessages;
   }

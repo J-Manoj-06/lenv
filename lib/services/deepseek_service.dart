@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 class DeepSeekService {
   /// Cloudflare Worker endpoint - API key is secured on the server
   static const String _workerUrl =
-      'https://deepseek-ai.giridharannj.workers.dev/chat';
+      'https://deepseek-ai-worker.giridharannj.workers.dev/chat';
 
   /// No API key needed in Flutter app anymore - handled by Cloudflare Worker
   /// This keeps the API key secure and prevents theft
