@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../models/community_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
+import '../../services/network_service.dart';
+import '../../repositories/principal_dashboard_repository.dart';
 
 class InstituteCommunityExploreScreen extends StatefulWidget {
   const InstituteCommunityExploreScreen({super.key});
@@ -16,12 +18,16 @@ class _InstituteCommunityExploreScreenState
     extends State<InstituteCommunityExploreScreen>
     with WidgetsBindingObserver {
   final CommunityService _communityService = CommunityService();
+  final PrincipalDashboardRepository _dashboardRepo =
+      PrincipalDashboardRepository();
+  final NetworkService _networkService = NetworkService();
   final TextEditingController _searchController = TextEditingController();
 
   List<CommunityModel> _allCommunities = [];
   List<CommunityModel> _filteredCommunities = [];
   String _selectedCategory = 'All';
   bool _isLoading = true;
+  bool _isOnline = true;
   final Set<String> _joiningCommunities = {};
   Set<String> _joinedCommunities = {};
 
@@ -38,8 +44,19 @@ class _InstituteCommunityExploreScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _checkConnectivity();
     _loadCommunities();
     _searchController.addListener(_onSearchChanged);
+  }
+
+  /// Check network connectivity
+  Future<void> _checkConnectivity() async {
+    final isOnline = await _networkService.isConnected();
+    if (mounted) {
+      setState(() {
+        _isOnline = isOnline;
+      });
+    }
   }
 
   @override
@@ -53,6 +70,7 @@ class _InstituteCommunityExploreScreenState
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       // Reload when app resumes to refresh joined status
+      _checkConnectivity();
       _loadCommunities();
     }
   }
@@ -66,8 +84,10 @@ class _InstituteCommunityExploreScreenState
 
     setState(() => _isLoading = true);
 
-    final communities = await _communityService
-        .getExploreCommunitiesForInstitute(schoolCode: schoolCode);
+    // Use repository for offline-first approach
+    final communities = await _dashboardRepo.fetchInstituteCommunities(
+      schoolCode: schoolCode,
+    );
 
     // Get joined community IDs
     final joinedIds = <String>{};
@@ -203,6 +223,30 @@ class _InstituteCommunityExploreScreenState
         ),
         body: Column(
           children: [
+            // Offline indicator banner
+            if (!_isOnline)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                color: Colors.orange.shade700,
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud_off, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Offline Mode - Showing cached communities',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // Search Bar
             Padding(
               padding: const EdgeInsets.all(16),

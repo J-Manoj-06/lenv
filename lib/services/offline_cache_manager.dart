@@ -404,6 +404,104 @@ class OfflineCacheManager {
     }
   }
 
+  /// ==================== PRINCIPAL/INSTITUTE SPECIFIC ====================
+
+  /// Cache principal dashboard stats (students, staff, attendance)
+  Future<void> cachePrincipalStats({
+    required String schoolCode,
+    required Map<String, dynamic> stats,
+  }) async {
+    try {
+      await _dashboardBox.put('principal_stats_$schoolCode', {
+        'stats': stats,
+        'schoolCode': schoolCode,
+        'cachedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error caching principal stats: $e');
+    }
+  }
+
+  /// Get cached principal stats
+  Map<String, dynamic>? getCachedPrincipalStats(String schoolCode) {
+    try {
+      final cached = _dashboardBox.get('principal_stats_$schoolCode');
+      if (cached == null) return null;
+
+      final stats = cached['stats'] as Map?;
+      return stats != null ? Map<String, dynamic>.from(stats) : null;
+    } catch (e) {
+      debugPrint('Error retrieving cached principal stats: $e');
+      return null;
+    }
+  }
+
+  /// Cache staff room messages
+  Future<void> cacheStaffRoomMessages({
+    required String instituteId,
+    required List<Map<String, dynamic>> messages,
+  }) async {
+    try {
+      await _groupsBox.put('staff_room_$instituteId', {
+        'messages': messages,
+        'instituteId': instituteId,
+        'cachedAt': DateTime.now().toIso8601String(),
+        'count': messages.length,
+      });
+    } catch (e) {
+      debugPrint('Error caching staff room messages: $e');
+    }
+  }
+
+  /// Get cached staff room messages
+  List<Map<String, dynamic>>? getCachedStaffRoomMessages(String instituteId) {
+    try {
+      final cached = _groupsBox.get('staff_room_$instituteId');
+      if (cached == null) return null;
+
+      final messages = cached['messages'] as List?;
+      return messages != null
+          ? List<Map<String, dynamic>>.from(messages)
+          : null;
+    } catch (e) {
+      debugPrint('Error retrieving cached staff room messages: $e');
+      return null;
+    }
+  }
+
+  /// Cache institute communities
+  Future<void> cacheInstituteCommunities({
+    required String schoolCode,
+    required List<Map<String, dynamic>> communities,
+  }) async {
+    try {
+      await _communitiesBox.put('institute_communities_$schoolCode', {
+        'communities': communities,
+        'schoolCode': schoolCode,
+        'cachedAt': DateTime.now().toIso8601String(),
+        'count': communities.length,
+      });
+    } catch (e) {
+      debugPrint('Error caching institute communities: $e');
+    }
+  }
+
+  /// Get cached institute communities
+  List<Map<String, dynamic>>? getCachedInstituteCommunities(String schoolCode) {
+    try {
+      final cached = _communitiesBox.get('institute_communities_$schoolCode');
+      if (cached == null) return null;
+
+      final communities = cached['communities'] as List?;
+      return communities != null
+          ? List<Map<String, dynamic>>.from(communities)
+          : null;
+    } catch (e) {
+      debugPrint('Error retrieving cached institute communities: $e');
+      return null;
+    }
+  }
+
   /// ==================== UTILITY METHODS ====================
 
   /// Check if data is stale

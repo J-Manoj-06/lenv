@@ -527,17 +527,33 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           if (!isAlreadyUploaded) {
             addedCount++;
             // ✅ CRITICAL: Extract attachment metadata from stored data
-            // For single attachments, store name/size in a map structure we can retrieve
+            // For single attachments stored as multipleMedia (for metadata preservation)
             String? attachmentName;
             int? attachmentSize;
+            List<dynamic>? finalMultipleMedia;
 
-            // Check multipleMedia for metadata (even for single files)
-            if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+            // Check if this is a single file stored in multipleMedia format
+            final isSingleFileInMultiMedia =
+                msg.multipleMedia != null &&
+                msg.multipleMedia!.length == 1 &&
+                msg.attachmentUrl != null &&
+                (msg.attachmentType?.contains('pdf') == true ||
+                    msg.attachmentType?.contains('document') == true ||
+                    msg.attachmentType?.contains('application') == true);
+
+            if (isSingleFileInMultiMedia) {
+              // Extract metadata from multipleMedia but restore as single attachment
               final first = msg.multipleMedia!.first;
               if (first is Map<String, dynamic>) {
                 attachmentName = first['originalFileName'] as String?;
                 attachmentSize = first['fileSize'] as int?;
               }
+              // Don't include multipleMedia for single file display
+              finalMultipleMedia = null;
+            } else if (msg.multipleMedia != null &&
+                msg.multipleMedia!.length > 1) {
+              // True multi-media (multiple images/files)
+              finalMultipleMedia = msg.multipleMedia;
             }
 
             final messageData = {
@@ -554,7 +570,7 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
               'attachmentName': attachmentName,
               'attachmentSize': attachmentSize,
               'thumbnailUrl': null,
-              'multipleMedia': msg.multipleMedia,
+              'multipleMedia': finalMultipleMedia,
               'isPending': true,
             };
 
@@ -562,7 +578,37 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
             print('   ✅ RESTORED to pending list');
 
             // Restore local file paths and uploading state
-            if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+            // Check if this was a single file stored in multipleMedia format
+            if (isSingleFileInMultiMedia) {
+              // Treat as single attachment for upload tracking
+              final isStillUploading = msg.attachmentUrl == 'pending';
+
+              print(
+                '      📊 Single attachment (from metadata): ${msg.messageId} (${msg.attachmentType})',
+              );
+              print('         - File: $attachmentName');
+              print(
+                '         - Status: ${isStillUploading ? 'UPLOADING' : 'UPLOADED'}',
+              );
+
+              if (isStillUploading) {
+                if (!_uploadingMessageIds.contains(msg.messageId)) {
+                  _uploadingMessageIds.add(msg.messageId);
+                  print('         - Added to uploading set');
+                }
+
+                if (!_pendingUploadProgress.containsKey(msg.messageId)) {
+                  _pendingUploadProgress[msg.messageId] = 0.01;
+                }
+
+                if (!_progressNotifiers.containsKey(msg.messageId)) {
+                  _progressNotifiers[msg.messageId] = ValueNotifier<double>(
+                    0.01,
+                  );
+                }
+              }
+            } else if (msg.multipleMedia != null &&
+                msg.multipleMedia!.isNotEmpty) {
               // Multi-media message
               for (int i = 0; i < msg.multipleMedia!.length; i++) {
                 final media = msg.multipleMedia![i];

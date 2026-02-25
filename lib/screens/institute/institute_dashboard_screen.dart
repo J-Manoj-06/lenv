@@ -15,6 +15,8 @@ import '../../services/media_repository.dart';
 import '../../services/institute_announcement_service.dart';
 import '../../services/attendance_service.dart';
 import '../../services/institute_announcement_cleanup_service.dart';
+import '../../services/network_service.dart';
+import '../../services/offline_cache_manager.dart';
 import '../../widgets/attendance_speedometer_gauge.dart';
 
 class InstituteDashboardScreen extends StatefulWidget {
@@ -29,15 +31,44 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   final MediaRepository _mediaRepository = MediaRepository();
   final InstituteAnnouncementService _announcementService =
       InstituteAnnouncementService();
+  final NetworkService _networkService = NetworkService();
+  final OfflineCacheManager _cacheManager = OfflineCacheManager();
+
   Set<String> _viewedAnnouncementIds = <String>{};
   String _schoolCode = '';
   bool _cleanupScheduled = false;
+  bool _isOnline = true;
+  Map<String, dynamic>? _cachedStats;
 
   @override
   void initState() {
     super.initState();
     _loadViewedAnnouncements();
     _initSchoolCode();
+    _checkConnectivity();
+    _loadCachedStats();
+  }
+
+  /// Check network connectivity
+  Future<void> _checkConnectivity() async {
+    final isOnline = await _networkService.isConnected();
+    if (mounted) {
+      setState(() {
+        _isOnline = isOnline;
+      });
+    }
+  }
+
+  /// Load cached stats for offline mode
+  Future<void> _loadCachedStats() async {
+    if (_schoolCode.isEmpty) return;
+
+    final cached = _cacheManager.getCachedPrincipalStats(_schoolCode);
+    if (cached != null && mounted) {
+      setState(() {
+        _cachedStats = cached;
+      });
+    }
   }
 
   @override
@@ -99,12 +130,18 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     }
   }
 
-  // Get real-time student count stream
+  // Get real-time student count stream with offline support
   Stream<int> _getStudentCountStream(String schoolCode) {
     print('📊 DEBUG: Getting students for schoolCode="$schoolCode"');
     if (schoolCode.isEmpty) {
       print('⚠️ DEBUG: schoolCode is EMPTY, returning 0');
       return Stream.value(0);
+    }
+
+    // If offline, return cached value
+    if (!_isOnline && _cachedStats != null) {
+      final count = _cachedStats!['students'] as int? ?? 0;
+      return Stream.value(count);
     }
 
     return FirebaseFirestore.instance
@@ -118,16 +155,32 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               '📊 DEBUG: First student schoolCode: ${snapshot.docs.first.data()['schoolCode']}',
             );
           }
+
+          // Update cache
+          if (_cachedStats != null) {
+            _cachedStats!['students'] = snapshot.size;
+            _cacheManager.cachePrincipalStats(
+              schoolCode: schoolCode,
+              stats: _cachedStats!,
+            );
+          }
+
           return snapshot.size;
         });
   }
 
-  // Get real-time staff count stream
+  // Get real-time staff count stream with offline support
   Stream<int> _getStaffCountStream(String schoolCode) {
     print('👥 DEBUG: Getting staff for schoolCode="$schoolCode"');
     if (schoolCode.isEmpty) {
       print('⚠️ DEBUG: schoolCode is EMPTY, returning 0');
       return Stream.value(0);
+    }
+
+    // If offline, return cached value
+    if (!_isOnline && _cachedStats != null) {
+      final count = _cachedStats!['staff'] as int? ?? 0;
+      return Stream.value(count);
     }
 
     return FirebaseFirestore.instance
@@ -142,16 +195,34 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               '👥 DEBUG: First staff schoolCode: ${snapshot.docs.first.data()['schoolCode']}',
             );
           }
+
+          // Update cache
+          if (_cachedStats != null) {
+            _cachedStats!['staff'] = snapshot.size;
+            _cacheManager.cachePrincipalStats(
+              schoolCode: schoolCode,
+              stats: _cachedStats!,
+            );
+          }
+
           return snapshot.size;
         });
   }
 
-  // Get real-time student attendance stream for today
+  // Get real-time student attendance stream for today with offline support
   Stream<Map<String, dynamic>> _getStudentAttendanceStream(String schoolCode) {
     print('📅 DEBUG: Getting attendance for schoolCode="$schoolCode"');
     if (schoolCode.isEmpty) {
       print('⚠️ DEBUG: schoolCode is EMPTY for attendance');
       return Stream.value({'present': 0, 'total': 0, 'percent': 0.0});
+    }
+
+    // If offline, return cached value
+    if (!_isOnline && _cachedStats != null) {
+      final attendance =
+          _cachedStats!['attendance'] as Map<String, dynamic>? ??
+          {'present': 0, 'total': 0, 'percent': 0.0};
+      return Stream.value(Map<String, dynamic>.from(attendance));
     }
 
     // Get today's date in format: yyyy-MM-dd
@@ -214,11 +285,26 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
           print(
             '📅 DEBUG: Final attendance - Present: $presentCount, Total: $totalStudents, Percent: ${percent.toStringAsFixed(1)}%',
           );
-          return {
+
+          // Update cache
+          final attendanceData = {
             'present': presentCount,
             'total': totalStudents,
             'percent': percent,
           };
+
+          if (_cachedStats == null) {
+            _cachedStats = {'attendance': attendanceData};
+          } else {
+            _cachedStats!['attendance'] = attendanceData;
+          }
+
+          _cacheManager.cachePrincipalStats(
+            schoolCode: schoolCode,
+            stats: _cachedStats!,
+          );
+
+          return attendanceData;
         });
   }
 
@@ -281,215 +367,244 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         return Scaffold(
           backgroundColor: bgColor,
           body: SafeArea(
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _TopBar(
-                    teal: tealColor,
-                    textColor: textColor,
-                    bgColor: bgColor,
-                  ),
-                  _SectionHeader(title: 'Announcements', textColor: textColor),
-                  _buildAnnouncementsSection(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                // Offline indicator banner
+                if (!_isOnline)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    color: Colors.orange.shade700,
                     child: Row(
                       children: [
-                        Expanded(
-                          child: _schoolCode.isEmpty
-                              ? _SkeletonStatCard(
-                                  icon: Icons.school,
-                                  label: 'Total Students',
-                                  cardColor: cardColor,
-                                  subtitleColor: subtitleColor,
-                                  iconColor: tealColor,
-                                  borderColor: borderColor,
-                                )
-                              : StreamBuilder<int>(
-                                  stream: _getStudentCountStream(_schoolCode),
-                                  builder: (context, snapshot) {
-                                    // Show skeleton while loading
-                                    if (snapshot.connectionState ==
-                                            ConnectionState.waiting ||
-                                        !snapshot.hasData) {
-                                      return _SkeletonStatCard(
+                        const Icon(
+                          Icons.cloud_off,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Offline Mode - Showing cached data',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _TopBar(
+                          teal: tealColor,
+                          textColor: textColor,
+                          bgColor: bgColor,
+                        ),
+                        _SectionHeader(
+                          title: 'Announcements',
+                          textColor: textColor,
+                        ),
+                        _buildAnnouncementsSection(),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _schoolCode.isEmpty
+                                    ? _SkeletonStatCard(
                                         icon: Icons.school,
                                         label: 'Total Students',
                                         cardColor: cardColor,
                                         subtitleColor: subtitleColor,
                                         iconColor: tealColor,
                                         borderColor: borderColor,
-                                      );
-                                    }
+                                      )
+                                    : StreamBuilder<int>(
+                                        stream: _getStudentCountStream(
+                                          _schoolCode,
+                                        ),
+                                        builder: (context, snapshot) {
+                                          // Show skeleton while loading
+                                          if (snapshot.connectionState ==
+                                                  ConnectionState.waiting ||
+                                              !snapshot.hasData) {
+                                            return _SkeletonStatCard(
+                                              icon: Icons.school,
+                                              label: 'Total Students',
+                                              cardColor: cardColor,
+                                              subtitleColor: subtitleColor,
+                                              iconColor: tealColor,
+                                              borderColor: borderColor,
+                                            );
+                                          }
 
-                                    final count = snapshot.data ?? 0;
-                                    return _StatCard(
-                                      icon: Icons.school,
-                                      label: 'Total Students',
-                                      value: _formatCount(count),
-                                      cardColor: cardColor,
-                                      textColor: textColor,
-                                      subtitleColor: subtitleColor,
-                                      iconColor: tealColor,
-                                      borderColor: borderColor,
-                                    );
-                                  },
-                                ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _schoolCode.isEmpty
-                              ? _SkeletonStatCard(
-                                  icon: Icons.group,
-                                  label: 'Total Staff',
-                                  cardColor: cardColor,
-                                  subtitleColor: subtitleColor,
-                                  iconColor: tealColor,
-                                  borderColor: borderColor,
-                                )
-                              : StreamBuilder<int>(
-                                  stream: _getStaffCountStream(_schoolCode),
-                                  builder: (context, snapshot) {
-                                    // Show skeleton while loading
-                                    if (snapshot.connectionState ==
-                                            ConnectionState.waiting ||
-                                        !snapshot.hasData) {
-                                      return _SkeletonStatCard(
+                                          final count = snapshot.data ?? 0;
+                                          return _StatCard(
+                                            icon: Icons.school,
+                                            label: 'Total Students',
+                                            value: _formatCount(count),
+                                            cardColor: cardColor,
+                                            textColor: textColor,
+                                            subtitleColor: subtitleColor,
+                                            iconColor: tealColor,
+                                            borderColor: borderColor,
+                                          );
+                                        },
+                                      ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: _schoolCode.isEmpty
+                                    ? _SkeletonStatCard(
                                         icon: Icons.group,
                                         label: 'Total Staff',
                                         cardColor: cardColor,
                                         subtitleColor: subtitleColor,
                                         iconColor: tealColor,
                                         borderColor: borderColor,
-                                      );
-                                    }
+                                      )
+                                    : StreamBuilder<int>(
+                                        stream: _getStaffCountStream(
+                                          _schoolCode,
+                                        ),
+                                        builder: (context, snapshot) {
+                                          // Show skeleton while loading
+                                          if (snapshot.connectionState ==
+                                                  ConnectionState.waiting ||
+                                              !snapshot.hasData) {
+                                            return _SkeletonStatCard(
+                                              icon: Icons.group,
+                                              label: 'Total Staff',
+                                              cardColor: cardColor,
+                                              subtitleColor: subtitleColor,
+                                              iconColor: tealColor,
+                                              borderColor: borderColor,
+                                            );
+                                          }
 
-                                    final count = snapshot.data ?? 0;
-                                    return _StatCard(
-                                      icon: Icons.group,
-                                      label: 'Total Staff',
-                                      value: _formatCount(count),
-                                      cardColor: cardColor,
-                                      textColor: textColor,
-                                      subtitleColor: subtitleColor,
-                                      iconColor: tealColor,
-                                      borderColor: borderColor,
-                                    );
-                                  },
+                                          final count = snapshot.data ?? 0;
+                                          return _StatCard(
+                                            icon: Icons.group,
+                                            label: 'Total Staff',
+                                            value: _formatCount(count),
+                                            cardColor: cardColor,
+                                            textColor: textColor,
+                                            subtitleColor: subtitleColor,
+                                            iconColor: tealColor,
+                                            borderColor: borderColor,
+                                          );
+                                        },
+                                      ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Attendance History Card
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const AttendanceHistoryScreen(),
                                 ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Attendance History Card
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const AttendanceHistoryScreen(),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFF146D7A).withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 56,
-                              height: 56,
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF146D7A).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
+                                color: cardColor,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFF146D7A,
+                                  ).withOpacity(0.3),
+                                  width: 1,
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.event_note,
-                                color: Color(0xFF146D7A),
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              child: Row(
                                 children: [
-                                  Text(
-                                    'Attendance History',
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFF146D7A,
+                                      ).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.event_note,
+                                      color: Color(0xFF146D7A),
+                                      size: 28,
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Select date to view attendance',
-                                    style: TextStyle(
-                                      color: subtitleColor,
-                                      fontSize: 13,
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Attendance History',
+                                          style: TextStyle(
+                                            color: textColor,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Select date to view attendance',
+                                          style: TextStyle(
+                                            color: subtitleColor,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                  ),
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    size: 16,
+                                    color: subtitleColor,
                                   ),
                                 ],
                               ),
                             ),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              size: 16,
-                              color: subtitleColor,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Broadcast Message Card
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 0,
-                    ),
-                    child: _QuickActionCard(
-                      cardColor: cardColor,
-                      textColor: textColor,
-                      subtitleColor: subtitleColor,
-                      tealColor: tealColor,
-                      iconBgColor: progressBgColor,
-                      borderColor: borderColor,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Student Attendance Card with Real Data
-                  _schoolCode.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: _SkeletonAttendanceCard(
-                            cardColor: cardColor,
-                            subtitleColor: subtitleColor,
                           ),
-                        )
-                      : StreamBuilder<Map<String, dynamic>>(
-                          stream: _getStudentAttendanceStream(_schoolCode),
-                          builder: (context, snapshot) {
-                            // Show skeleton while loading
-                            if (snapshot.connectionState ==
-                                    ConnectionState.waiting ||
-                                !snapshot.hasData) {
-                              return Padding(
+                        ),
+                        const SizedBox(height: 16),
+                        // Broadcast Message Card
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 0,
+                          ),
+                          child: _QuickActionCard(
+                            cardColor: cardColor,
+                            textColor: textColor,
+                            subtitleColor: subtitleColor,
+                            tealColor: tealColor,
+                            iconBgColor: progressBgColor,
+                            borderColor: borderColor,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Student Attendance Card with Real Data
+                        _schoolCode.isEmpty
+                            ? Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                 ),
@@ -497,35 +612,61 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                                   cardColor: cardColor,
                                   subtitleColor: subtitleColor,
                                 ),
-                              );
-                            }
+                              )
+                            : StreamBuilder<Map<String, dynamic>>(
+                                stream: _getStudentAttendanceStream(
+                                  _schoolCode,
+                                ),
+                                builder: (context, snapshot) {
+                                  // Show skeleton while loading
+                                  if (snapshot.connectionState ==
+                                          ConnectionState.waiting ||
+                                      !snapshot.hasData) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      child: _SkeletonAttendanceCard(
+                                        cardColor: cardColor,
+                                        subtitleColor: subtitleColor,
+                                      ),
+                                    );
+                                  }
 
-                            final data =
-                                snapshot.data ??
-                                {'present': 0, 'total': 0, 'percent': 0.0};
-                            final presentCount = data['present'] as int;
-                            final totalCount = data['total'] as int;
-                            final attendancePercent = data['percent'] as double;
+                                  final data =
+                                      snapshot.data ??
+                                      {
+                                        'present': 0,
+                                        'total': 0,
+                                        'percent': 0.0,
+                                      };
+                                  final presentCount = data['present'] as int;
+                                  final totalCount = data['total'] as int;
+                                  final attendancePercent =
+                                      data['percent'] as double;
 
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    child: AttendanceSpeedometerGauge(
+                                      attendancePercent: attendancePercent,
+                                      presentCount: presentCount,
+                                      totalCount: totalCount,
+                                      cardColor: cardColor,
+                                      textColor: textColor,
+                                      subtitleColor: subtitleColor,
+                                      title: 'Student Attendance (Today)',
+                                    ),
+                                  );
+                                },
                               ),
-                              child: AttendanceSpeedometerGauge(
-                                attendancePercent: attendancePercent,
-                                presentCount: presentCount,
-                                totalCount: totalCount,
-                                cardColor: cardColor,
-                                textColor: textColor,
-                                subtitleColor: subtitleColor,
-                                title: 'Student Attendance (Today)',
-                              ),
-                            );
-                          },
-                        ),
-                  const SizedBox(height: 16),
-                ],
-              ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
