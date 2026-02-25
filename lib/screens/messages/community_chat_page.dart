@@ -81,6 +81,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   // Track if we're initialized
   bool _isInitialized = false;
 
+  // ✅ Cached stream to prevent reloading community on every rebuild
+  late final Stream<List<GroupChatMessage>> _messagesStream;
+
   // ===== Date helpers for day separators =====
   String _formatDayLabel(DateTime dt) {
     final now = DateTime.now();
@@ -160,6 +163,13 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   final Map<String, String> _localSenderMediaPaths = {};
   DateTime? _lastMarkedMessageAt;
 
+  // ✅ ValueNotifiers for smooth progress updates without full rebuilds
+  final Map<String, ValueNotifier<double>> _progressNotifiers = {};
+
+  // ✅ Message cache for stable instances to prevent widget recreation (reserved for future use)
+  // ignore: unused_field
+  final Map<String, GroupChatMessage> _messageCache = {};
+
   // Notification for background uploads
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
@@ -193,6 +203,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         setState(() => _showEmojiPicker = false);
       }
     });
+
+    // ✅ Initialize cached messages stream (prevents reloading on rebuild)
+    _messagesStream = _messagingService.getCommunityMessages(
+      widget.communityId,
+    );
 
     // Initialize offline-first services
     _initOfflineFirst();
@@ -295,6 +310,20 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         .onUploadProgress = (messageId, isUploading, progress) async {
       if (!mounted) return;
 
+      // ✅ Update ValueNotifier for smooth progress (milestone-based)
+      final milestones = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0];
+      if (_progressNotifiers[messageId] != null) {
+        final currentValue = _progressNotifiers[messageId]!.value;
+        // Only update on significant changes to prevent excessive redraws
+        if ((progress - currentValue).abs() > 0.05 ||
+            milestones.any((m) => (progress - m).abs() < 0.01)) {
+          _progressNotifiers[messageId]!.value = progress;
+        }
+      } else if (isUploading) {
+        // Create notifier if it doesn't exist
+        _progressNotifiers[messageId] = ValueNotifier<double>(progress);
+      }
+
       _throttledSetState(() {
         if (isUploading) {
           if (!_uploadingMessageIds.contains(messageId)) {
@@ -313,6 +342,10 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           }
           _uploadingMessageIds.remove(messageId);
           _pendingUploadProgress.remove(messageId);
+
+          // ✅ Dispose ValueNotifier when upload complete
+          _progressNotifiers[messageId]?.dispose();
+          _progressNotifiers.remove(messageId);
         }
       });
 
@@ -392,6 +425,14 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           _uploadingMessageIds.removeWhere((id) => id.startsWith(groupId));
           _pendingUploadProgress.removeWhere((k, v) => k.startsWith(groupId));
           _localSenderMediaPaths.removeWhere((k, v) => k.startsWith(groupId));
+
+          // ✅ Dispose ValueNotifiers for this group
+          _progressNotifiers.forEach((id, notifier) {
+            if (id.startsWith(groupId)) {
+              notifier.dispose();
+            }
+          });
+          _progressNotifiers.removeWhere((k, v) => k.startsWith(groupId));
         });
       }
     };
@@ -636,50 +677,150 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
     if (pendingMessages.isNotEmpty && mounted) {
       setState(() {
+        // ✅ CRITICAL: Clear stale state before reload
+        _pendingMessages.clear();
+        _uploadingMessageIds.clear();
+        _pendingUploadProgress.clear();
+        _localSenderMediaPaths.clear();
+
+        print(
+          '🔄 [LOAD_PENDING] Loading ${pendingMessages.length} pending messages',
+        );
+
         // Convert LocalMessage to GroupChatMessage format
         for (final msg in pendingMessages) {
           if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
-            _pendingMessages.insert(
-              0,
-              GroupChatMessage(
-                id: msg.messageId,
-                senderId: msg.senderId,
-                senderName: msg.senderName,
-                message: msg.messageText ?? '',
-                timestamp: msg.timestamp,
-                multipleMedia: msg.multipleMedia!.map((m) {
-                  return MediaMetadata(
-                    messageId: m['messageId'] ?? '',
-                    r2Key: m['r2Key'] ?? '',
-                    publicUrl: m['publicUrl'] ?? '',
-                    thumbnail: m['thumbnail'] ?? '',
-                    localPath: m['localPath'] ?? '',
-                    expiresAt: DateTime.now().add(const Duration(days: 30)),
-                    uploadedAt: DateTime.now(),
-                    originalFileName: m['originalFileName'] ?? '',
-                    fileSize: m['fileSize'] ?? 0,
-                    mimeType: m['mimeType'] ?? 'image/jpeg',
-                  );
-                }).toList(),
-              ),
-            );
+            // ✅ Detect single file stored in multipleMedia format
+            final isSingleFileInMultiMedia =
+                msg.multipleMedia!.length == 1 &&
+                (msg.multipleMedia!.first['mimeType']?.toString().contains(
+                          'pdf',
+                        ) ==
+                        true ||
+                    msg.multipleMedia!.first['mimeType']?.toString().contains(
+                          'document',
+                        ) ==
+                        true ||
+                    msg.multipleMedia!.first['mimeType']?.toString().contains(
+                          'application',
+                        ) ==
+                        true);
 
-            // Restore local file paths, uploading state, and actual progress
-            for (final media in msg.multipleMedia!) {
-              final mediaId = media['messageId'] as String?;
-              final localPath = media['localPath'] as String?;
-              final uploadProgress = media['uploadProgress'] as double?;
+            if (isSingleFileInMultiMedia) {
+              // ✅ Restore as single attachment, not multi-media
+              final first = msg.multipleMedia!.first as Map<String, dynamic>;
+              final mediaId = first['messageId'] as String?;
+              final localPath = first['localPath'] as String?;
+              final uploadProgress = first['uploadProgress'] as double? ?? 0.0;
+
+              print(
+                '   📄 [SINGLE_FILE] Restoring single file: ${first['originalFileName']}',
+              );
+
+              final mediaMetadata = MediaMetadata(
+                messageId: mediaId ?? msg.messageId,
+                r2Key: first['r2Key'] ?? '',
+                publicUrl: first['publicUrl'] ?? '',
+                thumbnail: first['thumbnail'] ?? '',
+                localPath: localPath ?? '',
+                expiresAt: DateTime.now().add(const Duration(days: 30)),
+                uploadedAt: DateTime.now(),
+                originalFileName: first['originalFileName'] ?? '',
+                fileSize: first['fileSize'] ?? 0,
+                mimeType: first['mimeType'] ?? 'application/octet-stream',
+              );
+
+              _pendingMessages.insert(
+                0,
+                GroupChatMessage(
+                  id: msg.messageId.startsWith('pending:')
+                      ? msg.messageId
+                      : 'pending:${msg.messageId}', // ✅ Ensure consistent prefix
+                  senderId: msg.senderId,
+                  senderName: msg.senderName,
+                  message: msg.messageText ?? '',
+                  timestamp: msg.timestamp,
+                  mediaMetadata: mediaMetadata, // Single attachment
+                  multipleMedia: null, // NOT multi-media
+                ),
+              );
 
               if (mediaId != null) {
-                _uploadingMessageIds.add(mediaId);
-                if (localPath != null) {
-                  _localSenderMediaPaths[mediaId] = localPath;
-                }
-                if (uploadProgress != null) {
+                // ✅ Only add if not completed (progress < 1.0)
+                if (uploadProgress < 1.0) {
+                  _uploadingMessageIds.add(mediaId);
+                  if (localPath != null) {
+                    _localSenderMediaPaths[mediaId] = localPath;
+                  }
                   _pendingUploadProgress[mediaId] = uploadProgress;
-                  print(
-                    '   📊 Restored progress for $mediaId: ${(uploadProgress * 100).toStringAsFixed(1)}%',
+
+                  // ✅ Create ValueNotifier for smooth progress
+                  _progressNotifiers[mediaId] = ValueNotifier<double>(
+                    uploadProgress,
                   );
+
+                  print(
+                    '   📊 Restored single file: $mediaId at ${(uploadProgress * 100).toStringAsFixed(1)}%',
+                  );
+                } else {
+                  print('   ✅ Skipped completed upload: $mediaId');
+                }
+              }
+            } else {
+              // ✅ Multi-media message
+              _pendingMessages.insert(
+                0,
+                GroupChatMessage(
+                  id: msg.messageId.startsWith('pending:')
+                      ? msg.messageId
+                      : 'pending:${msg.messageId}', // ✅ Ensure consistent prefix
+                  senderId: msg.senderId,
+                  senderName: msg.senderName,
+                  message: msg.messageText ?? '',
+                  timestamp: msg.timestamp,
+                  multipleMedia: msg.multipleMedia!.map((m) {
+                    return MediaMetadata(
+                      messageId: m['messageId'] ?? '',
+                      r2Key: m['r2Key'] ?? '',
+                      publicUrl: m['publicUrl'] ?? '',
+                      thumbnail: m['thumbnail'] ?? '',
+                      localPath: m['localPath'] ?? '',
+                      expiresAt: DateTime.now().add(const Duration(days: 30)),
+                      uploadedAt: DateTime.now(),
+                      originalFileName: m['originalFileName'] ?? '',
+                      fileSize: m['fileSize'] ?? 0,
+                      mimeType: m['mimeType'] ?? 'image/jpeg',
+                    );
+                  }).toList(),
+                ),
+              );
+
+              // Restore local file paths, uploading state, and actual progress
+              for (final media in msg.multipleMedia!) {
+                final mediaId = media['messageId'] as String?;
+                final localPath = media['localPath'] as String?;
+                final uploadProgress = media['uploadProgress'] as double?;
+
+                if (mediaId != null && uploadProgress != null) {
+                  // ✅ Only add if not completed (progress < 1.0)
+                  if (uploadProgress < 1.0) {
+                    _uploadingMessageIds.add(mediaId);
+                    if (localPath != null) {
+                      _localSenderMediaPaths[mediaId] = localPath;
+                    }
+                    _pendingUploadProgress[mediaId] = uploadProgress;
+
+                    // ✅ Create ValueNotifier for smooth progress
+                    _progressNotifiers[mediaId] = ValueNotifier<double>(
+                      uploadProgress,
+                    );
+
+                    print(
+                      '   📊 Restored progress for $mediaId: ${(uploadProgress * 100).toStringAsFixed(1)}%',
+                    );
+                  } else {
+                    print('   ✅ Skipped completed upload: $mediaId');
+                  }
                 }
               }
             }
@@ -687,7 +828,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         }
       });
       print(
-        '🔄 Restored ${pendingMessages.length} pending messages from cache',
+        '✅ [LOAD_PENDING] Restored ${pendingMessages.length} pending messages from cache',
       );
     }
   }
@@ -757,6 +898,12 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     _selectedMessages.dispose();
     _isSelectionMode.dispose();
 
+    // ✅ Dispose all ValueNotifiers
+    for (final notifier in _progressNotifiers.values) {
+      notifier.dispose();
+    }
+    _progressNotifiers.clear();
+
     // Cancel upload notification
     _cancelUploadNotification();
 
@@ -806,6 +953,77 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       });
     }
   }
+
+  // ========================================
+  // ✅ PENDING MESSAGE PERSISTENCE METHODS
+  // ========================================
+
+  /// Save pending message to local database for persistence across navigation
+  Future<void> _savePendingMessageToLocal(
+    Map<String, dynamic> messageData,
+  ) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) return;
+
+      // ✅ CRITICAL: Store single attachment metadata in multipleMedia format
+      // This ensures metadata (file name, size) persists even for single files
+      List<dynamic>? metadataList = messageData['multipleMedia'];
+
+      if (metadataList == null && messageData['attachmentName'] != null) {
+        // Convert single attachment to multipleMedia format for consistent storage
+        metadataList = [
+          {
+            'messageId': messageData['messageId'],
+            'originalFileName': messageData['attachmentName'] as String,
+            'fileSize': messageData['attachmentSize'] as int? ?? 0,
+            'mimeType':
+                messageData['attachmentType'] as String? ??
+                'application/octet-stream',
+            'localPath': messageData['localFilePath'] as String?,
+            'uploadProgress': 0.0,
+          },
+        ];
+        print(
+          '   ✅ Converted single attachment to multipleMedia format for storage',
+        );
+      }
+
+      final localMsg = LocalMessage(
+        messageId: messageData['messageId'] as String,
+        chatId: widget.communityId,
+        chatType: 'community',
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
+        timestamp: messageData['timestamp'] as int,
+        messageText: messageData['text'] as String? ?? '',
+        multipleMedia: metadataList,
+        isPending: true,
+      );
+
+      await _localRepo.saveMessage(localMsg);
+      print(
+        '💾 [PERSIST] Saved pending message to local DB: ${messageData['messageId']}',
+      );
+    } catch (e) {
+      print('❌ [PERSIST] Failed to save pending message: $e');
+    }
+  }
+
+  /// Cleanup completed upload from pending state (Reserved for future use)
+  /* Future<void> _cleanupUploadedMessage(String messageId) async {
+    try {
+      // Mark as no longer pending in local DB
+      await _localRepo.markMessageAsUploaded(
+        chatId: widget.communityId,
+        messageId: messageId,
+      );
+      print('✅ [CLEANUP] Marked message as uploaded in local DB: $messageId');
+    } catch (e) {
+      print('❌ [CLEANUP] Failed to cleanup message: $e');
+    }
+  } */
 
   Future<void> _sendMessage({String? imageUrl}) async {
     final text = _messageController.text.trim();
@@ -954,6 +1172,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           _uploadingMessageIds.add(messageId);
           _pendingUploadProgress[messageId] = 0.0;
           _localSenderMediaPaths[messageId] = localPaths[i];
+
+          // ✅ Create ValueNotifier for smooth progress
+          _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
         }
         print(
           '📝 Updated state with ${_pendingMessages.length} pending messages',
@@ -1091,6 +1312,20 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         _uploadingMessageIds.add(messageId);
         _pendingUploadProgress[messageId] = 0.0;
         _localSenderMediaPaths[messageId] = file.path;
+
+        // ✅ Create ValueNotifier for smooth progress
+        _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
+      });
+
+      // ✅ Save pending message to local DB (survives navigation)
+      await _savePendingMessageToLocal({
+        'messageId': groupMessageId,
+        'timestamp': baseTimestamp,
+        'text': '',
+        'attachmentName': file.path.split('/').last,
+        'attachmentSize': await file.length(),
+        'attachmentType': 'image/jpeg',
+        'localFilePath': file.path,
       });
 
       print('📤 Queueing camera upload for $messageId');
@@ -1402,6 +1637,20 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         _uploadingMessageIds.add(messageId);
         _pendingUploadProgress[messageId] = 0.0;
         _localSenderMediaPaths[messageId] = file.path;
+
+        // ✅ Create ValueNotifier for smooth progress
+        _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
+      });
+
+      // ✅ Save pending message to local DB (survives navigation)
+      await _savePendingMessageToLocal({
+        'messageId': groupMessageId,
+        'timestamp': baseTimestamp,
+        'text': '',
+        'attachmentName': fileName,
+        'attachmentSize': fileSize,
+        'attachmentType': _getMimeType(file.path),
+        'localFilePath': file.path,
       });
 
       print('📤 Queueing file upload for $messageId');
@@ -1544,6 +1793,20 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         _localSenderMediaPaths[messageId] = file.path;
         _recordingPath = null;
         _isSendingRecording = false;
+
+        // ✅ Create ValueNotifier for smooth progress
+        _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
+      });
+
+      // ✅ Save pending message to local DB (survives navigation)
+      await _savePendingMessageToLocal({
+        'messageId': groupMessageId,
+        'timestamp': baseTimestamp,
+        'text': '',
+        'attachmentName': 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a',
+        'attachmentSize': fileSize,
+        'attachmentType': 'audio/aac',
+        'localFilePath': file.path,
       });
 
       print('📤 Queueing voice message upload for $messageId');
@@ -1748,17 +2011,27 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           // Messages List
           Expanded(
             child: StreamBuilder<List<GroupChatMessage>>(
-              stream: _messagingService.getCommunityMessages(
-                widget.communityId,
-              ),
+              stream: _messagesStream, // ✅ Use cached stream
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
+                // ✅ CRITICAL: Show pending messages immediately while Firestore loads
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    _pendingMessages.isEmpty) {
                   return Center(
-                    child: Text(
-                      'Error loading messages',
-                      style: TextStyle(color: subtitleColor),
-                    ),
+                    child: CircularProgressIndicator(color: primaryColor),
                   );
+                }
+
+                if (snapshot.hasError) {
+                  // ✅ Show pending messages even if Firestore has error
+                  if (_pendingMessages.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'Error loading messages',
+                        style: TextStyle(color: subtitleColor),
+                      ),
+                    );
+                  }
+                  // Continue building with pending messages
                 }
 
                 // Proceed even while connecting so pending messages render immediately
@@ -1798,6 +2071,57 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                     allMessages.removeWhere((pendingMsg) {
                       if (!pendingMsg.id.startsWith('pending:')) return false;
 
+                      // ✅ CRITICAL: Extract actual ID from "pending:upload_..." format
+                      final pendingId = pendingMsg.id.replaceFirst(
+                        'pending:',
+                        '',
+                      );
+
+                      // 1️⃣ FIRST: Try exact ID matching (highest priority)
+                      bool foundExactMatch = false;
+                      for (final fsMsg in firestoreMessages) {
+                        if (fsMsg.id.startsWith('pending:')) continue;
+
+                        // Check if Firestore doc ID matches our pending ID
+                        if (fsMsg.id == pendingId) {
+                          foundExactMatch = true;
+                          print(
+                            '✅ [EXACT_ID_MATCH] Firestore ID matches pending ID: $pendingId',
+                          );
+                          break;
+                        }
+                      }
+
+                      if (foundExactMatch) {
+                        // Cleanup pending state
+                        if (pendingMsg.multipleMedia != null) {
+                          for (final pm in pendingMsg.multipleMedia!) {
+                            if (pm.localPath != null &&
+                                pm.localPath!.isNotEmpty) {
+                              _localSenderMediaPaths[pm.messageId] =
+                                  pm.localPath!;
+                            }
+                            _uploadingMessageIds.remove(pm.messageId);
+                            _pendingUploadProgress.remove(pm.messageId);
+                            _progressNotifiers[pm.messageId]?.dispose();
+                            _progressNotifiers.remove(pm.messageId);
+                          }
+                        }
+                        if (pendingMsg.mediaMetadata != null) {
+                          final mediaId = pendingMsg.mediaMetadata!.messageId;
+                          if (pendingMsg.mediaMetadata!.localPath != null) {
+                            _localSenderMediaPaths[mediaId] =
+                                pendingMsg.mediaMetadata!.localPath!;
+                          }
+                          _uploadingMessageIds.remove(mediaId);
+                          _pendingUploadProgress.remove(mediaId);
+                          _progressNotifiers[mediaId]?.dispose();
+                          _progressNotifiers.remove(mediaId);
+                        }
+                        return true; // Remove pending message
+                      }
+
+                      // 2️⃣ FALLBACK: Media ID and attachment matching
                       final pendingMediaIds = <String>{};
                       if (pendingMsg.multipleMedia != null) {
                         pendingMediaIds.addAll(
@@ -1813,16 +2137,18 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       final pendingAttachmentKeys = <String>{};
                       if (pendingMsg.mediaMetadata?.originalFileName != null &&
                           pendingMsg.mediaMetadata?.fileSize != null) {
+                        // ✅ Case-insensitive file name matching
                         pendingAttachmentKeys.add(
-                          '${pendingMsg.mediaMetadata!.originalFileName}|${pendingMsg.mediaMetadata!.fileSize}',
+                          '${pendingMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${pendingMsg.mediaMetadata!.fileSize}',
                         );
                       }
                       if (pendingMsg.multipleMedia != null) {
                         for (final m in pendingMsg.multipleMedia!) {
                           if (m.originalFileName != null &&
                               m.fileSize != null) {
+                            // ✅ Case-insensitive file name matching
                             pendingAttachmentKeys.add(
-                              '${m.originalFileName}|${m.fileSize}',
+                              '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
                             );
                           }
                         }
@@ -1852,16 +2178,18 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                             final fsAttachmentKeys = <String>{};
                             if (fsMsg.mediaMetadata?.originalFileName != null &&
                                 fsMsg.mediaMetadata?.fileSize != null) {
+                              // ✅ Case-insensitive file name matching
                               fsAttachmentKeys.add(
-                                '${fsMsg.mediaMetadata!.originalFileName}|${fsMsg.mediaMetadata!.fileSize}',
+                                '${fsMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${fsMsg.mediaMetadata!.fileSize}',
                               );
                             }
                             if (fsMsg.multipleMedia != null) {
                               for (final m in fsMsg.multipleMedia!) {
                                 if (m.originalFileName != null &&
                                     m.fileSize != null) {
+                                  // ✅ Case-insensitive file name matching
                                   fsAttachmentKeys.add(
-                                    '${m.originalFileName}|${m.fileSize}',
+                                    '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
                                   );
                                 }
                               }
@@ -1880,7 +2208,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                 fsMsg.senderId == pendingMsg.senderId;
                             final diff =
                                 (fsMsg.timestamp - pendingMsg.timestamp).abs();
-                            final timeMatch = diff < 30000;
+                            // ✅ Extended time window for single attachments (5 minutes)
+                            final timeWindow = pendingMsg.mediaMetadata != null
+                                ? 300000
+                                : 30000;
+                            final timeMatch = diff < timeWindow;
                             final isNotPending = !fsMsg.id.startsWith(
                               'pending:',
                             );
@@ -1897,21 +2229,23 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                             }
                             _uploadingMessageIds.remove(pm.messageId);
                             _pendingUploadProgress.remove(pm.messageId);
+                            // ✅ Dispose ValueNotifiers to prevent memory leaks
+                            _progressNotifiers[pm.messageId]?.dispose();
+                            _progressNotifiers.remove(pm.messageId);
                           }
                         }
                         if (pendingMsg.mediaMetadata?.localPath != null) {
-                          _localSenderMediaPaths[pendingMsg
-                                  .mediaMetadata!
-                                  .messageId] =
+                          final mediaId = pendingMsg.mediaMetadata!.messageId;
+                          _localSenderMediaPaths[mediaId] =
                               pendingMsg.mediaMetadata!.localPath!;
                         }
                         if (pendingMsg.mediaMetadata != null) {
-                          _uploadingMessageIds.remove(
-                            pendingMsg.mediaMetadata!.messageId,
-                          );
-                          _pendingUploadProgress.remove(
-                            pendingMsg.mediaMetadata!.messageId,
-                          );
+                          final mediaId = pendingMsg.mediaMetadata!.messageId;
+                          _uploadingMessageIds.remove(mediaId);
+                          _pendingUploadProgress.remove(mediaId);
+                          // ✅ Dispose ValueNotifiers to prevent memory leaks
+                          _progressNotifiers[mediaId]?.dispose();
+                          _progressNotifiers.remove(mediaId);
                         }
 
                         pendingIdsToRemove.add(pendingMsg.id);

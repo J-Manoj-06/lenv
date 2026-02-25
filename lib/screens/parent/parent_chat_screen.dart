@@ -6,8 +6,17 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/chat_service.dart';
 import '../../providers/parent_provider.dart';
+import '../../services/media_upload_service.dart';
+import '../../services/media_repository.dart';
+import '../../services/cloudflare_r2_service.dart';
+import '../../services/local_cache_service.dart';
+import '../../config/cloudflare_config.dart';
+import '../../models/media_metadata.dart';
+import '../../widgets/modern_attachment_sheet.dart';
 
 class ParentChatScreen extends StatefulWidget {
   final String teacherId;
@@ -38,6 +47,18 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   // Track messages already scheduled for read marking to avoid re-scheduling.
   final Set<String> _scheduledReadIds = <String>{};
 
+  // Media services
+  final ImagePicker _imagePicker = ImagePicker();
+  late final MediaUploadService _mediaUploadService;
+  final MediaRepository _mediaRepository = MediaRepository();
+  bool _isUploading = false;
+
+  // Pending message tracking
+  final List<Map<String, dynamic>> _pendingMessages = [];
+  final Map<String, ValueNotifier<double>> _progressNotifiers = {};
+  final Map<String, String> _localMediaPaths = {};
+  final Map<String, int> _lastUploadPercent = {};
+
   // Audio recording
   final AudioRecorder _audioRecorder = AudioRecorder();
   final ValueNotifier<bool> _isRecording = ValueNotifier<bool>(false);
@@ -52,6 +73,10 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
     _recordingTimer?.cancel();
     _isRecording.dispose();
     _recordingDuration.dispose();
+    // Clean up progress notifiers
+    for (final notifier in _progressNotifiers.values) {
+      notifier.dispose();
+    }
     super.dispose();
   }
 
@@ -106,6 +131,21 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   @override
   void initState() {
     super.initState();
+
+    final r2Service = CloudflareR2Service(
+      accountId: CloudflareConfig.accountId,
+      bucketName: CloudflareConfig.bucketName,
+      accessKeyId: CloudflareConfig.accessKeyId,
+      secretAccessKey: CloudflareConfig.secretAccessKey,
+      r2Domain: CloudflareConfig.r2Domain,
+    );
+
+    _mediaUploadService = MediaUploadService(
+      r2Service: r2Service,
+      firestore: FirebaseFirestore.instance,
+      cacheService: LocalCacheService(),
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) => _ensureConversation());
   }
 
@@ -191,11 +231,112 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
 
     if (path == null || _conversationId == null) return;
 
-    // TODO: Implement audio message upload similar to group chat
-    // For now, just show a message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Audio upload feature coming soon')),
-    );
+    try {
+      final file = File(path);
+      final fileName = 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final fileSize = await file.length();
+      final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
+
+      // Create pending message
+      final pendingMsg = {
+        'messageId': pendingId,
+        'text': '',
+        'senderRole': 'parent',
+        'createdAt': Timestamp.now(),
+        'mediaMetadata': MediaMetadata(
+          messageId: pendingId,
+          r2Key: 'pending/$fileName',
+          publicUrl: '',
+          thumbnail: '',
+          expiresAt: DateTime.now().add(const Duration(days: 365)),
+          uploadedAt: DateTime.now(),
+          fileSize: fileSize,
+          mimeType: 'audio/aac',
+          originalFileName: fileName,
+        ),
+      };
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMsg);
+        _progressNotifiers[pendingId] = ValueNotifier<double>(0);
+        _localMediaPaths[pendingId] = file.path;
+        _lastUploadPercent[pendingId] = -1;
+      });
+
+      // Upload audio
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: _conversationId!,
+        senderId: FirebaseAuth.instance.currentUser?.uid ?? '',
+        senderRole: 'parent',
+        mediaType: 'audio',
+        onProgress: (progress) {
+          if (!mounted) return;
+          final percent = progress.toInt().clamp(0, 100);
+          final last = _lastUploadPercent[pendingId] ?? -1;
+          final shouldUpdate =
+              last < 0 || percent == 100 || (percent - last) >= 5;
+          if (!shouldUpdate) return;
+          _lastUploadPercent[pendingId] = percent;
+          _progressNotifiers[pendingId]?.value = percent.toDouble();
+        },
+      );
+
+      // Send message with media
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
+      );
+
+      await _chat.sendMessage(
+        conversationId: _conversationId!,
+        text: '',
+        senderRole: 'parent',
+        mediaMetadata: {
+          'messageId': metadata.messageId,
+          'r2Key': metadata.r2Key,
+          'publicUrl': metadata.publicUrl,
+          'thumbnail': metadata.thumbnail,
+          'expiresAt': metadata.expiresAt.toIso8601String(),
+          'uploadedAt': metadata.uploadedAt.toIso8601String(),
+          'fileSize': metadata.fileSize,
+          'mimeType': metadata.mimeType,
+          'originalFileName': metadata.originalFileName,
+        },
+      );
+
+      // Cache uploaded media
+      await _mediaRepository.cacheUploadedMedia(
+        r2Key: r2Key,
+        localPath: file.path,
+        fileName: fileName,
+        mimeType: 'audio/aac',
+        fileSize: fileSize,
+      );
+
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m['messageId'] == pendingId);
+          _progressNotifiers.remove(pendingId)?.dispose();
+          _localMediaPaths.remove(pendingId);
+          _lastUploadPercent.remove(pendingId);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send audio: $e')));
+      }
+    }
   }
 
   String _formatDuration(int seconds) {
@@ -261,6 +402,12 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                 : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: _chat.messagesStream(_conversationId!),
                     builder: (context, snapshot) {
+                      // Show pending messages immediately while loading
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          _pendingMessages.isEmpty) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
                       final docs = snapshot.data?.docs ?? [];
                       // After receiving messages, mark delivered for incoming ones
                       if (_conversationId != null && docs.isNotEmpty) {
@@ -268,15 +415,57 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                           (_) => _batchUpdateIncoming(docs),
                         );
                       }
+
+                      // Combine pending and Firestore messages
+                      final allMessages = [
+                        ..._pendingMessages,
+                        ...docs.map((d) => d.data()..['_docId'] = d.id),
+                      ];
+
+                      // Remove pending messages that now exist in Firestore
+                      final pendingIdsToRemove = <String>[];
+                      for (final pending in _pendingMessages) {
+                        final pendingId = (pending['messageId'] as String)
+                            .replaceFirst('pending:', '');
+                        final existsInFirestore = docs.any(
+                          (d) => d.id == pendingId,
+                        );
+                        if (existsInFirestore) {
+                          pendingIdsToRemove.add(
+                            pending['messageId'] as String,
+                          );
+                        }
+                      }
+
+                      if (pendingIdsToRemove.isNotEmpty) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted) return;
+                          setState(() {
+                            _pendingMessages.removeWhere(
+                              (m) =>
+                                  pendingIdsToRemove.contains(m['messageId']),
+                            );
+                            for (final id in pendingIdsToRemove) {
+                              _progressNotifiers.remove(id)?.dispose();
+                              _localMediaPaths.remove(id);
+                              _lastUploadPercent.remove(id);
+                            }
+                          });
+                        });
+                      }
+
                       return ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemBuilder: (context, index) {
-                          final msg = docs[index].data();
+                          final msg = allMessages[index];
                           final isParent = msg['senderRole'] == 'parent';
                           final deliveredToTeacher =
                               (msg['deliveredToTeacher'] ?? false) as bool;
                           final readByTeacher =
                               (msg['readByTeacher'] ?? false) as bool;
+                          final mediaMetadata =
+                              msg['mediaMetadata'] as MediaMetadata?;
+                          final hasMedia = mediaMetadata != null;
 
                           return Align(
                             alignment: isParent
@@ -286,11 +475,13 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                               constraints: const BoxConstraints(maxWidth: 360),
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                  color: isParent
-                                      ? const Color(0xFF1362EB)
-                                      : (isDark
-                                            ? const Color(0xFF2A2A2A)
-                                            : Colors.grey.shade200),
+                                  color: hasMedia
+                                      ? Colors.transparent
+                                      : (isParent
+                                            ? const Color(0xFF1362EB)
+                                            : (isDark
+                                                  ? const Color(0xFF2A2A2A)
+                                                  : Colors.grey.shade200)),
                                   borderRadius: BorderRadius.circular(12)
                                       .copyWith(
                                         bottomRight: isParent
@@ -302,24 +493,42 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                                       ),
                                 ),
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: hasMedia ? 4 : 16,
+                                    vertical: hasMedia ? 4 : 12,
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(
-                                        msg['text'] ?? '',
-                                        style: TextStyle(
-                                          color: isParent
-                                              ? Colors.white
-                                              : (isDark
-                                                    ? Colors.white
-                                                    : Colors.black87),
+                                      // Media preview
+                                      if (hasMedia) ...[
+                                        Text(
+                                          'Media attachment: ${mediaMetadata.originalFileName ?? "file"}',
+                                          style: TextStyle(
+                                            color: isParent
+                                                ? Colors.white
+                                                : (isDark
+                                                      ? Colors.white
+                                                      : Colors.black87),
+                                            fontStyle: FontStyle.italic,
+                                          ),
                                         ),
-                                      ),
+                                        if ((msg['text'] ?? '').isNotEmpty)
+                                          const SizedBox(height: 8),
+                                      ],
+                                      // Text content
+                                      if ((msg['text'] ?? '').isNotEmpty)
+                                        Text(
+                                          msg['text'] ?? '',
+                                          style: TextStyle(
+                                            color: isParent
+                                                ? Colors.white
+                                                : (isDark
+                                                      ? Colors.white
+                                                      : Colors.black87),
+                                          ),
+                                        ),
                                       if (isParent) ...[
                                         const SizedBox(height: 4),
                                         Row(
@@ -348,7 +557,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                           );
                         },
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemCount: docs.length,
+                        itemCount: allMessages.length,
                       );
                     },
                   ),
@@ -461,12 +670,14 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                   return Row(
                     children: [
                       IconButton(
-                        onPressed: () {},
+                        onPressed: _isUploading ? null : _showAttachmentSheet,
                         icon: Icon(
                           Icons.add_circle_outline,
-                          color: isDark
-                              ? Colors.grey.shade400
-                              : Colors.grey.shade700,
+                          color: _isUploading
+                              ? Colors.grey.shade500
+                              : (isDark
+                                    ? Colors.grey.shade400
+                                    : Colors.grey.shade700),
                         ),
                       ),
                       Expanded(
@@ -525,5 +736,243 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
         ],
       ),
     );
+  }
+
+  void _showAttachmentSheet() {
+    showModernAttachmentSheet(
+      context,
+      onCameraTap: _pickAndSendCamera,
+      onImageTap: _pickAndSendImage,
+      onDocumentTap: _pickAndSendDocument,
+      onAudioTap: _pickAndSendAudioFile,
+      color: const Color(0xFF1362EB),
+    );
+  }
+
+  Future<void> _pickAndSendCamera() async {
+    if (_conversationId == null) return;
+
+    try {
+      final picked = await _imagePicker.pickImage(source: ImageSource.camera);
+      if (picked == null) return;
+
+      await _sendMediaFile(File(picked.path), 'image', 'image/jpeg');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to capture photo: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickAndSendImage() async {
+    if (_conversationId == null) return;
+
+    try {
+      final picked = await _imagePicker.pickMultiImage(limit: 5);
+      if (picked.isEmpty) return;
+
+      for (final xFile in picked) {
+        await _sendMediaFile(File(xFile.path), 'image', 'image/jpeg');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to select images: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickAndSendDocument() async {
+    if (_conversationId == null) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'ppt',
+          'pptx',
+          'txt',
+        ],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+      final extension = file.path.split('.').last.toLowerCase();
+
+      String mimeType = 'application/pdf';
+      if (extension == 'doc')
+        mimeType = 'application/msword';
+      else if (extension == 'docx')
+        mimeType =
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      else if (extension == 'xls')
+        mimeType = 'application/vnd.ms-excel';
+      else if (extension == 'xlsx')
+        mimeType =
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      else if (extension == 'ppt')
+        mimeType = 'application/vnd.ms-powerpoint';
+      else if (extension == 'pptx')
+        mimeType =
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      else if (extension == 'txt')
+        mimeType = 'text/plain';
+
+      await _sendMediaFile(file, 'document', mimeType);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to select document: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickAndSendAudioFile() async {
+    if (_conversationId == null) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+      await _sendMediaFile(file, 'audio', 'audio/mpeg');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to select audio: $e')));
+      }
+    }
+  }
+
+  Future<void> _sendMediaFile(
+    File file,
+    String mediaType,
+    String mimeType,
+  ) async {
+    if (_conversationId == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      final fileName = file.path.split('/').last;
+      final fileSize = await file.length();
+      final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
+
+      // Create pending message
+      final pendingMsg = {
+        'messageId': pendingId,
+        'text': '',
+        'senderRole': 'parent',
+        'createdAt': Timestamp.now(),
+        'mediaMetadata': MediaMetadata(
+          messageId: pendingId,
+          r2Key: 'pending/$fileName',
+          publicUrl: '',
+          thumbnail: '',
+          expiresAt: DateTime.now().add(const Duration(days: 365)),
+          uploadedAt: DateTime.now(),
+          fileSize: fileSize,
+          mimeType: mimeType,
+          originalFileName: fileName,
+        ),
+      };
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMsg);
+        _progressNotifiers[pendingId] = ValueNotifier<double>(0);
+        _localMediaPaths[pendingId] = file.path;
+        _lastUploadPercent[pendingId] = -1;
+      });
+
+      // Upload media
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: _conversationId!,
+        senderId: FirebaseAuth.instance.currentUser?.uid ?? '',
+        senderRole: 'parent',
+        mediaType: mediaType,
+        onProgress: (progress) {
+          if (!mounted) return;
+          final percent = progress.toInt().clamp(0, 100);
+          final last = _lastUploadPercent[pendingId] ?? -1;
+          final shouldUpdate =
+              last < 0 || percent == 100 || (percent - last) >= 5;
+          if (!shouldUpdate) return;
+          _lastUploadPercent[pendingId] = percent;
+          _progressNotifiers[pendingId]?.value = percent.toDouble();
+        },
+      );
+
+      // Send message with media
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
+      );
+
+      await _chat.sendMessage(
+        conversationId: _conversationId!,
+        text: '',
+        senderRole: 'parent',
+        mediaMetadata: {
+          'messageId': metadata.messageId,
+          'r2Key': metadata.r2Key,
+          'publicUrl': metadata.publicUrl,
+          'thumbnail': metadata.thumbnail,
+          'expiresAt': metadata.expiresAt.toIso8601String(),
+          'uploadedAt': metadata.uploadedAt.toIso8601String(),
+          'fileSize': metadata.fileSize,
+          'mimeType': metadata.mimeType,
+          'originalFileName': metadata.originalFileName,
+        },
+      );
+
+      // Cache uploaded media
+      await _mediaRepository.cacheUploadedMedia(
+        r2Key: r2Key,
+        localPath: file.path,
+        fileName: fileName,
+        mimeType: mimeType,
+        fileSize: fileSize,
+      );
+
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m['messageId'] == pendingId);
+          _progressNotifiers.remove(pendingId)?.dispose();
+          _localMediaPaths.remove(pendingId);
+          _lastUploadPercent.remove(pendingId);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send $mediaType: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
   }
 }

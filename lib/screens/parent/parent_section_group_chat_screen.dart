@@ -113,6 +113,8 @@ class _ParentSectionGroupChatScreenState
   Timer? _recordingTimer;
   final List<CommunityMessageModel> _pendingMessages = [];
   final Map<String, ValueNotifier<double>> _pendingUploadNotifiers = {};
+  // ✅ Additional map for progress tracking (for compatibility)
+  final Map<String, ValueNotifier<double>> _progressNotifiers = {};
   // Tracks local file paths for sent media (by messageId or r2Key) so we can display without re-downloading.
   final Map<String, String> _localSenderMediaPaths = {};
   // Throttle progress updates to avoid rebuilding the entire list too frequently
@@ -142,6 +144,10 @@ class _ParentSectionGroupChatScreenState
   @override
   void dispose() {
     for (final notifier in _pendingUploadNotifiers.values) {
+      notifier.dispose();
+    }
+    // ✅ Dispose _progressNotifiers
+    for (final notifier in _progressNotifiers.values) {
       notifier.dispose();
     }
     _selectedMessages.dispose();
@@ -286,6 +292,15 @@ class _ParentSectionGroupChatScreenState
       if (!mounted) return;
 
       setState(() {
+        // ✅ CRITICAL: Clear stale state before reload
+        _pendingMessages.clear();
+        // Clear associated tracking data
+        for (final notifier in _pendingUploadNotifiers.values) {
+          notifier.dispose();
+        }
+        _pendingUploadNotifiers.clear();
+        _lastUploadPercent.clear();
+
         // Convert LocalMessage to CommunityMessageModel format
         for (final msg in pendingMessages) {
           if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
@@ -322,8 +337,13 @@ class _ParentSectionGroupChatScreenState
 
             if (mediaList.isEmpty) continue;
 
+            // ✅ Ensure consistent pending: prefix for deduplication
+            String messageId = msg.messageId.startsWith('pending:')
+                ? msg.messageId
+                : 'pending:${msg.messageId}';
+
             final pendingMessage = CommunityMessageModel(
-              messageId: 'pending:${msg.messageId}',
+              messageId: messageId,
               communityId: widget.groupId,
               senderId: msg.senderId,
               senderName: msg.senderName,
@@ -363,11 +383,21 @@ class _ParentSectionGroupChatScreenState
                   cachedMedia != null && cachedMedia['uploadProgress'] != null
                   ? (cachedMedia['uploadProgress'] as num).toDouble()
                   : 0.0;
-              _pendingUploadNotifiers[media.messageId] = ValueNotifier<double>(
-                progressValue * 100, // Convert 0.0-1.0 to 0-100
-              );
-              _lastUploadPercent[media.messageId] = (progressValue * 100)
-                  .toInt();
+
+              // ✅ Only restore if not completed (progress < 1.0)
+              if (progressValue < 1.0) {
+                _pendingUploadNotifiers[media.messageId] =
+                    ValueNotifier<double>(
+                      progressValue * 100, // Convert 0.0-1.0 to 0-100
+                    );
+                _lastUploadPercent[media.messageId] = (progressValue * 100)
+                    .toInt();
+                print(
+                  '   📊 Restored progress: ${media.messageId} at ${(progressValue * 100).toInt()}%',
+                );
+              } else {
+                print('   ✅ Skipped completed upload: ${media.messageId}');
+              }
             }
           }
         }
@@ -792,21 +822,27 @@ class _ParentSectionGroupChatScreenState
             child: StreamBuilder<List<CommunityMessageModel>>(
               stream: _messagesStream,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                // ✅ CRITICAL: Show pending messages immediately while Firestore loads
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    _pendingMessages.isEmpty) {
                   return Center(
-                    child: CircularProgressIndicator(color: primaryColor),
+                    child: CircularProgressIndicator(color: parentGreen),
                   );
                 }
 
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error loading messages',
-                      style: TextStyle(
-                        color: isDark ? Colors.red[200] : Colors.red[600],
+                  // ✅ Show pending messages even if Firestore has error
+                  if (_pendingMessages.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'Error loading messages',
+                        style: TextStyle(
+                          color: isDark ? Colors.red[200] : Colors.red[600],
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  }
+                  // Continue building with pending messages
                 }
 
                 final firestoreMessages = snapshot.data ?? [];
@@ -848,12 +884,42 @@ class _ParentSectionGroupChatScreenState
                     'pending:',
                     '',
                   );
+
+                  // 1️⃣ FIRST: Try exact ID matching (highest priority)
+                  bool foundExactMatch = false;
+                  for (final serverMsg in cachedFirestoreMessages) {
+                    if (serverMsg.messageId == pendingId) {
+                      foundExactMatch = true;
+                      print(
+                        '✅ [EXACT_ID_MATCH] Firestore ID matches pending ID: $pendingId',
+                      );
+                      pendingIdsToRemove.add(pendingMsg.messageId);
+                      break;
+                    }
+                  }
+
+                  if (foundExactMatch) continue;
+
+                  // 2️⃣ FALLBACK: Content-based matching
                   final pendingSenderId = pendingMsg.senderId;
                   final pendingTimestamp =
                       pendingMsg.createdAt.millisecondsSinceEpoch;
                   final pendingHasMultipleMedia =
                       pendingMsg.multipleMedia != null &&
                       pendingMsg.multipleMedia!.isNotEmpty;
+
+                  // ✅ Add file name matching with case-insensitive comparison
+                  final pendingFileKeys = <String>{};
+                  if (pendingMsg.multipleMedia != null) {
+                    for (final media in pendingMsg.multipleMedia!) {
+                      if (media.originalFileName != null &&
+                          media.fileSize != null) {
+                        pendingFileKeys.add(
+                          '${media.originalFileName!.toLowerCase()}|${media.fileSize}',
+                        );
+                      }
+                    }
+                  }
 
                   // Check if this pending message now exists in Firestore
                   final matchingServerMsg = cachedFirestoreMessages.where((
@@ -863,10 +929,28 @@ class _ParentSectionGroupChatScreenState
                     final serverTimestamp =
                         msg.createdAt.millisecondsSinceEpoch;
 
-                    // Match by sender and timestamp (within 30 seconds)
+                    // Match by sender and timestamp
                     final senderMatch = serverSenderId == pendingSenderId;
                     final timeDiff = (serverTimestamp - pendingTimestamp).abs();
-                    final timeMatch = timeDiff < 30000; // 30 seconds tolerance
+                    // ✅ Extended time window for media uploads (5 minutes)
+                    final timeWindow = pendingHasMultipleMedia ? 300000 : 30000;
+                    final timeMatch = timeDiff < timeWindow;
+
+                    // ✅ Check file name matching (case-insensitive)
+                    bool fileMatch = false;
+                    if (pendingFileKeys.isNotEmpty &&
+                        msg.multipleMedia != null) {
+                      final serverFileKeys = <String>{};
+                      for (final media in msg.multipleMedia!) {
+                        if (media.originalFileName != null &&
+                            media.fileSize != null) {
+                          serverFileKeys.add(
+                            '${media.originalFileName!.toLowerCase()}|${media.fileSize}',
+                          );
+                        }
+                      }
+                      fileMatch = serverFileKeys.any(pendingFileKeys.contains);
+                    }
 
                     // For multi-media messages, ONLY match if server has multipleMedia too
                     if (pendingHasMultipleMedia) {
@@ -874,7 +958,9 @@ class _ParentSectionGroupChatScreenState
                           msg.multipleMedia != null &&
                           msg.multipleMedia!.isNotEmpty;
 
-                      return senderMatch && timeMatch && serverHasMultipleMedia;
+                      return senderMatch &&
+                          timeMatch &&
+                          (serverHasMultipleMedia || fileMatch);
                     }
 
                     return senderMatch && timeMatch;
@@ -904,6 +990,11 @@ class _ParentSectionGroupChatScreenState
                       for (final pendingId in pendingIdsToRemove) {
                         final baseId = pendingId.replaceFirst('pending:', '');
                         // Remove all notifiers for this message's media
+                        _pendingUploadNotifiers.forEach((key, notifier) {
+                          if (key.startsWith(baseId)) {
+                            notifier.dispose();
+                          }
+                        });
                         _pendingUploadNotifiers.removeWhere(
                           (key, _) => key.startsWith(baseId),
                         );
