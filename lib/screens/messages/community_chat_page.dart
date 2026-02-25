@@ -975,7 +975,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         // Convert single attachment to multipleMedia format for consistent storage
         metadataList = [
           {
-            'messageId': messageData['messageId'],
+            'messageId':
+                (messageData['mediaMessageId'] ?? messageData['messageId'])
+                    as String,
             'originalFileName': messageData['attachmentName'] as String,
             'fileSize': messageData['attachmentSize'] as int? ?? 0,
             'mimeType':
@@ -1063,179 +1065,251 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   }
 
   Future<void> _pickAndSendImages() async {
+    final picker = ImagePicker();
+    final pickedFiles = await picker.pickMultiImage(limit: 5);
+
+    if (pickedFiles.isEmpty) return;
+
+    // Copy files to temporary directory first to avoid file access issues
+    final tempFiles = <File>[];
     try {
-      print('🖼️ Starting image picker...');
+      for (final pickedFile in pickedFiles) {
+        // Read file bytes
+        final bytes = await File(pickedFile.path).readAsBytes();
 
-      // Try pickMultiImage first
-      List<XFile> images = [];
-      try {
-        images = await _imagePicker.pickMultiImage(
-          limit: 5,
-          maxWidth: 1920,
-          maxHeight: 1920,
-          imageQuality: 85,
-        );
-        print('📸 Picked ${images.length} images via pickMultiImage');
-      } catch (e) {
-        print('⚠️ pickMultiImage failed: $e, trying pickImage instead');
-        // Fallback to single image picker if multi doesn't work
-        final image = await _imagePicker.pickImage(
-          source: ImageSource.gallery,
-          maxWidth: 1920,
-          maxHeight: 1920,
-          imageQuality: 85,
-        );
-        if (image != null) {
-          images = [image];
-          print('📸 Fallback: Picked 1 image via pickImage');
-        }
+        // Create temp file with unique name
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final extension = pickedFile.path.split('.').last;
+        final tempPath =
+            '${Directory.systemTemp.path}/upload_$timestamp${tempFiles.length}.$extension';
+        final tempFile = File(tempPath);
+
+        // Write bytes to temp file
+        await tempFile.writeAsBytes(bytes);
+        tempFiles.add(tempFile);
       }
 
-      if (images.isEmpty) {
-        print('⚠️ No images selected');
-        return;
+      // Upload directly without preview
+      if (mounted) {
+        await _uploadMultipleImages(tempFiles);
       }
-
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUser = authProvider.currentUser;
-      if (currentUser == null) {
-        print('❌ User not authenticated');
-        return;
-      }
-
-      final conversationId = widget.communityId;
-
-      // Ensure each message has unique timestamp to maintain send order
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final baseTimestamp = now > _lastUploadTimestamp
-          ? now
-          : _lastUploadTimestamp + 1; // Increment if sending too quickly
-      _lastUploadTimestamp = baseTimestamp;
-
-      final groupMessageId =
-          'upload_${baseTimestamp}_${currentUser.uid.hashCode}';
-      final List<MediaMetadata> mediaList = [];
-      final List<String> localPaths = [];
-
-      for (int i = 0; i < images.length; i++) {
-        final image = images[i];
-        final file = File(image.path);
-        if (!file.existsSync()) {
-          print('⚠️ File does not exist: ${image.path}');
-          continue;
-        }
-
-        final messageId = '${groupMessageId}_$i';
-        localPaths.add(file.path);
-
-        mediaList.add(
-          MediaMetadata(
-            messageId: messageId,
-            r2Key: 'pending/$messageId',
-            publicUrl: '',
-            thumbnail: file.path,
-            localPath: file.path,
-            expiresAt: DateTime.now().add(const Duration(days: 30)),
-            uploadedAt: DateTime.now(),
-            originalFileName: file.path.split('/').last,
-            fileSize: await file.length(),
-            mimeType: 'image/jpeg',
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading images: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
           ),
         );
       }
 
-      if (mediaList.isEmpty) {
-        print('❌ No valid images found');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No valid images found')),
-          );
+      // Clean up temp files on error
+      for (final tempFile in tempFiles) {
+        try {
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+        } catch (e) {
+          // Ignore cleanup errors
         }
-        return;
       }
+    }
+  }
 
-      print('✅ Created pending message with ${mediaList.length} images');
-      final pendingMessage = GroupChatMessage(
-        id: 'pending:$groupMessageId',
+  /// Upload multiple images as a single message
+  Future<void> _uploadMultipleImages(List<File> files) async {
+    if (files.isEmpty) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser == null) return;
+
+    // Ensure each message has unique timestamp to maintain send order
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final baseTimestamp = now > _lastUploadTimestamp
+        ? now
+        : _lastUploadTimestamp + 1; // Increment if sending too quickly
+    _lastUploadTimestamp = baseTimestamp;
+
+    final groupMessageId =
+        'pending_${baseTimestamp}_${currentUser.uid.hashCode}';
+    final List<MediaMetadata> mediaList = [];
+    final List<String> localPaths = [];
+
+    // Create metadata for each image with local path
+    for (int i = 0; i < files.length; i++) {
+      final file = files[i];
+      if (!file.existsSync()) continue;
+
+      final messageId = '${groupMessageId}_$i';
+      final fileSize = await file.length();
+      final fileName = file.path.split('/').last;
+      final absolutePath = file.absolute.path;
+      localPaths.add(absolutePath);
+
+      mediaList.add(
+        MediaMetadata(
+          messageId: messageId,
+          r2Key: 'pending/$messageId',
+          publicUrl: '',
+          thumbnail: absolutePath,
+          localPath: absolutePath,
+          originalFileName: fileName,
+          fileSize: fileSize,
+          mimeType: 'image/jpeg',
+          expiresAt: DateTime.now().add(const Duration(days: 30)),
+          uploadedAt: DateTime.now(),
+        ),
+      );
+    }
+
+    if (mediaList.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No valid images found')));
+      }
+      return;
+    }
+
+    // Create single pending message with multiple media items
+    final pendingMessage = GroupChatMessage(
+      id: 'pending:$groupMessageId',
+      senderId: currentUser.uid,
+      senderName: currentUser.name,
+      message: '',
+      timestamp: baseTimestamp,
+      mediaMetadata: mediaList.first,
+      multipleMedia: mediaList.length > 1 ? mediaList : null,
+    );
+
+    print('📤 Creating pending message with ${mediaList.length} images');
+    print('   Pending ID: $groupMessageId');
+
+    // Save pending message to cache IMMEDIATELY (survives navigation)
+    try {
+      final pendingLocalMsg = LocalMessage(
+        messageId: groupMessageId,
+        chatId: widget.communityId,
+        chatType: 'community',
         senderId: currentUser.uid,
         senderName: currentUser.name,
-        message: '',
         timestamp: baseTimestamp,
-        mediaMetadata: mediaList.first,
-        multipleMedia: mediaList.length > 1 ? mediaList : null,
+        messageText: '',
+        multipleMedia: mediaList
+            .map(
+              (m) => {
+                'messageId': m.messageId,
+                'localPath': m.localPath,
+                'uploadProgress': 0.01,
+              },
+            )
+            .toList(),
+        isPending: true,
       );
+      await _localRepo.saveMessage(pendingLocalMsg);
+      print('💾 Pending message saved to cache (survives navigation)');
+    } catch (e) {
+      print('⚠️ Failed to cache pending message: $e');
+    }
 
-      setState(() {
-        _pendingMessages.insert(0, pendingMessage);
-        for (int i = 0; i < mediaList.length; i++) {
-          final messageId = mediaList[i].messageId;
-          _uploadingMessageIds.add(messageId);
-          _pendingUploadProgress[messageId] = 0.0;
-          _localSenderMediaPaths[messageId] = localPaths[i];
+    // Store local file paths BEFORE adding pending message to ensure they're available for rendering
+    print('🎯 [MULTI-IMAGE UPLOAD] Initialized:');
+    print('   Group Message ID: $groupMessageId');
+    print('   Number of images: ${mediaList.length}');
+    for (int i = 0; i < mediaList.length; i++) {
+      final messageId = mediaList[i].messageId;
+      final localPath = localPaths[i];
+      _localSenderMediaPaths[messageId] = localPath;
+      _pendingUploadProgress[messageId] =
+          0.01; // Start at 1% to trigger upload UI
+      _uploadingMessageIds.add(messageId);
 
-          // ✅ Create ValueNotifier for smooth progress
-          _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
-        }
-        print(
-          '📝 Updated state with ${_pendingMessages.length} pending messages',
-        );
-      });
+      // Create progress notifier for each image
+      final progressNotifier = ValueNotifier<double>(0.01);
+      _progressNotifiers[messageId] = progressNotifier;
 
-      // Save pending message to cache (survives navigation)
-      try {
-        final pendingLocalMsg = LocalMessage(
-          messageId: groupMessageId,
-          chatId: widget.communityId,
-          chatType: 'community',
-          senderId: currentUser.uid,
-          senderName: currentUser.name,
-          timestamp: baseTimestamp,
-          messageText: '',
-          multipleMedia: mediaList
-              .map(
-                (m) => {
-                  'messageId': m.messageId,
-                  'localPath': m.localPath,
-                  'uploadProgress': 0.0,
-                },
-              )
-              .toList(),
-          isPending: true,
-        );
-        await _localRepo.saveMessage(pendingLocalMsg);
-        print('💾 Pending message saved to cache (survives navigation)');
-      } catch (e) {
-        print('⚠️ Failed to save pending message to cache: $e');
-      }
+      final file = File(localPath);
+      print('   Image $i:');
+      print('     - messageId: $messageId');
+      print('     - localPath: $localPath');
+      print('     - exists: ${file.existsSync()}');
+      print('     - size: ${(mediaList[i].fileSize ?? 0) / 1024} KB');
+    }
+    print('   Total uploadingMessageIds: ${_uploadingMessageIds.length}');
+    print('   Total localFilePaths: ${_localSenderMediaPaths.length}');
+    print('   Total pendingUploadProgress: ${_pendingUploadProgress.length}');
 
-      // Queue uploads in background
-      for (int i = 0; i < images.length; i++) {
-        final file = File(images[i].path);
-        if (!file.existsSync()) continue;
+    print('🔍 DEBUG: About to setState with pending message');
+    print('   - Message ID: ${pendingMessage.id}');
+    print('   - multipleMedia: ${pendingMessage.multipleMedia}');
+    print('   - multipleMedia length: ${pendingMessage.multipleMedia?.length}');
+    print(
+      '   - multipleMedia[0]?.localPath: ${pendingMessage.multipleMedia?.first.localPath}',
+    );
+
+    setState(() {
+      _pendingMessages.insert(0, pendingMessage);
+      print('   ✅ Pending message added (count: ${_pendingMessages.length})');
+      print('   📊 Calling setState - widget should rebuild now');
+      print('   - First pending message: ${_pendingMessages.first.id}');
+      print(
+        '   - First pending multipleMedia: ${_pendingMessages.first.multipleMedia}',
+      );
+    });
+
+    // Add a small delay to ensure setState completes
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    try {
+      // Use BackgroundUploadService for each image in the group
+      for (int i = 0; i < files.length; i++) {
+        final file = files[i];
         final messageId = '${groupMessageId}_$i';
 
-        print('📤 Queueing upload for $messageId');
         await BackgroundUploadService().queueUpload(
           file: file,
-          conversationId: conversationId,
+          conversationId: widget.communityId,
           senderId: currentUser.uid,
           senderRole: 'student',
           mediaType: 'message',
           chatType: 'community',
           senderName: currentUser.name,
           messageId: messageId,
-          groupId: groupMessageId,
+          groupId: groupMessageId, // Group all images together
         );
+
+        print('✅ Image $i queued for background upload: $messageId');
       }
 
-      print('✅ All uploads queued, scrolling to bottom');
+      print('✅ [MULTI-IMAGE UPLOAD] All ${files.length} images queued');
+
+      // Scroll to bottom to show new message
       _scrollToBottom(force: true);
     } catch (e) {
-      print('❌ Error in _pickAndSendImages: $e');
+      // Remove failed pending message
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send images: $e')));
+        setState(() {
+          _pendingMessages.removeWhere(
+            (m) => m.id == 'pending:$groupMessageId',
+          );
+          for (final media in mediaList) {
+            final messageId = media.messageId;
+            _uploadingMessageIds.remove(messageId);
+            _pendingUploadProgress.remove(messageId);
+            _localSenderMediaPaths.remove(messageId);
+            _progressNotifiers.remove(messageId)?.dispose();
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading images: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -1307,25 +1381,26 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         mediaMetadata: mediaList.first,
       );
 
-      setState(() {
-        _pendingMessages.insert(0, pendingMessage);
-        _uploadingMessageIds.add(messageId);
-        _pendingUploadProgress[messageId] = 0.0;
-        _localSenderMediaPaths[messageId] = file.path;
-
-        // ✅ Create ValueNotifier for smooth progress
-        _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
-      });
-
       // ✅ Save pending message to local DB (survives navigation)
       await _savePendingMessageToLocal({
         'messageId': groupMessageId,
+        'mediaMessageId': messageId,
         'timestamp': baseTimestamp,
         'text': '',
         'attachmentName': file.path.split('/').last,
         'attachmentSize': await file.length(),
         'attachmentType': 'image/jpeg',
         'localFilePath': file.path,
+      });
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.01;
+        _localSenderMediaPaths[messageId] = file.path;
+
+        // ✅ Create ValueNotifier for smooth progress
+        _progressNotifiers[messageId] = ValueNotifier<double>(0.01);
       });
 
       print('📤 Queueing camera upload for $messageId');
@@ -1632,25 +1707,26 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         mediaMetadata: mediaList.first,
       );
 
-      setState(() {
-        _pendingMessages.insert(0, pendingMessage);
-        _uploadingMessageIds.add(messageId);
-        _pendingUploadProgress[messageId] = 0.0;
-        _localSenderMediaPaths[messageId] = file.path;
-
-        // ✅ Create ValueNotifier for smooth progress
-        _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
-      });
-
       // ✅ Save pending message to local DB (survives navigation)
       await _savePendingMessageToLocal({
         'messageId': groupMessageId,
+        'mediaMessageId': messageId,
         'timestamp': baseTimestamp,
         'text': '',
         'attachmentName': fileName,
         'attachmentSize': fileSize,
         'attachmentType': _getMimeType(file.path),
         'localFilePath': file.path,
+      });
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.01;
+        _localSenderMediaPaths[messageId] = file.path;
+
+        // ✅ Create ValueNotifier for smooth progress
+        _progressNotifiers[messageId] = ValueNotifier<double>(0.01);
       });
 
       print('📤 Queueing file upload for $messageId');
@@ -1786,27 +1862,28 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         mediaMetadata: mediaList.first,
       );
 
-      setState(() {
-        _pendingMessages.insert(0, pendingMessage);
-        _uploadingMessageIds.add(messageId);
-        _pendingUploadProgress[messageId] = 0.0;
-        _localSenderMediaPaths[messageId] = file.path;
-        _recordingPath = null;
-        _isSendingRecording = false;
-
-        // ✅ Create ValueNotifier for smooth progress
-        _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
-      });
-
       // ✅ Save pending message to local DB (survives navigation)
       await _savePendingMessageToLocal({
         'messageId': groupMessageId,
+        'mediaMessageId': messageId,
         'timestamp': baseTimestamp,
         'text': '',
         'attachmentName': 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a',
         'attachmentSize': fileSize,
         'attachmentType': 'audio/aac',
         'localFilePath': file.path,
+      });
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.01;
+        _localSenderMediaPaths[messageId] = file.path;
+        _recordingPath = null;
+        _isSendingRecording = false;
+
+        // ✅ Create ValueNotifier for smooth progress
+        _progressNotifiers[messageId] = ValueNotifier<double>(0.01);
       });
 
       print('📤 Queueing voice message upload for $messageId');
@@ -2051,6 +2128,18 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                 return StreamBuilder<Timestamp?>(
                   stream: _lastReadAtStream,
                   builder: (context, readSnapshot) {
+                    print('🔍 StreamBuilder rebuilding:');
+                    print('   - Pending messages: ${_pendingMessages.length}');
+                    for (int i = 0; i < _pendingMessages.length; i++) {
+                      final msg = _pendingMessages[i];
+                      print(
+                        '     [$i] ID: ${msg.id}, multipleMedia: ${msg.multipleMedia?.length}',
+                      );
+                    }
+                    print(
+                      '   - Firestore messages: ${firestoreMessages.length}',
+                    );
+
                     final hasValidData = readSnapshot.data != null;
                     final lastReadMs =
                         readSnapshot.data?.toDate().millisecondsSinceEpoch ??
@@ -2063,6 +2152,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       ..._pendingMessages,
                       ...firestoreMessages,
                     ];
+                    print(
+                      '   - All messages after merge: ${allMessages.length}',
+                    );
                     final uploadingMessageIds = <String>{
                       ..._uploadingMessageIds,
                     };
@@ -2200,24 +2292,27 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                             );
                           });
 
+                      final isMediaMessage =
+                          (pendingMsg.multipleMedia != null &&
+                              pendingMsg.multipleMedia!.isNotEmpty) ||
+                          pendingMsg.mediaMetadata != null;
                       final hasServerVersion =
                           hasMatchingMedia ||
                           hasMatchingAttachment ||
-                          firestoreMessages.any((fsMsg) {
-                            final senderMatch =
-                                fsMsg.senderId == pendingMsg.senderId;
-                            final diff =
-                                (fsMsg.timestamp - pendingMsg.timestamp).abs();
-                            // ✅ Extended time window for single attachments (5 minutes)
-                            final timeWindow = pendingMsg.mediaMetadata != null
-                                ? 300000
-                                : 30000;
-                            final timeMatch = diff < timeWindow;
-                            final isNotPending = !fsMsg.id.startsWith(
-                              'pending:',
-                            );
-                            return senderMatch && timeMatch && isNotPending;
-                          });
+                          (!isMediaMessage &&
+                              firestoreMessages.any((fsMsg) {
+                                final senderMatch =
+                                    fsMsg.senderId == pendingMsg.senderId;
+                                final diff =
+                                    (fsMsg.timestamp - pendingMsg.timestamp)
+                                        .abs();
+                                final timeWindow = 30000;
+                                final timeMatch = diff < timeWindow;
+                                final isNotPending = !fsMsg.id.startsWith(
+                                  'pending:',
+                                );
+                                return senderMatch && timeMatch && isNotPending;
+                              }));
 
                       if (hasServerVersion) {
                         if (pendingMsg.multipleMedia != null) {
@@ -2394,6 +2489,12 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       physics: const ClampingScrollPhysics(),
                       itemBuilder: (context, index) {
                         final message = allMessages[index];
+                        if (index < 5) {
+                          // Log first 5 messages
+                          print(
+                            '📩 Rendering message $index: ID=${message.id}, multipleMedia=${message.multipleMedia?.length}',
+                          );
+                        }
                         final isMe = message.senderId == currentUserId;
                         final currentDate = DateTime.fromMillisecondsSinceEpoch(
                           message.timestamp,
@@ -3124,6 +3225,17 @@ class _MessageBubble extends StatelessWidget {
         : const Color(0xFFFF8800);
     final bubbleColor = isMe ? themeColor : const Color(0xFF2A2A2A);
     final textColor = Colors.white;
+
+    // DEBUG: Log message rendering details
+    if (message.id.startsWith('pending:')) {
+      print('🎨 _MessageBubble rendering pending: ${message.id}');
+      print('   - Type: ${message.type}');
+      print('   - multipleMedia: ${message.multipleMedia?.length}');
+      print('   - multipleMedia != null: ${message.multipleMedia != null}');
+      print(
+        '   - multipleMedia!.isNotEmpty: ${message.multipleMedia?.isNotEmpty}',
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
