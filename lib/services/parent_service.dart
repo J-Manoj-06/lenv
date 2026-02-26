@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
 import '../models/reward_request_model.dart';
+import '../models/attendance_record.dart';
 
 class ParentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -1123,6 +1124,179 @@ class ParentService {
 
       return upcomingTests;
     } catch (e) {
+      return [];
+    }
+  }
+
+  /// Get student's attendance records for a specific month
+  Future<List<AttendanceRecord>> getStudentAttendanceForMonth(
+    String studentId,
+    DateTime month,
+  ) async {
+    try {
+      print(
+        'DEBUG: getStudentAttendanceForMonth called for studentId: $studentId, month: $month',
+      );
+
+      // Try to get student details from students collection first, then users
+      DocumentSnapshot<Map<String, dynamic>> studentDoc;
+
+      try {
+        print('DEBUG: Trying to fetch from students collection...');
+        studentDoc = await _firestore
+            .collection('students')
+            .doc(studentId)
+            .get();
+        print('DEBUG: Found in students collection: ${studentDoc.exists}');
+      } catch (e) {
+        print(
+          'DEBUG: Error fetching from students collection: $e, trying users collection...',
+        );
+        studentDoc = await _firestore.collection('users').doc(studentId).get();
+        print('DEBUG: Found in users collection: ${studentDoc.exists}');
+      }
+
+      if (!studentDoc.exists) {
+        print('DEBUG: Student document does not exist');
+        return [];
+      }
+
+      final studentData = studentDoc.data();
+      print('DEBUG: Student data: $studentData');
+
+      String? className = studentData?['className'] as String?;
+      String? schoolCode = studentData?['schoolCode'] as String?;
+
+      // If className not found, try alternates
+      if (className == null) {
+        className = studentData?['class'] as String?;
+        print('DEBUG: className from class field: $className');
+      }
+      if (className == null) {
+        className = studentData?['standard'] as String?;
+        print('DEBUG: className from standard field: $className');
+      }
+      if (schoolCode == null) {
+        schoolCode = studentData?['school'] as String?;
+        print('DEBUG: schoolCode from school field: $schoolCode');
+      }
+
+      print('DEBUG: Final className: $className, schoolCode: $schoolCode');
+
+      if (className == null || schoolCode == null || schoolCode.isEmpty) {
+        print('DEBUG: Missing className or schoolCode');
+        return [];
+      }
+
+      // Parse grade and section from className (e.g., "Grade 10", "Grade 10 - A", "10", "10-A")
+      String? grade;
+      String? section;
+
+      final gradeMatch = RegExp(r'Grade\s+(\d+)').firstMatch(className);
+      if (gradeMatch != null) {
+        grade = gradeMatch.group(1);
+        final sectionMatch = RegExp(r'-\s*([A-Za-z])').firstMatch(className);
+        section = sectionMatch?.group(1);
+        print(
+          'DEBUG: Parsed as Grade format - grade: $grade, section: $section',
+        );
+      } else {
+        // Try parsing "10" or "10-A" format
+        final parts = className.split('-');
+        grade = parts[0].trim().replaceAll(RegExp(r'[^0-9]'), '');
+        if (parts.length > 1) {
+          section = parts[1].trim();
+        }
+      }
+
+      // IMPORTANT: If section not found in className, check the separate 'section' field
+      if (section == null || section.isEmpty) {
+        final sectionField = studentData?['section'] as String?;
+        if (sectionField != null && sectionField.isNotEmpty) {
+          section = sectionField;
+          print('DEBUG: Section from separate field: $section');
+        }
+      }
+
+      if (grade == null || grade.isEmpty) {
+        print('DEBUG: Could not parse grade from className: $className');
+        return [];
+      }
+
+      print('DEBUG: Final parsed - grade: $grade, section: $section');
+
+      // Query attendance records for the specified month
+      final startOfMonth = DateTime(month.year, month.month, 1);
+      final endOfMonth = DateTime(month.year, month.month + 1, 0);
+
+      print('DEBUG: Querying attendance from $startOfMonth to $endOfMonth');
+      print(
+        'DEBUG: Query params - schoolCode: $schoolCode, grade: $grade, section: $section',
+      );
+
+      // Query without section first to see all attendance docs for this grade
+      var query = _firestore
+          .collection('attendance')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('standard', isEqualTo: grade);
+
+      // Note: Not filtering by section here because the section field structure may vary
+      // We'll check section in post-processing if needed
+
+      final querySnapshot = await query.get();
+      print('DEBUG: Found ${querySnapshot.docs.length} attendance documents');
+
+      final List<AttendanceRecord> records = [];
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final dateField = data['date'];
+
+        // Check if date is within month range
+        DateTime? docDate;
+        if (dateField is Timestamp) {
+          docDate = dateField.toDate();
+        } else if (dateField is String) {
+          try {
+            docDate = DateTime.parse(dateField);
+          } catch (_) {
+            print('DEBUG: Failed to parse date: $dateField');
+            continue;
+          }
+        }
+
+        if (docDate == null ||
+            docDate.isBefore(startOfMonth) ||
+            docDate.isAfter(endOfMonth)) {
+          print('DEBUG: Date $docDate is outside month range');
+          continue;
+        }
+
+        final students = data['students'] as Map<String, dynamic>?;
+        if (students == null) {
+          print('DEBUG: No students map in attendance doc');
+          continue;
+        }
+
+        print('DEBUG: Students in this doc: ${students.keys}');
+
+        // Check if this student has an attendance record for this date
+        final studentInfo = students[studentId] as Map<String, dynamic>?;
+        if (studentInfo != null) {
+          final status =
+              studentInfo['status']?.toString().toLowerCase() ?? 'present';
+          print('DEBUG: Found attendance for $studentId on $docDate: $status');
+          records.add(AttendanceRecord(date: docDate, status: status));
+        } else {
+          print('DEBUG: Student $studentId not found in this attendance doc');
+        }
+      }
+
+      print('DEBUG: Total records found: ${records.length}');
+      return records;
+    } catch (e, st) {
+      print('DEBUG: Error in getStudentAttendanceForMonth: $e');
+      print('DEBUG: Stack trace: $st');
       return [];
     }
   }
