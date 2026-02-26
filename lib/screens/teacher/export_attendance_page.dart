@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
 import 'package:excel/excel.dart' as excel_package;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:open_filex/open_filex.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class ExportAttendancePage extends StatefulWidget {
   const ExportAttendancePage({super.key});
@@ -16,6 +18,8 @@ class ExportAttendancePage extends StatefulWidget {
 
 class _ExportAttendancePageState extends State<ExportAttendancePage> {
   final TeacherService _teacherService = TeacherService();
+  final FlutterLocalNotificationsPlugin _notificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
   // Form state
   String _selectedScope = 'all'; // 'all' or 'selected'
@@ -31,7 +35,24 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
   @override
   void initState() {
     super.initState();
+    _initializeNotifications();
     _loadAvailableClasses();
+  }
+
+  Future<void> _initializeNotifications() async {
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
+    const initSettings = InitializationSettings(android: androidSettings);
+
+    await _notificationsPlugin.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        if (response.payload != null && response.payload!.isNotEmpty) {
+          OpenFilex.open(response.payload!);
+        }
+      },
+    );
   }
 
   Future<void> _loadAvailableClasses() async {
@@ -203,15 +224,35 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
           '[ExportAttendance] studentsCount(${className})=${students.length}',
         );
 
-        // Get attendance data for this class
-        final attendanceData = await _teacherService.exportClassAttendance(
-          schoolCode: schoolId,
-          grade: gradeNum,
-          section: section,
-          students: students,
-        );
+        // Get attendance records for this class (date-wise)
+        final attendanceDocs = await _teacherService
+            .getAttendanceRecordsForClass(schoolId, gradeNum, section);
+
+        // Build date -> students map within selected range
+        final Map<String, Map<String, dynamic>> dateToStudents = {};
+        for (final doc in attendanceDocs) {
+          String? dateStr = doc['date']?.toString();
+          if (dateStr == null || dateStr.isEmpty) {
+            final ts = doc['timestamp'];
+            if (ts is Timestamp) {
+              dateStr = ts.toDate().toIso8601String().split('T').first;
+            }
+          }
+          if (dateStr == null || dateStr.isEmpty) continue;
+
+          final date = DateTime.tryParse(dateStr);
+          if (date == null) continue;
+          if (_fromDate != null && date.isBefore(_fromDate!)) continue;
+          if (_toDate != null && date.isAfter(_toDate!)) continue;
+
+          final studentsMap = doc['students'] as Map<String, dynamic>? ?? {};
+          dateToStudents[dateStr] = studentsMap;
+        }
+
+        final dateColumns = dateToStudents.keys.toList()
+          ..sort((a, b) => DateTime.parse(a).compareTo(DateTime.parse(b)));
         debugPrint(
-          '[ExportAttendance] attendanceCount(${className})=${attendanceData.length}',
+          '[ExportAttendance] dates(${className})=${dateColumns.length}',
         );
 
         // Create sheet for this class
@@ -219,24 +260,76 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
         debugPrint('[ExportAttendance] sheetName=$sheetName');
         final sheet = excel[sheetName];
 
-        // Add headers
+        // Add headers (Student Name + each date + totals)
         sheet.appendRow([
           excel_package.TextCellValue('Student Name'),
+          ...dateColumns.map((d) => excel_package.TextCellValue(d)),
           excel_package.TextCellValue('Total Days'),
           excel_package.TextCellValue('Present Days'),
-          excel_package.TextCellValue('Attendance %'),
+          excel_package.TextCellValue('Absent Days'),
+          excel_package.TextCellValue('Average %'),
         ]);
 
-        // Add student data
-        for (final record in attendanceData) {
-          sheet.appendRow([
-            excel_package.TextCellValue(record['name']?.toString() ?? ''),
-            excel_package.IntCellValue(record['total_days'] as int? ?? 0),
-            excel_package.IntCellValue(record['present_days'] as int? ?? 0),
-            excel_package.TextCellValue(
-              record['attendance_percentage']?.toString() ?? '0.00',
-            ),
-          ]);
+        // Add student rows with P/A per date
+        for (final student in students) {
+          final studentUid =
+              student['uid']?.toString() ?? student['id']?.toString();
+          if (studentUid == null) continue;
+
+          final first = (student['firstName'] ?? '').toString().trim();
+          final last = (student['lastName'] ?? '').toString().trim();
+          final fallback = [
+            first,
+            last,
+          ].where((e) => e.isNotEmpty).join(' ').trim();
+          final studentName =
+              (student['name'] ??
+                      student['studentName'] ??
+                      student['fullName'] ??
+                      fallback)
+                  .toString()
+                  .trim();
+          final displayName = studentName.isEmpty ? 'Unknown' : studentName;
+
+          final row = <excel_package.CellValue>[
+            excel_package.TextCellValue(displayName),
+          ];
+
+          int totalDays = 0;
+          int presentDays = 0;
+          int absentDays = 0;
+
+          for (final dateStr in dateColumns) {
+            final studentsMap = dateToStudents[dateStr] ?? {};
+            final studentInfo =
+                studentsMap[studentUid] as Map<String, dynamic>?;
+            final status =
+                (studentInfo?['status']?.toString().toLowerCase()) ?? '';
+            final mark = status == 'present'
+                ? 'P'
+                : status == 'absent'
+                ? 'A'
+                : 'A';
+            row.add(excel_package.TextCellValue(mark));
+
+            totalDays++;
+            if (mark == 'P') {
+              presentDays++;
+            } else {
+              absentDays++;
+            }
+          }
+
+          final average = totalDays > 0
+              ? ((presentDays / totalDays) * 100).toStringAsFixed(2)
+              : '0.00';
+
+          row.add(excel_package.IntCellValue(totalDays));
+          row.add(excel_package.IntCellValue(presentDays));
+          row.add(excel_package.IntCellValue(absentDays));
+          row.add(excel_package.TextCellValue(average));
+
+          sheet.appendRow(row);
         }
       }
 
@@ -266,30 +359,13 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
         await file.writeAsBytes(bytes);
         debugPrint('[ExportAttendance] savedFile=$filePath');
 
-        // Show success message
+        // Show notification instead of SnackBar
+        await _showExportSuccessNotification(fileName, filePath);
+
+        // Navigate back
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Report saved: $fileName'),
-              backgroundColor: Colors.green[700],
-              action: SnackBarAction(
-                label: 'Open',
-                onPressed: () {
-                  OpenFilex.open(filePath);
-                },
-              ),
-              duration: const Duration(seconds: 5),
-            ),
-          );
+          Navigator.pop(context);
         }
-
-        // Auto-open the file
-        await OpenFilex.open(filePath);
-
-        // Navigate back after a short delay
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) Navigator.pop(context);
-        });
       }
     } catch (e) {
       if (mounted) {
@@ -303,6 +379,30 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
     } finally {
       setState(() => _isExporting = false);
     }
+  }
+
+  Future<void> _showExportSuccessNotification(
+    String fileName,
+    String filePath,
+  ) async {
+    const androidDetails = AndroidNotificationDetails(
+      'attendance_export',
+      'Attendance Export',
+      channelDescription: 'Notifications for attendance report exports',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+
+    const notificationDetails = NotificationDetails(android: androidDetails);
+
+    await _notificationsPlugin.show(
+      DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      'Export Complete',
+      'Tap to open $fileName',
+      notificationDetails,
+      payload: filePath,
+    );
   }
 
   @override
