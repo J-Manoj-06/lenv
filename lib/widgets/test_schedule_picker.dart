@@ -256,12 +256,12 @@ class _DateSelectorState extends State<DateSelector> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6A4FF7).withOpacity(0.2),
+                  color: const Color(0xFF355872).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.calendar_today_rounded,
-                  color: Color(0xFF8F66FF),
+                  color: Color(0xFF355872),
                   size: 24,
                 ),
               ),
@@ -341,7 +341,7 @@ class _DateSelectorState extends State<DateSelector> {
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? Colors.white
-                                : const Color(0xFF8F66FF),
+                                : const Color(0xFF355872),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -360,7 +360,7 @@ class _DateSelectorState extends State<DateSelector> {
             child: ElevatedButton(
               onPressed: widget.onNext,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6A4FF7),
+                backgroundColor: const Color(0xFF355872),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -450,12 +450,12 @@ class _TimeSelectorState extends State<TimeSelector> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6A4FF7).withOpacity(0.2),
+                  color: const Color(0xFF355872).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.access_time_rounded,
-                  color: Color(0xFF8F66FF),
+                  color: Color(0xFF355872),
                   size: 24,
                 ),
               ),
@@ -491,12 +491,12 @@ class _TimeSelectorState extends State<TimeSelector> {
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF6A4FF7), Color(0xFF8F66FF)],
+                  colors: [Color(0xFF355872), Color(0xFF456B85)],
                 ),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF6A4FF7).withOpacity(0.3),
+                    color: const Color(0xFF355872).withOpacity(0.3),
                     blurRadius: 20,
                     offset: const Offset(0, 5),
                   ),
@@ -568,7 +568,7 @@ class _TimeSelectorState extends State<TimeSelector> {
             child: ElevatedButton(
               onPressed: widget.onConfirm,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6A4FF7),
+                backgroundColor: const Color(0xFF355872),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -623,7 +623,7 @@ class _TimeSelectorState extends State<TimeSelector> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6A4FF7).withOpacity(0.2),
+                  color: const Color(0xFF355872).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -632,7 +632,7 @@ class _TimeSelectorState extends State<TimeSelector> {
                       : value.toInt().toString().padLeft(2, '0'),
                   style: const TextStyle(
                     fontSize: 16,
-                    color: Color(0xFF8F66FF),
+                    color: Color(0xFF355872),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -644,11 +644,11 @@ class _TimeSelectorState extends State<TimeSelector> {
         SliderTheme(
           data: SliderThemeData(
             trackHeight: 6,
-            activeTrackColor: const Color(0xFF6A4FF7),
+            activeTrackColor: const Color(0xFF355872),
             inactiveTrackColor: const Color(0xFF2A2A3E),
-            thumbColor: const Color(0xFF8F66FF),
+            thumbColor: const Color(0xFF355872),
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
-            overlayColor: const Color(0xFF6A4FF7).withOpacity(0.2),
+            overlayColor: const Color(0xFF355872).withOpacity(0.2),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 24),
           ),
           child: Slider(
@@ -677,7 +677,7 @@ class _TimeSelectorState extends State<TimeSelector> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? const LinearGradient(
-                  colors: [Color(0xFF6A4FF7), Color(0xFF8F66FF)],
+                  colors: [Color(0xFF355872), Color(0xFF456B85)],
                 )
               : null,
           color: isSelected ? null : Colors.transparent,

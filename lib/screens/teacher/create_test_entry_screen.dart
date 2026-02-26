@@ -10,7 +10,7 @@ class CreateTestEntryScreen extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     Color cardBorder(bool primary) => primary
-        ? const Color(0xFF5170FB).withOpacity(0.3)
+        ? const Color(0xFF355872).withOpacity(0.3)
         : Colors.white.withOpacity(isDark ? 0.08 : 0.15);
     Color cardBg(bool primary) => primary
         ? (isDark ? const Color(0xFF12162D) : theme.colorScheme.surface)
@@ -76,8 +76,8 @@ class CreateTestEntryScreen extends StatelessWidget {
                 children: [
                   _OptionCard(
                     icon: Icons.edit_document,
-                    iconBg: const Color(0xFF5170FB).withOpacity(0.2),
-                    iconColor: const Color(0xFF5170FB),
+                    iconBg: const Color(0xFF355872).withOpacity(0.2),
+                    iconColor: const Color(0xFF355872),
                     title: 'Create Manually',
                     subtitle: 'Build your test by adding questions one by one.',
                     borderColor: cardBorder(true),
@@ -89,8 +89,8 @@ class CreateTestEntryScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   _OptionCard(
                     icon: Icons.auto_awesome,
-                    iconBg: const Color(0xFF5170FB).withOpacity(0.2),
-                    iconColor: const Color(0xFF5170FB),
+                    iconBg: const Color(0xFF355872).withOpacity(0.2),
+                    iconColor: const Color(0xFF355872),
                     title: 'Generate with AI',
                     subtitle:
                         'Let AI create a complete test based on your topic.',
@@ -151,7 +151,7 @@ class _OptionCard extends StatelessWidget {
           boxShadow: glowPrimary
               ? [
                   BoxShadow(
-                    color: const Color(0xFF5170FB).withOpacity(0.25),
+                    color: const Color(0xFF355872).withOpacity(0.25),
                     blurRadius: 18,
                     spreadRadius: 2,
                     offset: const Offset(0, 6),

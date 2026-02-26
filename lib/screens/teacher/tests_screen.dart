@@ -381,9 +381,9 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                           fontWeight: FontWeight.w600,
                           color: isSelected
                               ? Colors.white
-                              : theme.textTheme.bodySmall?.color?.withOpacity(
-                                  0.65,
-                                ),
+                              : (isDark
+                                    ? Colors.white.withOpacity(0.65)
+                                    : Colors.black.withOpacity(0.65)),
                           letterSpacing: 0.2,
                         ),
                       ),
@@ -622,8 +622,8 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
             border: Border.all(
               color: isDark
                   ? Colors.white.withOpacity(0.06)
-                  : Colors.grey.withOpacity(0.1),
-              width: 1,
+                  : Colors.grey.withOpacity(0.25),
+              width: 1.5,
             ),
             boxShadow: [
               BoxShadow(

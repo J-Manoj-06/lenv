@@ -565,7 +565,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                   Icons.schedule,
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.white
-                      : const Color(0xFF6A4FF7),
+                      : const Color(0xFF355872),
                   size: 24,
                 ),
                 const SizedBox(width: 8),
@@ -622,7 +622,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                     Icon(
                       Icons.calendar_month_rounded,
                       size: 24,
-                      color: const Color(0xFF6A4FF7),
+                      color: const Color(0xFF355872),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -1209,21 +1209,21 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Color(0xFF6A4FF7),
-                        Color(0xFF7B5FFF),
-                        Color(0xFF8F66FF),
+                        Color(0xFF355872),
+                        Color(0xFF456B85),
+                        Color(0xFF557E98),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF6A4FF7).withOpacity(0.4),
+                        color: const Color(0xFF355872).withOpacity(0.4),
                         spreadRadius: 0,
                         blurRadius: 40,
                         offset: const Offset(0, 10),
                       ),
                       BoxShadow(
-                        color: const Color(0xFF8F66FF).withOpacity(0.2),
+                        color: const Color(0xFF557E98).withOpacity(0.2),
                         spreadRadius: -5,
                         blurRadius: 20,
                         offset: const Offset(0, 0),
