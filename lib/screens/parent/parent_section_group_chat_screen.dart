@@ -119,6 +119,12 @@ class _ParentSectionGroupChatScreenState
   final Map<String, String> _localSenderMediaPaths = {};
   // Throttle progress updates to avoid rebuilding the entire list too frequently
   final Map<String, int> _lastUploadPercent = {};
+  // Ensure unique IDs for rapid uploads
+  int _lastUploadTimestamp = 0;
+
+  // Poll cached progress while uploads continue in background
+  Timer? _progressPollTimer;
+  bool _offlineReady = false;
 
   // Selection mode for multi-delete (using ValueNotifier to avoid full-page rebuilds)
   bool _selectionMode = false;
@@ -158,6 +164,7 @@ class _ParentSectionGroupChatScreenState
     scrollController.dispose();
     _focusNode.dispose();
     _recordingTimer?.cancel();
+    _progressPollTimer?.cancel();
     _audioRecorder.dispose();
     super.dispose();
   }
@@ -175,6 +182,9 @@ class _ParentSectionGroupChatScreenState
     });
 
     _initOfflineFirst();
+
+    // Start polling cached progress (keeps UI updated after navigation)
+    _startProgressPolling();
 
     // ✅ Cache stream once (same as staff room) to prevent re-creation
     _messagesStream = _service.getMessagesStream(widget.groupId);
@@ -258,6 +268,9 @@ class _ParentSectionGroupChatScreenState
 
         // ✅ CRITICAL: Load pending messages after sync starts
         await _loadPendingMessages();
+
+        // Mark offline services ready for progress polling
+        _offlineReady = true;
       } else {
         print('⚠️ No current user found, skipping real-time sync');
       }
@@ -407,6 +420,75 @@ class _ParentSectionGroupChatScreenState
     } catch (e, stackTrace) {
       print('❌ Error loading pending messages: $e');
       print('Stack trace: $stackTrace');
+    }
+  }
+
+  void _startProgressPolling() {
+    _progressPollTimer?.cancel();
+    _progressPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_pendingMessages.isNotEmpty) {
+        _checkCacheForProgressUpdates();
+      }
+    });
+  }
+
+  Future<void> _checkCacheForProgressUpdates() async {
+    if (!_offlineReady || _pendingMessages.isEmpty || !mounted) return;
+
+    final toRemove = <String>[];
+    bool hasChanges = false;
+
+    for (final pendingMsg in _pendingMessages) {
+      final pendingId = pendingMsg.messageId;
+      final baseId = pendingId.replaceFirst('pending:', '');
+
+      try {
+        final cachedMsg = await _localRepo.getMessageById(baseId);
+
+        if (cachedMsg == null || cachedMsg.isPending == false) {
+          toRemove.add(pendingId);
+          continue;
+        }
+
+        if (cachedMsg.multipleMedia == null) continue;
+
+        for (final media in cachedMsg.multipleMedia!) {
+          final mediaId = media['messageId'] as String?;
+          if (mediaId == null) continue;
+
+          final cachedProgress = media['uploadProgress'] as double?;
+          if (cachedProgress != null) {
+            final current = _pendingUploadNotifiers[mediaId]?.value ?? 0.0;
+            final nextValue = (cachedProgress * 100).clamp(0.0, 100.0);
+            if ((nextValue - current).abs() > 0.5) {
+              _pendingUploadNotifiers[mediaId] ??= ValueNotifier<double>(
+                nextValue,
+              );
+              _pendingUploadNotifiers[mediaId]!.value = nextValue;
+              _lastUploadPercent[mediaId] = nextValue.toInt();
+              hasChanges = true;
+            }
+          }
+        }
+      } catch (_) {
+        // Ignore cache read errors while uploads update
+      }
+    }
+
+    if (toRemove.isNotEmpty && mounted) {
+      setState(() {
+        _pendingMessages.removeWhere((m) => toRemove.contains(m.messageId));
+        for (final pendingId in toRemove) {
+          final baseId = pendingId.replaceFirst('pending:', '');
+          _pendingUploadNotifiers.removeWhere((k, _) => k.startsWith(baseId));
+          _lastUploadPercent.removeWhere((k, _) => k.startsWith(baseId));
+        }
+      });
+      return;
+    }
+
+    if (hasChanges && mounted) {
+      setState(() {});
     }
   }
 
@@ -852,7 +934,10 @@ class _ParentSectionGroupChatScreenState
                 // ✅ CRITICAL: Use message cache to maintain stable instances
                 // Create or retrieve cached versions of Firestore messages
                 final cachedFirestoreMessages = <CommunityMessageModel>[];
+                final firestoreMessageIds = <String>{};
+                
                 for (final msg in firestoreMessages) {
+                  firestoreMessageIds.add(msg.messageId);
                   final cached = _messageCache[msg.messageId];
                   if (cached == null) {
                     // First time seeing this message - cache it
@@ -874,15 +959,35 @@ class _ParentSectionGroupChatScreenState
                   // Always use the cached instance to maintain widget identity
                   cachedFirestoreMessages.add(_messageCache[msg.messageId]!);
                 }
+                
+                // ✅ PRESERVE older cached messages that are not in the current Firestore snapshot
+                // This prevents messages from disappearing when new ones arrive (due to stream limit)
+                final olderCachedMessages = <CommunityMessageModel>[];
+                for (final entry in _messageCache.entries) {
+                  final msgId = entry.key;
+                  // Skip if it's a pending message or already in the Firestore snapshot
+                  if (msgId.startsWith('pending:') || firestoreMessageIds.contains(msgId)) {
+                    continue;
+                  }
+                  // Add to older cached messages to preserve them
+                  olderCachedMessages.add(entry.value);
+                }
+                print('🔍 [CACHE_DEBUG] Firestore=${firestoreMessages.length} PreservedCache=${olderCachedMessages.length}');
 
                 // ✅ SMART MERGE: Remove pending messages that now exist in Firestore
                 final pendingIdsToRemove = <String>[];
                 final filteredPendingMessages = <CommunityMessageModel>[];
+                print(
+                  '🔍 [PENDING_MERGE] Pending=${_pendingMessages.length} Firestore=${cachedFirestoreMessages.length}',
+                );
 
                 for (final pendingMsg in _pendingMessages) {
                   final pendingId = pendingMsg.messageId.replaceFirst(
                     'pending:',
                     '',
+                  );
+                  print(
+                    '🔍 [PENDING_MERGE] Check ${pendingMsg.messageId} base=$pendingId media=${pendingMsg.multipleMedia?.length ?? 0}',
                   );
 
                   // 1️⃣ FIRST: Try exact ID matching (highest priority)
@@ -968,6 +1073,9 @@ class _ParentSectionGroupChatScreenState
 
                   if (matchingServerMsg != null) {
                     // Found matching server version - mark for removal
+                    print(
+                      '🗑️ [PENDING_MERGE] Remove ${pendingMsg.messageId} matched ${matchingServerMsg.messageId}',
+                    );
                     pendingIdsToRemove.add(pendingMsg.messageId);
                   } else {
                     // Still uploading - keep in list
@@ -975,11 +1083,15 @@ class _ParentSectionGroupChatScreenState
                     final cachedPending =
                         _messageCache[pendingMsg.messageId] ??= pendingMsg;
                     filteredPendingMessages.add(cachedPending);
+                    print('✅ [PENDING_MERGE] Keep ${pendingMsg.messageId}');
                   }
                 }
 
                 // Remove completed pending messages (after frame to avoid flicker)
                 if (pendingIdsToRemove.isNotEmpty) {
+                  print(
+                    '🧹 [PENDING_MERGE] Removing pending: $pendingIdsToRemove',
+                  );
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted) return;
                     setState(() {
@@ -1008,11 +1120,12 @@ class _ParentSectionGroupChatScreenState
                   });
                 }
 
-                // ✅ COMBINE: pending + Firestore + older paginated messages
+                // ✅ COMBINE: pending + Firestore + preserved cache + older paginated messages
                 // IMPORTANT: Sort by timestamp DESC for proper display order
                 final allMessages = [
                   ...filteredPendingMessages,
                   ...cachedFirestoreMessages,
+                  ...olderCachedMessages,
                   ..._olderMessages,
                 ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -2278,7 +2391,11 @@ class _ParentSectionGroupChatScreenState
     final user = auth.currentUser;
     if (user == null) return;
 
-    final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final baseTimestamp = now > _lastUploadTimestamp
+        ? now
+        : _lastUploadTimestamp + 1;
+    _lastUploadTimestamp = baseTimestamp;
     final groupMessageId = 'pending_${baseTimestamp}_${user.uid.hashCode}';
     final List<MediaMetadata> mediaList = [];
     final List<String> localPaths = [];
@@ -2414,23 +2531,21 @@ class _ParentSectionGroupChatScreenState
           senderRole: widget.senderRole,
           mediaType: 'community',
           onProgress: (progress) async {
-            if (!mounted) return;
-
             // Smooth progress updates (only update on percentage change)
             final percent = (progress / 100.0 * 100).round();
             final last = _lastUploadPercent[messageId] ?? -1;
             if (percent != last) {
-              // Update UI progress
               _lastUploadPercent[messageId] = percent;
-              _pendingUploadNotifiers[messageId]?.value = percent.toDouble();
 
-              // ✅ CRITICAL: Trigger rebuild to show live progress for multi-image messages
-              // Without this, progress only updates when navigating away and back
               if (mounted) {
+                // Update UI progress
+                _pendingUploadNotifiers[messageId]?.value = percent.toDouble();
+
+                // ✅ Trigger rebuild to show live progress for multi-image messages
                 setState(() {});
               }
 
-              // Save to cache at 10% intervals
+              // Save to cache at 10% intervals (even if not mounted)
               if (percent % 10 == 0 || percent == 100) {
                 try {
                   final cachedMsg = await _localRepo.getMessageById(
@@ -2558,41 +2673,23 @@ class _ParentSectionGroupChatScreenState
         );
         await _localRepo.saveMessage(localMessage);
 
-        // Delete pending message from cache (upload complete)
-        await _localRepo.deletePendingMessage(groupMessageId);
+        // ✅ Keep pending cache until Firestore message is visible
         print(
-          '✅ Final message saved to cache (ID: ${messageRef.id}), pending deleted',
+          '✅ Final message saved to cache (ID: ${messageRef.id}); pending retained until sync',
         );
       } catch (e) {
         print('⚠️ Failed to save final message to cache: $e');
       }
 
-      // Remove pending message from UI immediately (no need to wait for sync)
-      // Remove pending message from UI immediately (no need to wait for sync)
+      // ✅ Keep pending message in UI until Firestore sync replaces it
       if (mounted) {
         setState(() {
-          final removedCount = _pendingMessages.length;
-          _pendingMessages.removeWhere(
-            (m) => m.messageId == 'pending:$groupMessageId',
-          );
-          print(
-            '🗑️ [PENDING_DEBUG] Removed pending from UI: pending:$groupMessageId',
-          );
-          print(
-            '   - Removed: ${removedCount - _pendingMessages.length} messages',
-          );
-          print('   - Remaining pending: ${_pendingMessages.length}');
-
           // Keep local files mapped to the cloud keys for offline access
           for (int i = 0; i < uploadedMetadata.length; i++) {
             final r2Key = uploadedMetadata[i].r2Key;
             final messageId = '${groupMessageId}_$i';
             _localSenderMediaPaths[r2Key] = localPaths[i];
             _localSenderMediaPaths.remove(messageId);
-            // Clean up progress notifiers
-            _pendingUploadNotifiers[messageId]?.dispose();
-            _pendingUploadNotifiers.remove(messageId);
-            _lastUploadPercent.remove(messageId);
           }
         });
       }

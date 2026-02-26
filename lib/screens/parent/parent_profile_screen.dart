@@ -26,6 +26,7 @@ class ParentProfileScreen extends StatelessWidget {
           appBar: AppBar(
             backgroundColor: isDark ? backgroundDark : backgroundLight,
             elevation: 0,
+            automaticallyImplyLeading: false,
             title: Text(
               'Profile',
               style: TextStyle(

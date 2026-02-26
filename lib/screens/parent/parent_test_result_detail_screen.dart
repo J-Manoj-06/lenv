@@ -70,6 +70,14 @@ class _ParentTestResultDetailScreenState
         backgroundColor: isDark ? backgroundDark : backgroundLight,
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: isDark ? Colors.white : textPrimary,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           '${t.subject} - ${t.testTitle}',
           maxLines: 1,

@@ -809,9 +809,9 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
       final extension = file.path.split('.').last.toLowerCase();
 
       String mimeType = 'application/pdf';
-      if (extension == 'doc')
+      if (extension == 'doc') {
         mimeType = 'application/msword';
-      else if (extension == 'docx')
+      } else if (extension == 'docx')
         mimeType =
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
       else if (extension == 'xls')

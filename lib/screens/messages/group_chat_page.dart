@@ -2020,8 +2020,9 @@ class _GroupChatPageState extends State<GroupChatPage>
                           final hasMatchingAttachment =
                               pendingAttachmentKeys.isNotEmpty &&
                               messages.any((fsMsg) {
-                                if (fsMsg.id.startsWith('pending:'))
+                                if (fsMsg.id.startsWith('pending:')) {
                                   return false;
+                                }
                                 final fsAttachmentKeys = <String>{};
                                 if (fsMsg.mediaMetadata?.originalFileName !=
                                         null &&
