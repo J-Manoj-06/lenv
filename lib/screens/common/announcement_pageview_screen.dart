@@ -561,7 +561,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       return _ExpandablePostText(
         text: title,
         textColor: Colors.white,
-        accentColor: const Color(0xFF7A5CFF),
+        accentColor: const Color(0xFF355872),
       );
     }
 

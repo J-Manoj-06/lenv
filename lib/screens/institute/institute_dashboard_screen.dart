@@ -980,7 +980,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     final subtitleColor = isDark
         ? const Color(0xFF94A3B8)
         : const Color(0xFF64748B);
-    const purpleColor = Color(0xFF7A5CFF);
+    const blueColor = Color(0xFF355872);
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -1021,7 +1021,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
             currentUserId.isNotEmpty &&
             statuses.any((s) => !s.viewedBy.contains(currentUserId));
         final borderColor = hasUnviewed
-            ? purpleColor
+            ? blueColor
             : (isDark ? Colors.grey.shade600 : Colors.grey.shade400);
 
         return GestureDetector(
@@ -1062,7 +1062,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                           ),
                           child: Icon(
                             Icons.school,
-                            color: hasUnviewed ? purpleColor : borderColor,
+                            color: hasUnviewed ? blueColor : borderColor,
                             size: 28,
                           ),
                         ),
@@ -1077,7 +1077,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: hasUnviewed
-                                    ? purpleColor
+                                    ? blueColor
                                     : (isDark
                                           ? Colors.grey.shade700
                                           : Colors.grey.shade500),

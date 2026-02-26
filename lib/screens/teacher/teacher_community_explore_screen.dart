@@ -286,7 +286,7 @@ class _TeacherCommunityExploreScreenState
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF7A5CFF)
+                          ? const Color(0xFF355872)
                           : (isDark
                                 ? theme.colorScheme.surface
                                 : theme.colorScheme.surfaceContainerHighest
@@ -294,7 +294,7 @@ class _TeacherCommunityExploreScreenState
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
                         color: isSelected
-                            ? const Color(0xFF7A5CFF)
+                            ? const Color(0xFF355872)
                             : theme.dividerColor.withOpacity(0.3),
                         width: 1.5,
                       ),
@@ -410,7 +410,7 @@ class _TeacherCommunityExploreScreenState
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7A5CFF).withValues(alpha: 0.12),
+                  color: const Color(0xFF355872).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Center(
@@ -508,13 +508,13 @@ class _TeacherCommunityExploreScreenState
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7A5CFF).withValues(alpha: 0.12),
+                  color: const Color(0xFF355872).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   community.category.toUpperCase(),
                   style: const TextStyle(
-                    color: Color(0xFF7A5CFF),
+                    color: Color(0xFF355872),
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
@@ -561,7 +561,7 @@ class _TeacherCommunityExploreScreenState
                 ElevatedButton(
                   onPressed: isJoining ? null : () => _joinCommunity(community),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7A5CFF),
+                    backgroundColor: const Color(0xFF355872),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,

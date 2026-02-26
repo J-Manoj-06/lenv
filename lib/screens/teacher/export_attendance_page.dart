@@ -23,7 +23,7 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
 
   // Form state
   String _selectedScope = 'all'; // 'all' or 'selected'
-  Set<String> _selectedClasses = {};
+  final Set<String> _selectedClasses = {};
   DateTime? _fromDate;
   DateTime? _toDate;
   String _selectedFormat = 'excel'; // 'pdf' or 'excel'
@@ -221,7 +221,7 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
           gradeClassName,
         ], section);
         debugPrint(
-          '[ExportAttendance] studentsCount(${className})=${students.length}',
+          '[ExportAttendance] studentsCount($className)=${students.length}',
         );
 
         // Get attendance records for this class (date-wise)
@@ -252,7 +252,7 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
         final dateColumns = dateToStudents.keys.toList()
           ..sort((a, b) => DateTime.parse(a).compareTo(DateTime.parse(b)));
         debugPrint(
-          '[ExportAttendance] dates(${className})=${dateColumns.length}',
+          '[ExportAttendance] dates($className)=${dateColumns.length}',
         );
 
         // Create sheet for this class
