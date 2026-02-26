@@ -935,7 +935,7 @@ class _ParentSectionGroupChatScreenState
                 // Create or retrieve cached versions of Firestore messages
                 final cachedFirestoreMessages = <CommunityMessageModel>[];
                 final firestoreMessageIds = <String>{};
-                
+
                 for (final msg in firestoreMessages) {
                   firestoreMessageIds.add(msg.messageId);
                   final cached = _messageCache[msg.messageId];
@@ -959,20 +959,23 @@ class _ParentSectionGroupChatScreenState
                   // Always use the cached instance to maintain widget identity
                   cachedFirestoreMessages.add(_messageCache[msg.messageId]!);
                 }
-                
+
                 // ✅ PRESERVE older cached messages that are not in the current Firestore snapshot
                 // This prevents messages from disappearing when new ones arrive (due to stream limit)
                 final olderCachedMessages = <CommunityMessageModel>[];
                 for (final entry in _messageCache.entries) {
                   final msgId = entry.key;
                   // Skip if it's a pending message or already in the Firestore snapshot
-                  if (msgId.startsWith('pending:') || firestoreMessageIds.contains(msgId)) {
+                  if (msgId.startsWith('pending:') ||
+                      firestoreMessageIds.contains(msgId)) {
                     continue;
                   }
                   // Add to older cached messages to preserve them
                   olderCachedMessages.add(entry.value);
                 }
-                print('🔍 [CACHE_DEBUG] Firestore=${firestoreMessages.length} PreservedCache=${olderCachedMessages.length}');
+                print(
+                  '🔍 [CACHE_DEBUG] Firestore=${firestoreMessages.length} PreservedCache=${olderCachedMessages.length}',
+                );
 
                 // ✅ SMART MERGE: Remove pending messages that now exist in Firestore
                 final pendingIdsToRemove = <String>[];
