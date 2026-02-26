@@ -296,6 +296,8 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
     TestResultModel test,
     ParentProvider provider,
   ) {
+    final isNotAttended =
+        test.answers.isEmpty && test.correctAnswers == 0 && test.score == 0;
     final percentage = test.totalQuestions > 0
         ? (test.correctAnswers / test.totalQuestions * 100).round()
         : 0;
@@ -303,7 +305,9 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
     final dateStr = DateFormat('MMM dd, yyyy').format(test.completedAt);
 
     Color scoreColor;
-    if (percentage >= 80) {
+    if (isNotAttended) {
+      scoreColor = const Color(0xFFF4C430);
+    } else if (percentage >= 80) {
       scoreColor = Colors.green;
     } else if (percentage >= 60) {
       scoreColor = Colors.orange;
@@ -375,16 +379,44 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Icon(Icons.check_circle, size: 14, color: Colors.green),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${test.correctAnswers}/${test.totalQuestions} correct',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        if (!isNotAttended) ...[
+                          Icon(
+                            Icons.check_circle,
+                            size: 14,
+                            color: Colors.green,
                           ),
-                        ),
-                        const SizedBox(width: 12),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${test.correctAnswers}/${test.totalQuestions} correct',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        if (isNotAttended)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF3CD),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'Not attended',
+                              style: TextStyle(
+                                color: Color(0xFF8A6D1D),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        if (isNotAttended) const SizedBox(width: 12),
                         Icon(
                           Icons.calendar_today,
                           size: 14,

@@ -63,6 +63,8 @@ class _ParentTestResultDetailScreenState
         : t.score.clamp(0, 100);
     final dateStr = DateFormat('MMM dd, yyyy').format(t.completedAt);
     final passed = pct >= 40; // simple threshold, adjust if you have passMark
+    final isNotAttended =
+        t.answers.isEmpty && t.correctAnswers == 0 && t.score == 0;
 
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
@@ -94,34 +96,74 @@ class _ParentTestResultDetailScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (isNotAttended)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3CD),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  'Not attended',
+                  style: TextStyle(
+                    color: Color(0xFF8A6D1D),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             // Performance Overview Section
             _buildPerformanceOverview(isDark, pct.toDouble(), dateStr, passed),
 
             const SizedBox(height: 16),
 
-            // Tabs (only Question Analysis for now)
-            Text(
-              'Question Analysis',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : textPrimary,
+            if (!isNotAttended) ...[
+              // Tabs (only Question Analysis for now)
+              Text(
+                'Question Analysis',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : textPrimary,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            _buildQuestionAccordion(isDark, widget.test),
+              const SizedBox(height: 8),
+              _buildQuestionAccordion(isDark, widget.test),
 
-            const SizedBox(height: 16),
-            Text(
-              'Comparison',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : textPrimary,
+              const SizedBox(height: 16),
+              Text(
+                'Comparison',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : textPrimary,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            _buildComparison(isDark, pct.toDouble(), _classAverage),
+              const SizedBox(height: 8),
+              _buildComparison(isDark, pct.toDouble(), _classAverage),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E1A2F) : cardBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark ? Colors.white10 : Colors.grey.shade200,
+                  ),
+                ),
+                child: Text(
+                  'No answers submitted for this test.',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.grey[700],
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
