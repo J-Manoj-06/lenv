@@ -134,7 +134,7 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF355872)),
               ),
             )
           : _errorMessage != null
@@ -160,7 +160,7 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
                       icon: const Icon(Icons.refresh),
                       label: const Text('Retry'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
+                        backgroundColor: const Color(0xFF355872),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
@@ -283,7 +283,7 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
                 width: 4,
                 height: 100,
                 decoration: const BoxDecoration(
-                  color: Color(0xFF7C3AED),
+                  color: Color(0xFF355872),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     bottomLeft: Radius.circular(16),
@@ -385,38 +385,38 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
   List<Color> _getSubjectGradient(String subjectName) {
     final subject = subjectName.toLowerCase();
     if (subject.contains('math')) {
-      return [const Color(0xFF7C3AED), const Color(0xFF9B59B6)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('science')) {
-      return [const Color(0xFF8B5CF6), const Color(0xFFA855F7)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('english') || subject.contains('hindi')) {
-      return [const Color(0xFF6D28D9), const Color(0xFF7C3AED)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('history') || subject.contains('social')) {
-      return [const Color(0xFF9333EA), const Color(0xFFA855F7)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('phy')) {
-      return [const Color(0xFF6D28D9), const Color(0xFF8B5CF6)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('chem')) {
-      return [const Color(0xFF9333EA), const Color(0xFFA855F7)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('bio')) {
-      return [const Color(0xFF7C3AED), const Color(0xFF9B59B6)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('computer')) {
-      return [const Color(0xFF8B5CF6), const Color(0xFF9333EA)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('art')) {
-      return [const Color(0xFF9B59B6), const Color(0xFFA855F7)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('music')) {
-      return [const Color(0xFF7C3AED), const Color(0xFF9333EA)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
     if (subject.contains('physical') || subject.contains('education')) {
-      return [const Color(0xFF8B5CF6), const Color(0xFF7C3AED)];
+      return [const Color(0xFF355872), const Color(0xFF355872)];
     }
-    return [const Color(0xFF7C3AED), const Color(0xFF9B59B6)];
+    return [const Color(0xFF355872), const Color(0xFF355872)];
   }
 }

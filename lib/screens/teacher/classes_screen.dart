@@ -98,7 +98,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
       case 'D':
         return [const Color(0xFF43E97B), const Color(0xFF38F9D7)];
       default:
-        return [const Color(0xFF6366F1), const Color(0xFF8B5CF6)];
+        return [const Color(0xFF355872), const Color(0xFF4A7A99)];
     }
   }
 
@@ -218,7 +218,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
             MaterialPageRoute(builder: (_) => const ExportAttendancePage()),
           );
         },
-        backgroundColor: const Color(0xFF7961FF),
+        backgroundColor: const Color(0xFF355872),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.file_download),
         label: const Text('Export'),
@@ -389,7 +389,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
                         _enterClass(classItem);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
+                        backgroundColor: const Color(0xFF355872),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         shape: RoundedRectangleBorder(

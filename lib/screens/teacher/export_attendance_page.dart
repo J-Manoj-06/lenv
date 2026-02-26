@@ -97,7 +97,7 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
-              primary: const Color(0xFF7961FF),
+              primary: const Color(0xFF355872),
               onPrimary: Colors.white,
               surface: Colors.white,
               onSurface: Colors.black,
@@ -122,7 +122,7 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
-              primary: const Color(0xFF7961FF),
+              primary: const Color(0xFF355872),
               onPrimary: Colors.white,
               surface: Colors.white,
               onSurface: Colors.black,
@@ -518,14 +518,14 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF7961FF).withOpacity(0.1)
+              ? const Color(0xFF355872).withOpacity(0.1)
               : isDark
               ? const Color(0xFF1A1F2E)
               : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF7961FF)
+                ? const Color(0xFF355872)
                 : isDark
                 ? Colors.white.withOpacity(0.1)
                 : Colors.grey.withOpacity(0.2),
@@ -541,12 +541,12 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: isSelected
-                      ? const Color(0xFF7961FF)
+                      ? const Color(0xFF355872)
                       : Colors.grey[400]!,
                   width: 2,
                 ),
                 color: isSelected
-                    ? const Color(0xFF7961FF)
+                    ? const Color(0xFF355872)
                     : Colors.transparent,
               ),
               child: isSelected
@@ -596,7 +596,7 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
             height: 100,
             alignment: Alignment.center,
             child: const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation(Color(0xFF7961FF)),
+              valueColor: AlwaysStoppedAnimation(Color(0xFF355872)),
             ),
           )
         else if (_availableClasses.isEmpty)
@@ -632,16 +632,16 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
                 backgroundColor: isDark
                     ? const Color(0xFF1A1F2E)
                     : Colors.white,
-                selectedColor: const Color(0xFF7961FF).withOpacity(0.2),
+                selectedColor: const Color(0xFF355872).withOpacity(0.2),
                 labelStyle: TextStyle(
                   color: isSelected
-                      ? const Color(0xFF7961FF)
+                      ? const Color(0xFF355872)
                       : theme.textTheme.bodySmall?.color,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
                 side: BorderSide(
                   color: isSelected
-                      ? const Color(0xFF7961FF)
+                      ? const Color(0xFF355872)
                       : isDark
                       ? Colors.white.withOpacity(0.1)
                       : Colors.grey.withOpacity(0.2),
@@ -693,7 +693,7 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: date != null
-                ? const Color(0xFF7961FF)
+                ? const Color(0xFF355872)
                 : isDark
                 ? Colors.white.withOpacity(0.1)
                 : Colors.grey.withOpacity(0.2),
@@ -708,7 +708,7 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF7961FF),
+                color: const Color(0xFF355872),
               ),
             ),
             const SizedBox(height: 6),
@@ -752,14 +752,14 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF7961FF).withOpacity(0.1)
+              ? const Color(0xFF355872).withOpacity(0.1)
               : isDark
               ? const Color(0xFF1A1F2E)
               : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF7961FF)
+                ? const Color(0xFF355872)
                 : isDark
                 ? Colors.white.withOpacity(0.1)
                 : Colors.grey.withOpacity(0.2),
@@ -810,13 +810,13 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF7961FF),
+          backgroundColor: const Color(0xFF355872),
           foregroundColor: Colors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          disabledBackgroundColor: const Color(0xFF7961FF).withOpacity(0.5),
+          disabledBackgroundColor: const Color(0xFF355872).withOpacity(0.5),
         ),
       ),
     );

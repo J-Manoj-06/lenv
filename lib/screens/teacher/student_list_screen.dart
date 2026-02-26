@@ -23,7 +23,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
       {}; // Cache for calculated attendance
 
   // Teacher brand + dark palette (UI only; no logic changes)
-  static const Color _teacherPrimary = Color(0xFF8B5CF6);
+  static const Color _teacherPrimary = Color(0xFF355872);
   static const Color _bgDark = Color(0xFF120F23);
   static const Color _tileDark = Color(0xFF1E1E2D);
   static const Color _mutedPurple = Color(0xFF978DCE);
@@ -325,7 +325,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
         child: Row(
           children: [
             const SizedBox(width: 12),
-            Icon(Icons.search, color: isDark ? _mutedPurple : theme.hintColor),
+            Icon(Icons.search, color: isDark ? Colors.white : theme.hintColor),
             const SizedBox(width: 8),
             Expanded(
               child: TextField(
@@ -338,7 +338,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   hintText: 'Search for a student',
                   hintStyle: TextStyle(
                     color: isDark
-                        ? _mutedPurple
+                        ? Colors.white
                         : theme.colorScheme.onSurface.withOpacity(0.6),
                   ),
                   border: InputBorder.none,
@@ -493,7 +493,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: isDark
-                            ? _mutedPurple
+                            ? Colors.white
                             : theme.colorScheme.onSurface.withOpacity(0.7),
                         fontSize: 13,
                         fontWeight: FontWeight.w400,

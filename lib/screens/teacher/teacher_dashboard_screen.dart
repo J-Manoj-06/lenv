@@ -830,7 +830,7 @@ class TeacherDashboardScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.school, size: 48, color: Color(0xFF6366F1)),
+            const Icon(Icons.school, size: 48, color: Color(0xFF355872)),
             const SizedBox(height: 12),
             const Text(
               'Teacher Dashboard',

@@ -27,7 +27,7 @@ Color getRoleColor(String role) {
     case 'institute':
       return const Color(0xFF1976D2);
     default:
-      return const Color(0xFF6366F1); // Fallback color
+      return const Color(0xFF355872); // Fallback color
   }
 }
 
@@ -59,7 +59,7 @@ List<Color> getRoleGradient(String role) {
     case 'institute':
       return [const Color(0xFF42A5F5), const Color(0xFF1976D2)];
     default:
-      return [const Color(0xFF6366F1), const Color(0xFF4F46E5)];
+      return [const Color(0xFF355872), const Color(0xFF4F46E5)];
   }
 }
 

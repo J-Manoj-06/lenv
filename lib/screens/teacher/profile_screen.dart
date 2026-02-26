@@ -25,7 +25,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _currentUserId; // Store user ID for stream query
 
   // Theme helpers
-  Color get _primary => const Color(0xFF8B5CF6);
+  Color get _primary => const Color(0xFF355872);
   Color _surface(BuildContext context) => Theme.of(context).cardColor;
   Color _onSurface(BuildContext context) =>
       Theme.of(context).colorScheme.onSurface;

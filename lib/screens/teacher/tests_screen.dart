@@ -188,12 +188,12 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                 child: testProv.isLoading
                     ? const Center(
                         child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation(Color(0xFF7961FF)),
+                          valueColor: AlwaysStoppedAnimation(Color(0xFF355872)),
                         ),
                       )
                     : filtered.isEmpty
                     ? RefreshIndicator(
-                        color: const Color(0xFF7961FF),
+                        color: const Color(0xFF355872),
                         onRefresh: () async {
                           _loadTests();
                           await Future.delayed(
@@ -209,7 +209,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                         ),
                       )
                     : RefreshIndicator(
-                        color: const Color(0xFF7961FF),
+                        color: const Color(0xFF355872),
                         onRefresh: () async {
                           _loadTests();
                           await Future.delayed(
@@ -363,7 +363,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF7961FF)
+                          ? const Color(0xFF355872)
                           : Colors.transparent,
                       border: isSelected
                           ? null
@@ -378,7 +378,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
                           ? [
                               BoxShadow(
                                 color: const Color(
-                                  0xFF7961FF,
+                                  0xFF355872,
                                 ).withOpacity(0.25),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),

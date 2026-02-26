@@ -32,7 +32,7 @@ class AppColors {
 
   // Role-based Colors
   static const Color instituteColor = Color(0xFF2196F3);
-  static const Color teacherColor = Color(0xFF6366F1); // #6366F1
+  static const Color teacherColor = Color(0xFF355872); // #355872
   static const Color studentColor = Color(0xFFF97316); // #F97316
   static const Color parentColor = Color(0xFF617089); // #617089
 

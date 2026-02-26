@@ -870,7 +870,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+              borderSide: const BorderSide(color: Color(0xFF355872), width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -946,7 +946,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     return Center(
       child: Column(
         children: [
-          const CircularProgressIndicator(color: Color(0xFF6366F1)),
+          const CircularProgressIndicator(color: Color(0xFF355872)),
           const SizedBox(height: 16),
           Text(
             'Generating questions with AI...',
@@ -1523,8 +1523,8 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
               icon: const Icon(Icons.visibility_outlined),
               label: const Text('Preview in Student View'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF6366F1),
-                side: const BorderSide(color: Color(0xFF6366F1)),
+                foregroundColor: const Color(0xFF355872),
+                side: const BorderSide(color: Color(0xFF355872)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1565,7 +1565,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                     _showScheduleDialog();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6366F1),
+                    backgroundColor: const Color(0xFF355872),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -1629,7 +1629,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
                 child: ElevatedButton(
                   onPressed: isGenerating ? null : _generateQuestions,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6366F1),
+                    backgroundColor: const Color(0xFF355872),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -1694,7 +1694,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
               await _saveGeneratedTest(publish: false, schedule: true);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6366F1),
+              backgroundColor: const Color(0xFF355872),
             ),
             child: const Text('Confirm'),
           ),
@@ -1717,7 +1717,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           data: Theme.of(context).copyWith(
             colorScheme: Theme.of(
               context,
-            ).colorScheme.copyWith(primary: const Color(0xFF6366F1)),
+            ).colorScheme.copyWith(primary: const Color(0xFF355872)),
           ),
           child: child!,
         );
@@ -1737,7 +1737,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           data: Theme.of(context).copyWith(
             colorScheme: Theme.of(
               context,
-            ).colorScheme.copyWith(primary: const Color(0xFF6366F1)),
+            ).colorScheme.copyWith(primary: const Color(0xFF355872)),
           ),
           child: child!,
         );
@@ -1760,7 +1760,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           data: Theme.of(context).copyWith(
             colorScheme: Theme.of(
               context,
-            ).colorScheme.copyWith(primary: const Color(0xFF6366F1)),
+            ).colorScheme.copyWith(primary: const Color(0xFF355872)),
           ),
           child: child!,
         );

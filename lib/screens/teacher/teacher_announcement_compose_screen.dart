@@ -10,7 +10,7 @@ import '../../config/cloudflare_config.dart';
 const _bg = Color(0xFF120F23);
 const _surface = Color(0xFF1A1730);
 const _muted = Color(0xFF8E8BA3);
-const _primary = Color(0xFF7961FF);
+const _primary = Color(0xFF355872);
 
 class TeacherAnnouncementComposeScreen extends StatefulWidget {
   final String audienceType;

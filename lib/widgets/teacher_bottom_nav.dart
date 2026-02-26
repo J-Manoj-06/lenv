@@ -119,7 +119,7 @@ class TeacherBottomNav extends StatelessWidget {
   }) {
     final isSelected = selectedIndex == index;
     final inactive = Colors.grey[400];
-    const primary = Color(0xFF7961FF);
+    const primary = Color(0xFF355872);
 
     return Expanded(
       child: InkWell(

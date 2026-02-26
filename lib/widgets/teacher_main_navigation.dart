@@ -120,7 +120,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primary = Color(0xFF7961FF);
+    const primary = Color(0xFF355872);
     final inactive = Colors.grey[400];
 
     return Expanded(

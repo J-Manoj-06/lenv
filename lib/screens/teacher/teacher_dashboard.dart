@@ -568,7 +568,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       icon: const Icon(Icons.refresh),
                       label: const Text('Retry'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF7961FF),
+                        backgroundColor: const Color(0xFFBBB2FF),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 32,
@@ -723,7 +723,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       icon: const Icon(Icons.add, size: 20),
                       label: const Text('Create Test'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
+                        backgroundColor: const Color(0xFF355872),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -742,8 +742,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       icon: const Icon(Icons.auto_awesome, size: 20),
                       label: const Text('Generate with AI'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF6366F1),
-                        side: const BorderSide(color: Color(0xFF6366F1)),
+                        foregroundColor: const Color(0xFF355872),
+                        side: const BorderSide(color: Color(0xFF355872)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -816,14 +816,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
+            colors: [const Color(0xFF355872), const Color(0xFF4A7A99)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF6366F1).withOpacity(0.3),
+              color: const Color(0xFF355872).withOpacity(0.3),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -1090,14 +1090,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF7A5CFF), Color(0xFF9D8BFF)],
+            colors: [Color(0xFF355872), Color(0xFF4A7A99)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF7A5CFF).withOpacity(0.3),
+              color: const Color(0xFF355872).withOpacity(0.3),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -1412,7 +1412,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   shape: BoxShape.circle,
                   gradient: hasAnnouncement
                       ? const LinearGradient(
-                          colors: [Color(0xFFA78BFA), Color(0xFF7B61FF)],
+                          colors: [Color(0xFF355872), Color(0xFF4A7A99)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         )
@@ -1528,7 +1528,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF7B61FF),
+                      color: const Color(0xFF355872),
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: theme.scaffoldBackgroundColor,
@@ -1574,7 +1574,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF7E57C2), Color(0xFFB388FF)],
+                        colors: [Color(0xFF355872), Color(0xFF4A7A99)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -1584,7 +1584,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF7E57C2).withOpacity(0.4),
+                          color: const Color(0xFF355872).withOpacity(0.4),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -1625,7 +1625,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         style: TextStyle(
           color: theme.brightness == Brightness.dark
               ? Colors.white
-              : const Color(0xFF7E57C2),
+              : const Color(0xFF355872),
           fontWeight: FontWeight.bold,
           fontSize: 24,
         ),
@@ -2648,7 +2648,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             final theme = Theme.of(ctx);
             final isDark = theme.brightness == Brightness.dark;
             final bgColor = isDark ? const Color(0xFF120F23) : Colors.white;
-            const primary = Color(0xFF7961FF);
+            const primary = Color(0xFF355872);
             final cardBg = isDark
                 ? const Color(0xFF1A1730)
                 : const Color(0xFFF5F5F5);
@@ -2700,7 +2700,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
                                     gradient: const LinearGradient(
-                                      colors: [primary, Color(0xFF9D8DFF)],
+                                      colors: [primary, Color(0xFF4A7A99)],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                     ),

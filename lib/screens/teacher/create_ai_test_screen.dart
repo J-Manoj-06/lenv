@@ -727,7 +727,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
               ),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: const Color(0xFF6366F1),
+                backgroundColor: const Color(0xFF355872),
                 foregroundColor: Colors.white,
                 elevation: 2,
                 shape: RoundedRectangleBorder(
