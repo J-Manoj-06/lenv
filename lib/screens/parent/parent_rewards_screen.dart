@@ -5,6 +5,7 @@ import '../../providers/parent_provider.dart';
 import '../../models/reward_request_model.dart';
 import '../../widgets/student_selection/student_avatar_row.dart';
 import 'parent_reward_request_detail_screen.dart';
+import 'parent_profile_screen.dart';
 
 class ParentRewardsScreen extends StatefulWidget {
   const ParentRewardsScreen({super.key});
@@ -36,6 +37,19 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person, size: 28),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ParentProfileScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Consumer<ParentProvider>(
         builder: (context, parentProvider, _) {

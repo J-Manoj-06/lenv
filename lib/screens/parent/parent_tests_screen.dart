@@ -6,6 +6,7 @@ import '../../providers/parent_provider.dart';
 import '../../models/test_result_model.dart';
 import '../../widgets/student_selection/student_avatar_row.dart';
 import 'parent_test_result_detail_screen.dart';
+import 'parent_profile_screen.dart';
 
 class ParentTestsScreen extends StatefulWidget {
   const ParentTestsScreen({super.key});
@@ -50,6 +51,19 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
         foregroundColor: isDark ? Colors.white : textPrimary,
         elevation: 0.5,
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person, size: 28),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ParentProfileScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Consumer<ParentProvider>(
         builder: (context, parentProvider, child) {

@@ -134,7 +134,7 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.person),
+            icon: const Icon(Icons.person, size: 28),
             onPressed: () {
               Navigator.push(
                 context,

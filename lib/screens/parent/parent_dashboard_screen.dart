@@ -7,6 +7,7 @@ import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
 import '../common/announcement_pageview_screen.dart';
 import 'parent_reward_request_detail_screen.dart';
+import 'parent_profile_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -393,7 +394,22 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             ),
           ),
 
-          const SizedBox(width: 40),
+          // Profile Icon
+          IconButton(
+            icon: Icon(
+              Icons.person,
+              size: 28,
+              color: isDark ? Colors.white : _onBackground(context),
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ParentProfileScreen(),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
