@@ -782,22 +782,29 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
 
   Widget _buildStaffRoomCard(bool isDark) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1A2F) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          gradient: isDark
+              ? const LinearGradient(
+                  colors: [Color(0xFF2D2540), Color(0xFF2A2538)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : const LinearGradient(
+                  colors: [Color(0xFFFFF5F0), Color(0xFFFFFFFF)],
+                ),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.grey[200]!.withOpacity(0.5),
+            color: const Color(0xFFF97316).withOpacity(0.3),
+            width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.3 : 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+              color: const Color(0xFFF97316).withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -825,43 +832,48 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                 );
               }
             },
-            borderRadius: BorderRadius.circular(14),
-            splashColor: isDark
-                ? Colors.white.withOpacity(0.05)
-                : Colors.grey.withOpacity(0.05),
-            highlightColor: isDark
-                ? Colors.white.withOpacity(0.03)
-                : Colors.grey.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(16),
+            splashColor: const Color(0xFFF97316).withOpacity(0.1),
+            highlightColor: const Color(0xFFF97316).withOpacity(0.05),
             child: Row(
               children: [
                 // Orange left accent bar (teacher theme)
                 Container(
                   width: 4,
-                  height: 44,
+                  height: 60,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF97316), // Orange for teachers
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
 
-                // Icon with letter
+                // Icon with building emoji
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF97316).withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.business,
-                      size: 24,
-                      color: Color(0xFFF97316),
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFF97316).withOpacity(0.2),
+                        const Color(0xFFFB923C).withOpacity(0.15),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFF97316).withOpacity(0.4),
+                      width: 1.5,
                     ),
                   ),
+                  child: const Center(
+                    child: Text('🏫', style: TextStyle(fontSize: 28)),
+                  ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
 
                 // Group Info
                 Expanded(
@@ -872,8 +884,9 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                       Text(
                         'Teacher Group Chat',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 17,
                           fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -1037,22 +1050,33 @@ class _MessageGroupTileState extends State<MessageGroupTile>
           onTapCancel: () => setState(() => _isPressed = false),
           child: InkWell(
             onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             child: Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: widget.isDark ? const Color(0xFF222222) : Colors.white,
-                borderRadius: BorderRadius.circular(14),
+                gradient: widget.isDark
+                    ? LinearGradient(
+                        colors: [
+                          const Color(0xFF2A2A3E),
+                          const Color(0xFF252537),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: widget.isDark ? null : Colors.white,
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: widget.isDark
-                      ? Colors.white.withOpacity(0.1)
-                      : Colors.grey[200]!.withOpacity(0.5),
+                      ? Colors.white.withOpacity(0.08)
+                      : Colors.grey[200]!,
+                  width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(widget.isDark ? 0.3 : 0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
+                    color: Colors.black.withOpacity(widget.isDark ? 0.2 : 0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -1061,34 +1085,47 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                   // Violet left accent bar
                   Container(
                     width: 4,
-                    height: 44,
+                    height: 60,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF7C3AED),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF7C3AED), Color(0xFF9B59B6)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
 
-                  // Subject Icon with letter
+                  // Subject Icon with gradient background
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF6A4FF7).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF6A4FF7).withOpacity(0.2),
+                          const Color(0xFF7C3AED).withOpacity(0.15),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFF6A4FF7).withOpacity(0.3),
+                        width: 1.5,
+                      ),
                     ),
                     child: Center(
                       child: Text(
                         widget.group.subjectName.substring(0, 1).toUpperCase(),
                         style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF6A4FF7),
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF7C3AED),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
 
                   // Group Info
                   Expanded(
@@ -1102,8 +1139,9 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                               child: Text(
                                 widget.group.subjectName,
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 17,
                                   fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.3,
                                   color: widget.isDark
                                       ? Colors.white
                                       : Colors.black87,
@@ -1115,25 +1153,37 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                             if (widget.group.unreadCount > 0)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
+                                  horizontal: 9,
+                                  vertical: 5,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.red[600],
-                                  borderRadius: BorderRadius.circular(12),
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFE53E3E),
+                                      Color(0xFFC53030),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(14),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.3),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
                                 child: Text(
                                   '${widget.group.unreadCount}',
                                   style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
                                     color: Colors.white,
                                   ),
                                 ),
                               ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Builder(
                           builder: (context) {
                             // Extract grade number from className
@@ -1145,10 +1195,11 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                             return Text(
                               'Grade $grade • Section ${widget.group.sectionName}',
                               style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
                                 color: widget.isDark
-                                    ? Colors.white60
+                                    ? Colors.white.withOpacity(0.5)
                                     : Colors.grey[600],
                               ),
                               maxLines: 1,
