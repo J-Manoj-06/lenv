@@ -613,9 +613,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildGradientStatsBanner(),
-                        const SizedBox(height: 24),
                         _buildClassroomHighlights(),
+                        const SizedBox(height: 24),
+                        _buildGradientStatsBanner(),
                         const SizedBox(height: 24),
                         _buildSectionGroupCard(),
                         const SizedBox(height: 24),
