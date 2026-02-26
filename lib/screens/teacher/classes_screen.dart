@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
+import 'export_attendance_page.dart';
 
 class ClassesScreen extends StatefulWidget {
   const ClassesScreen({super.key});
@@ -208,6 +209,19 @@ class _ClassesScreenState extends State<ClassesScreen> {
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'classes_export_fab',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ExportAttendancePage()),
+          );
+        },
+        backgroundColor: const Color(0xFF7961FF),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.file_download),
+        label: const Text('Export'),
       ),
     );
   }
