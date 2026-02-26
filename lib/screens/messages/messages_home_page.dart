@@ -94,7 +94,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
 
   Widget _buildTabButton(String label, int index) {
     final isSelected = _selectedIndex == index;
-    const orange = Color(0xFFF97316);
+    const primaryColor = Color(0xFF355872);
 
     return GestureDetector(
       onTap: () {
@@ -105,12 +105,12 @@ class _MessagesHomePageState extends State<MessagesHomePage>
         curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? orange : Colors.transparent,
+          color: isSelected ? primaryColor : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: orange.withOpacity(0.22),
+                    color: primaryColor.withOpacity(0.22),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),

@@ -104,14 +104,14 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
         decoration: BoxDecoration(
           gradient: isSelected
               ? const LinearGradient(
-                  colors: [Color(0xFF7A5CFF), Color(0xFF7A5CFF)],
+                  colors: [Color(0xFF355872), Color(0xFF355872)],
                 )
               : null,
           borderRadius: BorderRadius.circular(50),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Theme.of(context).primaryColor.withOpacity(0.25),
+                    color: const Color(0xFF355872).withOpacity(0.25),
                     blurRadius: 15,
                     spreadRadius: 0,
                   ),

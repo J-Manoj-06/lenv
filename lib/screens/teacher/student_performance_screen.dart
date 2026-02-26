@@ -34,8 +34,8 @@ class StudentPerformanceScreen extends StatefulWidget {
 class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     with SingleTickerProviderStateMixin {
   // Brand + dark style (from provided HTML UI)
-  static const Color brandPrimary = Color(0xFF7A63FF);
-  static const Color brandPrimaryLight = Color(0xFFA08CFF);
+  static const Color brandPrimary = Color(0xFF355872);
+  static const Color brandPrimaryLight = Color(0xFF4A7A99);
 
   final _firestoreService = FirestoreService();
   final BadgeService _badgeService = BadgeService();

@@ -585,7 +585,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6A4FF7)),
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF355872)),
             ),
             const SizedBox(height: 16),
             Text(
@@ -625,7 +625,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Retry'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6A4FF7),
+                backgroundColor: const Color(0xFF355872),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
@@ -681,7 +681,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
 
     return RefreshIndicator(
       onRefresh: _loadGroups,
-      color: const Color(0xFF6A4FF7),
+      color: const Color(0xFF355872),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: displayGroups.length + 1, // +1 for Staff Room card
@@ -727,13 +727,13 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
             Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: const Color(0xFF6A4FF7).withOpacity(0.1),
+                color: const Color(0xFF355872).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.forum_rounded,
                 size: 80,
-                color: const Color(0xFF6A4FF7).withOpacity(0.6),
+                color: const Color(0xFF355872).withOpacity(0.6),
               ),
             ),
             const SizedBox(height: 32),
@@ -762,7 +762,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Refresh'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6A4FF7),
+                backgroundColor: const Color(0xFF355872),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 32,
@@ -1082,13 +1082,13 @@ class _MessageGroupTileState extends State<MessageGroupTile>
               ),
               child: Row(
                 children: [
-                  // Violet left accent bar
+                  // Blue accent bar
                   Container(
                     width: 4,
                     height: 60,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF7C3AED), Color(0xFF9B59B6)],
+                        colors: [Color(0xFF355872), Color(0xFF4A7A99)],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                       ),
@@ -1104,13 +1104,13 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFF6A4FF7).withOpacity(0.2),
-                          const Color(0xFF7C3AED).withOpacity(0.15),
+                          const Color(0xFF355872).withOpacity(0.2),
+                          const Color(0xFF4A7A99).withOpacity(0.15),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: const Color(0xFF6A4FF7).withOpacity(0.3),
+                        color: const Color(0xFF355872).withOpacity(0.3),
                         width: 1.5,
                       ),
                     ),
@@ -1120,7 +1120,7 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                         style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF7C3AED),
+                          color: Color(0xFF355872),
                         ),
                       ),
                     ),
