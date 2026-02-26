@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
+import 'package:excel/excel.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:open_filex/open_filex.dart';
 
 class StudentListScreen extends StatefulWidget {
   final String className;
@@ -188,12 +192,124 @@ class _StudentListScreenState extends State<StudentListScreen> {
     super.dispose();
   }
 
+  /// Export attendance data to Excel file
+  Future<void> _exportToExcel() async {
+    try {
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Exporting attendance...')),
+        );
+      }
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      if (currentUser == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Error: User not authenticated')),
+          );
+        }
+        return;
+      }
+
+      // Parse grade and section from className
+      final parts = widget.className.split(' - ');
+      String grade = '';
+      String section = '';
+
+      if (parts.length == 2) {
+        final gradePart = parts[0].trim();
+        grade = gradePart.replaceAll('Grade ', '').trim();
+        section = parts[1].trim();
+      }
+
+      // Get attendance data
+      final exportData = await _teacherService.exportClassAttendance(
+        schoolCode: currentUser.instituteId ?? '',
+        grade: grade,
+        section: section,
+        students: _students,
+      );
+
+      if (exportData.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No attendance data to export')),
+          );
+        }
+        return;
+      }
+
+      // Create Excel file
+      final excel = Excel.createExcel();
+      final sheet = excel['Sheet1'];
+
+      // Add headers
+      sheet.appendRow([
+        TextCellValue('Student Name'),
+        TextCellValue('Total Days'),
+        TextCellValue('Present Days'),
+        TextCellValue('Attendance %'),
+      ]);
+
+      // Add student data
+      for (final record in exportData) {
+        sheet.appendRow([
+          TextCellValue(record['name']?.toString() ?? ''),
+          IntCellValue(record['total_days'] as int? ?? 0),
+          IntCellValue(record['present_days'] as int? ?? 0),
+          TextCellValue(record['attendance_percentage']?.toString() ?? '0.00'),
+        ]);
+      }
+
+      // Save to file
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName =
+          '${widget.className.replaceAll(' - ', '_')}_Attendance_${DateTime.now().toString().split(' ')[0]}.xlsx';
+      final file = File('${directory.path}/$fileName');
+
+      final bytes = excel.save();
+      if (bytes != null) {
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Exported to: $fileName'),
+              action: SnackBarAction(
+                label: 'Open',
+                onPressed: () {
+                  OpenFilex.open(file.path);
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error exporting: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? Colors.black : theme.colorScheme.surface,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _exportToExcel,
+        backgroundColor: _teacherPrimary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.file_download),
+        label: const Text('Export'),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

@@ -508,4 +508,82 @@ class TeacherService {
       return Stream.value([]);
     }
   }
+
+  /// Export attendance data for a class as a list of maps
+  /// Returns a list where each map contains: name, total_days, present_days, attendance_percentage
+  Future<List<Map<String, dynamic>>> exportClassAttendance({
+    required String schoolCode,
+    required String grade,
+    required String section,
+    required List<Map<String, dynamic>> students,
+  }) async {
+    try {
+      final gradeStr = grade.replaceAll('Grade ', '').trim();
+
+      // Fetch attendance records for the class
+      final attendanceDocs = await getAttendanceRecordsForClass(
+        schoolCode,
+        gradeStr,
+        section,
+      );
+
+      final exportData = <Map<String, dynamic>>[];
+
+      for (final student in students) {
+        final studentUid = student['uid']?.toString();
+
+        // Get student name with proper fallback logic
+        final first = (student['firstName'] ?? '').toString().trim();
+        final last = (student['lastName'] ?? '').toString().trim();
+        final fallback = [
+          first,
+          last,
+        ].where((e) => e.isNotEmpty).join(' ').trim();
+        final studentName =
+            (student['name'] ??
+                    student['studentName'] ??
+                    student['fullName'] ??
+                    fallback)
+                .toString()
+                .trim();
+        final displayName = studentName.isEmpty ? 'Unknown' : studentName;
+
+        if (studentUid == null) continue;
+
+        int totalDays = 0;
+        int presentDays = 0;
+
+        for (final doc in attendanceDocs) {
+          final studentsData = doc['students'] as Map<String, dynamic>?;
+          if (studentsData == null) continue;
+
+          final studentInfo = studentsData[studentUid] as Map<String, dynamic>?;
+          if (studentInfo == null) continue;
+
+          totalDays++;
+
+          final status =
+              (studentInfo['status'] as String?)?.toLowerCase() ?? '';
+          if (status == 'present') {
+            presentDays++;
+          }
+        }
+
+        final percentage = totalDays > 0
+            ? (presentDays / totalDays * 100).toStringAsFixed(2)
+            : '0.00';
+
+        exportData.add({
+          'name': displayName,
+          'total_days': totalDays,
+          'present_days': presentDays,
+          'attendance_percentage': percentage,
+        });
+      }
+
+      return exportData;
+    } catch (e) {
+      return [];
+    }
+  }
 }
