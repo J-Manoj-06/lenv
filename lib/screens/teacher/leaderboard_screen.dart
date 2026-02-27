@@ -317,16 +317,28 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Center(
-            child: Text(
-              'Leaderboard',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SizedBox(width: 48),
+              Text(
+                'Leaderboard',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
               ),
-            ),
+              IconButton(
+                icon: const Icon(Icons.person_outline),
+                color: Theme.of(context).iconTheme.color,
+                tooltip: 'Profile',
+                onPressed: () {
+                  Navigator.pushNamed(context, '/profile');
+                },
+              ),
+            ],
           ),
         ),
       ),

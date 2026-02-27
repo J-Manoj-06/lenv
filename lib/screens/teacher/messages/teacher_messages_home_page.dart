@@ -53,6 +53,16 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            color: theme.iconTheme.color,
+            tooltip: 'Profile',
+            onPressed: () {
+              Navigator.pushNamed(context, '/profile');
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

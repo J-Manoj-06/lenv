@@ -238,15 +238,27 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-          child: Center(
-            child: Text(
-              'Tests',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SizedBox(width: 48),
+              Text(
+                'Tests',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
               ),
-            ),
+              IconButton(
+                icon: const Icon(Icons.person_outline),
+                color: Theme.of(context).iconTheme.color,
+                tooltip: 'Profile',
+                onPressed: () {
+                  Navigator.pushNamed(context, '/profile');
+                },
+              ),
+            ],
           ),
         ),
       ),
