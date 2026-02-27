@@ -8,7 +8,7 @@
   "scripts": {
     "lint": "eslint --ext .js . || true",
     "serve": "firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions:generateQuestions,functions:onScheduledTestCreate,functions:uploadFileToR2,functions:deleteExpiredAnnouncements,functions:deleteExpiredMediaAnnouncements,functions:deleteExpiredInstituteAnnouncements,functions:deleteExpiredInstituteAnnouncementsManual",
+    "deploy": "firebase deploy --only functions:generateQuestions,functions:onScheduledTestCreate,functions:uploadFileToR2,functions:deleteExpiredAnnouncements,functions:deleteExpiredMediaAnnouncements,functions:deleteExpiredInstituteAnnouncements,functions:deleteExpiredInstituteAnnouncementsManual,functions:trackWeeklyStudentErrors,functions:weeklyRevisionSweep,functions:generateSundayEveningRevisionTests",
     "deploy-all": "firebase deploy --only functions",
     "logs": "firebase functions:log"
   },

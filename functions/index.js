@@ -206,6 +206,22 @@ exports.onScheduledTestCreate = functions
     const data = snap.data() || {};
 
     try {
+      // SAFETY: Skip auto-assignment for AI revision or student-only tests.
+      // These are directly assigned by automation and must remain isolated.
+      const isAIRevision =
+        data.isAIRevision === true ||
+        String(data.testCategory || '').toLowerCase() === 'ai_revision' ||
+        String(data.title || '').toLowerCase().includes('ai revision test') ||
+        String(data.testTitle || '').toLowerCase().includes('ai revision test');
+      const isStudentOnly =
+        String(data.visibility || '').toLowerCase() === 'student_only' ||
+        data.skipAutoAssign === true;
+
+      if (isAIRevision || isStudentOnly) {
+        console.log(`onScheduledTestCreate: Skipping auto-assign for isolated/system test ${testId}`);
+        return null;
+      }
+
       // Required fields from provided structure
       const className = data.className || data.class || '';
       const section = data.section || '';
@@ -344,3 +360,13 @@ exports.sendChatNotification = sendChatNotification;
 exports.sendAssignmentNotification = sendAssignmentNotification;
 exports.sendAnnouncementNotification = sendAnnouncementNotification;
 exports.cleanupOldNotifications = cleanupOldNotifications;
+
+// Import Cloud Functions for automated AI revision protocol
+const {
+  trackWeeklyStudentErrors,
+  weeklyRevisionSweep,
+  generateSundayEveningRevisionTests,
+} = require('./automatedRevisionProtocol');
+exports.trackWeeklyStudentErrors = trackWeeklyStudentErrors;
+exports.weeklyRevisionSweep = weeklyRevisionSweep;
+exports.generateSundayEveningRevisionTests = generateSundayEveningRevisionTests;
