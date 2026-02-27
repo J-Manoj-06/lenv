@@ -95,7 +95,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
   void _showErrorSnackBar(String message) {
     // Use the universal, role-themed snackbar
-    showErrorSnackbar(context, message, role: 'parent');
+
   }
 
   void _handleForgotPassword() async {

@@ -161,7 +161,7 @@ class _InstituteLoginScreenState extends State<InstituteLoginScreen> {
   }
 
   void _showErrorSnackBar(String message) {
-    showErrorSnackbar(context, message, role: 'institute');
+
   }
 
   void _handleForgotPassword() async {

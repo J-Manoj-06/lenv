@@ -150,9 +150,7 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
 
   Future<void> _generateReport() async {
     if (widget.schoolCode.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('School code not available')),
-      );
+      // School code not available
       return;
     }
 
@@ -180,9 +178,6 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
       print('❌ Error generating report: $e');
       if (mounted) {
         setState(() => _isGenerating = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to generate report')),
-        );
       }
     }
   }

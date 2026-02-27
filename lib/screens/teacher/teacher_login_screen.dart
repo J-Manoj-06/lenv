@@ -157,7 +157,6 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
 
   void _showErrorSnackBar(String message) {
     // Use universal, role-themed error snackbar
-    showErrorSnackbar(context, message, role: 'teacher');
   }
 
   void _handleForgotPassword() async {

@@ -31,9 +31,7 @@ class LoginExamples {
     showNetworkDialog(context, role: role);
   }
 
-  static void showLoginSuccess(BuildContext context, String role) {
-    showSuccessSnackbar(context, 'Welcome back! Login successful.', role: role);
-  }
+  static void showLoginSuccess(BuildContext context, String role) {}
 }
 
 /// Example: Test Submission
@@ -126,7 +124,6 @@ class FileUploadExamples {
 
   static void showUploadSuccess(BuildContext context, String role) {
     Navigator.of(context).pop(); // Close loading
-    showSuccessSnackbar(context, 'File uploaded successfully!', role: role);
   }
 
   static void showUploadError(BuildContext context, String role) {
@@ -182,9 +179,7 @@ class DeleteExamples {
     );
   }
 
-  static void showDeleteSuccess(BuildContext context, String role) {
-    showSuccessSnackbar(context, 'Deleted successfully!', role: role);
-  }
+  static void showDeleteSuccess(BuildContext context, String role) {}
 }
 
 /// Example: Form Validation
@@ -255,7 +250,6 @@ class _CompleteLoginFlowExampleState extends State<CompleteLoginFlowExample> {
 
       if (success) {
         // Success
-        showSuccessSnackbar(context, 'Welcome back!', role: widget.role);
       } else {
         // Error
         showErrorDialog(

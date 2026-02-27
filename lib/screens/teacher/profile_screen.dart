@@ -858,11 +858,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await SessionManager.clearLoginSession();
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/role-selection');
-        showSuccessSnackbar(
-          context,
-          'Logged out successfully',
-          role: 'teacher',
-        );
+
       }
     } catch (e) {
       if (mounted) {

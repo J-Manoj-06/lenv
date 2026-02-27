@@ -262,21 +262,51 @@ class InsightsRepository {
       );
 
       final now = DateTime.now();
-      final cutoffDate = now.subtract(const Duration(days: 15));
-      final cutoffTimestamp = Timestamp.fromDate(cutoffDate);
+      var cutoffDate = now.subtract(const Duration(days: 15));
+      var cutoffTimestamp = Timestamp.fromDate(cutoffDate);
 
-      // Get test results from last 15 days only
-      final testResultsSnapshot = await _firestore
+      // Get test results from last 15 days
+      var testResultsSnapshot = await _firestore
           .collection('testResults')
           .where('schoolCode', isEqualTo: schoolCode)
           .where('status', isEqualTo: 'completed')
           .where('completedAt', isGreaterThanOrEqualTo: cutoffTimestamp)
           .get();
 
+      // If no data in 15 days, try 30 days
       if (testResultsSnapshot.docs.isEmpty) {
-        print('⚠️ No test data in last 15 days for $schoolCode');
+        print('⚠️ No test data in last 15 days for $schoolCode, trying 30 days...');
+        cutoffDate = now.subtract(const Duration(days: 30));
+        cutoffTimestamp = Timestamp.fromDate(cutoffDate);
+        
+        testResultsSnapshot = await _firestore
+            .collection('testResults')
+            .where('schoolCode', isEqualTo: schoolCode)
+            .where('status', isEqualTo: 'completed')
+            .where('completedAt', isGreaterThanOrEqualTo: cutoffTimestamp)
+            .get();
+      }
+
+      // If still no data, try 90 days
+      if (testResultsSnapshot.docs.isEmpty) {
+        print('⚠️ No test data in last 30 days for $schoolCode, trying 90 days...');
+        cutoffDate = now.subtract(const Duration(days: 90));
+        cutoffTimestamp = Timestamp.fromDate(cutoffDate);
+        
+        testResultsSnapshot = await _firestore
+            .collection('testResults')
+            .where('schoolCode', isEqualTo: schoolCode)
+            .where('status', isEqualTo: 'completed')
+            .where('completedAt', isGreaterThanOrEqualTo: cutoffTimestamp)
+            .get();
+      }
+
+      if (testResultsSnapshot.docs.isEmpty) {
+        print('⚠️ No test data in last 90 days for $schoolCode');
         return null;
       }
+
+      print('✅ Found ${testResultsSnapshot.docs.length} test results');
 
       // Compute minimal aggregated metrics
       double totalScore = 0;

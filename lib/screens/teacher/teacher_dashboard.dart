@@ -2195,21 +2195,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       if (item.type == 'teacher') {
         final status = item.data as StatusModel;
         if (status.teacherId != currentUserId) {
-          showErrorSnackbar(
-            context,
-            'You can only delete your own announcements.',
-            role: 'teacher',
-          );
+
           return;
         }
       } else if (item.type == 'principal') {
         final principal = item.data as InstituteAnnouncementModel;
         if (principal.principalId != currentUserId) {
-          showErrorSnackbar(
-            context,
-            'You can only delete your own announcements.',
-            role: 'principal',
-          );
+
           return;
         }
       }
@@ -2298,11 +2290,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         } else {}
 
         if (mounted) {
-          showSuccessSnackbar(
-            context,
-            'Announcement deleted successfully.',
-            role: role,
-          );
 
           // Close the viewer
           if (Navigator.of(context).canPop()) {
@@ -2310,13 +2297,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           }
         }
       } catch (e) {
-        if (mounted) {
-          showErrorSnackbar(
-            context,
-            'Failed to delete announcement: $e',
-            role: item.type == 'teacher' ? 'teacher' : 'principal',
-          );
-        }
+        
       }
     } catch (e) {}
   }
@@ -2555,31 +2536,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               // Validate message is not empty
               final messageText = textController.text.trim();
               if (messageText.isEmpty && previewImages.isEmpty) {
-                showErrorSnackbar(
-                  context,
-                  'Please enter a message or add an image',
-                  role: 'teacher',
-                );
+
                 return;
               }
 
               // Validate standards selection (mandatory)
               if (selectedAudience == 'standard' && selectedStandards.isEmpty) {
-                showErrorSnackbar(
-                  context,
-                  'Please select at least one standard',
-                  role: 'teacher',
-                );
+
                 return;
               }
 
               // Validate sections selection
               if (selectedAudience == 'section' && selectedSections.isEmpty) {
-                showErrorSnackbar(
-                  context,
-                  'Please select at least one section',
-                  role: 'teacher',
-                );
+
                 return;
               }
 
@@ -2597,13 +2566,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   sections: effectiveSections,
                 );
                 if (mounted) Navigator.of(ctx).pop();
-                if (mounted) {
-                  showSuccessSnackbar(
-                    context,
-                    'Announcement posted for 24 hours.',
-                    role: 'teacher',
-                  );
-                }
+                
               } catch (e) {
                 if (mounted) {
                   showErrorSnackbar(

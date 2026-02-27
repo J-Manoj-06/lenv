@@ -120,25 +120,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final ok = await auth.resetPassword(_emailController.text.trim());
       if (ok && mounted) {
-        showSuccessSnackbar(
-          context,
-          'Password reset email sent! Check your inbox.',
-          role: widget.role,
-        );
         Navigator.pop(context, true);
-      } else {
-        if (mounted) {
-          showErrorSnackbar(
-            context,
-            'Failed to send reset email',
-            role: widget.role,
-          );
-        }
-      }
+      } else {}
     } catch (e) {
       if (mounted) {
         final msg = getFriendlyErrorMessage(e);
-        showErrorSnackbar(context, msg, role: widget.role);
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
