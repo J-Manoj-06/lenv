@@ -561,6 +561,14 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       actions: [
         IconButton(
+          icon: const Icon(Icons.person_outline),
+          color: theme.iconTheme.color,
+          tooltip: 'Profile',
+          onPressed: () {
+            Navigator.pushNamed(context, '/profile');
+          },
+        ),
+        IconButton(
           icon: const Icon(Icons.more_vert),
           onPressed: () {
             // Placeholder for more options
