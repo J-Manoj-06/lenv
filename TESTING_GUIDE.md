@@ -127,7 +127,7 @@ Add this temporarily in your Flutter app:
 
 ```dart
 // In main.dart or any screen
-import 'package:new_reward/services/notification_service.dart';
+import 'package:lenv/services/notification_service.dart';
 
 // Get token
 final token = await NotificationService().getToken();
@@ -142,7 +142,7 @@ print('User ID: $userId');
 
 #### Send a Test Notification from Chat
 ```dart
-import 'package:new_reward/services/cloudflare_notification_service.dart';
+import 'package:lenv/services/cloudflare_notification_service.dart';
 
 // When sending a chat message
 await CloudflareNotificationService.sendChatNotification(

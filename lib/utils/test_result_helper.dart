@@ -1,8 +1,8 @@
 // Example: How to save test results to Firebase
 // Add this code after a student completes a test
 
-import 'package:new_reward/models/test_result.dart';
-import 'package:new_reward/services/test_result_service.dart';
+import 'package:lenv/models/test_result.dart';
+import 'package:lenv/services/test_result_service.dart';
 
 class TestCompletionHelper {
   final TestResultService _testService = TestResultService();

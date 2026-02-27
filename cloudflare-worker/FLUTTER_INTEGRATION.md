@@ -224,7 +224,7 @@ await FirebaseFirestore.instance.collection('announcements').add(result);
 ### Upload File with Progress
 
 ```dart
-import 'package:new_reward/services/cloudflare_service.dart';
+import 'package:lenv/services/cloudflare_service.dart';
 
 class FileUploadScreen extends StatefulWidget {
   @override
@@ -484,7 +484,7 @@ Create `test/services/cloudflare_service_test.dart`:
 ```dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
-import 'package:new_reward/services/cloudflare_service.dart';
+import 'package:lenv/services/cloudflare_service.dart';
 
 void main() {
   group('CloudflareService', () {

@@ -423,7 +423,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             end: Alignment.bottomCenter,
             colors: isDark
                 ? [const Color(0xFF1A1A1A), const Color(0xFF2A2A2A)]
-                : [const Color(0xFF7A5CFF), const Color(0xFF9D8BFF)],
+                : [const Color(0xFF355872), const Color(0xFF4A7A99)],
           ),
         ),
         child: SafeArea(
@@ -594,7 +594,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           ),
         ),
         child: const Center(
-          child: CircularProgressIndicator(color: Color(0xFF7A5CFF)),
+          child: CircularProgressIndicator(color: Color(0xFF355872)),
         ),
       );
     }
@@ -679,7 +679,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 tooltip: 'Message',
                 onPressed: () => _openChat(student),
                 icon: const Icon(Icons.chat_bubble_outline),
-                color: const Color(0xFF7A5CFF),
+                color: const Color(0xFF355872),
               ),
             ],
           ),
@@ -826,7 +826,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               child: Ink(
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF7A5CFF), Color(0xFF9D8BFF)],
+                    colors: [Color(0xFF355872), Color(0xFF4A7A99)],
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),

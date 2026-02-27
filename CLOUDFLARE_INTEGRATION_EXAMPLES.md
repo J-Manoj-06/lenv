@@ -4,7 +4,7 @@
 
 Import the service:
 ```dart
-import 'package:new_reward/services/cloudflare_notification_service.dart';
+import 'package:lenv/services/cloudflare_notification_service.dart';
 ```
 
 ---
@@ -13,7 +13,7 @@ import 'package:new_reward/services/cloudflare_notification_service.dart';
 
 ```dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:new_reward/services/cloudflare_notification_service.dart';
+import 'package:lenv/services/cloudflare_notification_service.dart';
 
 Future<void> sendMessageWithNotification({
   required String receiverId,

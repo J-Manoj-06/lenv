@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:new_reward/firebase_options.dart';
+import 'package:lenv/firebase_options.dart';
 
 /// Quick test script to check if daily content exists in Firestore
 void main() async {

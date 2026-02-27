@@ -1227,7 +1227,6 @@ class _ExpandableAnnouncementText extends StatefulWidget {
     required this.text,
     required this.textColor,
     required this.accentColor,
-    this.maxCollapsedLines = 3,
   });
 
   @override

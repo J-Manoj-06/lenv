@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:new_reward/badges/badge_master.dart';
-import 'package:new_reward/badges/badge_model.dart';
+import 'package:lenv/badges/badge_master.dart';
+import 'package:lenv/badges/badge_model.dart';
 
 class BadgeService {
   final _firestore = FirebaseFirestore.instance;

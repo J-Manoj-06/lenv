@@ -2,11 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Import the models and services
-import 'package:new_reward/features/rewards/models/product_model.dart';
-import 'package:new_reward/features/rewards/models/reward_request_model.dart';
-import 'package:new_reward/features/rewards/services/rewards_repository.dart';
-import 'package:new_reward/features/rewards/utils/points_calculator.dart';
-import 'package:new_reward/features/rewards/utils/date_utils.dart'
+import 'package:lenv/features/rewards/models/product_model.dart';
+import 'package:lenv/features/rewards/models/reward_request_model.dart';
+import 'package:lenv/features/rewards/services/rewards_repository.dart';
+import 'package:lenv/features/rewards/utils/points_calculator.dart';
+import 'package:lenv/features/rewards/utils/date_utils.dart'
     as reward_date_utils;
 
 void main() {
