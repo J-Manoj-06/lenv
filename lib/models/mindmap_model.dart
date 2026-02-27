@@ -15,7 +15,10 @@ class MindmapNode {
               .toList()
         : <MindmapNode>[];
 
-    return MindmapNode(title: (json['title'] ?? '').toString(), children: parsedChildren);
+    return MindmapNode(
+      title: (json['title'] ?? '').toString(),
+      children: parsedChildren,
+    );
   }
 
   Map<String, dynamic> toJson() {
@@ -47,14 +50,13 @@ class MindmapModel {
     required this.createdAt,
   });
 
-  factory MindmapModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory MindmapModel.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data() ?? <String, dynamic>{};
     final structure = Map<String, dynamic>.from(
       (data['json_structure'] as Map?) ??
-          {
-            'title': data['topic'] ?? 'Mindmap',
-            'children': const [],
-          },
+          {'title': data['topic'] ?? 'Mindmap', 'children': const []},
     );
 
     final createdAtRaw = data['created_at'];

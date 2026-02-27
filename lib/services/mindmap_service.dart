@@ -20,8 +20,8 @@ class MindmapService {
   final FirebaseFirestore _firestore;
 
   MindmapService({FirebaseFunctions? functions, FirebaseFirestore? firestore})
-      : _functions = functions ?? FirebaseFunctions.instance,
-        _firestore = firestore ?? FirebaseFirestore.instance;
+    : _functions = functions ?? FirebaseFunctions.instance,
+      _firestore = firestore ?? FirebaseFirestore.instance;
 
   Future<MindmapGenerationResult> generateMindmap({
     required String classId,
@@ -46,9 +46,8 @@ class MindmapService {
     });
 
     final data = Map<String, dynamic>.from(result.data as Map);
-    final preview = (data['previewNodes'] as List?)
-            ?.map((e) => e.toString())
-            .toList() ??
+    final preview =
+        (data['previewNodes'] as List?)?.map((e) => e.toString()).toList() ??
         <String>[];
 
     return MindmapGenerationResult(
@@ -76,19 +75,19 @@ class MindmapService {
         .doc(subjectId)
         .collection('messages')
         .add({
-      'senderId': senderId,
-      'senderName': senderName,
-      'message': 'Mindmap: $topic',
-      'content': 'Mindmap: $topic',
-      'type': 'mindmap',
-      'mindmapId': mindmapId,
-      'mindmapTopic': topic,
-      'previewNodes': previewNodes,
-      'timestamp': now,
-      'isDeleted': false,
-      'classId': classId,
-      'subjectId': subjectId,
-    });
+          'senderId': senderId,
+          'senderName': senderName,
+          'message': 'Mindmap: $topic',
+          'content': 'Mindmap: $topic',
+          'type': 'mindmap',
+          'mindmapId': mindmapId,
+          'mindmapTopic': topic,
+          'previewNodes': previewNodes,
+          'timestamp': now,
+          'isDeleted': false,
+          'classId': classId,
+          'subjectId': subjectId,
+        });
 
     await _firestore
         .collection('classes')

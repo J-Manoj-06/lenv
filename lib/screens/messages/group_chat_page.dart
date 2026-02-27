@@ -2536,10 +2536,15 @@ class _GroupChatPageState extends State<GroupChatPage>
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: depth,
-                      decoration: const InputDecoration(labelText: 'Depth Level'),
+                      decoration: const InputDecoration(
+                        labelText: 'Depth Level',
+                      ),
                       items: const [
                         DropdownMenuItem(value: 'Basic', child: Text('Basic')),
-                        DropdownMenuItem(value: 'Medium', child: Text('Medium')),
+                        DropdownMenuItem(
+                          value: 'Medium',
+                          child: Text('Medium'),
+                        ),
                         DropdownMenuItem(value: 'Deep', child: Text('Deep')),
                       ],
                       onChanged: (value) {
@@ -2556,19 +2561,20 @@ class _GroupChatPageState extends State<GroupChatPage>
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      children: [
-                        'Concept Based',
-                        'Question Based',
-                        'Example Based',
-                      ].map((option) {
-                        final selected = learningStyle == option;
-                        return ChoiceChip(
-                          selected: selected,
-                          label: Text(option),
-                          onSelected: (_) =>
-                              setModalState(() => learningStyle = option),
-                        );
-                      }).toList(),
+                      children:
+                          [
+                            'Concept Based',
+                            'Question Based',
+                            'Example Based',
+                          ].map((option) {
+                            final selected = learningStyle == option;
+                            return ChoiceChip(
+                              selected: selected,
+                              label: Text(option),
+                              onSelected: (_) =>
+                                  setModalState(() => learningStyle = option),
+                            );
+                          }).toList(),
                     ),
                   ],
                 ),
@@ -2587,7 +2593,9 @@ class _GroupChatPageState extends State<GroupChatPage>
                           final topic = topicController.text.trim();
                           final topicCount =
                               int.tryParse(branchController.text.trim()) ?? 4;
-                          if (topic.isEmpty || topicCount < 2 || topicCount > 8) {
+                          if (topic.isEmpty ||
+                              topicCount < 2 ||
+                              topicCount > 8) {
                             ScaffoldMessenger.of(parentContext).showSnackBar(
                               const SnackBar(
                                 content: Text(
@@ -2634,9 +2642,7 @@ class _GroupChatPageState extends State<GroupChatPage>
                             if (!mounted) return;
                             ScaffoldMessenger.of(parentContext).showSnackBar(
                               SnackBar(
-                                content: Text(
-                                  'Failed to generate mindmap: $e',
-                                ),
+                                content: Text('Failed to generate mindmap: $e'),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -2976,8 +2982,8 @@ class _MessageBubble extends StatelessWidget {
                   else if (message.type == 'mindmap')
                     _MindmapMessageCard(
                       isMe: isMe,
-                      mindmapId:
-                          (message.rawData?['mindmapId'] ?? '').toString(),
+                      mindmapId: (message.rawData?['mindmapId'] ?? '')
+                          .toString(),
                       topic:
                           (message.rawData?['mindmapTopic'] ??
                                   message.message.replaceFirst('Mindmap: ', ''))

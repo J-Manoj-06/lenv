@@ -150,8 +150,8 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _mindmap == null
-              ? const Center(child: Text('Mindmap not found'))
-              : _buildCanvas(_mindmap!.root),
+          ? const Center(child: Text('Mindmap not found'))
+          : _buildCanvas(_mindmap!.root),
     );
   }
 
