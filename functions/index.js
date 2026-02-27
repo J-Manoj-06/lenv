@@ -92,6 +92,73 @@ function validateStructure(obj) {
   return true;
 }
 
+function buildMindmapPrompt({ topic, topicCount, depthLevel, learningStyle, subject, standard, section }) {
+  const depthHint = depthLevel === 'Deep'
+    ? '3 to 4 levels'
+    : depthLevel === 'Medium'
+      ? '2 to 3 levels'
+      : '1 to 2 levels';
+
+  return `Create a classroom learning mindmap.
+Topic: ${topic}
+Subject: ${subject}
+Standard: ${standard}
+Section: ${section}
+Main branches required: ${topicCount}
+Depth level: ${depthLevel} (${depthHint})
+Learning style: ${learningStyle}
+
+Output STRICT JSON only (no markdown) in this schema:
+{
+  "topic": "${topic}",
+  "branches": [
+    {
+      "title": "Branch title",
+      "children": [
+        {"title": "Child title", "children": []}
+      ]
+    }
+  ]
+}
+
+Rules:
+- Return valid JSON only.
+- Keep titles concise (max 5 words each).
+- Generate exactly ${topicCount} main branches.
+- Keep branch names unique.
+- Children must always be an array.
+- No explanation text.`;
+}
+
+function normalizeMindmapNode(node) {
+  if (!node || typeof node !== 'object') {
+    return { title: 'Untitled', children: [] };
+  }
+
+  const title = String(node.title || '').trim() || 'Untitled';
+  const childrenRaw = Array.isArray(node.children) ? node.children : [];
+  const children = childrenRaw
+    .filter((child) => child && typeof child === 'object')
+    .map((child) => normalizeMindmapNode(child));
+
+  return { title, children };
+}
+
+function normalizeMindmapStructure(aiJson, fallbackTopic) {
+  const topic = String(aiJson?.topic || fallbackTopic || 'Mindmap').trim() || 'Mindmap';
+  const branches = Array.isArray(aiJson?.branches)
+    ? aiJson.branches.map((branch) => normalizeMindmapNode(branch)).filter((b) => b.title !== 'Untitled')
+    : [];
+
+  return {
+    topic,
+    root: {
+      title: topic,
+      children: branches,
+    },
+  };
+}
+
 exports.generateQuestions = functions
   .region(REGION)
   .runWith(RUNTIME_OPTS)
@@ -189,6 +256,138 @@ exports.generateQuestions = functions
       console.error('Unhandled error in generateQuestions:', error);
       throw new functions.https.HttpsError('internal', 'Unexpected error.');
     }
+  });
+
+exports.generateMindmap = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 90, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth?.uid) {
+      throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+    }
+
+    const uid = context.auth.uid;
+    const classId = String(data?.classId || '').trim();
+    const subjectId = String(data?.subjectId || '').trim();
+    const topic = String(data?.topic || '').trim();
+    const topicCount = Number(data?.topicCount);
+    const depthLevel = String(data?.depthLevel || 'Medium').trim();
+    const learningStyle = String(data?.learningStyle || 'Concept Based').trim();
+
+    if (!classId || !subjectId || !topic) {
+      throw new functions.https.HttpsError('invalid-argument', 'classId, subjectId and topic are required.');
+    }
+    if (!Number.isInteger(topicCount) || topicCount < 2 || topicCount > 8) {
+      throw new functions.https.HttpsError('invalid-argument', 'topicCount must be an integer between 2 and 8.');
+    }
+
+    const userDoc = await db.collection('users').doc(uid).get();
+    const userData = userDoc.data() || {};
+    const userRole = String(userData.role || '').toLowerCase();
+    if (userRole !== 'teacher') {
+      throw new functions.https.HttpsError('permission-denied', 'Only teachers can generate mindmaps.');
+    }
+
+    const classDoc = await db.collection('classes').doc(classId).get();
+    if (!classDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Class not found.');
+    }
+
+    const classData = classDoc.data() || {};
+    const standard = String(classData.className || '').trim();
+    const section = String(classData.section || '').trim();
+    const subjects = classData.subjects;
+    let subjectName = subjectId;
+    if (Array.isArray(subjects)) {
+      const found = subjects.find((s) => String(s || '').toLowerCase().replace(/\s+/g, '_') === subjectId.toLowerCase());
+      if (found) {
+        subjectName = String(found);
+      }
+    }
+
+    const cfg = functions.config();
+    const apiKey = cfg && cfg.deepseek && cfg.deepseek.key ? cfg.deepseek.key : '';
+    if (!apiKey) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'DeepSeek API key is not set. Configure with: firebase functions:config:set deepseek.key="YOUR_KEY"'
+      );
+    }
+
+    const prompt = buildMindmapPrompt({
+      topic,
+      topicCount,
+      depthLevel,
+      learningStyle,
+      subject: subjectName,
+      standard,
+      section,
+    });
+
+    const url = 'https://api.deepseek.com/v1/chat/completions';
+    const payload = {
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.4,
+      max_tokens: 2800,
+      response_format: { type: 'json_object' },
+    };
+
+    let response;
+    try {
+      response = await axios.post(url, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        timeout: 45000,
+      });
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 429) {
+        throw new functions.https.HttpsError('resource-exhausted', 'AI rate limit reached. Please retry.');
+      }
+      throw new functions.https.HttpsError('unavailable', 'Failed to generate mindmap.');
+    }
+
+    const raw = response?.data?.choices?.[0]?.message?.content || '';
+    const jsonText = sanitizeToJsonString(raw);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (e) {
+      throw new functions.https.HttpsError('data-loss', 'AI returned invalid JSON.');
+    }
+
+    const normalized = normalizeMindmapStructure(parsed, topic);
+    const previewNodes = normalized.root.children.slice(0, 4).map((n) => n.title);
+    const groupId = `${classId}_${subjectId}`;
+
+    const mindmapRef = db.collection('group_mindmaps').doc();
+    await mindmapRef.set({
+      mindmap_id: mindmapRef.id,
+      group_id: groupId,
+      class_id: classId,
+      subject_id: subjectId,
+      standard,
+      section,
+      subject: subjectName,
+      topic: normalized.topic,
+      json_structure: normalized.root,
+      created_by: uid,
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      depth_level: depthLevel,
+      learning_style: learningStyle,
+      topic_count: topicCount,
+    });
+
+    return {
+      mindmapId: mindmapRef.id,
+      topic: normalized.topic,
+      previewNodes,
+      groupId,
+    };
   });
 
 /**

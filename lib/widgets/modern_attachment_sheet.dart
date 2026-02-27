@@ -8,11 +8,13 @@ class ModernAttachmentSheet extends StatelessWidget {
   final VoidCallback? onDocumentTap;
   final VoidCallback? onAudioTap;
   final VoidCallback? onPollTap;
+  final VoidCallback? onMindmapTap;
   final bool cameraEnabled;
   final bool imageEnabled;
   final bool documentEnabled;
   final bool audioEnabled;
   final bool pollEnabled;
+  final bool mindmapEnabled;
   final Color color;
 
   const ModernAttachmentSheet({
@@ -22,11 +24,13 @@ class ModernAttachmentSheet extends StatelessWidget {
     this.onDocumentTap,
     this.onAudioTap,
     this.onPollTap,
+    this.onMindmapTap,
     this.cameraEnabled = true,
     this.imageEnabled = true,
     this.documentEnabled = true,
     this.audioEnabled = true,
     this.pollEnabled = true,
+    this.mindmapEnabled = true,
     this.color = const Color(0xFF7C3AED),
   });
 
@@ -62,9 +66,11 @@ class ModernAttachmentSheet extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // Options row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          // Options grid
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 18,
+            runSpacing: 14,
             children: [
               _AttachmentOption(
                 icon: Icons.camera_alt,
@@ -100,6 +106,13 @@ class ModernAttachmentSheet extends StatelessWidget {
                 color: color,
                 enabled: pollEnabled,
                 onTap: onPollTap,
+              ),
+              _AttachmentOption(
+                icon: Icons.account_tree_outlined,
+                label: 'Mindmap',
+                color: color,
+                enabled: mindmapEnabled,
+                onTap: onMindmapTap,
               ),
             ],
           ),
@@ -165,12 +178,14 @@ Future<void> showModernAttachmentSheet(
   VoidCallback? onDocumentTap,
   VoidCallback? onAudioTap,
   VoidCallback? onPollTap,
+  VoidCallback? onMindmapTap,
   @Deprecated('Use onDocumentTap instead') VoidCallback? onPdfTap,
   bool cameraEnabled = true,
   bool imageEnabled = true,
   bool documentEnabled = true,
   bool audioEnabled = true,
   bool pollEnabled = true,
+  bool mindmapEnabled = true,
   @Deprecated('Use documentEnabled instead') bool? pdfEnabled,
   Color color = const Color(0xFF7C3AED),
 }) {
@@ -214,11 +229,18 @@ Future<void> showModernAttachmentSheet(
               onPollTap();
             }
           : null,
+      onMindmapTap: onMindmapTap != null
+          ? () {
+              Navigator.pop(context);
+              onMindmapTap();
+            }
+          : null,
       cameraEnabled: cameraEnabled,
       imageEnabled: imageEnabled,
       documentEnabled: effectiveDocumentEnabled,
       audioEnabled: audioEnabled,
       pollEnabled: pollEnabled,
+      mindmapEnabled: mindmapEnabled,
       color: color,
     ),
   );

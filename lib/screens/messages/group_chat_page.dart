@@ -40,6 +40,8 @@ import '../../utils/message_scroll_highlight_mixin.dart';
 import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
 import '../messages/offline_message_search_page.dart';
+import '../../services/mindmap_service.dart';
+import 'mindmap_viewer_page.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String classId;
@@ -82,6 +84,7 @@ class _GroupChatPageState extends State<GroupChatPage>
   }
 
   final GroupMessagingService _messagingService = GroupMessagingService();
+  final MindmapService _mindmapService = MindmapService();
   final TextEditingController _messageController = TextEditingController();
   String? _lastTopMessageId;
   final FocusNode _messageFocusNode = FocusNode();
@@ -105,6 +108,7 @@ class _GroupChatPageState extends State<GroupChatPage>
   bool _isCancelled = false;
   final Set<String> _selectedMessages = {};
   bool _isSelectionMode = false;
+  bool _isGeneratingMindmap = false;
 
   // Optimistic UI: pending messages added locally before Firestore confirms
   final List<GroupChatMessage> _pendingMessages = [];
@@ -1764,6 +1768,12 @@ class _GroupChatPageState extends State<GroupChatPage>
                     ),
                   ]
                 : [
+                    if (authProvider.currentUser?.role == UserRole.teacher)
+                      IconButton(
+                        icon: const Icon(Icons.account_tree_outlined),
+                        tooltip: 'Mindmap',
+                        onPressed: _openMindmapGenerator,
+                      ),
                     IconButton(
                       icon: Icon(
                         Icons.search,
@@ -2199,7 +2209,7 @@ class _GroupChatPageState extends State<GroupChatPage>
     // Get current user role to determine color scheme
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
-    final isTeacher = currentUser?.role.toString() == 'UserRole.teacher';
+    final isTeacher = currentUser?.role == UserRole.teacher;
 
     // Premium dark theme palette - integrated with chat screen
     final backgroundColor = isDark
@@ -2467,6 +2477,7 @@ class _GroupChatPageState extends State<GroupChatPage>
 
   void _showMediaOptions() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final isTeacher = authProvider.currentUser?.role == UserRole.teacher;
     final accentColor = _getAccentColor(authProvider.currentUser?.role);
     showModernAttachmentSheet(
       context,
@@ -2475,7 +2486,179 @@ class _GroupChatPageState extends State<GroupChatPage>
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
       onPollTap: _navigateToPollScreen,
+      onMindmapTap: isTeacher ? _openMindmapGenerator : null,
+      mindmapEnabled: isTeacher,
       color: accentColor,
+    );
+  }
+
+  Future<void> _openMindmapGenerator() async {
+    final parentContext = this.context;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser == null || currentUser.role != UserRole.teacher) {
+      return;
+    }
+
+    final topicController = TextEditingController();
+    final branchController = TextEditingController(text: '4');
+    String depth = 'Medium';
+    String learningStyle = 'Concept Based';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Create Learning Mindmap'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: topicController,
+                      decoration: const InputDecoration(
+                        labelText: 'Topic Input',
+                        hintText: 'Enter topic name',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: branchController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Topic Count',
+                        hintText: '2–8',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: depth,
+                      decoration: const InputDecoration(labelText: 'Depth Level'),
+                      items: const [
+                        DropdownMenuItem(value: 'Basic', child: Text('Basic')),
+                        DropdownMenuItem(value: 'Medium', child: Text('Medium')),
+                        DropdownMenuItem(value: 'Deep', child: Text('Deep')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setModalState(() => depth = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Learning Style',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        'Concept Based',
+                        'Question Based',
+                        'Example Based',
+                      ].map((option) {
+                        final selected = learningStyle == option;
+                        return ChoiceChip(
+                          selected: selected,
+                          label: Text(option),
+                          onSelected: (_) =>
+                              setModalState(() => learningStyle = option),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _isGeneratingMindmap
+                      ? null
+                      : () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: _isGeneratingMindmap
+                      ? null
+                      : () async {
+                          final topic = topicController.text.trim();
+                          final topicCount =
+                              int.tryParse(branchController.text.trim()) ?? 4;
+                          if (topic.isEmpty || topicCount < 2 || topicCount > 8) {
+                            ScaffoldMessenger.of(parentContext).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Enter valid topic and topic count (2-8).',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          setState(() => _isGeneratingMindmap = true);
+                          try {
+                            final generated = await _mindmapService
+                                .generateMindmap(
+                                  classId: widget.classId,
+                                  subjectId: widget.subjectId,
+                                  topic: topic,
+                                  topicCount: topicCount,
+                                  depthLevel: depth,
+                                  learningStyle: learningStyle,
+                                );
+
+                            await _mindmapService.sendMindmapMessage(
+                              classId: widget.classId,
+                              subjectId: widget.subjectId,
+                              senderId: currentUser.uid,
+                              senderName: currentUser.name,
+                              mindmapId: generated.mindmapId,
+                              topic: generated.topic,
+                              previewNodes: generated.previewNodes,
+                            );
+
+                            if (!mounted) return;
+                            Navigator.pop(ctx);
+                            _scrollToLatest();
+                            ScaffoldMessenger.of(parentContext).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Mindmap generated and sent to group.',
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(parentContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Failed to generate mindmap: $e',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() => _isGeneratingMindmap = false);
+                            }
+                          }
+                        },
+                  child: _isGeneratingMindmap
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Generate Mindmap'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -2789,6 +2972,21 @@ class _MessageBubble extends StatelessWidget {
                           isOwnMessage: isMe,
                         ),
                       ),
+                    )
+                  else if (message.type == 'mindmap')
+                    _MindmapMessageCard(
+                      isMe: isMe,
+                      mindmapId:
+                          (message.rawData?['mindmapId'] ?? '').toString(),
+                      topic:
+                          (message.rawData?['mindmapTopic'] ??
+                                  message.message.replaceFirst('Mindmap: ', ''))
+                              .toString(),
+                      previewNodes:
+                          (message.rawData?['previewNodes'] as List?)
+                              ?.map((e) => e.toString())
+                              .toList() ??
+                          const [],
                     )
                   // Multiple media handling (WhatsApp-style grid) - NO outer bubble
                   else if (message.multipleMedia != null &&
@@ -3407,6 +3605,130 @@ class _MessageBubble extends StatelessWidget {
   String _formatTime(int timestamp) {
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
     return DateFormat('h:mm a').format(date);
+  }
+}
+
+class _MindmapMessageCard extends StatelessWidget {
+  final bool isMe;
+  final String mindmapId;
+  final String topic;
+  final List<String> previewNodes;
+
+  const _MindmapMessageCard({
+    required this.isMe,
+    required this.mindmapId,
+    required this.topic,
+    required this.previewNodes,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final previewText = previewNodes.isEmpty
+        ? 'Start → $topic'
+        : 'Start → $topic → ${previewNodes.take(3).join(' / ')}';
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: mindmapId.isEmpty
+          ? null
+          : () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MindmapViewerPage(
+                    mindmapId: mindmapId,
+                    fallbackTopic: topic,
+                  ),
+                ),
+              );
+            },
+      child: Container(
+        width: 270,
+        constraints: const BoxConstraints(minHeight: 190),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isMe
+                ? const [Color(0xFF1E63FF), Color(0xFF2E86FF)]
+                : const [Color(0xFFEDF3FF), Color(0xFFE3EEFF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x22000000),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.account_tree_rounded,
+                  color: isMe ? Colors.white : const Color(0xFF1E63FF),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    topic,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isMe ? Colors.white : const Color(0xFF0F2A5F),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isMe
+                    ? Colors.white.withOpacity(0.16)
+                    : const Color(0xFFD6E5FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                previewText,
+                style: TextStyle(
+                  color: isMe ? Colors.white : const Color(0xFF1A3B7A),
+                  fontSize: 13,
+                  height: 1.35,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                Icon(
+                  Icons.touch_app,
+                  size: 16,
+                  color: isMe ? Colors.white70 : const Color(0xFF375A96),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Tap to explore',
+                  style: TextStyle(
+                    color: isMe ? Colors.white70 : const Color(0xFF375A96),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
