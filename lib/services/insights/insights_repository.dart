@@ -275,10 +275,12 @@ class InsightsRepository {
 
       // If no data in 15 days, try 30 days
       if (testResultsSnapshot.docs.isEmpty) {
-        print('⚠️ No test data in last 15 days for $schoolCode, trying 30 days...');
+        print(
+          '⚠️ No test data in last 15 days for $schoolCode, trying 30 days...',
+        );
         cutoffDate = now.subtract(const Duration(days: 30));
         cutoffTimestamp = Timestamp.fromDate(cutoffDate);
-        
+
         testResultsSnapshot = await _firestore
             .collection('testResults')
             .where('schoolCode', isEqualTo: schoolCode)
@@ -289,10 +291,12 @@ class InsightsRepository {
 
       // If still no data, try 90 days
       if (testResultsSnapshot.docs.isEmpty) {
-        print('⚠️ No test data in last 30 days for $schoolCode, trying 90 days...');
+        print(
+          '⚠️ No test data in last 30 days for $schoolCode, trying 90 days...',
+        );
         cutoffDate = now.subtract(const Duration(days: 90));
         cutoffTimestamp = Timestamp.fromDate(cutoffDate);
-        
+
         testResultsSnapshot = await _firestore
             .collection('testResults')
             .where('schoolCode', isEqualTo: schoolCode)

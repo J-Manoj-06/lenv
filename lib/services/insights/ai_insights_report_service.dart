@@ -8,7 +8,8 @@ import './insights_repository.dart';
 /// Uses Cloudflare Worker to securely access DeepSeek API
 class AIInsightsReportService {
   /// Cloudflare Worker endpoint - API key is secured on the server
-  static const String _workerUrl = 'https://deepseek-ai-worker.giridharannj.workers.dev/chat';
+  static const String _workerUrl =
+      'https://deepseek-ai-worker.giridharannj.workers.dev/chat';
 
   final InsightsRepository _repository = InsightsRepository();
 
@@ -31,10 +32,12 @@ class AIInsightsReportService {
     );
 
     if (metrics == null) {
-      print('⚠️ No metrics data available for AI analysis - using fallback report');
+      print(
+        '⚠️ No metrics data available for AI analysis - using fallback report',
+      );
       // Create a fallback report with no-data message
       final fallbackResponse = _generateNoDataReport(metric);
-      
+
       final reportId = '${schoolCode}_${range}_${scopeKey}_$metric';
       final report = AIInsightsReport.fromAIResponse(
         reportId: reportId,
@@ -44,13 +47,15 @@ class AIInsightsReportService {
         metric: metric,
         aiResponseText: fallbackResponse,
       );
-      
+
       // Save fallback report
       await _repository.saveAIReport(report);
       return report;
     }
 
-    print('📊 Metrics received: avgScore=${metrics.avgScore.toStringAsFixed(1)}%, testCount=${metrics.testCount}');
+    print(
+      '📊 Metrics received: avgScore=${metrics.avgScore.toStringAsFixed(1)}%, testCount=${metrics.testCount}',
+    );
 
     // Generate new report using AI
     final aiResponse = await _callDeepSeekAPI(metrics, metric);
@@ -79,16 +84,11 @@ class AIInsightsReportService {
     return report;
   }
 
-  /// Call DeepSeek API with structured prompt
+  /// Call DeepSeek API via Cloudflare Worker (secure)
   Future<String?> _callDeepSeekAPI(
     InsightsMetrics metrics,
     String metricType,
   ) async {
-    if (_apiKey.isEmpty || _apiKey == 'YOUR_DEEPSEEK_API_KEY') {
-      print('⚠️ DeepSeek API key not configured - using fallback');
-      return _generateFallbackReport(metrics, metricType);
-    }
-
     final prompt = _buildPrompt(metrics, metricType);
     print('📝 Sending prompt to AI with data: $prompt');
 
@@ -103,13 +103,10 @@ class AIInsightsReportService {
     }
 
     try {
-      print('🔄 Calling DeepSeek API...');
+      print('🔄 Calling DeepSeek API via Cloudflare Worker...');
       final response = await http.post(
-        Uri.parse(_apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
-        },
+        Uri.parse(_workerUrl),
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'model': 'deepseek-chat',
           'messages': [
@@ -122,7 +119,7 @@ class AIInsightsReportService {
       );
 
       print('📡 API Response status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final content = data['choices'][0]['message']['content'] ?? '';
@@ -149,38 +146,35 @@ class AIInsightsReportService {
 Scope: ${metrics.scopeKey}
 Analysis Period: Last ${metrics.range == '15d' ? '15 days' : metrics.range}
 
-ATTENDANCE DATA:
+ATTENDANCE DATA ONLY:
 - Overall Attendance Rate: ${metrics.attendanceAvg.toStringAsFixed(1)}%
-- Sessions Monitored: ${metrics.testCount}
-- Students with Weak Attendance: ${metrics.weakStudentsCount}
-- Average Participation: ${metrics.participationAvg.toStringAsFixed(1)}%
+- Days Monitored: ${metrics.testCount}
 
-Analyze attendance patterns only. Focus on:
-1. Why attendance rate is at ${metrics.attendanceAvg.toStringAsFixed(0)}%
-2. Patterns and trends in attendance
-3. Impact of low attendance on student engagement
+Analyze ONLY attendance patterns. Focus on:
+1. Is ${metrics.attendanceAvg.toStringAsFixed(0)}% attendance rate acceptable?
+2. What attendance trends should we monitor?
+3. What causes low attendance?
 4. Specific actions to improve attendance
 
-Do NOT mention test scores or academic performance.''';
+IMPORTANT: Do NOT mention test scores, academic performance, grades, subjects, or student performance. Only analyze attendance.''';
     } else {
       // Performance metric - DO NOT include attendance
       return '''School: ${metrics.schoolCode}
 Scope: ${metrics.scopeKey}
 Analysis Period: Last ${metrics.range == '15d' ? '15 days' : metrics.range}
 
-PERFORMANCE DATA:
+ACADEMIC PERFORMANCE DATA ONLY:
 - Average Test Score: ${metrics.avgScore.toStringAsFixed(1)}%
 - Tests Conducted: ${metrics.testCount}
-- Student Participation Rate: ${metrics.participationAvg.toStringAsFixed(1)}%
-- Students Performing Below Target: ${metrics.weakStudentsCount}
+- Students Below 60% (Weak): ${metrics.weakStudentsCount}
 
-Analyze test performance and academic results. Focus on:
-1. Why average score is ${metrics.avgScore.toStringAsFixed(0)}%
-2. Subject-wise or topic-wise performance patterns
-3. Reasons for weak performance in low-scoring areas
-4. Specific interventions to improve performance
+Analyze ONLY test performance and academic results. Focus on:
+1. Is ${metrics.avgScore.toStringAsFixed(0)}% average score acceptable?
+2. Which subject areas need improvement?
+3. Why are ${metrics.weakStudentsCount} students struggling?
+4. Specific academic interventions needed
 
-Do NOT mention attendance or other metrics.''';
+IMPORTANT: Do NOT mention attendance, presence, or absences. Only analyze academic performance.''';
     }
   }
 
@@ -194,67 +188,83 @@ Summary:
 Attendance data is not yet available in the system.
 
 Strengths:
-- ${metrics.testCount} tests have been conducted
-- ${metrics.participationAvg.toStringAsFixed(0)}% student participation in assessments
-- Academic activities are being tracked
+- Attendance tracking system is configured
+- Data collection infrastructure is ready
+- Can begin monitoring immediately
 
 Weak Areas:
-- Attendance tracking needs to be enabled
 - No attendance records available for analysis
-- System requires attendance data integration
+- Attendance marking has not started yet
+- Unable to identify attendance patterns
 
 Actions:
 - Enable daily attendance recording in the system
 - Train teachers on attendance marking procedures
-- Start collecting attendance data for meaningful insights
+- Begin collecting attendance data for analysis
 ''';
       }
-      
+
       final rate = metrics.attendanceAvg;
-      String rateAssessment = rate >= 90 ? 'excellent' : rate >= 80 ? 'good' : rate >= 70 ? 'satisfactory' : 'needs improvement';
-      
+      String rateAssessment = rate >= 90
+          ? 'excellent'
+          : rate >= 80
+          ? 'good'
+          : rate >= 70
+          ? 'satisfactory'
+          : 'needs improvement';
+
       return '''
 Summary:
 Attendance rate is ${rate.toStringAsFixed(0)}% which is $rateAssessment for ${metrics.scopeKey}.
 
 Strengths:
 - ${rate >= 80 ? 'Strong attendance culture established' : 'Attendance tracking is active'}
-- ${metrics.testCount} sessions monitored consistently
+- ${metrics.testCount} days monitored for attendance
 - System captures daily presence accurately
 
 Weak Areas:
 - ${rate < 90 ? '${(90 - rate).toStringAsFixed(0)}% improvement needed to reach 90% target' : 'Minor fluctuations in regularity'}
-- ${metrics.weakStudentsCount > 0 ? '${metrics.weakStudentsCount} students frequently absent' : 'Some students need attention'}
+- ${rate < 75 ? 'Many students frequently absent' : 'Some students have irregular attendance'}
 - ${rate < 75 ? 'Critical attendance issues requiring immediate action' : 'Consistency can be improved'}
 
 Actions:
 - ${rate < 80 ? 'Immediate parent-teacher meetings for chronic absentees' : 'Continue monitoring attendance patterns'}
 - ${rate < 85 ? 'Implement attendance incentive program' : 'Recognize students with perfect attendance'}
-- ${rate < 90 ? 'Address systemic barriers to attendance' : 'Maintain current best practices'}
+- ${rate < 90 ? 'Address systemic barriers to attendance (transport, health, etc.)' : 'Maintain current best practices'}
 ''';
     } else {
       // Generate performance-specific insights
       final score = metrics.avgScore;
-      String performanceLevel = score >= 85 ? 'excellent' : score >= 75 ? 'good' : score >= 60 ? 'satisfactory' : 'needs significant improvement';
-      
+      String performanceLevel = score >= 85
+          ? 'excellent'
+          : score >= 75
+          ? 'good'
+          : score >= 60
+          ? 'satisfactory'
+          : 'needs significant improvement';
+
       return '''
 Summary:
-Average performance is ${score.toStringAsFixed(0)}% which is $performanceLevel across ${metrics.testCount} assessments for ${metrics.scopeKey}.
+Average academic performance is ${score.toStringAsFixed(0)}% which is $performanceLevel across ${metrics.testCount} assessments for ${metrics.scopeKey}.
 
 Strengths:
-- ${metrics.testCount} tests successfully conducted
-- ${metrics.participationAvg.toStringAsFixed(0)}% student participation shows engagement
-- ${score >= 75 ? 'Strong academic foundation demonstrated' : 'Assessment system is active'}
+- ${metrics.testCount} tests successfully conducted and evaluated
+- ${score >= 75 ? 'Strong academic foundation demonstrated' : 'Regular assessment system is active'}
+- ${score >= 70 ? 'Majority of students meeting basic learning outcomes' : 'Assessment data available for intervention'}
 
 Weak Areas:
-- ${score < 85 ? 'Overall score at ${score.toStringAsFixed(0)}% falls short of 85% excellence target' : 'Minor improvements needed'}
-- ${metrics.weakStudentsCount > 0 ? '${metrics.weakStudentsCount} students below passing threshold' : 'Some students need targeted support'}
-- ${score < 70 ? 'Critical performance gaps requiring immediate intervention' : 'Concept mastery can be strengthened'}
+- ${score < 85 ? 'Overall score at ${score.toStringAsFixed(0)}% falls short of 85% excellence target' : 'Minor improvements needed in advanced concepts'}
+- ${metrics.weakStudentsCount > 0 ? '${metrics.weakStudentsCount} students scoring below 60% need urgent support' : 'Some students need targeted academic support'}
+- ${score < 70 ? 'Critical performance gaps requiring immediate academic intervention' : 'Concept mastery can be strengthened'}
 
 Actions:
-- ${score < 70 ? 'Launch urgent remedial classes for struggling students' : score < 80 ? 'Provide targeted tutoring for weak areas' : 'Focus on advanced topics and enrichment'}
-- ${metrics.testCount < 5 ? 'Increase assessment frequency to track progress' : 'Analyze test patterns to identify specific weak topics'}
-- ${score < 75 ? 'Implement peer learning and study groups' : 'Continue current teaching strategies with minor adjustments'}
+- ${score < 70
+          ? 'Launch urgent remedial classes for struggling students'
+          : score < 80
+          ? 'Provide targeted tutoring for weak subject areas'
+          : 'Focus on advanced topics and academic enrichment'}
+- ${metrics.testCount < 5 ? 'Conduct more assessments to better track academic progress' : 'Analyze test patterns to identify specific weak topics and concepts'}
+- ${score < 75 ? 'Implement peer learning and study groups for academic improvement' : 'Continue current teaching strategies with minor adjustments'}
 ''';
     }
   }
