@@ -45,6 +45,6 @@
 // ROLE COLORS
 // ============================================================================
 // student   → #F27F0D (Orange)
-// teacher   → #7E57C2 (Violet)
+// teacher   → #355872 (Blue)
 // parent    → #009688 (Teal)
 // institute → #1976D2 (Blue)

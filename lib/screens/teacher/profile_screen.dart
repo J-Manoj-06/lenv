@@ -952,12 +952,12 @@ class _LogoutConfirmationDialogState extends State<_LogoutConfirmationDialog>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Icon header with gradient background (Teacher violet theme)
+                // Icon header with gradient background (Teacher blue theme)
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFA78BFA), Color(0xFF7B61FF)],
+                      colors: [Color(0xFF4A7A99), Color(0xFF355872)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -1040,14 +1040,14 @@ class _LogoutConfirmationDialogState extends State<_LogoutConfirmationDialog>
                           ),
                           const SizedBox(width: 12),
 
-                          // Logout button (Teacher violet theme)
+                          // Logout button (Teacher blue theme)
                           Expanded(
                             child: Container(
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
                                   colors: [
-                                    Color(0xFFA78BFA),
-                                    Color(0xFF7B61FF),
+                                    Color(0xFF4A7A99),
+                                    Color(0xFF355872),
                                   ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
@@ -1056,7 +1056,7 @@ class _LogoutConfirmationDialogState extends State<_LogoutConfirmationDialog>
                                 boxShadow: [
                                   BoxShadow(
                                     color: const Color(
-                                      0xFF7B61FF,
+                                      0xFF355872,
                                     ).withOpacity(0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4),

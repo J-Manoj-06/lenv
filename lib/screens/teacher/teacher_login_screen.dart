@@ -26,7 +26,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   bool _isLoading = false;
 
   // Teacher brand colors
-  static const Color teacherPurple = Color(0xFF7E57C2);
+  static const Color teacherPurple = Color(0xFF355872);
   static const Color brandBrownDark = Color(0xFF1C140D);
   static const Color brandBrownLight = Color(0xFF9C7349);
   static const Color brandOffWhite = Color(0xFFFCFAF8);
@@ -245,8 +245,8 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFFA78BFA), // Light purple
-                Color(0xFF7E57C2), // Teacher purple
+                Color(0xFF4A7A99), // Light blue
+                Color(0xFF355872), // Teacher color
               ],
             ),
             boxShadow: [
@@ -550,8 +550,8 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFA78BFA), // Light purple
-            Color(0xFF7E57C2), // Teacher purple
+            Color(0xFF4A7A99), // Light blue
+            Color(0xFF355872), // Teacher color
           ],
         ),
         boxShadow: [

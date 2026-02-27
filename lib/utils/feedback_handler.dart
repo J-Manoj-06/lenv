@@ -5,7 +5,7 @@
 ///
 /// 🎨 ROLE-BASED THEMES:
 /// - Student → Orange / Amber (#f27f0d)
-/// - Teacher → Violet / Purple (#7e57c2)
+/// - Teacher → Blue (#355872)
 /// - Parent → Green (#14a670)
 /// - Institute → Blue (#1976d2)
 library;
@@ -21,7 +21,7 @@ Color getRoleColor(String role) {
     case 'student':
       return const Color(0xFFF27F0D);
     case 'teacher':
-      return const Color(0xFF7E57C2);
+      return const Color(0xFF355872);
     case 'parent':
       return const Color(0xFF14A670);
     case 'institute':

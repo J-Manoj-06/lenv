@@ -17,6 +17,9 @@ class CreateTestScreen extends StatefulWidget {
 }
 
 class _CreateTestScreenState extends State<CreateTestScreen> {
+  // Teacher brand color for selections and borders
+  static const Color _teacherColor = Color(0xFF355872);
+
   final _titleController = TextEditingController();
   final _totalMarksController = TextEditingController();
   final _timeLimitController = TextEditingController();
@@ -748,13 +751,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               decoration: BoxDecoration(
                 border: Border.all(
                   color: question.correctAnswerIndex == index
-                      ? theme.colorScheme.primary
+                      ? _teacherColor
                       : theme.dividerColor,
                   width: question.correctAnswerIndex == index ? 2 : 1,
                 ),
                 borderRadius: BorderRadius.circular(12),
                 color: question.correctAnswerIndex == index
-                    ? theme.colorScheme.primary.withOpacity(0.05)
+                    ? _teacherColor.withOpacity(0.05)
                     : Colors.transparent,
               ),
               child: RadioListTile<int>(
@@ -765,7 +768,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                     question.correctAnswerIndex = value;
                   });
                 },
-                activeColor: theme.colorScheme.primary,
+                activeColor: _teacherColor,
                 title: TextField(
                   controller: TextEditingController(
                     text: question.options![index],
@@ -793,9 +796,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
             },
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add Option'),
-            style: TextButton.styleFrom(
-              foregroundColor: theme.colorScheme.primary,
-            ),
+            style: TextButton.styleFrom(foregroundColor: _teacherColor),
           ),
         ),
       ],
@@ -813,13 +814,13 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               decoration: BoxDecoration(
                 border: Border.all(
                   color: question.correctAnswerIndex == index
-                      ? theme.colorScheme.primary
+                      ? _teacherColor
                       : theme.dividerColor,
                   width: question.correctAnswerIndex == index ? 2 : 1,
                 ),
                 borderRadius: BorderRadius.circular(12),
                 color: question.correctAnswerIndex == index
-                    ? theme.colorScheme.primary.withOpacity(0.05)
+                    ? _teacherColor.withOpacity(0.05)
                     : Colors.transparent,
               ),
               child: RadioListTile<int>(
@@ -830,7 +831,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                     question.correctAnswerIndex = value;
                   });
                 },
-                activeColor: theme.colorScheme.primary,
+                activeColor: _teacherColor,
                 title: Text(
                   option,
                   style: TextStyle(
