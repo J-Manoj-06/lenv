@@ -316,12 +316,18 @@ class _TakeTestScreenState extends State<TakeTestScreen>
           }
         }
 
+        // Store shuffled options if they exist for accurate matching in performance view
+        final shuffledOpts = _shuffledOptions[i];
         detailedAnswers.add({
           'questionText': question.question,
           'userAnswer': userAnswer,
           'correctAnswer': storedCorrectAnswer,
           'rawCorrectAnswer': correctRaw, // keep original for debugging
           'isCorrect': isCorrect,
+          'options':
+              shuffledOpts ??
+              question.options, // Store actual options student saw
+          'questionType': question.type.toString(),
         });
       }
 

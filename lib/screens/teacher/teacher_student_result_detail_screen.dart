@@ -452,14 +452,22 @@ class _TeacherStudentResultDetailScreenState
 
     final dynamic userAnswer = _deriveUserAnswer(answer);
     final dynamic correctAnswer = _deriveCorrectAnswer(answer, questionData);
-    final bool isCorrect =
-        (answer['isCorrect'] ?? false) == true ||
-        _inferCorrectness(userAnswer, correctAnswer);
 
-    List<dynamic> rawOptions = questionData['options'] as List? ?? [];
-    final questionType = (questionData['type'] ?? 'mcq')
-        .toString()
-        .toLowerCase();
+    // CRITICAL: Trust the isCorrect flag stored during test submission
+    // Only fallback to inference if flag is missing
+    final bool isCorrect = answer.containsKey('isCorrect')
+        ? (answer['isCorrect'] == true)
+        : _inferCorrectness(userAnswer, correctAnswer);
+
+    // CRITICAL: Use options from the answer (what student actually saw) if available
+    List<dynamic> rawOptions =
+        (answer['options'] as List?) ??
+        (questionData['options'] as List?) ??
+        [];
+    final questionType =
+        (answer['questionType'] ?? questionData['type'] ?? 'mcq')
+            .toString()
+            .toLowerCase();
     if (rawOptions.isNotEmpty) {}
 
     // For True/False style questions, create synthetic options if none exist
@@ -550,7 +558,14 @@ class _TeacherStudentResultDetailScreenState
               optionIndex,
             );
 
-            if (questionNumber <= 3) {}
+            // DEBUG: Log matching for first 3 questions to help diagnose issues
+            if (questionNumber <= 3) {
+              debugPrint(
+                'Q$questionNumber Option $optionLabel: '
+                'isUser=$isUserAnswer, isCorrect=$isCorrectOption, '
+                'userAns=$userAnswer, correctAns=$correctAnswer',
+              );
+            }
 
             Color? bgColor;
             Color? borderColor;
@@ -876,7 +891,7 @@ class _TeacherStudentResultDetailScreenState
         .trim();
   }
 
-  // Flexible comparison: supports label (A/B/..), text, index (0/1/.. or 1/2/..), bool and list
+  // STRICT comparison: only exact matches to prevent false positives
   bool _matchesAnswer(dynamic ans, String label, String text, int index) {
     if (ans == null) return false;
 
@@ -905,7 +920,7 @@ class _TeacherStudentResultDetailScreenState
     if (ans is bool) {
       final s = ans ? 'true' : 'false';
       final normText = text.toLowerCase().trim();
-      return normText == s || normText.startsWith(s.substring(0, 1));
+      return normText == s;
     }
 
     // Strings: compare to label or text, normalize format
@@ -923,37 +938,34 @@ class _TeacherStudentResultDetailScreenState
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
-    // Direct label match (A/B/C/D)
+    // Direct label match (A/B/C/D) - STRICT: only if answer is EXACTLY the letter
     if (s.length == 1 && s.toUpperCase() == label) return true;
 
-    // Exact text match (case-insensitive, punctuation-normalized)
+    // Exact text match (case-insensitive, punctuation-normalized) - MUST BE EXACT
     if (normS == normText) return true;
 
-    // Check similarity for longer texts
-    if (normS.length > 5 &&
-        normText.length > 5 &&
-        (normS.contains(normText) || normText.contains(normS))) {
-      final shorter = normS.length < normText.length ? normS : normText;
-      final longer = normS.length < normText.length ? normText : normS;
-      if (shorter.length / longer.length > 0.8) return true;
-    }
+    // REMOVED: Similarity matching (was causing false positives)
+    // Only exact matches are allowed now
 
-    // Extract leading label like "A.", "A)", "(A)" or "A :"
+    // Extract leading label like "A.", "A)", "(A)" or "A :" - but require exact match
     final m = RegExp(r'^[\(\s]*([A-Da-d])[\)\.:\s]').firstMatch(s);
     if (m != null) {
       final extracted = m.group(1)!.toUpperCase();
-      if (extracted == label) return true;
+      if (extracted == label) {
+        // Verify the rest of the string matches too if present
+        final restOfAnswer = s.substring(m.end).trim();
+        if (restOfAnswer.isEmpty || normS == normText) {
+          return true;
+        }
+      }
     }
 
-    // Handle true/false words
+    // Handle true/false words - STRICT match only
     final lowerS = s.toLowerCase();
     final lowerText = text.toLowerCase();
-    if ((lowerS == 'true' ||
-            lowerS == 'false' ||
-            lowerS == 't' ||
-            lowerS == 'f') &&
+    if ((lowerS == 'true' || lowerS == 'false') &&
         (lowerText == 'true' || lowerText == 'false')) {
-      return lowerS.startsWith(lowerText.substring(0, 1));
+      return lowerS == lowerText;
     }
 
     return false;
