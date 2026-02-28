@@ -3474,12 +3474,10 @@ class _MindmapMessageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final previewText = previewNodes.isEmpty
-        ? 'Start → $topic'
-        : 'Start → $topic → ${previewNodes.take(3).join(' / ')}';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       onTap: mindmapId.isEmpty
           ? null
           : () {
@@ -3494,85 +3492,150 @@ class _MindmapMessageCard extends StatelessWidget {
               );
             },
       child: Container(
-        width: 270,
-        constraints: const BoxConstraints(minHeight: 190),
-        padding: const EdgeInsets.all(14),
+        width: 260,
+        height: 260,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: isMe
-                ? const [Color(0xFF1E63FF), Color(0xFF2E86FF)]
-                : const [Color(0xFFEDF3FF), Color(0xFFE3EEFF)],
+                ? const [Color(0xFF2E7EFF), Color(0xFF1E5FDB)]
+                : isDark
+                ? const [Color(0xFF1A2B4D), Color(0xFF0F1E35)]
+                : const [Color(0xFFE8F1FF), Color(0xFFD4E3FF)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: const [
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isMe
+                ? Colors.white.withOpacity(0.2)
+                : isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.white.withOpacity(0.4),
+            width: 1.5,
+          ),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x22000000),
-              blurRadius: 10,
-              offset: Offset(0, 4),
+              color: (isMe ? const Color(0xFF2E7EFF) : Colors.blue).withOpacity(
+                0.25,
+              ),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header with icon
             Row(
               children: [
-                Icon(
-                  Icons.account_tree_rounded,
-                  color: isMe ? Colors.white : const Color(0xFF1E63FF),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isMe
+                        ? Colors.white.withOpacity(0.15)
+                        : isDark
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.white.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.account_tree_rounded,
+                    color: isMe
+                        ? Colors.white
+                        : isDark
+                        ? const Color(0xFF7FB3FF)
+                        : const Color(0xFF1E5FDB),
+                    size: 20,
+                  ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    topic,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    'Mindmap',
                     style: TextStyle(
-                      color: isMe ? Colors.white : const Color(0xFF0F2A5F),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
+                      color: isMe
+                          ? Colors.white
+                          : isDark
+                          ? const Color(0xFF7FB3FF)
+                          : const Color(0xFF1E5FDB),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
+            // Mindmap preview visualization
             Container(
-              padding: const EdgeInsets.all(10),
+              height: 90,
               decoration: BoxDecoration(
-                color: isMe
-                    ? Colors.white.withOpacity(0.16)
-                    : const Color(0xFFD6E5FF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                previewText,
-                style: TextStyle(
-                  color: isMe ? Colors.white : const Color(0xFF1A3B7A),
-                  fontSize: 13,
-                  height: 1.35,
-                  fontWeight: FontWeight.w500,
+                border: Border.all(
+                  color: isMe
+                      ? Colors.white.withOpacity(0.15)
+                      : isDark
+                      ? Colors.white.withOpacity(0.08)
+                      : Colors.white.withOpacity(0.3),
+                  width: 1,
                 ),
+                borderRadius: BorderRadius.circular(12),
+                color: isMe
+                    ? Colors.black.withOpacity(0.1)
+                    : isDark
+                    ? Colors.white.withOpacity(0.05)
+                    : Colors.white.withOpacity(0.15),
+              ),
+              child: _MindmapPreview(
+                topic: topic,
+                previewNodes: previewNodes,
+                isMe: isMe,
+                isDark: isDark,
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 12),
+            // Bottom action indicator
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(
-                  Icons.touch_app,
-                  size: 16,
-                  color: isMe ? Colors.white70 : const Color(0xFF375A96),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Tap to explore',
-                  style: TextStyle(
-                    color: isMe ? Colors.white70 : const Color(0xFF375A96),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.touch_app_rounded,
+                        size: 14,
+                        color: isMe
+                            ? Colors.white.withOpacity(0.7)
+                            : isDark
+                            ? Colors.white.withOpacity(0.5)
+                            : Colors.white.withOpacity(0.7),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Tap to explore',
+                        style: TextStyle(
+                          color: isMe
+                              ? Colors.white.withOpacity(0.7)
+                              : isDark
+                              ? Colors.white.withOpacity(0.5)
+                              : Colors.white.withOpacity(0.7),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 14,
+                  color: isMe
+                      ? Colors.white.withOpacity(0.6)
+                      : isDark
+                      ? Colors.white.withOpacity(0.4)
+                      : Colors.white.withOpacity(0.6),
                 ),
               ],
             ),
@@ -3580,6 +3643,158 @@ class _MindmapMessageCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// Mindmap preview visualization widget
+class _MindmapPreview extends StatelessWidget {
+  final String topic;
+  final List<String> previewNodes;
+  final bool isMe;
+  final bool isDark;
+
+  const _MindmapPreview({
+    required this.topic,
+    required this.previewNodes,
+    required this.isMe,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Central root node
+        Positioned(
+          left: 10,
+          top: 35,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2E6BFF),
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2E6BFF).withOpacity(0.4),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.account_tree_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        // Preview nodes visualization
+        Positioned(
+          left: 50,
+          top: 15,
+          child: _buildPreviewNode(
+            color: const Color(0xFF2DBF73),
+            label: previewNodes.isNotEmpty ? previewNodes[0][0] : '1',
+          ),
+        ),
+        Positioned(
+          left: 50,
+          top: 45,
+          child: _buildPreviewNode(
+            color: const Color(0xFF8F5FE8),
+            label: previewNodes.length > 1 ? previewNodes[1][0] : '2',
+          ),
+        ),
+        Positioned(
+          right: 15,
+          top: 20,
+          child: _buildPreviewNode(
+            color: const Color(0xFFFFA500),
+            label: previewNodes.length > 2 ? previewNodes[2][0] : '+',
+          ),
+        ),
+        Positioned(
+          right: 15,
+          bottom: 15,
+          child: _buildPreviewNode(
+            color: const Color(0xFFFF6B6B),
+            label: previewNodes.length > 3 ? previewNodes[3][0] : '•',
+          ),
+        ),
+        // Connection lines
+        Positioned.fill(
+          child: CustomPaint(
+            painter: _MindmapPreviewPainter(isMe: isMe, isDark: isDark),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPreviewNode({required Color color, required String label}) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.4),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Custom painter for mindmap preview connections
+class _MindmapPreviewPainter extends CustomPainter {
+  final bool isMe;
+  final bool isDark;
+
+  const _MindmapPreviewPainter({required this.isMe, required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = (isMe
+          ? Colors.white.withOpacity(0.2)
+          : isDark
+          ? Colors.white.withOpacity(0.1)
+          : Colors.white.withOpacity(0.25))
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    // Center node position
+    const Offset center = Offset(24, 49);
+
+    // Draw lines to preview nodes
+    canvas.drawLine(center, const Offset(61, 26), paint);
+    canvas.drawLine(center, const Offset(61, 56), paint);
+    canvas.drawLine(center, const Offset(210, 31), paint);
+    canvas.drawLine(center, const Offset(210, 73), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MindmapPreviewPainter oldDelegate) {
+    return oldDelegate.isMe != isMe || oldDelegate.isDark != isDark;
   }
 }
 

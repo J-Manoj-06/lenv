@@ -77,7 +77,51 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
     print(
       '✅ [MindmapReviewPage] Children count: ${(_structure['children'] as List?)?.length ?? 0}',
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) => _center());
+
+    // Auto-expand all nodes on initial load
+    _expandAllNodes(_structure, 'root');
+    print('✅ [MindmapReviewPage] Expanded nodes: $_expanded');
+    print('✅ [MindmapReviewPage] Total expanded count: ${_expanded.length}');
+
+    // Initialize with centered view immediately
+    _initializeCenteredView();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _center();
+      setState(() {}); // Force rebuild after centering
+    });
+  }
+
+  void _initializeCenteredView() {
+    // Pre-calculate initial centered position to show nodes immediately
+    // We need to translate so root at (220, 2300) appears in visible viewport
+    // Assume screen size ~540 x 960 (will be adjusted in postFrameCallback)
+    const estimatedScreenWidth = 540.0;
+    const estimatedScreenHeight = 960.0;
+
+    // Calculate translation to center the root node
+    final targetRootX = estimatedScreenWidth * 0.30; // 30% from left
+    final targetRootY = estimatedScreenHeight / 2; // Middle of screen
+
+    final dx = targetRootX - _rootCenter.dx;
+    final dy = targetRootY - _rootCenter.dy;
+
+    _transformController.value = Matrix4.identity()..translate(dx, dy);
+    print('🎯 [Init] Centered view: dx=$dx, dy=$dy');
+  }
+
+  void _expandAllNodes(Map<String, dynamic> node, String path) {
+    _expanded.add(path);
+    final children =
+        (node['children'] as List?)?.whereType<Map>().toList() ?? <Map>[];
+    print(
+      '📍 [MindmapReviewPage] Expanding path: $path, children: ${children.length}',
+    );
+    for (int i = 0; i < children.length; i++) {
+      final child = Map<String, dynamic>.from(children[i]);
+      final childPath = '$path/$i';
+      _expandAllNodes(child, childPath);
+    }
   }
 
   @override
@@ -217,7 +261,8 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
 
   void _center() {
     final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
-    final size = box?.size ?? MediaQuery.of(context).size;
+    // Handle case where box hasn't been laid out yet
+    final size = box?.hasSize == true ? box!.size : MediaQuery.of(context).size;
     final targetRootX = size.width * 0.30;
     final dx = targetRootX - _rootCenter.dx;
     final dy = (size.height / 2) - _rootCenter.dy;
@@ -231,7 +276,8 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
 
   Rect _viewportInScene() {
     final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
-    final size = box?.size ?? MediaQuery.of(context).size;
+    // Handle case where box hasn't been laid out yet
+    final size = box?.hasSize == true ? box!.size : MediaQuery.of(context).size;
     final topLeft = _transformController.toScene(Offset.zero);
     final bottomRight = _transformController.toScene(
       Offset(size.width, size.height),
@@ -241,7 +287,8 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
 
   void _zoomBy(double step) {
     final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
-    final size = box?.size ?? MediaQuery.of(context).size;
+    // Handle case where box hasn't been laid out yet
+    final size = box?.hasSize == true ? box!.size : MediaQuery.of(context).size;
     _zoomAt(Offset(size.width / 2, size.height / 2), 1 + step);
   }
 
@@ -282,6 +329,8 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
 
   List<_NodePos> _layout({bool applyManualOffsets = true}) {
     final nodes = <_NodePos>[];
+    print('🎨 [Layout] Starting layout calculation, _expanded: $_expanded');
+    print('🎨 [Layout] Structure title: ${_structure['title']}');
 
     void walk(
       Map<String, dynamic> node,
@@ -291,6 +340,9 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
       String? parent,
       double spread,
     ) {
+      print(
+        '🚶 [Layout Walk] path: $path, title: ${node['title']}, expanded: ${_expanded.contains(path)}',
+      );
       nodes.add(
         _NodePos(
           path: path,
@@ -303,11 +355,18 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
         ),
       );
 
-      if (!_expanded.contains(path)) return;
+      if (!_expanded.contains(path)) {
+        print('  ⏸️ [Layout Walk] Skipping children - not expanded');
+        return;
+      }
       final children =
           (node['children'] as List?)?.whereType<Map>().toList() ?? <Map>[];
-      if (children.isEmpty) return;
+      if (children.isEmpty) {
+        print('  ⏸️ [Layout Walk] Skipping - no children');
+        return;
+      }
 
+      print('  ➡️ [Layout Walk] Processing ${children.length} children');
       final count = children.length;
       // HORIZONTAL LAYOUT: Children expand to the RIGHT (left to right)
       final x = center.dx + 220; // Move right instead of down
@@ -329,6 +388,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
 
     // Start root node on left side, centered vertically for horizontal expansion
     walk(_structure, 'root', _rootCenter, 0, null, 260);
+    print('🎨 [Layout] Finished, total nodes: ${nodes.length}');
     return nodes;
   }
 
@@ -574,6 +634,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   Widget build(BuildContext context) {
     final nodes = _layout();
     final viewport = _viewportInScene().inflate(300);
+    print('🖼️ [Build] Viewport: $viewport');
     final visibleNodes = nodes.where((node) {
       final rect = Rect.fromCenter(
         center: node.center,
@@ -582,6 +643,14 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
       );
       return rect.overlaps(viewport);
     }).toList();
+    print(
+      '👁️ [Build] Visible nodes: ${visibleNodes.length} / ${nodes.length}',
+    );
+    if (visibleNodes.isEmpty && nodes.isNotEmpty) {
+      print(
+        '⚠️ [Build] WARNING: No visible nodes! First node center: ${nodes.first.center}',
+      );
+    }
 
     final byPath = {for (final n in nodes) n.path: n};
     return Scaffold(

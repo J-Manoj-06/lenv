@@ -194,6 +194,7 @@ class MindmapService {
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
 
+    // Step 1: Add message to messages collection
     await _firestore
         .collection('classes')
         .doc(classId)
@@ -215,12 +216,65 @@ class MindmapService {
           'subjectId': subjectId,
         });
 
+    // Step 2: Update subject lastActivity
     await _firestore
         .collection('classes')
         .doc(classId)
         .collection('subjects')
         .doc(subjectId)
         .set({'lastActivity': now}, SetOptions(merge: true));
+
+    // Step 3: Update teacher_groups index for real-time unread counts
+    try {
+      final classDoc = await _firestore
+          .collection('classes')
+          .doc(classId)
+          .get();
+
+      if (classDoc.exists) {
+        final classData = classDoc.data();
+        if (classData != null) {
+          final subjectTeachers =
+              classData['subjectTeachers'] as Map<String, dynamic>?;
+          if (subjectTeachers != null) {
+            final subjectData =
+                subjectTeachers[subjectId] as Map<String, dynamic>?;
+            if (subjectData != null) {
+              final teacherId = subjectData['teacherId'] as String?;
+              if (teacherId != null && senderId != teacherId) {
+                // Only increment unread if message is from student (not teacher)
+                final groupId = '${classId}_$subjectId';
+                final messagePreview = 'Mindmap: $topic';
+
+                await _firestore
+                    .collection('teacher_groups')
+                    .doc(teacherId)
+                    .set({
+                      'groups': {
+                        groupId: {
+                          'unreadCount': FieldValue.increment(1),
+                          'lastMessage': messagePreview,
+                          'lastMessageAt': FieldValue.serverTimestamp(),
+                          'lastMessageBy': senderName,
+                          'classId': classId,
+                          'subjectId': subjectId,
+                          'className': classData['className'] ?? '',
+                          'section': classData['section'] ?? '',
+                          'subject': subjectId,
+                          'teacherName': subjectData['teacherName'] ?? '',
+                          'schoolCode': classData['schoolCode'] ?? '',
+                        },
+                      },
+                    }, SetOptions(merge: true));
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('⚠️ [MindmapService] Failed to update teacher_groups: $e');
+      // Continue anyway - message was still sent
+    }
   }
 
   Future<MindmapModel?> getMindmapById(String mindmapId) async {

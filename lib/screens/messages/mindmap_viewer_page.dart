@@ -44,7 +44,6 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
   void initState() {
     super.initState();
     _loadMindmap();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _centerMindmap());
   }
 
   @override
@@ -54,27 +53,87 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
   }
 
   Future<void> _loadMindmap() async {
+    print('📥 [ViewerPage] Loading mindmap ID: ${widget.mindmapId}');
     final model = await _mindmapService.getMindmapById(widget.mindmapId);
-    if (!mounted) return;
+    print(
+      '📥 [ViewerPage] Retrieved model: ${model != null ? "SUCCESS" : "NULL"}',
+    );
+
+    if (!mounted) {
+      print('⚠️ [ViewerPage] Widget not mounted, aborting');
+      return;
+    }
+
+    // Auto-expand all nodes when loading
+    if (model != null) {
+      print('📥 [ViewerPage] Model topic: ${model.topic}');
+      print('📥 [ViewerPage] Root node title: ${model.root.title}');
+      _expandAllNodes(model.root, 'root');
+      print('✅ [ViewerPage] Expanded ${_expanded.length} nodes: $_expanded');
+    } else {
+      print('❌ [ViewerPage] Model is null, cannot expand nodes');
+    }
+
     setState(() {
       _mindmap = model;
       _loading = false;
     });
+    print(
+      '📥 [ViewerPage] setState completed, _loading = $_loading, _mindmap = ${_mindmap != null}',
+    );
+
+    // Center the viewport after loading and layout
+    if (model != null) {
+      print('📥 [ViewerPage] Scheduling _centerMindmap in postFrameCallback');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('🎯 [ViewerPage] PostFrameCallback executing _centerMindmap');
+        _centerMindmap();
+      });
+    }
+  }
+
+  void _expandAllNodes(MindmapNode node, String path) {
+    print(
+      '📍 [ViewerPage] Expanding path: $path, children: ${node.children.length}',
+    );
+    _expanded.add(path);
+    for (int i = 0; i < node.children.length; i++) {
+      final childPath = '$path/$i';
+      _expandAllNodes(node.children[i], childPath);
+    }
   }
 
   void _centerMindmap() {
+    print('🎯 [ViewerPage] _centerMindmap called');
     final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
-    final size = box?.size ?? MediaQuery.of(context).size;
-    final dx = (size.width / 2) - (_canvasSize / 2);
-    final dy = (size.height / 2) - (_canvasSize / 2);
+    // Handle case where box hasn't been laid out yet
+    final size = box?.hasSize == true ? box!.size : MediaQuery.of(context).size;
+    print('🎯 [ViewerPage] Screen size: $size');
+
+    // Root node is at canvas center (_canvasSize/2, _canvasSize/2)
+    // We want it to appear at approximately 30% from left, 50% from top of screen
+    final rootSceneX = _canvasSize / 2;
+    final rootSceneY = _canvasSize / 2;
+    final targetX = size.width * 0.30;
+    final targetY = size.height / 2;
+
+    final dx = targetX - rootSceneX;
+    final dy = targetY - rootSceneY;
+
+    print('🎯 [ViewerPage] Root position: ($rootSceneX, $rootSceneY)');
+    print('🎯 [ViewerPage] Target position: ($targetX, $targetY)');
+    print('🎯 [ViewerPage] Translation: dx=$dx, dy=$dy');
+
     _transformController.value = Matrix4.identity()..translate(dx, dy);
+    print('✅ [ViewerPage] Viewport centered');
   }
 
   double _currentScale() => _transformController.value.getMaxScaleOnAxis();
 
   Rect _viewportInScene() {
     final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
-    final size = box?.size ?? MediaQuery.of(context).size;
+    // Handle case where box hasn't been laid out yet
+    final size = box?.hasSize == true ? box!.size : MediaQuery.of(context).size;
     final topLeft = _transformController.toScene(Offset.zero);
     final bottomRight = _transformController.toScene(
       Offset(size.width, size.height),
@@ -84,7 +143,8 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
 
   void _zoomBy(double step) {
     final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
-    final size = box?.size ?? MediaQuery.of(context).size;
+    // Handle case where box hasn't been laid out yet
+    final size = box?.hasSize == true ? box!.size : MediaQuery.of(context).size;
     _zoomAt(Offset(size.width / 2, size.height / 2), 1 + step);
   }
 
@@ -235,14 +295,23 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
 
   @override
   Widget build(BuildContext context) {
+    print(
+      '🎨 [ViewerPage Build] _loading=$_loading, _mindmap=${_mindmap != null}',
+    );
     final topic = _mindmap?.topic ?? widget.fallbackTopic;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F8FC),
+      backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
-        title: Text(topic),
+        backgroundColor: const Color(0xFF1A1A1A),
+        elevation: 1,
+        title: Text(topic, style: const TextStyle(color: Colors.white)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [],
@@ -256,9 +325,15 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
   }
 
   Widget _buildCanvas(MindmapNode root) {
+    print('🎨 [ViewerPage Canvas] Building canvas for root: ${root.title}');
+    print('🎨 [ViewerPage Canvas] Expanded nodes count: ${_expanded.length}');
+
     final nodes = _computeLayout(root);
+    print('🎨 [ViewerPage Canvas] Total nodes after layout: ${nodes.length}');
+
     final byPath = {for (final n in nodes) n.path: n};
     final viewport = _viewportInScene().inflate(260);
+    print('🎨 [ViewerPage Canvas] Viewport: $viewport');
 
     final visibleNodes = nodes.where((node) {
       final rect = Rect.fromCenter(
@@ -269,6 +344,14 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
       return rect.overlaps(viewport);
     }).toList();
 
+    print(
+      '🎨 [ViewerPage Canvas] Visible nodes: ${visibleNodes.length} / ${nodes.length}',
+    );
+    if (visibleNodes.isEmpty && nodes.isNotEmpty) {
+      print(
+        '⚠️ [ViewerPage Canvas] NO VISIBLE NODES! First node center: ${nodes.first.center}',
+      );
+    }
     return SizedBox.expand(
       key: _viewerKey,
       child: Stack(
@@ -294,7 +377,7 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
                   gradient: RadialGradient(
                     center: Alignment.center,
                     radius: 1.2,
-                    colors: [Color(0xFFF8FBFF), Color(0xFFEAF2FF)],
+                    colors: [Color(0xFF252525), Color(0xFF1A1A1A)],
                   ),
                 ),
                 child: Stack(
@@ -472,7 +555,7 @@ class _MindmapConnectionPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0x664A6AA6)
+      ..color = const Color(0xAA6B8CFF)
       ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round
       ..isAntiAlias = true
@@ -640,12 +723,13 @@ class _Toolbar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF2A2A2A),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF404040), width: 1),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x22000000),
-            blurRadius: 10,
+            color: Color(0x44000000),
+            blurRadius: 12,
             offset: Offset(0, 4),
           ),
         ],
@@ -653,12 +737,21 @@ class _Toolbar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(onPressed: onZoomIn, icon: const Icon(Icons.add)),
-          IconButton(onPressed: onZoomOut, icon: const Icon(Icons.remove)),
-          IconButton(onPressed: onReset, icon: const Icon(Icons.refresh)),
+          IconButton(
+            onPressed: onZoomIn,
+            icon: const Icon(Icons.add, color: Colors.white),
+          ),
+          IconButton(
+            onPressed: onZoomOut,
+            icon: const Icon(Icons.remove, color: Colors.white),
+          ),
+          IconButton(
+            onPressed: onReset,
+            icon: const Icon(Icons.refresh, color: Colors.white),
+          ),
           IconButton(
             onPressed: onCenter,
-            icon: const Icon(Icons.center_focus_strong),
+            icon: const Icon(Icons.center_focus_strong, color: Colors.white),
           ),
         ],
       ),

@@ -7,6 +7,11 @@ class MindmapNode {
   const MindmapNode({required this.title, this.children = const []});
 
   factory MindmapNode.fromJson(Map<String, dynamic> json) {
+    print('🔍 [MindmapNode] Parsing node: ${json['title']}');
+    print(
+      '🔍 [MindmapNode] Children raw type: ${json['children']?.runtimeType}',
+    );
+
     final childrenRaw = json['children'];
     final parsedChildren = childrenRaw is List
         ? childrenRaw
@@ -14,6 +19,10 @@ class MindmapNode {
               .map((e) => MindmapNode.fromJson(Map<String, dynamic>.from(e)))
               .toList()
         : <MindmapNode>[];
+
+    print(
+      '🔍 [MindmapNode] Parsed ${parsedChildren.length} children for ${json['title']}',
+    );
 
     return MindmapNode(
       title: (json['title'] ?? '').toString(),
@@ -54,9 +63,22 @@ class MindmapModel {
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data() ?? <String, dynamic>{};
+    print('🔍 [MindmapModel] Firestore data keys: ${data.keys.toList()}');
+    print(
+      '🔍 [MindmapModel] structure type: ${data['structure']?.runtimeType}',
+    );
+
     final structure = Map<String, dynamic>.from(
-      (data['json_structure'] as Map?) ??
+      (data['structure'] as Map?) ??
           {'title': data['topic'] ?? 'Mindmap', 'children': const []},
+    );
+    print('🔍 [MindmapModel] Structure keys: ${structure.keys.toList()}');
+    print('🔍 [MindmapModel] Structure title: ${structure['title']}');
+    print(
+      '🔍 [MindmapModel] Structure children type: ${structure['children']?.runtimeType}',
+    );
+    print(
+      '🔍 [MindmapModel] Structure children length: ${structure['children'] is List ? (structure['children'] as List).length : 0}',
     );
 
     final createdAtRaw = data['created_at'];
