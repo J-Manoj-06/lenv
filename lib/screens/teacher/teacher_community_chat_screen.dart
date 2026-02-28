@@ -4092,7 +4092,7 @@ class _AudioPlayerModalState extends State<AudioPlayerModal> {
   }
 }
 
-// Image Gallery Viewer with swipe navigation
+// Image Gallery Viewer - Full-featured viewer with advanced zoom controls
 class _ImageGalleryViewer extends StatefulWidget {
   final List<MediaMetadata> mediaList;
   final int initialIndex;
@@ -4110,21 +4110,79 @@ class _ImageGalleryViewer extends StatefulWidget {
   State<_ImageGalleryViewer> createState() => _ImageGalleryViewerState();
 }
 
-class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
+class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
+    with TickerProviderStateMixin {
   late PageController _pageController;
   late int _currentIndex;
+  late Map<int, TransformationController> _transformationControllers;
+  late Map<int, bool> _zoomStates;
+  bool _isInteracting =
+      false; // Track if user is currently interacting with zoom
+  int _pointerCount = 0; // Track number of fingers on screen
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    _transformationControllers = {};
+    _zoomStates = {};
+
+    // Initialize transformation controllers and zoom states for all images
+    for (int i = 0; i < widget.mediaList.length; i++) {
+      final controller = TransformationController();
+      _transformationControllers[i] = controller;
+      _zoomStates[i] = false;
+
+      // Listen to transformation changes
+      controller.addListener(() {
+        final scale = controller.value.getMaxScaleOnAxis();
+        final isZoomed = scale > 1.01;
+        if (_zoomStates[i] != isZoomed) {
+          setState(() {
+            _zoomStates[i] = isZoomed;
+          });
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    for (var controller in _transformationControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
+  }
+
+  bool get _shouldDisableScroll =>
+      _isInteracting || (_zoomStates[_currentIndex] ?? false);
+
+  void _animateZoom(TransformationController controller, Matrix4 targetMatrix) {
+    final begin = controller.value;
+    final end = targetMatrix;
+
+    final animationController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+
+    final animation = Matrix4Tween(begin: begin, end: end).animate(
+      CurvedAnimation(parent: animationController, curve: Curves.easeInOut),
+    );
+
+    animation.addListener(() {
+      controller.value = animation.value;
+    });
+
+    animation.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        animationController.dispose();
+      }
+    });
+
+    animationController.forward();
   }
 
   @override
@@ -4145,8 +4203,16 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
       ),
       body: PageView.builder(
         controller: _pageController,
-        scrollDirection: Axis.vertical,
+        scrollDirection: Axis.horizontal,
+        physics: _shouldDisableScroll
+            ? const NeverScrollableScrollPhysics()
+            : const AlwaysScrollableScrollPhysics(),
         onPageChanged: (index) {
+          // Reset transformation of previous image when switching
+          if (_transformationControllers[_currentIndex] != null) {
+            _transformationControllers[_currentIndex]!.value =
+                Matrix4.identity();
+          }
           setState(() {
             _currentIndex = index;
           });
@@ -4158,13 +4224,17 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
               metadata.localPath ??
               widget.localSenderMediaPaths[metadata.messageId];
 
-          return _buildImageViewer(metadata, localPath);
+          return _buildImageViewer(index, metadata, localPath);
         },
       ),
     );
   }
 
-  Widget _buildImageViewer(MediaMetadata metadata, String? localPath) {
+  Widget _buildImageViewer(
+    int index,
+    MediaMetadata metadata,
+    String? localPath,
+  ) {
     Widget imageWidget;
     final file = (localPath != null && localPath.isNotEmpty)
         ? File(localPath)
@@ -4173,45 +4243,56 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
     final hasNetwork = metadata.publicUrl.isNotEmpty;
 
     if (hasLocalFile) {
-      imageWidget = Image.file(
-        file,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      imageWidget = RepaintBoundary(
+        child: Image.file(
+          file,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          cacheWidth: 1200,
+          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+        ),
       );
     } else if (hasNetwork) {
-      imageWidget = Image.network(
-        metadata.publicUrl,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return const Center(
-            child: SizedBox(
-              width: 36,
-              height: 36,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
-          );
-        },
-        errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+      imageWidget = RepaintBoundary(
+        child: Image.network(
+          metadata.publicUrl,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return const Center(
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) =>
+              _buildFallbackImage(metadata),
+        ),
       );
     } else if (metadata.thumbnail.isNotEmpty) {
       if (metadata.thumbnail.startsWith('/')) {
-        imageWidget = Image.file(
-          File(metadata.thumbnail),
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
-          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+        imageWidget = RepaintBoundary(
+          child: Image.file(
+            File(metadata.thumbnail),
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            cacheWidth: 1200,
+            errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          ),
         );
       } else {
         try {
           final bytes = base64Decode(metadata.thumbnail);
-          imageWidget = Image.memory(
-            bytes,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
-            errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          imageWidget = RepaintBoundary(
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+            ),
           );
         } catch (e) {
           imageWidget = _buildFallbackImage(metadata);
@@ -4221,10 +4302,85 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
       imageWidget = _buildFallbackImage(metadata);
     }
 
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 4.0,
-      child: Center(child: imageWidget),
+    return Listener(
+      onPointerDown: (event) {
+        setState(() {
+          _pointerCount++;
+          // Only enable interaction when 2+ fingers detected
+          if (_pointerCount >= 2) {
+            _isInteracting = true;
+          }
+        });
+      },
+      onPointerUp: (event) {
+        setState(() {
+          _pointerCount--;
+          // Re-enable PageView when less than 2 fingers
+          if (_pointerCount < 2) {
+            _isInteracting = false;
+            // Snap back to center if at original scale
+            final controller = _transformationControllers[index]!;
+            final scale = controller.value.getMaxScaleOnAxis();
+            if (scale <= 1.01) {
+              // Reset to centered position
+              controller.value = Matrix4.identity();
+            }
+          }
+        });
+      },
+      onPointerCancel: (event) {
+        setState(() {
+          _pointerCount--;
+          if (_pointerCount < 2) {
+            _isInteracting = false;
+            // Snap back to center if at original scale
+            final controller = _transformationControllers[index]!;
+            final scale = controller.value.getMaxScaleOnAxis();
+            if (scale <= 1.01) {
+              controller.value = Matrix4.identity();
+            }
+          }
+        });
+      },
+      child: GestureDetector(
+        onDoubleTapDown: (details) {
+          // Store tap position for zoom target
+          final controller = _transformationControllers[index]!;
+          final scale = controller.value.getMaxScaleOnAxis();
+
+          if (scale > 1.1) {
+            // Zoom out to original with animation
+            _animateZoom(controller, Matrix4.identity());
+          } else {
+            // Zoom in to 2.5x at tap position with animation
+            final targetScale = 2.5;
+            final position = details.localPosition;
+
+            // Calculate offset to center the tap position
+            final x = -position.dx * (targetScale - 1);
+            final y = -position.dy * (targetScale - 1);
+
+            final matrix = Matrix4.identity()
+              ..translate(x, y)
+              ..scale(targetScale);
+
+            _animateZoom(controller, matrix);
+          }
+        },
+        onDoubleTap: () {
+          // Required for onDoubleTapDown to work
+        },
+        child: InteractiveViewer(
+          transformationController: _transformationControllers[index],
+          minScale: 1.0,
+          maxScale: 5.0,
+          panEnabled: true, // Enable single-finger pan when zoomed
+          scaleEnabled: true,
+          boundaryMargin: const EdgeInsets.all(double.infinity),
+          clipBehavior: Clip.none,
+          child: Center(child: imageWidget),
+        ),
+      ),
     );
   }
 
@@ -4236,7 +4392,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           const Icon(Icons.image, size: 64, color: Colors.white54),
           const SizedBox(height: 16),
           const Text(
-            'Image not available locally',
+            'Image not available',
             style: TextStyle(color: Colors.white70),
           ),
           const SizedBox(height: 8),
