@@ -4727,7 +4727,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           transformationController: _transformationControllers[index],
           minScale: 1.0,
           maxScale: 5.0,
-          panEnabled: _pointerCount >= 2, // Only pan with 2+ fingers
+          panEnabled: true, // Enable single-finger pan when zoomed
           scaleEnabled: true,
           boundaryMargin: const EdgeInsets.all(double.infinity),
           clipBehavior: Clip.none,
