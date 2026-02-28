@@ -2220,10 +2220,10 @@ class _GroupChatPageState extends State<GroupChatPage>
     // Dynamic colors based on user role
     final iconColor = isDark
         ? (isTeacher
-              ? const Color(0xFF9A95CC) // Soft muted violet for teachers
+              ? const Color(0xFF355872) // Teacher color
               : const Color(0xFFFFB380)) // Soft muted orange for students
         : (isTeacher
-              ? const Color(0xFF6C63FF) // Violet for teachers
+              ? const Color(0xFF355872) // Teacher color
               : const Color(0xFFFF8F00)); // Orange for students
 
     final iconDisabledColor = isDark
@@ -2231,7 +2231,7 @@ class _GroupChatPageState extends State<GroupChatPage>
         : const Color(0xFFBBBBBB);
 
     final accentColor = isTeacher
-        ? const Color(0xFF7C3AED) // Cool violet for teachers
+        ? const Color(0xFF355872) // Teacher color
         : const Color(0xFFFF9800); // Orange for students
 
     return Container(
@@ -3513,7 +3513,7 @@ class _MindmapMessageCard extends StatelessWidget {
               children: [
                 Icon(
                   Icons.account_tree_rounded,
-                  color: const Color(0xFF8B7CFF),
+                  color: const Color(0xFF355872),
                   size: 18,
                 ),
                 const SizedBox(width: 8),
