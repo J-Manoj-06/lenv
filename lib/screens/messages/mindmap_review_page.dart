@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/mindmap_service.dart';
@@ -49,11 +50,16 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   late Map<String, dynamic> _structure;
   bool _isWorking = false;
   final Set<String> _expanded = {'root'};
+  final Map<String, Offset> _manualNodeOffsets = <String, Offset>{};
+  String? _draggingPath;
 
   static const double _canvasSize = 4600;
   static const double _nodeW = 166;
   static const double _nodeH = 58;
+  static const double _minScale = 0.5;
+  static const double _maxScale = 2.5;
   static const Offset _rootCenter = Offset(220, _canvasSize / 2);
+  static const Size _miniMapSize = Size(140, 100);
 
   @override
   void initState() {
@@ -72,6 +78,12 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
       '✅ [MindmapReviewPage] Children count: ${(_structure['children'] as List?)?.length ?? 0}',
     );
     WidgetsBinding.instance.addPostFrameCallback((_) => _center());
+  }
+
+  @override
+  void dispose() {
+    _transformController.dispose();
+    super.dispose();
   }
 
   Map<String, dynamic> _normalize(
@@ -134,6 +146,8 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
         _expanded
           ..clear()
           ..add('root');
+        _manualNodeOffsets.clear();
+        _draggingPath = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -211,7 +225,62 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
     _transformController.value = Matrix4.identity()..translate(dx, dy);
   }
 
-  List<_NodePos> _layout() {
+  double _currentScale() {
+    return _transformController.value.getMaxScaleOnAxis();
+  }
+
+  Rect _viewportInScene() {
+    final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
+    final size = box?.size ?? MediaQuery.of(context).size;
+    final topLeft = _transformController.toScene(Offset.zero);
+    final bottomRight = _transformController.toScene(
+      Offset(size.width, size.height),
+    );
+    return Rect.fromPoints(topLeft, bottomRight);
+  }
+
+  void _zoomBy(double step) {
+    final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
+    final size = box?.size ?? MediaQuery.of(context).size;
+    _zoomAt(Offset(size.width / 2, size.height / 2), 1 + step);
+  }
+
+  void _zoomAt(Offset viewportFocalPoint, double factor) {
+    final oldScale = _currentScale();
+    final nextScale = (oldScale * factor).clamp(_minScale, _maxScale);
+    if ((nextScale - oldScale).abs() < 0.0001) return;
+
+    final sceneFocal = _transformController.toScene(viewportFocalPoint);
+    final next = Matrix4.identity()
+      ..translate(viewportFocalPoint.dx, viewportFocalPoint.dy)
+      ..scale(nextScale)
+      ..translate(-sceneFocal.dx, -sceneFocal.dy);
+
+    _transformController.value = next;
+    setState(() {});
+  }
+
+  void _moveViewportCenterToScene(Offset targetSceneCenter) {
+    final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
+    final size = box?.size ?? MediaQuery.of(context).size;
+    final scale = _currentScale();
+    final tx = (size.width / 2) - (targetSceneCenter.dx * scale);
+    final ty = (size.height / 2) - (targetSceneCenter.dy * scale);
+    _transformController.value = Matrix4.identity()
+      ..translate(tx, ty)
+      ..scale(scale);
+    setState(() {});
+  }
+
+  Offset _clampCenter(Offset center) {
+    const double pad = 20;
+    return Offset(
+      center.dx.clamp(_nodeW / 2 + pad, _canvasSize - (_nodeW / 2 + pad)),
+      center.dy.clamp(_nodeH / 2 + pad, _canvasSize - (_nodeH / 2 + pad)),
+    );
+  }
+
+  List<_NodePos> _layout({bool applyManualOffsets = true}) {
     final nodes = <_NodePos>[];
 
     void walk(
@@ -226,7 +295,9 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
         _NodePos(
           path: path,
           node: node,
-          center: center,
+          center: applyManualOffsets
+              ? center + (_manualNodeOffsets[path] ?? Offset.zero)
+              : center,
           level: level,
           parentPath: parent,
         ),
@@ -259,6 +330,98 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
     // Start root node on left side, centered vertically for horizontal expansion
     walk(_structure, 'root', _rootCenter, 0, null, 260);
     return nodes;
+  }
+
+  void _dragNode(_NodePos nodePos, DragUpdateDetails details) {
+    final scale = _currentScale();
+    if (scale <= 0) return;
+
+    final deltaScene = details.delta / scale;
+    if (deltaScene == Offset.zero) return;
+
+    final baseNodes = _layout(applyManualOffsets: false);
+    final baseByPath = {for (final n in baseNodes) n.path: n};
+    final currentNodes = _layout();
+    final currentByPath = {for (final n in currentNodes) n.path: n};
+
+    final base = baseByPath[nodePos.path];
+    final current = currentByPath[nodePos.path];
+    if (base == null || current == null) return;
+
+    final clamped = _clampCenter(current.center + deltaScene);
+    _manualNodeOffsets[nodePos.path] = clamped - base.center;
+
+    _gentlyPushOverlappingNodes(nodePos.path, baseByPath, currentByPath);
+
+    setState(() {});
+  }
+
+  void _gentlyPushOverlappingNodes(
+    String draggingPath,
+    Map<String, _NodePos> baseByPath,
+    Map<String, _NodePos> currentByPath,
+  ) {
+    final dragged = currentByPath[draggingPath];
+    if (dragged == null) return;
+
+    const double minGapX = _nodeW * 0.8;
+    const double minGapY = _nodeH * 0.8;
+
+    for (final entry in currentByPath.entries) {
+      if (entry.key == draggingPath) continue;
+
+      final node = entry.value;
+      final dx = node.center.dx - dragged.center.dx;
+      final dy = node.center.dy - dragged.center.dy;
+
+      if (dx.abs() > minGapX || dy.abs() > minGapY) continue;
+
+      final base = baseByPath[entry.key];
+      if (base == null) continue;
+
+      final pushX = (minGapX - dx.abs()).clamp(0, minGapX) * 0.25;
+      final pushY = (minGapY - dy.abs()).clamp(0, minGapY) * 0.25;
+      if (pushX == 0 && pushY == 0) continue;
+
+      final dirX = dx == 0 ? (math.Random().nextBool() ? 1.0 : -1.0) : dx.sign;
+      final dirY = dy == 0 ? (math.Random().nextBool() ? 1.0 : -1.0) : dy.sign;
+
+      final desiredCenter = _clampCenter(
+        node.center + Offset(dirX * pushX, dirY * pushY),
+      );
+      _manualNodeOffsets[entry.key] = desiredCenter - base.center;
+    }
+  }
+
+  _MiniMapTransform _miniMapTransform() {
+    const double padding = 10;
+    final usableW = _miniMapSize.width - (padding * 2);
+    final usableH = _miniMapSize.height - (padding * 2);
+    final scale = math.min(usableW / _canvasSize, usableH / _canvasSize);
+    final dx = (_miniMapSize.width - (_canvasSize * scale)) / 2;
+    final dy = (_miniMapSize.height - (_canvasSize * scale)) / 2;
+    return _MiniMapTransform(scale: scale, origin: Offset(dx, dy));
+  }
+
+  Offset _sceneToMini(Offset scenePoint, _MiniMapTransform tx) {
+    return Offset(
+      tx.origin.dx + (scenePoint.dx * tx.scale),
+      tx.origin.dy + (scenePoint.dy * tx.scale),
+    );
+  }
+
+  Offset _miniToScene(Offset miniPoint, _MiniMapTransform tx) {
+    return Offset(
+      (miniPoint.dx - tx.origin.dx) / tx.scale,
+      (miniPoint.dy - tx.origin.dy) / tx.scale,
+    );
+  }
+
+  Rect _miniViewportRect(_MiniMapTransform tx) {
+    final sceneRect = _viewportInScene();
+    final topLeft = _sceneToMini(sceneRect.topLeft, tx);
+    final bottomRight = _sceneToMini(sceneRect.bottomRight, tx);
+    return Rect.fromPoints(topLeft, bottomRight);
   }
 
   Future<void> _editNode(_NodePos nodePos) async {
@@ -410,112 +573,217 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   @override
   Widget build(BuildContext context) {
     final nodes = _layout();
-    final byPath = {for (final n in nodes) n.path: n};
+    final viewport = _viewportInScene().inflate(300);
+    final visibleNodes = nodes.where((node) {
+      final rect = Rect.fromCenter(
+        center: node.center,
+        width: _nodeW,
+        height: _nodeH,
+      );
+      return rect.overlaps(viewport);
+    }).toList();
 
+    final byPath = {for (final n in nodes) n.path: n};
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         title: Text((_structure['title'] ?? widget.topic).toString()),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [],
       ),
       body: Column(
         children: [
           Expanded(
             child: SizedBox.expand(
               key: _viewerKey,
-              child: InteractiveViewer(
-                transformationController: _transformController,
-                minScale: 0.4,
-                maxScale: 2.8,
-                constrained: false,
-                child: Container(
-                  width: _canvasSize,
-                  height: _canvasSize,
-                  color: const Color(0xFF0D0D12),
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: _ConnPainter(nodes: nodes, byPath: byPath),
-                        ),
-                      ),
-                      ...nodes.map((n) {
-                        final hasChildren =
-                            ((n.node['children'] as List?) ?? []).isNotEmpty;
-                        final isExpanded = _expanded.contains(n.path);
-                        final nodeTitle = (n.node['title'] ?? 'Node')
-                            .toString();
-
-                        final color = n.level == 0
-                            ? const Color(0xFF4775FF)
-                            : n.level == 1
-                            ? const Color(0xFF2DBF73)
-                            : const Color(0xFF8E5BFF);
-
-                        return Positioned(
-                          left: n.center.dx - (_nodeW / 2),
-                          top: n.center.dy - (_nodeH / 2),
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                if (hasChildren) {
-                                  if (isExpanded) {
-                                    _expanded.remove(n.path);
-                                  } else {
-                                    _expanded.add(n.path);
-                                  }
-                                }
-                              });
-                            },
-                            onLongPress: () => _editNode(n),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: _nodeW,
-                              height: _nodeH,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: color,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Color(0x33000000),
-                                    blurRadius: 8,
-                                    offset: Offset(0, 4),
+              child: Stack(
+                children: [
+                  Listener(
+                    onPointerSignal: (event) {
+                      if (event is PointerScrollEvent) {
+                        final zoomFactor = event.scrollDelta.dy > 0
+                            ? 0.92
+                            : 1.08;
+                        _zoomAt(event.localPosition, zoomFactor);
+                      }
+                    },
+                    child: InteractiveViewer(
+                      transformationController: _transformController,
+                      minScale: _minScale,
+                      maxScale: _maxScale,
+                      constrained: false,
+                      panEnabled: _draggingPath == null,
+                      scaleEnabled: _draggingPath == null,
+                      child: RepaintBoundary(
+                        child: Container(
+                          width: _canvasSize,
+                          height: _canvasSize,
+                          color: const Color(0xFF0D0D12),
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: RepaintBoundary(
+                                  child: CustomPaint(
+                                    painter: _ConnPainter(
+                                      nodes: visibleNodes,
+                                      byPath: byPath,
+                                    ),
                                   ),
-                                ],
+                                ),
                               ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      nodeTitle,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
+                              ...visibleNodes.map((n) {
+                                final hasChildren =
+                                    ((n.node['children'] as List?) ?? [])
+                                        .isNotEmpty;
+                                final isExpanded = _expanded.contains(n.path);
+                                final nodeTitle = (n.node['title'] ?? 'Node')
+                                    .toString();
+                                final isDragging = _draggingPath == n.path;
+
+                                final color = n.level == 0
+                                    ? const Color(0xFF4775FF)
+                                    : n.level == 1
+                                    ? const Color(0xFF2DBF73)
+                                    : const Color(0xFF8E5BFF);
+
+                                return AnimatedPositioned(
+                                  duration: isDragging
+                                      ? Duration.zero
+                                      : const Duration(milliseconds: 90),
+                                  curve: Curves.easeOut,
+                                  left: n.center.dx - (_nodeW / 2),
+                                  top: n.center.dy - (_nodeH / 2),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        if (hasChildren) {
+                                          if (isExpanded) {
+                                            _expanded.remove(n.path);
+                                          } else {
+                                            _expanded.add(n.path);
+                                          }
+                                        }
+                                      });
+                                    },
+                                    onDoubleTap: () => _editNode(n),
+                                    onPanStart: (_) {
+                                      setState(() => _draggingPath = n.path);
+                                    },
+                                    onPanUpdate: (details) =>
+                                        _dragNode(n, details),
+                                    onPanEnd: (_) {
+                                      setState(() => _draggingPath = null);
+                                    },
+                                    onPanCancel: () {
+                                      setState(() => _draggingPath = null);
+                                    },
+                                    child: AnimatedScale(
+                                      duration: const Duration(
+                                        milliseconds: 120,
+                                      ),
+                                      scale: isDragging ? 1.05 : 1,
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 120,
+                                        ),
+                                        width: _nodeW,
+                                        height: _nodeH,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: color,
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          border: isDragging
+                                              ? Border.all(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.8),
+                                                  width: 1.2,
+                                                )
+                                              : null,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: isDragging ? 0.45 : 0.2,
+                                              ),
+                                              blurRadius: isDragging ? 16 : 8,
+                                              offset: Offset(
+                                                0,
+                                                isDragging ? 9 : 4,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                nodeTitle,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                            if (hasChildren)
+                                              Icon(
+                                                isExpanded
+                                                    ? Icons.expand_more
+                                                    : Icons.chevron_right,
+                                                color: Colors.white,
+                                                size: 18,
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                  if (hasChildren)
-                                    Icon(
-                                      isExpanded
-                                          ? Icons.expand_more
-                                          : Icons.chevron_right,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                ],
-                              ),
-                            ),
+                                );
+                              }),
+                            ],
                           ),
-                        );
-                      }),
-                    ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  Positioned(
+                    right: 16,
+                    top: 16,
+                    child: _FloatingControls(
+                      onZoomIn: () => _zoomBy(0.12),
+                      onZoomOut: () => _zoomBy(-0.12),
+                      onReset: _center,
+                    ),
+                  ),
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: AnimatedBuilder(
+                      animation: _transformController,
+                      builder: (_, __) {
+                        final miniTx = _miniMapTransform();
+                        return _MiniMapPanel(
+                          size: _miniMapSize,
+                          nodes: nodes,
+                          viewportRect: _miniViewportRect(miniTx),
+                          mapTransform: miniTx,
+                          onNavigate: (miniPoint) {
+                            final scene = _miniToScene(miniPoint, miniTx);
+                            _moveViewportCenterToScene(_clampCenter(scene));
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -585,7 +853,9 @@ class _ConnPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = const Color(0x997A5CFF)
-      ..strokeWidth = 1.7
+      ..strokeWidth = 1.9
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true
       ..style = PaintingStyle.stroke;
 
     for (final node in nodes) {
@@ -593,8 +863,12 @@ class _ConnPainter extends CustomPainter {
       final parent = byPath[node.parentPath!];
       if (parent == null) continue;
 
-      final start = Offset(parent.center.dx + 78, parent.center.dy);
-      final end = Offset(node.center.dx - 78, node.center.dy);
+      const halfNodeWidth = 83.0;
+      final start = Offset(
+        parent.center.dx + halfNodeWidth - 4,
+        parent.center.dy,
+      );
+      final end = Offset(node.center.dx - halfNodeWidth + 4, node.center.dy);
       final c1 = Offset(start.dx + 56, start.dy);
       final c2 = Offset(end.dx - 56, end.dy);
 
@@ -608,6 +882,167 @@ class _ConnPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ConnPainter oldDelegate) {
-    return oldDelegate.nodes != nodes;
+    return oldDelegate.nodes != nodes || oldDelegate.byPath != byPath;
+  }
+}
+
+class _MiniMapTransform {
+  final double scale;
+  final Offset origin;
+
+  const _MiniMapTransform({required this.scale, required this.origin});
+}
+
+class _MiniMapPanel extends StatelessWidget {
+  final Size size;
+  final List<_NodePos> nodes;
+  final Rect viewportRect;
+  final _MiniMapTransform mapTransform;
+  final ValueChanged<Offset> onNavigate;
+
+  const _MiniMapPanel({
+    required this.size,
+    required this.nodes,
+    required this.viewportRect,
+    required this.mapTransform,
+    required this.onNavigate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (details) => onNavigate(details.localPosition),
+      onPanUpdate: (details) {
+        final nextCenter = viewportRect.center + details.delta;
+        onNavigate(nextCenter);
+      },
+      child: Container(
+        width: size.width,
+        height: size.height,
+        decoration: BoxDecoration(
+          color: const Color(0xBB0E0F16),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white24, width: 1),
+        ),
+        child: CustomPaint(
+          painter: _MiniMapPainter(
+            nodes: nodes,
+            viewportRect: viewportRect,
+            mapTransform: mapTransform,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniMapPainter extends CustomPainter {
+  final List<_NodePos> nodes;
+  final Rect viewportRect;
+  final _MiniMapTransform mapTransform;
+
+  const _MiniMapPainter({
+    required this.nodes,
+    required this.viewportRect,
+    required this.mapTransform,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final nodePaint = Paint()
+      ..color = const Color(0xAA7B8FFF)
+      ..style = PaintingStyle.fill;
+    final rootPaint = Paint()
+      ..color = const Color(0xFF6FA0FF)
+      ..style = PaintingStyle.fill;
+    final viewportPaint = Paint()
+      ..color = Colors.transparent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final viewportFill = Paint()
+      ..color = const Color(0x448AA5FF)
+      ..style = PaintingStyle.fill;
+
+    for (final node in nodes) {
+      final p = Offset(
+        mapTransform.origin.dx + (node.center.dx * mapTransform.scale),
+        mapTransform.origin.dy + (node.center.dy * mapTransform.scale),
+      );
+      final paint = node.level == 0 ? rootPaint : nodePaint;
+      final r = node.level == 0 ? 2.4 : 1.7;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: p, width: r * 2.4, height: r * 1.9),
+          const Radius.circular(2),
+        ),
+        paint,
+      );
+    }
+
+    final clampedViewport = Rect.fromLTWH(
+      viewportRect.left.clamp(0, size.width),
+      viewportRect.top.clamp(0, size.height),
+      viewportRect.width.clamp(8, size.width),
+      viewportRect.height.clamp(8, size.height),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(clampedViewport, const Radius.circular(4)),
+      viewportFill,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(clampedViewport, const Radius.circular(4)),
+      viewportPaint..color = const Color(0xFFE1E9FF),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniMapPainter oldDelegate) {
+    return oldDelegate.nodes != nodes ||
+        oldDelegate.viewportRect != viewportRect ||
+        oldDelegate.mapTransform != mapTransform;
+  }
+}
+
+class _FloatingControls extends StatelessWidget {
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onReset;
+
+  const _FloatingControls({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onReset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xCC1A1B25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            onPressed: onZoomIn,
+            icon: const Icon(Icons.add),
+            color: Colors.white,
+          ),
+          IconButton(
+            onPressed: onZoomOut,
+            icon: const Icon(Icons.remove),
+            color: Colors.white,
+          ),
+          IconButton(
+            onPressed: onReset,
+            icon: const Icon(Icons.center_focus_strong),
+            color: Colors.white,
+          ),
+        ],
+      ),
+    );
   }
 }

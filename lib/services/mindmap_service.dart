@@ -63,7 +63,7 @@ class MindmapService {
             headers: {'Content-Type': 'application/json'},
             body: body,
           )
-          .timeout(const Duration(seconds: 95));
+          .timeout(const Duration(seconds: 60));
 
       print('📝 [MindmapService] Response status: ${response.statusCode}');
       print('📝 [MindmapService] Response length: ${response.body.length}');

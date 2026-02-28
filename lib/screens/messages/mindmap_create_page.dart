@@ -181,7 +181,7 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
           const SizedBox(height: 12),
           _sectionCard(
             child: DropdownButtonFormField<String>(
-              value: _depthLevel,
+              initialValue: _depthLevel,
               dropdownColor: const Color(0xFF1F1F24),
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(labelText: 'Depth Level'),

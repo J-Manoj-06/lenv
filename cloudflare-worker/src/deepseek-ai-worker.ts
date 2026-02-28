@@ -359,8 +359,8 @@ async function handleMindmapGenerate(request: Request, env: Env): Promise<Respon
     const deepseekRequest = {
       model: 'deepseek-chat',
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.4,
-      max_tokens: 2800,
+      temperature: 0.6,
+      max_tokens: 1800,
       response_format: { type: 'json_object' },
     };
 
@@ -539,21 +539,17 @@ function buildMindmapPrompt({
 
   const classContext = standard && section ? `\nClass: ${standard} ${section}` : '';
 
-  return `Create a detailed learning mindmap for the topic "${topic}".
-${classContext}
+  return `Create a learning mindmap for "${topic}".${classContext}
 Subject: ${subject}
-Learning Style: ${learningStyle}
-Depth Level: ${depthLevel}${languageInstruction}
+Depth: ${depthLevel}${languageInstruction}
 
 Requirements:
-1. Main topic as the central node.
-2. Create exactly ${topicCount} branches from the main topic (no more, no less).
-3. Each branch should have ${depthHint} of sub-topics.
-4. ${learningStyleDesc}
-5. Make connections explicit where relevant.
-6. Content should be appropriate for ${standard || 'students'} level.
+1. Main topic as root with exactly ${topicCount} main branches
+2. Each branch: ${depthHint} of sub-topics with brief descriptions
+3. ${learningStyleDesc}
+4. Clear, concise content appropriate for ${standard || 'students'}
 
-Return ONLY valid JSON with this exact structure:
+Return valid JSON:
 {
   "root": {
     "title": "Main Topic",
