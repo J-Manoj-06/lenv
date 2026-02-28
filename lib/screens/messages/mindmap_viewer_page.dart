@@ -64,14 +64,14 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
       return;
     }
 
-    // Auto-expand all nodes when loading
+    // Only expand root node initially - users can expand others by tapping
     if (model != null) {
       print('📥 [ViewerPage] Model topic: ${model.topic}');
       print('📥 [ViewerPage] Root node title: ${model.root.title}');
-      _expandAllNodes(model.root, 'root');
-      print('✅ [ViewerPage] Expanded ${_expanded.length} nodes: $_expanded');
+      // Only root is expanded by default (already in _expanded set)
+      print('✅ [ViewerPage] Initial expanded: $_expanded');
     } else {
-      print('❌ [ViewerPage] Model is null, cannot expand nodes');
+      print('❌ [ViewerPage] Model is null');
     }
 
     setState(() {
@@ -92,40 +92,69 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
     }
   }
 
-  void _expandAllNodes(MindmapNode node, String path) {
-    print(
-      '📍 [ViewerPage] Expanding path: $path, children: ${node.children.length}',
-    );
-    _expanded.add(path);
+  void _collapseNodeAndChildren(MindmapNode node, String path) {
+    // Remove this node from expanded set
+    _expanded.remove(path);
+
+    // Recursively collapse all children
     for (int i = 0; i < node.children.length; i++) {
       final childPath = '$path/$i';
-      _expandAllNodes(node.children[i], childPath);
+      _collapseNodeAndChildren(node.children[i], childPath);
     }
+  }
+
+  MindmapNode? _getNodeAtPath(MindmapNode root, String path) {
+    if (path == 'root') return root;
+
+    final parts = path.split('/').skip(1); // Skip 'root'
+    MindmapNode current = root;
+
+    for (final indexStr in parts) {
+      final index = int.tryParse(indexStr);
+      if (index == null || index >= current.children.length) return null;
+      current = current.children[index];
+    }
+
+    return current;
   }
 
   void _centerMindmap() {
     print('🎯 [ViewerPage] _centerMindmap called');
+    if (!mounted) return;
+
     final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
-    // Handle case where box hasn't been laid out yet
-    final size = box?.hasSize == true ? box!.size : MediaQuery.of(context).size;
+    if (box?.hasSize != true) {
+      print('⚠️ [ViewerPage] Box not ready, skipping center');
+      return;
+    }
+
+    final size = box!.size;
     print('🎯 [ViewerPage] Screen size: $size');
 
-    // Root node is at canvas center (_canvasSize/2, _canvasSize/2)
-    // We want it to appear at approximately 30% from left, 50% from top of screen
-    final rootSceneX = _canvasSize / 2;
-    final rootSceneY = _canvasSize / 2;
-    final targetX = size.width * 0.30;
-    final targetY = size.height / 2;
+    // Root node is at canvas center
+    final rootX = _canvasSize / 2;
+    final rootY = _canvasSize / 2;
 
-    final dx = targetX - rootSceneX;
-    final dy = targetY - rootSceneY;
+    // Calculate where we want the root to appear on screen (20% from left, 50% from top)
+    final targetScreenX = size.width * 0.20;
+    final targetScreenY = size.height * 0.5;
 
-    print('🎯 [ViewerPage] Root position: ($rootSceneX, $rootSceneY)');
-    print('🎯 [ViewerPage] Target position: ($targetX, $targetY)');
-    print('🎯 [ViewerPage] Translation: dx=$dx, dy=$dy');
+    print('🎯 [ViewerPage] Root at: ($rootX, $rootY)');
+    print(
+      '🎯 [ViewerPage] Target screen pos: ($targetScreenX, $targetScreenY)',
+    );
 
-    _transformController.value = Matrix4.identity()..translate(dx, dy);
+    // Create transformation that moves root to target position
+    final matrix = Matrix4.identity()
+      ..translate(targetScreenX - rootX, targetScreenY - rootY);
+
+    _transformController.value = matrix;
     print('✅ [ViewerPage] Viewport centered');
+
+    // Force a rebuild to show the centered view
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   double _currentScale() => _transformController.value.getMaxScaleOnAxis();
@@ -214,9 +243,11 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
       if (!_expanded.contains(path) || node.children.isEmpty) return;
 
       final count = node.children.length;
-      final startX = center.dx - ((count - 1) * spread / 2);
-      final y = center.dy + 140;
-      final nextSpread = math.max(170, spread * 0.72).toDouble();
+      // Horizontal layout: children stack vertically to the right
+      final x = center.dx + 320; // Fixed horizontal distance to the right
+      final totalHeight = (count - 1) * spread;
+      final startY = center.dy - (totalHeight / 2);
+      final nextSpread = math.max(170, spread * 0.8).toDouble();
 
       for (int i = 0; i < count; i++) {
         final child = node.children[i];
@@ -225,7 +256,7 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
           child,
           childPath,
           level + 1,
-          Offset(startX + i * spread, y),
+          Offset(x, startY + i * spread),
           path,
           nextSpread,
         );
@@ -450,6 +481,25 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
+          onTap: hasChildren
+              ? () {
+                  setState(() {
+                    if (isExpanded) {
+                      // Collapse this node and all its children
+                      final nodeData = _getNodeAtPath(
+                        _mindmap!.root,
+                        node.path,
+                      );
+                      if (nodeData != null) {
+                        _collapseNodeAndChildren(nodeData, node.path);
+                      }
+                    } else {
+                      // Expand only this node
+                      _expanded.add(node.path);
+                    }
+                  });
+                }
+              : null,
           onPanStart: (_) => setState(() => _draggingPath = node.path),
           onPanUpdate: (details) => _dragNode(node, details),
           onPanEnd: (_) => setState(() => _draggingPath = null),
@@ -493,25 +543,13 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
                     ),
                   ),
                   if (hasChildren)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () {
-                        setState(() {
-                          if (isExpanded) {
-                            _expanded.remove(node.path);
-                          } else {
-                            _expanded.add(node.path);
-                          }
-                        });
-                      },
-                      child: AnimatedRotation(
-                        duration: const Duration(milliseconds: 220),
-                        turns: isExpanded ? 0.25 : 0,
-                        child: const Icon(
-                          Icons.chevron_right,
-                          color: Colors.white,
-                          size: 22,
-                        ),
+                    AnimatedRotation(
+                      duration: const Duration(milliseconds: 220),
+                      turns: isExpanded ? 0.25 : 0,
+                      child: const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white,
+                        size: 22,
                       ),
                     ),
                 ],
@@ -912,9 +950,11 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
       if (!_expanded.contains(path) || node.children.isEmpty) return;
 
       final count = node.children.length;
-      final startX = center.dx - ((count - 1) * spread / 2);
-      final y = center.dy + 140;
-      final nextSpread = math.max(170, spread * 0.72).toDouble();
+      // Horizontal layout: children stack vertically to the right
+      final x = center.dx + 320; // Fixed horizontal distance to the right
+      final totalHeight = (count - 1) * spread;
+      final startY = center.dy - (totalHeight / 2);
+      final nextSpread = math.max(170, spread * 0.8).toDouble();
 
       for (int i = 0; i < count; i++) {
         final child = node.children[i];
@@ -923,7 +963,7 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
           child,
           childPath,
           level + 1,
-          Offset(startX + i * spread, y),
+          Offset(x, startY + i * spread),
           path,
           nextSpread,
         );
