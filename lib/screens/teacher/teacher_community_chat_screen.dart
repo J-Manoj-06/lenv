@@ -447,7 +447,9 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
     _audioRecorder.dispose();
     _messageText.dispose();
     _selectedMessages.dispose();
-    _recordingTimer.cancel();
+    if (_isRecording) {
+      _recordingTimer.cancel();
+    }
     _recordingDuration.dispose();
     super.dispose();
   }
