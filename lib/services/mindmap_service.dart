@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:async';
 
 import '../models/mindmap_model.dart';
 
@@ -7,23 +9,26 @@ class MindmapGenerationResult {
   final String mindmapId;
   final String topic;
   final List<String> previewNodes;
+  final Map<String, dynamic>? structure;
 
   const MindmapGenerationResult({
     required this.mindmapId,
     required this.topic,
     required this.previewNodes,
+    this.structure,
   });
 }
 
 class MindmapService {
-  final FirebaseFunctions _functions;
   final FirebaseFirestore _firestore;
+  static const String _workerUrl =
+      'https://deepseek-ai-worker.giridharannj.workers.dev';
 
-  MindmapService({FirebaseFunctions? functions, FirebaseFirestore? firestore})
-    : _functions = functions ?? FirebaseFunctions.instance,
-      _firestore = firestore ?? FirebaseFirestore.instance;
+  MindmapService({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  Future<MindmapGenerationResult> generateMindmap({
+  /// Generate mindmap draft (preview only)
+  Future<Map<String, dynamic>> generateMindmapDraft({
     required String classId,
     required String subjectId,
     required String topic,
@@ -31,30 +36,148 @@ class MindmapService {
     required String depthLevel,
     required String learningStyle,
   }) async {
-    final callable = _functions.httpsCallable(
-      'generateMindmap',
-      options: HttpsCallableOptions(timeout: const Duration(seconds: 90)),
-    );
+    try {
+      print('📝 [MindmapService] Generating mindmap for topic: $topic');
+      print('📝 [MindmapService] URL: $_workerUrl/mindmap/generate');
+      print(
+        '📝 [MindmapService] Params: topicCount=$topicCount, depthLevel=$depthLevel, learningStyle=$learningStyle',
+      );
 
-    final result = await callable.call(<String, dynamic>{
-      'classId': classId,
-      'subjectId': subjectId,
-      'topic': topic.trim(),
-      'topicCount': topicCount,
-      'depthLevel': depthLevel,
-      'learningStyle': learningStyle,
-    });
+      final body = jsonEncode({
+        'topic': topic.trim(),
+        'topicCount': topicCount,
+        'depthLevel': depthLevel,
+        'learningStyle': learningStyle,
+        'subject': 'General',
+        'standard': '',
+        'section': '',
+      });
+      print('📝 [MindmapService] Request body: $body');
 
-    final data = Map<String, dynamic>.from(result.data as Map);
-    final preview =
-        (data['previewNodes'] as List?)?.map((e) => e.toString()).toList() ??
-        <String>[];
+      final response = await http
+          .post(
+            Uri.parse('$_workerUrl/mindmap/generate'),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 95));
 
-    return MindmapGenerationResult(
-      mindmapId: (data['mindmapId'] ?? '').toString(),
-      topic: (data['topic'] ?? topic).toString(),
-      previewNodes: preview,
-    );
+      print('📝 [MindmapService] Response status: ${response.statusCode}');
+      print('📝 [MindmapService] Response length: ${response.body.length}');
+      print(
+        '📝 [MindmapService] Response preview: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}',
+      );
+
+      if (response.statusCode != 200) {
+        final error = _parseError(response);
+        print('❌ [MindmapService] Error response: $error');
+        throw Exception('HTTP ${response.statusCode}: $error');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      print('📝 [MindmapService] Parsed JSON keys: ${data.keys}');
+
+      final structure = data['structure'];
+      print('📝 [MindmapService] Structure type: ${structure.runtimeType}');
+
+      if (structure is! Map) {
+        print(
+          '❌ [MindmapService] Structure is not a Map, got: ${structure.runtimeType}',
+        );
+        throw Exception(
+          'Invalid AI mindmap structure: expected Map, got ${structure.runtimeType}',
+        );
+      }
+
+      // Extract the root from the structure
+      final root = structure['root'] as Map<String, dynamic>?;
+      if (root == null) {
+        print('❌ [MindmapService] Structure missing root key');
+        throw Exception('Invalid mindmap structure: missing root node');
+      }
+
+      print(
+        '✅ [MindmapService] Successfully generated mindmap structure with root: ${root['title']}',
+      );
+      return root;
+    } on http.ClientException catch (e) {
+      print('❌ [MindmapService] Network error: ${e.message}');
+      throw Exception('Network error: ${e.message}');
+    } on TimeoutException catch (e) {
+      print('❌ [MindmapService] Timeout: ${e.message}');
+      throw Exception('Request timeout: ${e.message}');
+    } catch (e) {
+      print('❌ [MindmapService] Unexpected error: ${e.toString()}');
+      rethrow;
+    }
+  }
+
+  /// Publish mindmap (save to Firestore)
+  Future<String> publishMindmap({
+    required String classId,
+    required String subjectId,
+    required String topic,
+    required String depthLevel,
+    required String learningStyle,
+    required int topicCount,
+    required Map<String, dynamic> structure,
+  }) async {
+    try {
+      print('📤 [MindmapService] Publishing mindmap for topic: $topic');
+      print('📤 [MindmapService] Structure type: ${structure.runtimeType}');
+      print('📤 [MindmapService] Structure keys: ${structure.keys}');
+
+      // Wrap root node with proper structure for worker validation
+      final publishStructure = {
+        'root': structure, // Wrap the root node
+      };
+
+      final response = await http
+          .post(
+            Uri.parse('$_workerUrl/mindmap/publish'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'classId': classId,
+              'subjectId': subjectId,
+              'topic': topic,
+              'depthLevel': depthLevel,
+              'learningStyle': learningStyle,
+              'topicCount': topicCount,
+              'structure': publishStructure,
+            }),
+          )
+          .timeout(const Duration(seconds: 65));
+
+      print('📤 [MindmapService] Response status: ${response.statusCode}');
+
+      if (response.statusCode != 200) {
+        final error = _parseError(response);
+        print('❌ [MindmapService] Publish error: $error');
+        throw Exception('Failed to publish mindmap: $error');
+      }
+
+      print('✅ [MindmapService] Mindmap published successfully');
+
+      // Generate local ID for now
+      final mindmapId = 'mindmap_${DateTime.now().millisecondsSinceEpoch}';
+
+      // Save structure to Firestore for later retrieval
+      await _firestore.collection('group_mindmaps').doc(mindmapId).set({
+        'classId': classId,
+        'subjectId': subjectId,
+        'topic': topic,
+        'structure': structure,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return mindmapId;
+    } on http.ClientException catch (e) {
+      print('❌ [MindmapService] Network error: ${e.message}');
+      throw Exception('Network error: ${e.message}');
+    } catch (e) {
+      print('❌ [MindmapService] Unexpected error: $e');
+      rethrow;
+    }
   }
 
   Future<void> sendMindmapMessage({
@@ -105,5 +228,14 @@ class MindmapService {
 
     if (!doc.exists) return null;
     return MindmapModel.fromFirestore(doc);
+  }
+
+  String _parseError(http.Response response) {
+    try {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['error'] ?? data['message'] ?? response.statusCode.toString();
+    } catch (_) {
+      return response.statusCode.toString();
+    }
   }
 }

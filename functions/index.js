@@ -93,7 +93,7 @@ function validateStructure(obj) {
 }
 
 function buildMindmapPrompt({ topic, topicCount, depthLevel, learningStyle, subject, standard, section }) {
-  const depthHint = depthLevel === 'Deep'
+  const depthHint = (depthLevel === 'Deep' || depthLevel === 'Advanced')
     ? '3 to 4 levels'
     : depthLevel === 'Medium'
       ? '2 to 3 levels'
@@ -273,12 +273,13 @@ exports.generateMindmap = functions
     const topicCount = Number(data?.topicCount);
     const depthLevel = String(data?.depthLevel || 'Medium').trim();
     const learningStyle = String(data?.learningStyle || 'Concept Based').trim();
+    const previewOnly = data?.previewOnly === true;
 
     if (!classId || !subjectId || !topic) {
       throw new functions.https.HttpsError('invalid-argument', 'classId, subjectId and topic are required.');
     }
-    if (!Number.isInteger(topicCount) || topicCount < 2 || topicCount > 8) {
-      throw new functions.https.HttpsError('invalid-argument', 'topicCount must be an integer between 2 and 8.');
+    if (!Number.isInteger(topicCount) || topicCount < 3 || topicCount > 8) {
+      throw new functions.https.HttpsError('invalid-argument', 'topicCount must be an integer between 3 and 8.');
     }
 
     const userDoc = await db.collection('users').doc(uid).get();
@@ -364,6 +365,15 @@ exports.generateMindmap = functions
     const previewNodes = normalized.root.children.slice(0, 4).map((n) => n.title);
     const groupId = `${classId}_${subjectId}`;
 
+    if (previewOnly) {
+      return {
+        topic: normalized.topic,
+        previewNodes,
+        structure: normalized.root,
+        groupId,
+      };
+    }
+
     const mindmapRef = db.collection('group_mindmaps').doc();
     await mindmapRef.set({
       mindmap_id: mindmapRef.id,
@@ -385,6 +395,91 @@ exports.generateMindmap = functions
     return {
       mindmapId: mindmapRef.id,
       topic: normalized.topic,
+      previewNodes,
+      structure: normalized.root,
+      groupId,
+    };
+  });
+
+exports.publishMindmap = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 60, memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth?.uid) {
+      throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+    }
+
+    const uid = context.auth.uid;
+    const classId = String(data?.classId || '').trim();
+    const subjectId = String(data?.subjectId || '').trim();
+    const topic = String(data?.topic || '').trim();
+    const depthLevel = String(data?.depthLevel || 'Medium').trim();
+    const learningStyle = String(data?.learningStyle || 'Concept Based').trim();
+    const topicCount = Number(data?.topicCount || 4);
+    const structure = data?.structure;
+
+    if (!classId || !subjectId || !topic) {
+      throw new functions.https.HttpsError('invalid-argument', 'classId, subjectId and topic are required.');
+    }
+    if (!structure || typeof structure !== 'object') {
+      throw new functions.https.HttpsError('invalid-argument', 'structure is required.');
+    }
+
+    const userDoc = await db.collection('users').doc(uid).get();
+    const userData = userDoc.data() || {};
+    const userRole = String(userData.role || '').toLowerCase();
+    if (userRole !== 'teacher') {
+      throw new functions.https.HttpsError('permission-denied', 'Only teachers can publish mindmaps.');
+    }
+
+    const classDoc = await db.collection('classes').doc(classId).get();
+    if (!classDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Class not found.');
+    }
+
+    const classData = classDoc.data() || {};
+    const standard = String(classData.className || '').trim();
+    const section = String(classData.section || '').trim();
+    const subjects = classData.subjects;
+    let subjectName = subjectId;
+    if (Array.isArray(subjects)) {
+      const found = subjects.find((s) => String(s || '').toLowerCase().replace(/\s+/g, '_') === subjectId.toLowerCase());
+      if (found) {
+        subjectName = String(found);
+      }
+    }
+
+    const normalizedRoot = normalizeMindmapNode(structure);
+    if (!normalizedRoot.title || normalizedRoot.title === 'Untitled') {
+      normalizedRoot.title = topic;
+    }
+
+    const previewNodes = Array.isArray(normalizedRoot.children)
+      ? normalizedRoot.children.slice(0, 4).map((n) => n.title)
+      : [];
+
+    const groupId = `${classId}_${subjectId}`;
+    const mindmapRef = db.collection('group_mindmaps').doc();
+    await mindmapRef.set({
+      mindmap_id: mindmapRef.id,
+      group_id: groupId,
+      class_id: classId,
+      subject_id: subjectId,
+      standard,
+      section,
+      subject: subjectName,
+      topic,
+      json_structure: normalizedRoot,
+      created_by: uid,
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      depth_level: depthLevel,
+      learning_style: learningStyle,
+      topic_count: Number.isInteger(topicCount) ? topicCount : 4,
+    });
+
+    return {
+      mindmapId: mindmapRef.id,
+      topic,
       previewNodes,
       groupId,
     };

@@ -59,6 +59,15 @@ export default {
       return await handleAIRequest(request, env);
     }
 
+    // Mindmap endpoints
+    if (request.method === 'POST' && url.pathname === '/mindmap/generate') {
+      return await handleMindmapGenerate(request, env);
+    }
+
+    if (request.method === 'POST' && url.pathname === '/mindmap/publish') {
+      return await handleMindmapPublish(request, env);
+    }
+
     // Route not found
     return jsonResponse(
       {
@@ -68,6 +77,8 @@ export default {
           '/health': 'GET - Health check',
           '/chat': 'POST - Chat completion',
           '/generate': 'POST - Test generation',
+          '/mindmap/generate': 'POST - Generate mindmap draft',
+          '/mindmap/publish': 'POST - Publish mindmap',
         },
       },
       404
@@ -309,6 +320,299 @@ function validateRequest(body: any): { valid: boolean; error?: string } {
   }
 
   return { valid: true };
+}
+
+/**
+ * Handle mindmap generation request
+ */
+async function handleMindmapGenerate(request: Request, env: Env): Promise<Response> {
+  console.log('🧠 Mindmap generation request received');
+  
+  try {
+    let body: any;
+    try {
+      body = await request.json();
+      console.log('📦 Parsed body:', { topic: body.topic, topicCount: body.topicCount });
+    } catch (e) {
+      console.error('❌ Failed to parse JSON:', e);
+      return jsonResponse({ error: 'Invalid JSON' }, 400);
+    }
+
+    const { topic, topicCount, depthLevel, learningStyle, subject, standard, section } = body;
+
+    if (!topic || !topicCount) {
+      return jsonResponse({ error: 'Missing topic or topicCount' }, 400);
+    }
+
+    console.log('🎯 Building mindmap prompt for:', topic);
+    const prompt = buildMindmapPrompt({
+      topic,
+      topicCount: Number(topicCount),
+      depthLevel: depthLevel || 'Medium',
+      learningStyle: learningStyle || 'Concept Based',
+      subject: subject || 'General',
+      standard: standard || '',
+      section: section || '',
+    });
+
+    console.log('📤 Calling DeepSeek API...');
+    const deepseekRequest = {
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.4,
+      max_tokens: 2800,
+      response_format: { type: 'json_object' },
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(DEEPSEEK_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify(deepseekRequest),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log('📥 Response status:', response.status);
+
+      let responseData: any;
+      try {
+        responseData = await response.json();
+        console.log('✅ Parsed response, choices count:', responseData?.choices?.length);
+      } catch (e) {
+        console.error('❌ Failed to parse response body:', e);
+        return jsonResponse({ error: 'Invalid API response' }, 502);
+      }
+
+      if (!response.ok) {
+        console.error('❌ API error response:', responseData);
+        if (response.status === 429) {
+          return jsonResponse({ error: 'Rate limit exceeded' }, 429);
+        }
+        return jsonResponse({ error: 'AI service error', details: responseData }, 502);
+      }
+
+      const raw = responseData?.choices?.[0]?.message?.content || '';
+      console.log('📝 Raw response length:', raw.length);
+      
+      const jsonText = sanitizeToJsonString(raw);
+      console.log('🧹 Sanitized JSON length:', jsonText.length);
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonText);
+        console.log('✨ Successfully parsed JSON, root title:', parsed?.root?.title);
+      } catch (e) {
+        console.error('❌ Failed to parse AI JSON response:', e, 'Raw:', raw.substring(0, 200));
+        return jsonResponse({ error: 'Invalid JSON from AI', raw: raw.substring(0, 500) }, 502);
+      }
+
+      const normalized = normalizeMindmapStructure(parsed, topic);
+      const previewNodes = normalized.root.children.slice(0, 4).map((n: any) => n.title);
+
+      console.log('✅ Mindmap generated successfully with', normalized.root.children.length, 'branches');
+      return jsonResponse({
+        topic: normalized.topic,
+        structure: normalized,
+        previewNodes,
+      });
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        console.error('⏱️ Request timeout');
+        return jsonResponse({ error: 'Request timeout' }, 504);
+      }
+      throw fetchError;
+    }
+  } catch (error: any) {
+    console.error('❌ Mindmap generation error:', error.message, error);
+    return jsonResponse({ error: 'Internal server error', details: error.message }, 500);
+  }
+}
+
+/**
+ * Handle mindmap publish request
+ */
+async function handleMindmapPublish(request: Request, env: Env): Promise<Response> {
+  try {
+    let body: any;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return jsonResponse({ error: 'Invalid JSON' }, 400);
+    }
+
+    const { structure, classId, subjectId, topic } = body;
+
+    if (!structure || !classId || !subjectId || !topic) {
+      return jsonResponse({ error: 'Missing required fields' }, 400);
+    }
+
+    // Validate structure
+    if (!structure.root || !Array.isArray(structure.root.children)) {
+      return jsonResponse({ error: 'Invalid mindmap structure' }, 400);
+    }
+
+    // Structure is valid - in real implementation, this would save to Firestore
+    // For now, just return success
+    return jsonResponse({
+      success: true,
+      topic,
+      branchCount: structure.root.children.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('❌ Mindmap publish error:', error.message);
+    return jsonResponse({ error: 'Internal server error' }, 500);
+  }
+}
+
+/**
+ * Build mindmap generation prompt
+ */
+function buildMindmapPrompt({
+  topic,
+  topicCount,
+  depthLevel,
+  learningStyle,
+  subject,
+  standard,
+  section,
+}: {
+  topic: string;
+  topicCount: number;
+  depthLevel: string;
+  learningStyle: string;
+  subject: string;
+  standard: string;
+  section: string;
+}): string {
+  const depthHint = (depthLevel === 'Deep' || depthLevel === 'Advanced')
+    ? '3 to 4 levels'
+    : depthLevel === 'Medium'
+      ? '2 to 3 levels'
+      : '1 to 2 levels';
+
+  const learningStyleDesc =
+    learningStyle === 'Visual' ? 'Use visual metaphors and spatial relationships.' :
+    learningStyle === 'Kinesthetic' ? 'Emphasize action, process, and practical steps.' :
+    'Organize by high-level concepts and principles.';
+
+  return `Create a detailed learning mindmap for the topic "${topic}".
+
+Class: ${standard} ${section}
+Subject: ${subject}
+Learning Style: ${learningStyle}
+Depth Level: ${depthLevel}
+
+Requirements:
+1. Main topic as the central node.
+2. Create exactly ${topicCount} branches from the main topic (no more, no less).
+3. Each branch should have ${depthHint} of sub-topics.
+4. ${learningStyleDesc}
+5. Make connections explicit where relevant.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "root": {
+    "title": "Main Topic",
+    "children": [
+      {
+        "title": "Branch Title",
+        "description": "Brief description",
+        "children": [
+          {
+            "title": "Sub-topic",
+            "description": "Details",
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}
+
+Ensure:
+- All strings are properly escaped
+- No trailing commas
+- Valid JSON only`;
+}
+
+/**
+ * Normalize mindmap structure
+ */
+function normalizeMindmapStructure(obj: any, topic: string): any {
+  try {
+    if (!obj || !obj.root) {
+      return {
+        topic,
+        root: {
+          title: topic,
+          description: 'Main Topic',
+          children: [],
+        },
+      };
+    }
+
+    const root = obj.root;
+    if (!Array.isArray(root.children)) {
+      root.children = [];
+    }
+
+    root.children = root.children.map((child: any) => normalizeNode(child));
+
+    return {
+      topic: root.title || topic,
+      root,
+    };
+  } catch (e) {
+    return {
+      topic,
+      root: {
+        title: topic,
+        description: 'Main Topic',
+        children: [],
+      },
+    };
+  }
+}
+
+/**
+ * Normalize individual mindmap node
+ */
+function normalizeNode(node: any): any {
+  if (!node || typeof node !== 'object') {
+    return { title: 'Unknown', description: '', children: [] };
+  }
+
+  return {
+    title: String(node.title || '').trim() || 'Untitled',
+    description: String(node.description || '').trim(),
+    children: Array.isArray(node.children) ? node.children.map(normalizeNode) : [],
+  };
+}
+
+/**
+ * Sanitize JSON string
+ */
+function sanitizeToJsonString(text: string): string {
+  if (typeof text !== 'string') return '';
+  let out = text.trim();
+  if (out.startsWith('```')) {
+    out = out
+      .replace(/^```json\n?/i, '')
+      .replace(/^```\n?/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
+  }
+  return out;
 }
 
 /**
