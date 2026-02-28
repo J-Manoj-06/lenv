@@ -2500,6 +2500,9 @@ class _GroupChatPageState extends State<GroupChatPage>
           subjectId: widget.subjectId,
           teacherId: currentUser.uid,
           teacherName: currentUser.name,
+          subjectName: widget.subjectName,
+          className: widget.className ?? '',
+          section: widget.section ?? '',
           onMindmapSent: () {
             if (mounted) {
               _scrollToLatest();

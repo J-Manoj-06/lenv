@@ -35,6 +35,9 @@ class MindmapService {
     required int topicCount,
     required String depthLevel,
     required String learningStyle,
+    required String subjectName,
+    required String className,
+    required String section,
   }) async {
     try {
       print('📝 [MindmapService] Generating mindmap for topic: $topic');
@@ -48,9 +51,9 @@ class MindmapService {
         'topicCount': topicCount,
         'depthLevel': depthLevel,
         'learningStyle': learningStyle,
-        'subject': 'General',
-        'standard': '',
-        'section': '',
+        'subject': subjectName.isNotEmpty ? subjectName : 'General',
+        'standard': className.isNotEmpty ? className : '',
+        'section': section.isNotEmpty ? section : '',
       });
       print('📝 [MindmapService] Request body: $body');
 

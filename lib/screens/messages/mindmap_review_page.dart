@@ -9,6 +9,9 @@ class MindmapReviewPage extends StatefulWidget {
   final String subjectId;
   final String teacherId;
   final String teacherName;
+  final String subjectName;
+  final String className;
+  final String section;
   final String topic;
   final int topicCount;
   final String depthLevel;
@@ -22,6 +25,9 @@ class MindmapReviewPage extends StatefulWidget {
     required this.subjectId,
     required this.teacherId,
     required this.teacherName,
+    required this.subjectName,
+    required this.className,
+    required this.section,
     required this.topic,
     required this.topicCount,
     required this.depthLevel,
@@ -117,6 +123,9 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
         topicCount: widget.topicCount,
         depthLevel: widget.depthLevel,
         learningStyle: widget.learningStyle,
+        subjectName: widget.subjectName,
+        className: widget.className,
+        section: widget.section,
       );
 
       if (!mounted) return;

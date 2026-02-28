@@ -505,12 +505,45 @@ function buildMindmapPrompt({
     learningStyle === 'Kinesthetic' ? 'Emphasize action, process, and practical steps.' :
     'Organize by high-level concepts and principles.';
 
-  return `Create a detailed learning mindmap for the topic "${topic}".
+  // Detect language from subject name
+  const subjectLower = subject.toLowerCase();
+  let languageInstruction = '';
+  
+  if (subjectLower.includes('hindi') || subjectLower.includes('हिंदी')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in HINDI language (Devanagari script). This is a Hindi language class.';
+  } else if (subjectLower.includes('tamil') || subjectLower.includes('தமிழ்')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in TAMIL language. This is a Tamil language class.';
+  } else if (subjectLower.includes('telugu') || subjectLower.includes('తెలుగు')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in TELUGU language. This is a Telugu language class.';
+  } else if (subjectLower.includes('kannada') || subjectLower.includes('ಕನ್ನಡ')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in KANNADA language. This is a Kannada language class.';
+  } else if (subjectLower.includes('bengali') || subjectLower.includes('বাংলা')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in BENGALI language. This is a Bengali language class.';
+  } else if (subjectLower.includes('marathi') || subjectLower.includes('मराठी')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in MARATHI language. This is a Marathi language class.';
+  } else if (subjectLower.includes('gujarati') || subjectLower.includes('ગુજરાતી')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in GUJARATI language. This is a Gujarati language class.';
+  } else if (subjectLower.includes('malayalam') || subjectLower.includes('മലയാളം')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in MALAYALAM language. This is a Malayalam language class.';
+  } else if (subjectLower.includes('punjabi') || subjectLower.includes('ਪੰਜਾਬੀ')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in PUNJABI language. This is a Punjabi language class.';
+  } else if (subjectLower.includes('urdu') || subjectLower.includes('اردو')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in URDU language. This is an Urdu language class.';
+  } else if (subjectLower.includes('french') || subjectLower.includes('français')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in FRENCH language. This is a French language class.';
+  } else if (subjectLower.includes('german') || subjectLower.includes('deutsch')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in GERMAN language. This is a German language class.';
+  } else if (subjectLower.includes('spanish') || subjectLower.includes('español')) {
+    languageInstruction = '\n\n**IMPORTANT**: Generate ALL content (titles, descriptions) in SPANISH language. This is a Spanish language class.';
+  }
 
-Class: ${standard} ${section}
+  const classContext = standard && section ? `\nClass: ${standard} ${section}` : '';
+
+  return `Create a detailed learning mindmap for the topic "${topic}".
+${classContext}
 Subject: ${subject}
 Learning Style: ${learningStyle}
-Depth Level: ${depthLevel}
+Depth Level: ${depthLevel}${languageInstruction}
 
 Requirements:
 1. Main topic as the central node.
@@ -518,6 +551,7 @@ Requirements:
 3. Each branch should have ${depthHint} of sub-topics.
 4. ${learningStyleDesc}
 5. Make connections explicit where relevant.
+6. Content should be appropriate for ${standard || 'students'} level.
 
 Return ONLY valid JSON with this exact structure:
 {

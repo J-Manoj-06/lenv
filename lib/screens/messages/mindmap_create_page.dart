@@ -8,6 +8,9 @@ class MindmapCreatePage extends StatefulWidget {
   final String subjectId;
   final String teacherId;
   final String teacherName;
+  final String subjectName;
+  final String className;
+  final String section;
   final VoidCallback? onMindmapSent;
 
   const MindmapCreatePage({
@@ -16,6 +19,9 @@ class MindmapCreatePage extends StatefulWidget {
     required this.subjectId,
     required this.teacherId,
     required this.teacherName,
+    required this.subjectName,
+    required this.className,
+    required this.section,
     this.onMindmapSent,
   });
 
@@ -57,6 +63,9 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
         topicCount: _topicCount,
         depthLevel: _depthLevel,
         learningStyle: _learningStyle,
+        subjectName: widget.subjectName,
+        className: widget.className,
+        section: widget.section,
       );
 
       print(
@@ -73,6 +82,9 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
             subjectId: widget.subjectId,
             teacherId: widget.teacherId,
             teacherName: widget.teacherName,
+            subjectName: widget.subjectName,
+            className: widget.className,
+            section: widget.section,
             topic: topic,
             topicCount: _topicCount,
             depthLevel: _depthLevel,
