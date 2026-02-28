@@ -436,7 +436,6 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
               onZoomIn: () => _zoomBy(0.12),
               onZoomOut: () => _zoomBy(-0.12),
               onReset: _centerMindmap,
-              onCenter: _centerMindmap,
             ),
           ),
           Positioned(
@@ -747,13 +746,11 @@ class _Toolbar extends StatelessWidget {
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onReset;
-  final VoidCallback onCenter;
 
   const _Toolbar({
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onReset,
-    required this.onCenter,
   });
 
   @override
@@ -786,10 +783,6 @@ class _Toolbar extends StatelessWidget {
           IconButton(
             onPressed: onReset,
             icon: const Icon(Icons.refresh, color: Colors.white),
-          ),
-          IconButton(
-            onPressed: onCenter,
-            icon: const Icon(Icons.center_focus_strong, color: Colors.white),
           ),
         ],
       ),
