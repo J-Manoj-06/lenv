@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../../services/mindmap_service.dart';
 import 'mindmap_review_page.dart';
@@ -118,7 +119,19 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: const Text('Create Learning Mindmap'),
+        foregroundColor: Colors.white,
+        toolbarHeight: 70,
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: const Text(
+            'Create Learning Mindmap',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -233,7 +246,7 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF7A5CFF), Color(0xFF5A39E6)],
+                  colors: [Color(0xFF355872), Color(0xFF2A4559)],
                 ),
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -277,11 +290,11 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
               borderSide: BorderSide(color: Color(0xFF303040)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFF7A5CFF), width: 1.4),
+              borderSide: BorderSide(color: Color(0xFF355872), width: 1.4),
             ),
           ),
           chipTheme: Theme.of(context).chipTheme.copyWith(
-            selectedColor: const Color(0xFF7A5CFF),
+            selectedColor: const Color(0xFF355872),
             backgroundColor: const Color(0xFF232331),
             labelStyle: const TextStyle(color: Colors.white),
             secondaryLabelStyle: const TextStyle(color: Colors.white),
