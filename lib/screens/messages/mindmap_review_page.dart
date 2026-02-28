@@ -38,6 +38,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   final MindmapService _mindmapService = MindmapService();
   final TransformationController _transformController =
       TransformationController();
+  final GlobalKey _viewerKey = GlobalKey();
 
   late Map<String, dynamic> _structure;
   bool _isWorking = false;
@@ -46,6 +47,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   static const double _canvasSize = 4600;
   static const double _nodeW = 166;
   static const double _nodeH = 58;
+  static const Offset _rootCenter = Offset(220, _canvasSize / 2);
 
   @override
   void initState() {
@@ -191,14 +193,14 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   }
 
   void _center() {
-    final size = MediaQuery.of(context).size;
-    // For horizontal layout, position root node on the left-center of view
-    // Root starts at x=200, so we translate to show it on the left side
-    _transformController.value = Matrix4.identity()
-      ..translate(-(100), (size.height / 2) - (_canvasSize / 2));
-  }
+    final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
+    final size = box?.size ?? MediaQuery.of(context).size;
+    final targetRootX = size.width * 0.30;
+    final dx = targetRootX - _rootCenter.dx;
+    final dy = (size.height / 2) - _rootCenter.dy;
 
-  void _reset() => _transformController.value = Matrix4.identity();
+    _transformController.value = Matrix4.identity()..translate(dx, dy);
+  }
 
   List<_NodePos> _layout() {
     final nodes = <_NodePos>[];
@@ -246,7 +248,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
     }
 
     // Start root node on left side, centered vertically for horizontal expansion
-    walk(_structure, 'root', Offset(200, _canvasSize / 2), 0, null, 280);
+    walk(_structure, 'root', _rootCenter, 0, null, 260);
     return nodes;
   }
 
@@ -410,94 +412,100 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
       body: Column(
         children: [
           Expanded(
-            child: InteractiveViewer(
-              transformationController: _transformController,
-              minScale: 0.4,
-              maxScale: 2.8,
-              constrained: false,
-              child: Container(
-                width: _canvasSize,
-                height: _canvasSize,
-                color: const Color(0xFF0D0D12),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _ConnPainter(nodes: nodes, byPath: byPath),
+            child: SizedBox.expand(
+              key: _viewerKey,
+              child: InteractiveViewer(
+                transformationController: _transformController,
+                minScale: 0.4,
+                maxScale: 2.8,
+                constrained: false,
+                child: Container(
+                  width: _canvasSize,
+                  height: _canvasSize,
+                  color: const Color(0xFF0D0D12),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _ConnPainter(nodes: nodes, byPath: byPath),
+                        ),
                       ),
-                    ),
-                    ...nodes.map((n) {
-                      final hasChildren =
-                          ((n.node['children'] as List?) ?? []).isNotEmpty;
-                      final isExpanded = _expanded.contains(n.path);
-                      final nodeTitle = (n.node['title'] ?? 'Node').toString();
+                      ...nodes.map((n) {
+                        final hasChildren =
+                            ((n.node['children'] as List?) ?? []).isNotEmpty;
+                        final isExpanded = _expanded.contains(n.path);
+                        final nodeTitle = (n.node['title'] ?? 'Node')
+                            .toString();
 
-                      final color = n.level == 0
-                          ? const Color(0xFF4775FF)
-                          : n.level == 1
-                          ? const Color(0xFF2DBF73)
-                          : const Color(0xFF8E5BFF);
+                        final color = n.level == 0
+                            ? const Color(0xFF4775FF)
+                            : n.level == 1
+                            ? const Color(0xFF2DBF73)
+                            : const Color(0xFF8E5BFF);
 
-                      return Positioned(
-                        left: n.center.dx - (_nodeW / 2),
-                        top: n.center.dy - (_nodeH / 2),
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              if (hasChildren) {
-                                if (isExpanded) {
-                                  _expanded.remove(n.path);
-                                } else {
-                                  _expanded.add(n.path);
+                        return Positioned(
+                          left: n.center.dx - (_nodeW / 2),
+                          top: n.center.dy - (_nodeH / 2),
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                if (hasChildren) {
+                                  if (isExpanded) {
+                                    _expanded.remove(n.path);
+                                  } else {
+                                    _expanded.add(n.path);
+                                  }
                                 }
-                              }
-                            });
-                          },
-                          onLongPress: () => _editNode(n),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            width: _nodeW,
-                            height: _nodeH,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x33000000),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    nodeTitle,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
+                              });
+                            },
+                            onLongPress: () => _editNode(n),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: _nodeW,
+                              height: _nodeH,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x33000000),
+                                    blurRadius: 8,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      nodeTitle,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                if (hasChildren)
-                                  Icon(
-                                    isExpanded
-                                        ? Icons.expand_more
-                                        : Icons.chevron_right,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                              ],
+                                  if (hasChildren)
+                                    Icon(
+                                      isExpanded
+                                          ? Icons.expand_more
+                                          : Icons.chevron_right,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }),
-                  ],
+                        );
+                      }),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -515,24 +523,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
                         child: const Text('Regenerate'),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _isWorking
-                            ? null
-                            : () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Long press a node to rename/add/delete.',
-                                    ),
-                                  ),
-                                );
-                              },
-                        child: const Text('Edit'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _isWorking ? null : _send,
@@ -549,23 +540,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      onPressed: _center,
-                      icon: const Icon(
-                        Icons.center_focus_strong,
-                        color: Colors.white70,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _reset,
-                      icon: const Icon(Icons.refresh, color: Colors.white70),
-                    ),
-                  ],
-                ),
+                const SizedBox(height: 0),
               ],
             ),
           ),
@@ -609,10 +584,10 @@ class _ConnPainter extends CustomPainter {
       final parent = byPath[node.parentPath!];
       if (parent == null) continue;
 
-      final start = Offset(parent.center.dx, parent.center.dy + 30);
-      final end = Offset(node.center.dx, node.center.dy - 30);
-      final c1 = Offset(start.dx, start.dy + 48);
-      final c2 = Offset(end.dx, end.dy - 48);
+      final start = Offset(parent.center.dx + 78, parent.center.dy);
+      final end = Offset(node.center.dx - 78, node.center.dy);
+      final c1 = Offset(start.dx + 56, start.dy);
+      final c2 = Offset(end.dx - 56, end.dy);
 
       final path = Path()
         ..moveTo(start.dx, start.dy)
