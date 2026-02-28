@@ -3505,7 +3505,8 @@ class _ImageGalleryViewer extends StatefulWidget {
   State<_ImageGalleryViewer> createState() => _ImageGalleryViewerState();
 }
 
-class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
+class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
+    with TickerProviderStateMixin {
   late PageController _pageController;
   late int _currentIndex;
   late Map<int, TransformationController> _transformationControllers;
@@ -3552,6 +3553,32 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
 
   bool get _shouldDisableScroll =>
       _isInteracting || (_zoomStates[_currentIndex] ?? false);
+
+  void _animateZoom(TransformationController controller, Matrix4 targetMatrix) {
+    final begin = controller.value;
+    final end = targetMatrix;
+
+    final animationController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+
+    final animation = Matrix4Tween(begin: begin, end: end).animate(
+      CurvedAnimation(parent: animationController, curve: Curves.easeInOut),
+    );
+
+    animation.addListener(() {
+      controller.value = animation.value;
+    });
+
+    animation.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        animationController.dispose();
+      }
+    });
+
+    animationController.forward();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3714,30 +3741,38 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
         });
       },
       child: GestureDetector(
-        onDoubleTap: () {
+        onDoubleTapDown: (details) {
+          // Store tap position for zoom target
           final controller = _transformationControllers[index]!;
           final scale = controller.value.getMaxScaleOnAxis();
 
           if (scale > 1.1) {
-            // Zoom out to original
-            controller.value = Matrix4.identity();
+            // Zoom out to original with animation
+            _animateZoom(controller, Matrix4.identity());
           } else {
-            // Zoom in to 2.5x at center
+            // Zoom in to 2.5x at tap position with animation
             final targetScale = 2.5;
-            controller.value = Matrix4.identity()
-              ..translate(
-                -MediaQuery.of(context).size.width * (targetScale - 1) / 2,
-                -MediaQuery.of(context).size.height * (targetScale - 1) / 2,
-              )
+            final position = details.localPosition;
+
+            // Calculate offset to center the tap position
+            final x = -position.dx * (targetScale - 1);
+            final y = -position.dy * (targetScale - 1);
+
+            final matrix = Matrix4.identity()
+              ..translate(x, y)
               ..scale(targetScale);
+
+            _animateZoom(controller, matrix);
           }
-          setState(() {});
+        },
+        onDoubleTap: () {
+          // Required for onDoubleTapDown to work
         },
         child: InteractiveViewer(
           transformationController: _transformationControllers[index],
           minScale: 1.0,
           maxScale: 5.0,
-          panEnabled: _pointerCount >= 2, // Only pan with 2+ fingers
+          panEnabled: true, // Enable single-finger pan when zoomed
           scaleEnabled: true,
           boundaryMargin: const EdgeInsets.all(double.infinity),
           clipBehavior: Clip.none,
