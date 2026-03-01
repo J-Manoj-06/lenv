@@ -18,6 +18,7 @@ import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
 import '../../utils/message_scroll_highlight_mixin.dart';
 import '../messages/offline_message_search_page.dart';
+import '../../services/whatsapp_chat_service.dart';
 
 class TeacherChatScreen extends StatefulWidget {
   final String schoolCode;
@@ -28,6 +29,8 @@ class TeacherChatScreen extends StatefulWidget {
   final String className;
   final String? section;
   final String? parentAvatarUrl;
+  final String? parentPhoneNumber;
+  final String studentName;
 
   const TeacherChatScreen({
     super.key,
@@ -39,6 +42,8 @@ class TeacherChatScreen extends StatefulWidget {
     required this.className,
     this.section,
     this.parentAvatarUrl,
+    this.parentPhoneNumber,
+    required this.studentName,
   });
 
   @override
@@ -48,6 +53,7 @@ class TeacherChatScreen extends StatefulWidget {
 class _TeacherChatScreenState extends State<TeacherChatScreen>
     with MessageScrollAndHighlightMixin {
   final ChatService _chat = ChatService();
+  final WhatsAppChatService _whatsappService = WhatsAppChatService();
   final TextEditingController _controller = TextEditingController();
   String? _conversationId;
   // Track messages already scheduled for read marking to avoid re-scheduling.
@@ -287,6 +293,44 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
         });
   }
 
+  /// Open WhatsApp chat with parent
+  Future<void> _openWhatsAppChat() async {
+    if (widget.parentPhoneNumber == null || widget.parentPhoneNumber!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Parent phone number not available'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Opening WhatsApp...'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+
+    // Call WhatsApp service to open chat
+    final success = await _whatsappService.startParentWhatsAppChat(
+      studentName: widget.studentName,
+      parentPhoneNumber: widget.parentPhoneNumber!,
+    );
+
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not open WhatsApp. Please make sure WhatsApp is installed.',
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   Future<void> _startRecording() async {
     try {
       if (await _audioRecorder.hasPermission()) {
@@ -507,7 +551,18 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
                   : _deleteSelectedMessages,
               tooltip: 'Delete selected',
             )
-          else
+          else ...[
+            // WhatsApp chat button (only if phone number is available)
+            if (widget.parentPhoneNumber != null &&
+                widget.parentPhoneNumber!.isNotEmpty)
+              IconButton(
+                icon: Icon(
+                  Icons.chat,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+                onPressed: _openWhatsAppChat,
+                tooltip: 'Chat on WhatsApp',
+              ),
             IconButton(
               icon: Icon(
                 Icons.search,
@@ -516,6 +571,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen>
               onPressed: _openSearch,
               tooltip: 'Search messages',
             ),
+          ],
         ],
       ),
       body: Column(

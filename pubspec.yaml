@@ -64,6 +64,8 @@ dependencies:
   http: ^1.2.0
   cloud_functions: ^6.0.4
   connectivity_plus: ^5.0.2
+  flutter_contacts: ^1.1.9
+  permission_handler: ^11.0.1
 
   # Caching & Storage
   hive: ^2.2.3

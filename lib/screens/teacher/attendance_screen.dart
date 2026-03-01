@@ -1115,6 +1115,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 className: className.isEmpty ? 'Grade ?' : className,
                 section: section,
                 parentAvatarUrl: parentPhotoUrl,
+                parentPhoneNumber: parentData['phoneNumber'] as String?,
+                studentName: (student['name'] ?? 'Student').toString(),
               );
             },
           ),

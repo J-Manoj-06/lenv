@@ -1541,6 +1541,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             className: className,
             section: section,
             parentAvatarUrl: parentData['parentPhotoUrl'],
+            parentPhoneNumber: parentData['phoneNumber'] as String?,
+            studentName: widget.studentName,
           ),
         ),
       );
