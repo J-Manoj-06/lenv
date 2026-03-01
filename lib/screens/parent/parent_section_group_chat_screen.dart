@@ -280,6 +280,43 @@ class _ParentSectionGroupChatScreenState
     }
   }
 
+  /// Save pending message with current upload progress to cache
+  Future<void> _updatePendingMessageCache(String messageId, List<Map<String, dynamic>> mediaWithProgress) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) return;
+
+      // ✅ Find the pending message safely
+      final pendingMsg = _pendingMessages.cast<CommunityMessageModel?>().firstWhere(
+        (m) => m?.messageId == messageId, 
+        orElse: () => null,
+      );
+      
+      if (pendingMsg == null) {
+        print('⚠️ Pending message $messageId not found in list, skipping cache update');
+        return;
+      }
+      
+      final localMessage = LocalMessage(
+        messageId: messageId,
+        chatId: widget.groupId,
+        chatType: 'ptGroup',
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
+        timestamp: pendingMsg.createdAt.millisecondsSinceEpoch,
+        messageText: pendingMsg.content,
+        multipleMedia: mediaWithProgress,
+        isPending: true,
+      );
+      
+      await _localRepo.saveMessage(localMessage);
+      print('💾 Updated cache for $messageId with progress');
+    } catch (e) {
+      print('⚠️ Failed to update pending message cache: $e');
+    }
+  }
+
   /// Load pending messages from local cache (survives navigation)
   /// WHY: When user uploads images and navigates away, the pending messages are saved to LocalMessageRepository
   ///      This function restores them when returning to the chat
@@ -305,14 +342,37 @@ class _ParentSectionGroupChatScreenState
       if (!mounted) return;
 
       setState(() {
-        // ✅ CRITICAL: Clear stale state before reload
-        _pendingMessages.clear();
-        // Clear associated tracking data
-        for (final notifier in _pendingUploadNotifiers.values) {
-          notifier.dispose();
-        }
-        _pendingUploadNotifiers.clear();
-        _lastUploadPercent.clear();
+        // ✅ IMPROVED: Keep actively uploading messages, only replace completed/missing ones
+        final activeUploadIds = _pendingMessages
+            .where((msg) {
+              // Check if any media in this message is actively uploading
+              if (msg.multipleMedia != null) {
+                return msg.multipleMedia!.any((media) {
+                  final notifier = _pendingUploadNotifiers[media.messageId];
+                  return notifier != null && notifier.value < 100;
+                });
+              }
+              // Check single media uploads
+              final notifier = _pendingUploadNotifiers[msg.messageId];
+              return notifier != null && notifier.value < 100;
+            })
+            .map((msg) => msg.messageId)
+            .toSet();
+        
+        print('🔄 Preserving ${activeUploadIds.length} actively uploading messages');
+        
+        // Remove only completed/stale messages, keep active uploads
+        _pendingMessages.removeWhere((msg) => !activeUploadIds.contains(msg.messageId));
+        
+        // Clean up notifiers for removed messages only
+        final messagesToKeep = _pendingMessages.map((m) => m.messageId).toSet();
+        _pendingUploadNotifiers.removeWhere((key, notifier) {
+          final shouldRemove = !messagesToKeep.any((msgId) => key.startsWith(msgId.replaceFirst('pending:', '')));
+          if (shouldRemove) notifier.dispose();
+          return shouldRemove;
+        });
+        _lastUploadPercent.removeWhere((key, _) => 
+          !messagesToKeep.any((msgId) => key.startsWith(msgId.replaceFirst('pending:', ''))));
 
         // Convert LocalMessage to CommunityMessageModel format
         for (final msg in pendingMessages) {
@@ -446,6 +506,12 @@ class _ParentSectionGroupChatScreenState
         final cachedMsg = await _localRepo.getMessageById(baseId);
 
         if (cachedMsg == null || cachedMsg.isPending == false) {
+          // ✅ CRITICAL: Check if upload is still in progress before removing
+          final notifier = _pendingUploadNotifiers[pendingId];
+          if (notifier != null && notifier.value < 100) {
+            print('⏳ [CLEANUP] Keep pending:$pendingId - upload at ${notifier.value}%');
+            continue; // Still uploading, don't remove yet
+          }
           toRemove.add(pendingId);
           continue;
         }
@@ -989,19 +1055,63 @@ class _ParentSectionGroupChatScreenState
                     'pending:',
                     '',
                   );
+                  
+                  // ✅ Check if upload is still in progress FIRST
+                  bool uploadInProgress = false;
+                  final notifier = _pendingUploadNotifiers[pendingMsg.messageId];
+                  if (notifier != null && notifier.value < 100) {
+                    uploadInProgress = true;
+                  }
+                  
                   print(
-                    '🔍 [PENDING_MERGE] Check ${pendingMsg.messageId} base=$pendingId media=${pendingMsg.multipleMedia?.length ?? 0}',
+                    '🔍 [PENDING_MERGE] Check ${pendingMsg.messageId} base=$pendingId media=${pendingMsg.multipleMedia?.length ?? 0} uploading=$uploadInProgress progress=${notifier?.value ?? -1}%',
                   );
+                  
+                  // ✅ If upload in progress, keep the message visible
+                  if (uploadInProgress) {
+                    final cachedPending =
+                        _messageCache[pendingMsg.messageId] ??= pendingMsg;
+                    filteredPendingMessages.add(cachedPending);
+                    print('⏳ [PENDING_MERGE] Keep ${pendingMsg.messageId} - upload at ${notifier?.value ?? 0}%');
+                    continue;
+                  }
 
                   // 1️⃣ FIRST: Try exact ID matching (highest priority)
                   bool foundExactMatch = false;
                   for (final serverMsg in cachedFirestoreMessages) {
                     if (serverMsg.messageId == pendingId) {
-                      foundExactMatch = true;
-                      print(
-                        '✅ [EXACT_ID_MATCH] Firestore ID matches pending ID: $pendingId',
-                      );
-                      pendingIdsToRemove.add(pendingMsg.messageId);
+                      // ✅ CRITICAL: Only remove pending if upload is complete (100%)
+                      bool uploadComplete = true;
+                      if (pendingMsg.multipleMedia != null) {
+                        for (final media in pendingMsg.multipleMedia!) {
+                          final notifier = _pendingUploadNotifiers[media.messageId];
+                          if (notifier != null && notifier.value < 100) {
+                            uploadComplete = false;
+                            print('📤 [EXACT_MATCH] ${media.messageId} still uploading: ${notifier.value}%');
+                            break;
+                          }
+                        }
+                      } else {
+                        // Check single upload
+                        final notifier = _pendingUploadNotifiers[pendingMsg.messageId];
+                        if (notifier != null && notifier.value < 100) {
+                          uploadComplete = false;
+                          print('📤 [EXACT_MATCH] ${pendingMsg.messageId} still uploading: ${notifier.value}%');
+                        }
+                      }
+                      
+                      if (uploadComplete) {
+                        foundExactMatch = true;
+                        print(
+                          '✅ [EXACT_ID_MATCH] Firestore ID matches pending ID: $pendingId - removing',
+                        );
+                        pendingIdsToRemove.add(pendingMsg.messageId);
+                      } else {
+                        // Still uploading - keep pending visible
+                        print(
+                          '⏳ [EXACT_ID_MATCH] Firestore ID matches but upload incomplete: $pendingId - keeping',
+                        );
+                      }
                       break;
                     }
                   }
@@ -1075,11 +1185,39 @@ class _ParentSectionGroupChatScreenState
                   }).firstOrNull;
 
                   if (matchingServerMsg != null) {
-                    // Found matching server version - mark for removal
-                    print(
-                      '🗑️ [PENDING_MERGE] Remove ${pendingMsg.messageId} matched ${matchingServerMsg.messageId}',
-                    );
-                    pendingIdsToRemove.add(pendingMsg.messageId);
+                    // ✅ CRITICAL: Only remove pending if upload is complete (100%)
+                    bool uploadComplete = true;
+                    if (pendingMsg.multipleMedia != null) {
+                      for (final media in pendingMsg.multipleMedia!) {
+                        final notifier = _pendingUploadNotifiers[media.messageId];
+                        if (notifier != null && notifier.value < 100) {
+                          uploadComplete = false;
+                          print('📤 [PENDING_MERGE] ${media.messageId} still uploading: ${notifier.value}%');
+                          break;
+                        }
+                      }
+                    } else {
+                      // Check single upload
+                      final notifier = _pendingUploadNotifiers[pendingMsg.messageId];
+                      if (notifier != null && notifier.value < 100) {
+                        uploadComplete = false;
+                        print('📤 [PENDING_MERGE] ${pendingMsg.messageId} still uploading: ${notifier.value}%');
+                      }
+                    }
+                    
+                    if (uploadComplete) {
+                      // Upload complete - safe to remove pending and show server version
+                      print(
+                        '🗑️ [PENDING_MERGE] Remove ${pendingMsg.messageId} matched ${matchingServerMsg.messageId}',
+                      );
+                      pendingIdsToRemove.add(pendingMsg.messageId);
+                    } else {
+                      // Still uploading - keep pending message visible
+                      final cachedPending =
+                          _messageCache[pendingMsg.messageId] ??= pendingMsg;
+                      filteredPendingMessages.add(cachedPending);
+                      print('⏳ [PENDING_MERGE] Keep ${pendingMsg.messageId} - upload in progress');
+                    }
                   } else {
                     // Still uploading - keep in list
                     // Cache pending to keep stable instance
@@ -2121,6 +2259,7 @@ class _ParentSectionGroupChatScreenState
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudioFile,
       onPollTap: _navigateToPollScreen,
+      mindmapEnabled: false, // ✅ Disable mindmap in parent-teacher groups
       color: primaryColor,
     );
   }
@@ -2546,6 +2685,25 @@ class _ParentSectionGroupChatScreenState
 
                 // ✅ Trigger rebuild to show live progress for multi-image messages
                 setState(() {});
+                
+                // ✅ Save progress to cache every 10% to persist across navigation
+                if (percent % 10 == 0 || percent == 100) {
+                  final mediaWithProgress = mediaList.map((m) {
+                    final mId = m.messageId;
+                    final progress = _pendingUploadNotifiers[mId]?.value ?? 0.0;
+                    return {
+                      'messageId': mId,
+                      'localPath': _localSenderMediaPaths[mId],
+                      'uploadProgress': progress / 100.0,
+                      'r2Key': m.r2Key,
+                      'publicUrl': m.publicUrl,
+                      'fileSize': m.fileSize,
+                      'mimeType': m.mimeType,
+                      'originalFileName': m.originalFileName,
+                    };
+                  }).toList();
+                  _updatePendingMessageCache('pending:$groupMessageId', mediaWithProgress);
+                }
               }
 
               // Save to cache at 10% intervals (even if not mounted)
@@ -2837,6 +2995,32 @@ class _ParentSectionGroupChatScreenState
         _lastUploadPercent[pendingId] = -1;
       });
 
+      // ✅ Save pending PDF to cache immediately for persistence
+      try {
+        final pendingLocalMsg = LocalMessage(
+          messageId: pendingId,
+          chatId: widget.groupId,
+          chatType: 'ptGroup',
+          senderId: user.uid,
+          senderName: user.name,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          messageText: '',
+          multipleMedia: [{
+            'messageId': pendingId,
+            'localPath': file.path,
+            'uploadProgress': 0.0,
+            'originalFileName': fileName,
+            'fileSize': fileSize,
+            'mimeType': mimeType,
+          }],
+          isPending: true,
+        );
+        await _localRepo.saveMessage(pendingLocalMsg);
+        print('💾 PDF pending message saved to cache');
+      } catch (e) {
+        print('⚠️ Failed to cache pending PDF: $e');
+      }
+
       // Upload in background with optimistic UI
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: file,
@@ -2853,6 +3037,18 @@ class _ParentSectionGroupChatScreenState
           if (!shouldUpdate) return;
           _lastUploadPercent[pendingId] = percent;
           _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
+          
+          // ✅ Update cache with progress every 20% for persistence
+          if (percent % 20 == 0 || percent == 100) {
+            _updatePendingMessageCache(pendingId, [{
+              'messageId': pendingId,
+              'localPath': file.path,
+              'uploadProgress': percent / 100.0,
+              'originalFileName': fileName,
+              'fileSize': fileSize,
+              'mimeType': mimeType,
+            }]);
+          }
         },
       );
 

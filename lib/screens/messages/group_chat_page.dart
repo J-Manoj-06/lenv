@@ -52,6 +52,7 @@ class GroupChatPage extends StatefulWidget {
   final String icon;
   final String? className;
   final String? section;
+  final bool isParentGroup; // Flag to indicate if this group includes parents
 
   const GroupChatPage({
     super.key,
@@ -62,6 +63,7 @@ class GroupChatPage extends StatefulWidget {
     required this.icon,
     this.className,
     this.section,
+    this.isParentGroup = false, // Default to false for teacher-student groups
   });
 
   @override
@@ -2471,6 +2473,10 @@ class _GroupChatPageState extends State<GroupChatPage>
   void _showMediaOptions() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final isTeacher = authProvider.currentUser?.role == UserRole.teacher;
+    
+    // ✅ Only enable mindmap for teachers in student groups (not parent groups)
+    final mindmapEnabled = isTeacher && !widget.isParentGroup;
+    
     final accentColor = _getAccentColor(authProvider.currentUser?.role);
     showModernAttachmentSheet(
       context,
@@ -2479,8 +2485,8 @@ class _GroupChatPageState extends State<GroupChatPage>
       onDocumentTap: _pickAndSendPDF,
       onAudioTap: _pickAndSendAudio,
       onPollTap: _navigateToPollScreen,
-      onMindmapTap: isTeacher ? _openMindmapGenerator : null,
-      mindmapEnabled: isTeacher,
+      onMindmapTap: mindmapEnabled ? _openMindmapGenerator : null,
+      mindmapEnabled: mindmapEnabled,
       color: accentColor,
     );
   }
