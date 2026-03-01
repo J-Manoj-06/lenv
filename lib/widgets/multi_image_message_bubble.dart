@@ -142,21 +142,19 @@ class MultiImageMessageBubble extends StatelessWidget {
     final count = imageUrls.length;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Single image
+    // Single image - display as square
     if (count == 1) {
-      return ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: screenWidth * 0.7,
-          maxHeight:
-              screenWidth * 0.9, // Limit height to prevent extreme tall images
-        ),
+      final squareSize = 250.0; // Fixed square size
+      return SizedBox(
+        width: squareSize,
+        height: squareSize,
         child: _ImageTile(
           url: imageUrls[0],
           index: 0,
           radius: tileRadius,
           onTap: onImageTap,
           uploadProgress: uploadProgress?[0],
-          fit: BoxFit.contain, // Preserve aspect ratio for single images
+          fit: BoxFit.cover, // Fill the square, cropping if necessary
         ),
       );
     }
