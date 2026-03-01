@@ -700,6 +700,10 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         print('=================================================');
         print('');
       });
+
+      // ✅ RE-QUEUE incomplete uploads after restoring pending messages
+      if (!mounted) return;
+      _reQueueIncompleteUploads(pendingMessages);
     } catch (e) {
       print('❌ [PENDING-LOAD] Error loading from Firestore: $e');
       // Fallback: just restore all as pending without upload check
@@ -759,6 +763,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
           }
         }
         print('📝 [PENDING-LOAD] Fallback: Added $addedCount messages');
+
+        // ✅ RE-QUEUE INCOMPLETE UPLOADS
+        _reQueueIncompleteUploads(pendingMessages);
       });
     }
   }
@@ -843,6 +850,72 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
         await _cancelUploadNotification();
       }
     };
+  }
+
+  /// Re-queue incomplete uploads when app resumes
+  Future<void> _reQueueIncompleteUploads(
+    List<LocalMessage> pendingMessages,
+  ) async {
+    print('🔄 [RE-QUEUE] Checking for incomplete uploads...');
+    int requeuedCount = 0;
+
+    for (final msg in pendingMessages) {
+      // Only re-queue multi-media messages that have local paths
+      if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+        final groupId = msg.messageId;
+        bool hasIncompleteUploads = false;
+
+        for (int i = 0; i < msg.multipleMedia!.length; i++) {
+          final media = msg.multipleMedia![i];
+          final localPath = media['localPath'] as String?;
+          final mediaId = media['messageId'] as String?;
+
+          // Check if file exists and hasn't been uploaded yet
+          if (localPath != null && mediaId != null) {
+            final file = File(localPath);
+            if (await file.exists()) {
+              // Check if it's already in uploading list
+              if (!_uploadingMessageIds.contains(mediaId)) {
+                hasIncompleteUploads = true;
+
+                print(
+                  '📤 [RE-QUEUE] Re-queueing incomplete media: $mediaId for group: $groupId',
+                );
+
+                // Store local path for upload
+                _localFilePaths[mediaId] = localPath;
+                _uploadingMessageIds.add(mediaId);
+
+                // Re-queue the upload
+                try {
+                  await BackgroundUploadService().queueUpload(
+                    file: file,
+                    conversationId: widget.instituteId,
+                    senderId: msg.senderId,
+                    senderRole: 'staff',
+                    mediaType: media['mimeType'] as String? ?? 'image/jpeg',
+                    chatType: 'staff_room',
+                    senderName: msg.senderName,
+                    messageId: mediaId,
+                    groupId: groupId,
+                  );
+
+                  requeuedCount++;
+                } catch (e) {
+                  print('❌ [RE-QUEUE] Error re-queueing $mediaId: $e');
+                }
+              }
+            }
+          }
+        }
+
+        if (hasIncompleteUploads) {
+          print('✅ [RE-QUEUE] Group $groupId has incomplete uploads');
+        }
+      }
+    }
+
+    print('✅ [RE-QUEUE] Re-queued $requeuedCount incomplete uploads');
   }
 
   Future<void> _showUploadNotification(double progress) async {
