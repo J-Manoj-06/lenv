@@ -9,6 +9,7 @@ import '../../services/firestore_service.dart';
 import '../../services/messaging_service.dart';
 import '../../providers/auth_provider.dart';
 import 'teacher_chat_screen.dart';
+import '../../services/whatsapp_chat_service.dart';
 
 class StudentPerformanceScreen extends StatefulWidget {
   final String studentId;
@@ -1504,17 +1505,14 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         return;
       }
 
-      // Get schoolCode from student details (already loaded)
-      final schoolCode = _studentDetails?['schoolCode']?.toString() ?? '';
-      final className =
-          _studentDetails?['className']?.toString() ?? widget.studentClass;
-      final section = _studentDetails?['section']?.toString();
+      // Get parent phone number
+      final parentPhoneNumber = parentData['phoneNumber'] as String?;
 
-      if (schoolCode.isEmpty) {
+      if (parentPhoneNumber == null || parentPhoneNumber.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('School code not available. Please try again.'),
+              content: Text('Parent phone number not available'),
               duration: Duration(seconds: 3),
             ),
           );
@@ -1522,35 +1520,37 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
         return;
       }
 
-      // Navigate to TeacherChatScreen with required parameters
+      // Directly open WhatsApp
       if (!mounted) return;
 
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => TeacherChatScreen(
-            schoolCode: schoolCode,
-            teacherId: teacherId,
-            // Prefer the parent's Firebase Auth UID; fall back to legacy id
-            parentId:
-                (parentData['parentAuthUid'] as String?)?.isNotEmpty == true
-                ? parentData['parentAuthUid'] as String
-                : parentData['parentId'] as String,
-            studentId: studentId,
-            parentName: parentData['parentName'],
-            className: className,
-            section: section,
-            parentAvatarUrl: parentData['parentPhotoUrl'],
-            parentPhoneNumber: parentData['phoneNumber'] as String?,
-            studentName: widget.studentName,
-          ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Opening WhatsApp...'),
+          duration: Duration(seconds: 1),
         ),
       );
+
+      final whatsappService = WhatsAppChatService();
+      final success = await whatsappService.startParentWhatsAppChat(
+        studentName: widget.studentName,
+        parentPhoneNumber: parentPhoneNumber,
+      );
+
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not open WhatsApp. Please make sure WhatsApp is installed.',
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error opening chat: ${e.toString()}'),
+            content: Text('Error opening WhatsApp: ${e.toString()}'),
             duration: const Duration(seconds: 4),
           ),
         );
