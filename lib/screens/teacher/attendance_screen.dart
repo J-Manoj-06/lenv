@@ -6,6 +6,7 @@ import '../../services/teacher_service.dart';
 import '../../services/messaging_service.dart';
 import 'package:intl/intl.dart';
 import 'teacher_chat_screen.dart';
+import '../../services/whatsapp_chat_service.dart';
 
 enum AttendanceStatus { present, absent }
 
@@ -1072,58 +1073,48 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return;
       }
 
-      final parentId =
-          (parentData['parentAuthUid'] as String?)?.isNotEmpty == true
-          ? parentData['parentAuthUid'] as String
-          : parentData['parentId'] as String;
+      // Get parent phone number
+      final parentPhoneNumber = parentData['phoneNumber'] as String?;
+      final studentName = (student['name'] ?? 'Student').toString();
 
-      final parentName = (parentData['parentName'] ?? 'Parent').toString();
-      final parentPhotoUrl = parentData['parentPhotoUrl'] as String?;
-
-      print('✅ Navigating to chat with:');
-      print('   parentId: $parentId');
-      print('   parentName: $parentName');
-      print('   studentId: $studentId');
-      print('   schoolCode: $schoolCode');
-      print('   teacherId: $teacherId');
-      print('   className: $className');
-      print('   section: $section');
-
-      print('🚀 Attempting navigation...');
-
-      // Small delay to ensure dialog is fully dismissed
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      if (!mounted) {
-        print('❌ Widget not mounted after delay');
+      if (parentPhoneNumber == null || parentPhoneNumber.isEmpty) {
+        print('❌ Parent phone number not available');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Parent phone number not available'),
+            duration: Duration(seconds: 3),
+          ),
+        );
         return;
       }
 
-      print('📱 Navigating to chat...');
+      // Directly open WhatsApp
+      print('📱 Opening WhatsApp for: $studentName');
 
-      try {
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (ctx) {
-              print('🎯 MaterialPageRoute builder called!');
-              return TeacherChatScreen(
-                schoolCode: schoolCode,
-                teacherId: teacherId,
-                parentId: parentId,
-                studentId: studentId,
-                parentName: parentName,
-                className: className.isEmpty ? 'Grade ?' : className,
-                section: section,
-                parentAvatarUrl: parentPhotoUrl,
-                parentPhoneNumber: parentData['phoneNumber'] as String?,
-                studentName: (student['name'] ?? 'Student').toString(),
-              );
-            },
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Opening WhatsApp...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      final whatsappService = WhatsAppChatService();
+      final success = await whatsappService.startParentWhatsAppChat(
+        studentName: studentName,
+        parentPhoneNumber: parentPhoneNumber,
+      );
+
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not open WhatsApp. Please make sure WhatsApp is installed.',
+            ),
+            duration: Duration(seconds: 3),
           ),
         );
-        print('🔙 Returned from chat screen');
-      } catch (e) {
-        print('❌ Navigation error: $e');
+      } else {
+        print('✅ WhatsApp opened successfully');
       }
     } catch (e, stackTrace) {
       print('❌ Error in _openChat: $e');
