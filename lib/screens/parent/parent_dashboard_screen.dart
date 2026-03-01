@@ -5,8 +5,11 @@ import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
+import '../../services/reward_request_service.dart';
+import '../../widgets/pending_reward_popup.dart';
 import '../common/announcement_pageview_screen.dart';
 import 'parent_reward_request_detail_screen.dart';
+import 'parent_rewards_screen.dart';
 import 'parent_profile_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
@@ -30,6 +33,10 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   final PageController _childrenPageController = PageController();
 
+  // Flag to prevent popup from showing multiple times in same session
+  bool _hasShownRewardPopup = false;
+  final RewardRequestService _rewardRequestService = RewardRequestService();
+
   @override
   void initState() {
     super.initState();
@@ -50,7 +57,55 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       final parentId = authProvider.currentUser!.uid;
 
       await parentProvider.initialize(parentEmail, parentId: parentId);
+
+      // Check for pending reward requests after initialization
+      _checkPendingRewards();
     }
+  }
+
+  Future<void> _checkPendingRewards() async {
+    // Only show popup once per session
+    if (_hasShownRewardPopup) return;
+
+    // Get pending reward requests
+    final pendingRequestsStream = _rewardRequestService
+        .getPendingRewardRequests();
+
+    // Listen to the first emission
+    pendingRequestsStream.first
+        .then((pendingRequests) {
+          if (pendingRequests.isNotEmpty && mounted) {
+            _hasShownRewardPopup = true;
+
+            // Show popup after a short delay to ensure UI is ready
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: true,
+                  builder: (context) => PendingRewardPopup(
+                    pendingRequests: pendingRequests,
+                    onApprove: _navigateToRewardsScreen,
+                    onLater: () {
+                      // User chose to handle later - popup dismissed
+                    },
+                  ),
+                );
+              }
+            });
+          }
+        })
+        .catchError((error) {
+          // Silently handle errors - popup is optional
+          debugPrint('Error checking pending rewards: $error');
+        });
+  }
+
+  void _navigateToRewardsScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ParentRewardsScreen()),
+    );
   }
 
   @override
