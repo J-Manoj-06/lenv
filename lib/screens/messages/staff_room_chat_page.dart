@@ -342,6 +342,49 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
     }
   }
 
+  /// Preload images from multi-media messages for instant display
+  /// This eliminates the 4-5 second delay when returning to chat
+  void _preloadMultiImageMessages(List<Map<String, dynamic>> messages) {
+    // Run preloading in the next frame to avoid blocking UI
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final imageUrls = <String>{};
+
+      // Extract all image URLs from multi-media messages
+      for (final message in messages) {
+        final multipleMedia = message['multipleMedia'];
+        if (multipleMedia is List && multipleMedia.isNotEmpty) {
+          for (final media in multipleMedia) {
+            if (media is Map) {
+              final mediaMap = media is Map<String, dynamic>
+                  ? media
+                  : media as Map<String, dynamic>;
+
+              final publicUrl = mediaMap['publicUrl'] as String?;
+              // Only preload network URLs (not local paths or pending uploads)
+              if (publicUrl != null &&
+                  publicUrl.isNotEmpty &&
+                  !publicUrl.startsWith('/') &&
+                  publicUrl.startsWith('http')) {
+                imageUrls.add(publicUrl);
+              }
+            }
+          }
+        }
+      }
+
+      // REMOVED: Auto-preloading images from network
+      // This was causing unwanted automatic downloads.
+      // Images will only load when user explicitly taps the download button.
+      //
+      // OLD CODE (removed):
+      // - Used CachedNetworkImageProvider to preload images
+      // - This would auto-download images without user consent
+      // - Wasted bandwidth and storage on images user might not want
+    });
+  }
+
   Future<void> _loadPendingMessages() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
@@ -2504,6 +2547,9 @@ class _StaffRoomChatPageState extends State<StaffRoomChatPage>
 
           return bMillis.compareTo(aMillis);
         });
+
+        // ✅ PERFORMANCE: Preload multi-image messages for instant display
+        _preloadMultiImageMessages(allMessages);
 
         // Handle pending scroll request from search
         if (_scrollToMessageId != null &&

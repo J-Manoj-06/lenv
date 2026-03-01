@@ -101,10 +101,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       });
     }
 
-    // Auto-download images for better UX (only images, not PDFs/audio)
-    if (!_isDownloaded && _isImage && widget.thumbnailBase64 != null) {
-      _download();
-    }
+    // DO NOT auto-download - user must explicitly tap download button
+    // This saves bandwidth and gives users control over downloads
   }
 
   Future<void> _download() async {
@@ -795,19 +793,17 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                     ),
                   );
                 } else if (widget.thumbnailBase64!.startsWith('http')) {
-                  print('   - Loading from network URL');
-                  // It's a URL, use Image.network (NO BLUR for better UX)
-                  return Image.network(
-                    widget.thumbnailBase64!,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: Colors.grey[800],
-                      child: const Icon(
-                        Icons.image,
-                        size: 64,
-                        color: Colors.white54,
-                      ),
+                  print(
+                    '   - Network URL detected, showing placeholder instead of auto-downloading',
+                  );
+                  // DO NOT auto-download from network! Show placeholder icon instead.
+                  // User must explicitly tap the download button to download the image.
+                  return Container(
+                    color: Colors.grey[800],
+                    child: const Icon(
+                      Icons.image,
+                      size: 64,
+                      color: Colors.white54,
                     ),
                   );
                 } else {
