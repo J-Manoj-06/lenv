@@ -6,6 +6,7 @@ import '../../widgets/student_selection/student_avatar_row.dart';
 import 'parent_chat_screen.dart';
 import '../../services/offline_data_service.dart';
 import 'parent_profile_screen.dart';
+import '../../services/whatsapp_chat_service.dart';
 
 class ParentMessagesScreen extends StatefulWidget {
   const ParentMessagesScreen({super.key});
@@ -218,12 +219,16 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
 
             final teacherUid = (data['uid'] as String?) ?? teacherId;
             teachersList.add({
-              'id': teacherUid,
+              'docId': teacherId, // Document ID for Firestore lookups
+              'id': teacherUid, // Teacher UID
               'name': teacherName,
               'email': data['email'] ?? '',
               'subject': subject ?? 'General',
               'className': studentClass,
               'profileImage': data['profileImage'],
+              'phoneNumber':
+                  data['phoneNumber'] ??
+                  data['phone'], // Include phone if available
             });
           }
         }
@@ -451,23 +456,122 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
         side: BorderSide(color: isDark ? Colors.white10 : Colors.transparent),
       ),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          // Get selected child info
+          final parentProvider = Provider.of<ParentProvider>(
             context,
-            MaterialPageRoute(
-              builder: (_) => ParentChatScreen(
-                teacherId: teacher['id'] as String,
-                teacherName: name,
-                teacherSubject: subject,
-                teacherAvatarUrl: teacher['profileImage'] as String?,
-                className: className ?? '',
-                section: Provider.of<ParentProvider>(
-                  context,
-                  listen: false,
-                ).selectedChild?.section,
+            listen: false,
+          );
+          final child = parentProvider.selectedChild;
+
+          if (child == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please select a child first'),
+                duration: Duration(seconds: 2),
               ),
+            );
+            return;
+          }
+
+          // Check if phone number is already available in cached data
+          String? teacherPhone = teacher['phoneNumber'] as String?;
+
+          // If phone not available, fetch from Firestore
+          if (teacherPhone == null || teacherPhone.isEmpty) {
+            // Show loading
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(parentGreen),
+                ),
+              ),
+            );
+
+            try {
+              // Use docId for Firestore lookup
+              final docId =
+                  teacher['docId'] as String? ?? teacher['id'] as String;
+              final teacherDoc = await FirebaseFirestore.instance
+                  .collection('teachers')
+                  .doc(docId)
+                  .get();
+
+              if (!mounted) return;
+              Navigator.of(context).pop(); // Dismiss loading
+
+              if (!teacherDoc.exists) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Teacher information not found'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                return;
+              }
+
+              final teacherData = teacherDoc.data();
+              teacherPhone =
+                  teacherData?['phoneNumber'] as String? ??
+                  teacherData?['phone'] as String?;
+            } catch (e) {
+              if (mounted) {
+                Navigator.of(context).pop(); // Dismiss loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Error fetching teacher info: ${e.toString()}',
+                    ),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+              return;
+            }
+          }
+
+          if (teacherPhone == null || teacherPhone.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Teacher phone number not available'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+            return;
+          }
+
+          // Format contact name: "StudentName's Subject Teacher TeacherName"
+          final studentName = child.name;
+          final teacherName = name.split(' ').last; // Get last name
+          final contactName = "$studentName's $subject Teacher $teacherName";
+
+          // Show opening WhatsApp message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Opening WhatsApp...'),
+              duration: Duration(seconds: 1),
             ),
           );
+
+          // Open WhatsApp with custom contact name
+          final whatsappService = WhatsAppChatService();
+          final success = await whatsappService.startParentWhatsAppChat(
+            studentName: contactName,
+            parentPhoneNumber: teacherPhone,
+          );
+
+          if (!success && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Could not open WhatsApp. Please make sure WhatsApp is installed.',
+                ),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
         },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
