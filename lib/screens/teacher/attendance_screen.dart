@@ -5,7 +5,6 @@ import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
 import '../../services/messaging_service.dart';
 import 'package:intl/intl.dart';
-import 'teacher_chat_screen.dart';
 import '../../services/whatsapp_chat_service.dart';
 
 enum AttendanceStatus { present, absent }

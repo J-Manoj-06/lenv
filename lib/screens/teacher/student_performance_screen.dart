@@ -8,7 +8,6 @@ import '../../models/performance_model.dart';
 import '../../services/firestore_service.dart';
 import '../../services/messaging_service.dart';
 import '../../providers/auth_provider.dart';
-import 'teacher_chat_screen.dart';
 import '../../services/whatsapp_chat_service.dart';
 
 class StudentPerformanceScreen extends StatefulWidget {
