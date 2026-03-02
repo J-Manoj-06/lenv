@@ -235,6 +235,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
     final bubbleContent = Container(
       decoration: BoxDecoration(
         color: Colors.transparent,
+        border: Border.all(color: const Color(0xFF146D7A), width: 3),
         borderRadius: BorderRadius.circular(widget.bubbleRadius),
         boxShadow: [
           BoxShadow(
@@ -427,12 +428,13 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
     final count = widget.imageUrls.length;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Single image - display as square
+    // Single image - display with same width as multi-image grid
     if (count == 1) {
-      final squareSize = 250.0; // Fixed square size
+      final tileSize = (screenWidth * 0.7 - widget.gap) / 2;
+      final gridSize = (tileSize * 2) + widget.gap;
       return SizedBox(
-        width: squareSize,
-        height: squareSize,
+        width: gridSize,
+        height: gridSize,
         child: _ImageTile(
           url: widget.imageUrls[0],
           index: 0,
@@ -676,7 +678,37 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                     ],
                   ),
                 )
-              : Container(color: Colors.grey.shade900),
+              : Stack(
+                  children: [
+                    Container(color: Colors.grey.shade900),
+                    // Vertical line in center
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: Container(
+                          width: 4,
+                          color: const Color(0xFF146D7A),
+                        ),
+                      ),
+                    ),
+                    // Horizontal line in center
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: Container(
+                          height: 4,
+                          color: const Color(0xFF146D7A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
         ),
       );
     }
@@ -749,7 +781,38 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
           );
 
     return ClipRect(
-      child: SizedBox(width: gridWidth, height: gridHeight, child: grid),
+      child: SizedBox(
+        width: gridWidth,
+        height: gridHeight,
+        child: Stack(
+          children: [
+            grid,
+            // Only show grid lines when not cached
+            if (!_allCached) ...[
+              // Vertical line in center
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Container(width: 4, color: const Color(0xFF146D7A)),
+                ),
+              ),
+              // Horizontal line in center
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Container(height: 4, color: const Color(0xFF146D7A)),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
