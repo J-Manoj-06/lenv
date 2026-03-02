@@ -2870,7 +2870,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
             ValueListenableBuilder<int>(
               valueListenable: _recordingDuration,
               builder: (context, duration, _) {
-                final micPrimaryColor = const Color(0xFF00A884);
+                final micPrimaryColor = const Color(0xFF146D7A);
                 return GestureDetector(
                   onTap: _isSendingRecording
                       ? null // Disable tap while sending
@@ -3448,6 +3448,7 @@ class _MessageBubble extends StatelessWidget {
       selectionMode: selectionMode,
       uploading: isUploading,
       uploadProgress: uploadProgressVal,
+      themeColor: const Color(0xFF146D7A),
     );
   }
 
@@ -3467,6 +3468,7 @@ class _MessageBubble extends StatelessWidget {
       selectionMode: selectionMode,
       uploading: uploading,
       uploadProgress: uploadProgress,
+      themeColor: const Color(0xFF146D7A),
     );
   }
 

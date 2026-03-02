@@ -23,6 +23,7 @@ class MultiImageMessageBubble extends StatefulWidget {
   final double tileRadius;
   final double gap;
   final double maxScrollableHeight; // for >4 images
+  final String? userRole; // User role to determine border color
 
   const MultiImageMessageBubble({
     super.key,
@@ -34,6 +35,7 @@ class MultiImageMessageBubble extends StatefulWidget {
     this.tileRadius = 0,
     this.gap = 1,
     this.maxScrollableHeight = 240,
+    this.userRole,
   });
 
   @override
@@ -205,7 +207,6 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
     final bubbleContent = Container(
       decoration: BoxDecoration(
         color: Colors.transparent,
-        border: Border.all(color: const Color(0xFF146D7A), width: 3),
         borderRadius: BorderRadius.circular(widget.bubbleRadius),
         boxShadow: [
           BoxShadow(
@@ -276,47 +277,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
               ),
             ),
 
-          // Grid lines overlay (above blur, for multi-images only)
-          if (!_allCached && widget.imageUrls.length > 1)
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(widget.bubbleRadius),
-                child: IgnorePointer(
-                  child: Stack(
-                    children: [
-                      // Vertical line in center
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: Container(
-                            width: 4,
-                            color: const Color(0xFF146D7A),
-                          ),
-                        ),
-                      ),
-                      // Horizontal line in center
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: Container(
-                            height: 4,
-                            color: const Color(0xFF146D7A),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // Download button (on top of grid lines)
+          // Download button (on top of blur)
           if (!_allCached && !isUploading && !_isDownloading)
             Positioned.fill(
               child: IgnorePointer(

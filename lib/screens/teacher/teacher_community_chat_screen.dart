@@ -69,6 +69,7 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
   late final FirebaseMessageSyncService _syncService;
   String? _teacherName;
   String? _teacherId;
+  String? _userRole; // Store user role for theme color
   bool _showEmojiPicker = false;
   bool _isUploading = false;
 
@@ -476,6 +477,9 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
         .first
         .trim();
 
+    // Get user role from AuthProvider
+    final userRole = currentUser.role.toString().split('.').last;
+
     // Get teacher data from Firestore
     final teacherDoc = await FirebaseFirestore.instance
         .collection('teachers')
@@ -505,8 +509,40 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
       setState(() {
         _teacherId = currentUser.uid;
         _teacherName = resolvedName;
+        _userRole = userRole; // Store user role
       });
     }
+  }
+
+  // Get theme color based on user role
+  Color _getThemeColor() {
+    if (_userRole == null) return AppColors.teacherColor;
+    final role = _userRole!.toLowerCase();
+    if (role == 'institute' || role == 'principal') {
+      return AppColors.instituteColor; // Blue for principal
+    } else if (role == 'teacher') {
+      return AppColors.teacherColor; // Teacher color
+    } else if (role == 'student') {
+      return AppColors.studentColor; // Student color
+    } else if (role == 'parent') {
+      return AppColors.parentColor; // Parent color
+    }
+    return AppColors.teacherColor; // Default
+  }
+
+  // Get role badge color based on sender role
+  Color _getRoleBadgeColor(String role) {
+    final roleLower = role.toLowerCase();
+    if (roleLower == 'institute' || roleLower == 'principal') {
+      return AppColors.instituteColor; // Blue for principal
+    } else if (roleLower == 'teacher') {
+      return AppColors.teacherColor; // Teacher color
+    } else if (roleLower == 'student') {
+      return AppColors.studentColor; // Student color
+    } else if (roleLower == 'parent') {
+      return AppColors.parentColor; // Parent color
+    }
+    return AppColors.teacherColor; // Default
   }
 
   Future<void> _locateMessage(CommunityMessageModel message) async {
@@ -1545,7 +1581,7 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
                           child: CircularProgressIndicator(
-                            color: Color(0xFF6A4FF7),
+                            color: Color(0xFF146D7A),
                           ),
                         );
                       }
@@ -1688,8 +1724,8 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                     ),
                     categoryViewConfig: CategoryViewConfig(
                       backgroundColor: const Color(0xFF0B141A),
-                      iconColorSelected: const Color(0xFF6A4FF7),
-                      indicatorColor: const Color(0xFF6A4FF7),
+                      iconColorSelected: const Color(0xFF146D7A),
+                      indicatorColor: const Color(0xFF146D7A),
                     ),
                     bottomActionBarConfig: BottomActionBarConfig(
                       backgroundColor: const Color(0xFF0B141A),
@@ -1983,15 +2019,17 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF6A4FF7,
+                                  color: _getRoleBadgeColor(
+                                    message.senderRole,
                                   ).withValues(alpha: 0.3),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
                                   message.senderRole,
-                                  style: const TextStyle(
-                                    color: Color(0xFF6A4FF7),
+                                  style: TextStyle(
+                                    color: _getRoleBadgeColor(
+                                      message.senderRole,
+                                    ),
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -2104,6 +2142,9 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                                                     .messageId],
                                           )
                                           .toList(),
+                                      userRole: isCurrentUser
+                                          ? _userRole
+                                          : null,
                                       onImageTap: (index, cachedPaths) {
                                         if (_selectionMode) return;
                                         // Update media list with cached paths
@@ -2168,9 +2209,12 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                                       uploading: isUploading,
                                       uploadProgress: uploadProgress,
                                       selectionMode: _selectionMode,
-                                      themeColor: const Color(
-                                        0xFF146D7A,
-                                      ), // Teal theme color
+                                      themeColor: isCurrentUser
+                                          ? _getThemeColor()
+                                          : null,
+                                      userRole: isCurrentUser
+                                          ? _userRole
+                                          : null,
                                     ),
                                   ),
                                 ),
@@ -2250,12 +2294,12 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: isSelected
-                                ? const Color(0xFF6A4FF7)
+                                ? const Color(0xFF146D7A)
                                 : Colors.grey[400]!,
                             width: isSelected ? 2 : 1.5,
                           ),
                           color: isSelected
-                              ? const Color(0xFF6A4FF7)
+                              ? const Color(0xFF146D7A)
                               : Colors.transparent,
                         ),
                         child: isSelected
@@ -2302,8 +2346,8 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
         ? const Color(0xFF3A3A3C)
         : const Color(0xFFBBBBBB);
     final accentColor = const Color(
-      0xFF7C3AED,
-    ); // Cool violet - matches existing buttons
+      0xFF146D7A,
+    ); // Teal theme color for principal community
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -2774,7 +2818,7 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF6A4FF7), Color(0xFF8B6FFF)],
+                          colors: [Color(0xFF146D7A), Color(0xFF1A8A9A)],
                         ),
                       ),
                       child: Center(
@@ -2826,7 +2870,7 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                   children: [
                     _buildInfoChip(
                       widget.community.category.toUpperCase(),
-                      const Color(0xFF6A4FF7),
+                      const Color(0xFF146D7A),
                     ),
                     _buildInfoChip(
                       widget.community.scope == 'global' ? 'Global' : 'School',
