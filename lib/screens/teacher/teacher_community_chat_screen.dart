@@ -2168,6 +2168,9 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                                       uploading: isUploading,
                                       uploadProgress: uploadProgress,
                                       selectionMode: _selectionMode,
+                                      themeColor: const Color(
+                                        0xFF146D7A,
+                                      ), // Teal theme color
                                     ),
                                   ),
                                 ),
@@ -2198,7 +2201,9 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                                     height: 1.5,
                                   ),
                                   linkStyle: TextStyle(
-                                    color: const Color(0xFF6A4FF7),
+                                    color: const Color(
+                                      0xFF146D7A,
+                                    ), // Teal theme color for links
                                     fontSize: 14,
                                     height: 1.5,
                                     decoration: TextDecoration.underline,

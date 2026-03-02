@@ -29,6 +29,7 @@ class MediaPreviewCard extends StatefulWidget {
   final bool uploading;
   final double? uploadProgress; // 0.0 - 1.0
   final bool selectionMode; // Disable gestures when in selection mode
+  final Color? themeColor; // Optional theme color for border and buttons
 
   const MediaPreviewCard({
     super.key,
@@ -42,6 +43,7 @@ class MediaPreviewCard extends StatefulWidget {
     this.uploading = false,
     this.uploadProgress,
     this.selectionMode = false,
+    this.themeColor,
   });
 
   @override
@@ -501,7 +503,10 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: theme.cardColor,
-          border: Border.all(color: _accentColor.withOpacity(0.3), width: 1),
+          border: Border.all(
+            color: (widget.themeColor ?? _accentColor).withOpacity(0.3),
+            width: 0.5,
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -587,7 +592,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                         : 'View',
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _accentColor,
+                    backgroundColor: widget.themeColor ?? _accentColor,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -604,7 +609,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   icon: const Icon(Icons.download),
                   label: Text('Download ${_formatSize(widget.fileSize)}'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _accentColor,
+                    backgroundColor: widget.themeColor ?? _accentColor,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
