@@ -2473,10 +2473,10 @@ class _GroupChatPageState extends State<GroupChatPage>
   void _showMediaOptions() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final isTeacher = authProvider.currentUser?.role == UserRole.teacher;
-    
+
     // ✅ Only enable mindmap for teachers in student groups (not parent groups)
     final mindmapEnabled = isTeacher && !widget.isParentGroup;
-    
+
     final accentColor = _getAccentColor(authProvider.currentUser?.role);
     showModernAttachmentSheet(
       context,
@@ -2863,13 +2863,36 @@ class _MessageBubble extends StatelessWidget {
                           uploadProgress: message.multipleMedia!
                               .map((m) => pendingUploadProgress[m.messageId])
                               .toList(),
-                          onImageTap: (index) async {
+                          onImageTap: (index, cachedPaths) async {
+                            // Create updated media list with cached paths
+                            final updatedMediaList = <MediaMetadata>[];
+                            for (
+                              int i = 0;
+                              i < message.multipleMedia!.length;
+                              i++
+                            ) {
+                              final media = message.multipleMedia![i];
+                              updatedMediaList.add(
+                                MediaMetadata(
+                                  localPath: cachedPaths[i] ?? media.localPath,
+                                  publicUrl: media.publicUrl,
+                                  messageId: media.messageId,
+                                  mimeType: media.mimeType,
+                                  fileSize: media.fileSize,
+                                  r2Key: media.r2Key,
+                                  thumbnail: media.thumbnail,
+                                  expiresAt: media.expiresAt,
+                                  uploadedAt: media.uploadedAt,
+                                ),
+                              );
+                            }
+
                             // Open image gallery - it handles loading from cache or network
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => _ImageGalleryViewer(
-                                  mediaList: message.multipleMedia!,
+                                  mediaList: updatedMediaList,
                                   initialIndex: index,
                                   localSenderMediaPaths: localSenderMediaPaths,
                                   isMe: isMe,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/media_repository.dart';
+import '../services/media_availability_service.dart';
 import '../screens/audio_player_screen.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:open_filex/open_filex.dart';
@@ -49,6 +50,8 @@ class MediaPreviewCard extends StatefulWidget {
 
 class _MediaPreviewCardState extends State<MediaPreviewCard> {
   final MediaRepository _repository = MediaRepository();
+  final MediaAvailabilityService _availabilityService =
+      MediaAvailabilityService();
   bool _isDownloaded = false;
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
@@ -89,15 +92,24 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       print('⚠️ Local file deleted: ${widget.localPath}');
     }
 
-    // Check repository for download status
-    final downloaded = await _repository.isDownloaded(widget.r2Key);
-    final path = await _repository.getLocalFilePath(widget.r2Key);
+    // Use MediaAvailabilityService to check if media is cached
+    final availability = await _availabilityService.checkMediaAvailability(
+      widget.r2Key,
+    );
 
     if (mounted) {
       setState(() {
-        _isDownloaded = downloaded;
-        // Only set _localPath if it's not empty to prevent file:/// errors
-        _localPath = (path != null && path.isNotEmpty) ? path : null;
+        _isDownloaded = availability.isCached;
+        if (_isDownloaded) {
+          // Get the cached local path
+          _availabilityService.getCachedFilePath(widget.r2Key).then((path) {
+            if (mounted && path != null) {
+              setState(() {
+                _localPath = path;
+              });
+            }
+          });
+        }
       });
     }
 

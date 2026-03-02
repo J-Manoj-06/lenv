@@ -1,19 +1,21 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/media_availability_service.dart';
+import '../services/media_repository.dart';
 
-/// WhatsApp-style multi-image message bubble.
-/// UI-only: no backend or state changes. Use in any chat screen.
-///
-/// Layout rules:
-/// - Bubble width max = 70% of screen, aligned by `isMe`
-/// - Rounded bubble with internal padding and clipped tiles
-/// - Grid: 1,2,4 use clean squares; 3 uses 2+1 (full-width bottom)
-/// - 5+ shows 2x2 initially with "+N" overlay on 4th tile; scrolls vertically
-class MultiImageMessageBubble extends StatelessWidget {
+/// WhatsApp-style multi-image message bubble with centralized download.
+/// Features:
+/// - Centralized download button for all images
+/// - Blur background for non-cached images
+/// - In-place downloading (stays on chat page)
+/// - Shows download progress overlay
+/// - Only allows viewing after download completes
+class MultiImageMessageBubble extends StatefulWidget {
   final List<String> imageUrls;
   final bool isMe;
-  final void Function(int index) onImageTap;
+  final void Function(int index, Map<int, String> cachedPaths) onImageTap;
   final List<double?>?
   uploadProgress; // Upload progress for each image (0.0-1.0)
 
@@ -35,29 +37,193 @@ class MultiImageMessageBubble extends StatelessWidget {
   });
 
   @override
+  State<MultiImageMessageBubble> createState() =>
+      _MultiImageMessageBubbleState();
+}
+
+class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
+  final MediaAvailabilityService _availabilityService =
+      MediaAvailabilityService();
+  final MediaRepository _repository = MediaRepository();
+
+  // Track which images are cached
+  final Map<int, bool> _cachedStatus = {};
+  final Map<int, String> _cachedPaths = {};
+
+  // Download state
+  bool _isDownloading = false;
+  double _downloadProgress = 0.0;
+  int _downloadedCount = 0;
+  int _totalToDownload = 0;
+
+  bool _allCached = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAllCacheStatus();
+  }
+
+  /// Check cache status for all images
+  Future<void> _checkAllCacheStatus() async {
+    bool allCached = true;
+
+    for (int i = 0; i < widget.imageUrls.length; i++) {
+      final url = widget.imageUrls[i];
+
+      // Skip local file paths (already available)
+      if (url.startsWith('/')) {
+        final file = File(url);
+        if (await file.exists()) {
+          _cachedStatus[i] = true;
+          _cachedPaths[i] = url;
+          continue;
+        }
+      }
+
+      // Extract r2Key from URL
+      String r2Key = url;
+      if (r2Key.startsWith('http')) {
+        final uri = Uri.parse(r2Key);
+        r2Key = uri.path.replaceFirst('/', '');
+      }
+
+      // Check availability
+      final availability = await _availabilityService.checkMediaAvailability(
+        r2Key,
+      );
+
+      if (availability.isCached) {
+        final path = await _availabilityService.getCachedFilePath(r2Key);
+        if (path != null) {
+          _cachedStatus[i] = true;
+          _cachedPaths[i] = path;
+        } else {
+          _cachedStatus[i] = false;
+          allCached = false;
+        }
+      } else {
+        _cachedStatus[i] = false;
+        allCached = false;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _allCached = allCached;
+      });
+    }
+  }
+
+  /// Download all non-cached images
+  Future<void> _downloadAllImages() async {
+    setState(() {
+      _isDownloading = true;
+      _downloadProgress = 0.0;
+      _downloadedCount = 0;
+    });
+
+    // Count how many need downloading
+    final toDownload = <int>[];
+    for (int i = 0; i < widget.imageUrls.length; i++) {
+      if (_cachedStatus[i] != true) {
+        toDownload.add(i);
+      }
+    }
+
+    _totalToDownload = toDownload.length;
+
+    if (_totalToDownload == 0) {
+      setState(() {
+        _isDownloading = false;
+        _allCached = true;
+      });
+      return;
+    }
+
+    // Download each image
+    for (final index in toDownload) {
+      await _downloadSingleImage(index);
+      _downloadedCount++;
+
+      if (mounted) {
+        setState(() {
+          _downloadProgress = _downloadedCount / _totalToDownload;
+        });
+      }
+    }
+
+    // Re-check cache status
+    await _checkAllCacheStatus();
+
+    if (mounted) {
+      setState(() {
+        _isDownloading = false;
+      });
+    }
+  }
+
+  /// Download a single image by index
+  Future<void> _downloadSingleImage(int index) async {
+    final url = widget.imageUrls[index];
+
+    // Extract r2Key
+    String r2Key = url;
+    if (r2Key.startsWith('http')) {
+      final uri = Uri.parse(r2Key);
+      r2Key = uri.path.replaceFirst('/', '');
+    }
+
+    try {
+      final result = await _repository.downloadMedia(
+        r2Key: r2Key,
+        fileName: 'image_$index.jpg',
+        mimeType: 'image/jpeg',
+        onProgress: (progress) {
+          // Optional: update per-image progress
+        },
+      );
+
+      if (result.success && result.localPath != null) {
+        if (mounted) {
+          setState(() {
+            _cachedStatus[index] = true;
+            _cachedPaths[index] = result.localPath!;
+          });
+        }
+        debugPrint(
+          '✅ Downloaded and cached image $index at: ${result.localPath}',
+        );
+      } else {
+        debugPrint('❌ Failed to download image $index');
+      }
+    } catch (e) {
+      debugPrint('❌ Error downloading image $index: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final screenWidth = MediaQuery.of(context).size.width;
     final maxBubbleWidth = screenWidth * 0.7; // 70% of screen
 
-    // Check if any image is still uploading - use more stable calculation
+    // Check if any image is still uploading
     bool isUploading = false;
     double overallProgress = 0.0;
 
-    if (uploadProgress != null && uploadProgress!.isNotEmpty) {
-      final activeUploads = uploadProgress!
+    if (widget.uploadProgress != null && widget.uploadProgress!.isNotEmpty) {
+      final activeUploads = widget.uploadProgress!
           .where((p) => p != null && p < 1.0)
           .toList();
       if (activeUploads.isNotEmpty) {
         isUploading = true;
-        // Calculate average progress across ALL images (not just active ones)
-        final progressValues = uploadProgress!
+        final progressValues = widget.uploadProgress!
             .where((p) => p != null)
             .cast<double>()
             .toList();
         if (progressValues.isNotEmpty) {
-          // Average of all progress values for stable calculation
           overallProgress =
               progressValues.reduce((a, b) => a + b) / progressValues.length;
         }
@@ -69,7 +235,7 @@ class MultiImageMessageBubble extends StatelessWidget {
     final bubbleContent = Container(
       decoration: BoxDecoration(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(bubbleRadius),
+        borderRadius: BorderRadius.circular(widget.bubbleRadius),
         boxShadow: [
           BoxShadow(
             color: theme.primaryColor.withOpacity(isDark ? 0.03 : 0.02),
@@ -82,14 +248,15 @@ class MultiImageMessageBubble extends StatelessWidget {
       child: Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(bubbleRadius),
+            borderRadius: BorderRadius.circular(widget.bubbleRadius),
             child: content,
           ),
-          // Unified loading overlay when uploading - properly sized and centered
+
+          // Upload overlay
           if (isUploading)
             Positioned.fill(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(bubbleRadius),
+                borderRadius: BorderRadius.circular(widget.bubbleRadius),
                 child: Container(
                   color: Colors.black.withOpacity(0.65),
                   child: Center(
@@ -125,12 +292,130 @@ class MultiImageMessageBubble extends StatelessWidget {
                 ),
               ),
             ),
+
+          // Download overlay (centralized button)
+          if (!_allCached && !isUploading && !_isDownloading)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(widget.bubbleRadius),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    color: Colors.black.withOpacity(0.3),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _downloadAllImages,
+                                customBorder: const CircleBorder(),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Icon(
+                                    Icons.cloud_download,
+                                    size: 40,
+                                    color: theme.primaryColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'Tap to download',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // Downloading progress overlay
+          if (_isDownloading)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(widget.bubbleRadius),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    color: Colors.black.withOpacity(0.4),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 80,
+                            height: 80,
+                            child: CircularProgressIndicator(
+                              value: _downloadProgress,
+                              strokeWidth: 6,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                              backgroundColor: Colors.white24,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Downloading $_downloadedCount/$_totalToDownload',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${(_downloadProgress * 100).toInt()}%',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
 
     return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: widget.isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxBubbleWidth),
         child: bubbleContent,
@@ -139,7 +424,7 @@ class MultiImageMessageBubble extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context) {
-    final count = imageUrls.length;
+    final count = widget.imageUrls.length;
     final screenWidth = MediaQuery.of(context).size.width;
 
     // Single image - display as square
@@ -149,12 +434,17 @@ class MultiImageMessageBubble extends StatelessWidget {
         width: squareSize,
         height: squareSize,
         child: _ImageTile(
-          url: imageUrls[0],
+          url: widget.imageUrls[0],
           index: 0,
-          radius: tileRadius,
-          onTap: onImageTap,
-          uploadProgress: uploadProgress?[0],
-          fit: BoxFit.cover, // Fill the square, cropping if necessary
+          radius: widget.tileRadius,
+          onTap: _allCached
+              ? (index) => widget.onImageTap(index, _cachedPaths)
+              : (_) {}, // Disable if not cached
+          uploadProgress: widget.uploadProgress?[0],
+          fit: BoxFit.cover,
+          isCached: _cachedStatus[0] ?? false,
+          cachedPath: _cachedPaths[0],
+          showBlur: !_allCached,
         ),
       );
     }
@@ -169,24 +459,34 @@ class MultiImageMessageBubble extends StatelessWidget {
               child: AspectRatio(
                 aspectRatio: 1,
                 child: _ImageTile(
-                  url: imageUrls[0],
+                  url: widget.imageUrls[0],
                   index: 0,
-                  radius: tileRadius,
-                  onTap: onImageTap,
-                  uploadProgress: uploadProgress?[0],
+                  radius: widget.tileRadius,
+                  onTap: _allCached
+                      ? (index) => widget.onImageTap(index, _cachedPaths)
+                      : (_) {},
+                  uploadProgress: widget.uploadProgress?[0],
+                  isCached: _cachedStatus[0] ?? false,
+                  cachedPath: _cachedPaths[0],
+                  showBlur: !_allCached,
                 ),
               ),
             ),
-            SizedBox(width: gap),
+            SizedBox(width: widget.gap),
             Expanded(
               child: AspectRatio(
                 aspectRatio: 1,
                 child: _ImageTile(
-                  url: imageUrls[1],
+                  url: widget.imageUrls[1],
                   index: 1,
-                  radius: tileRadius,
-                  onTap: onImageTap,
-                  uploadProgress: uploadProgress?[1],
+                  radius: widget.tileRadius,
+                  onTap: _allCached
+                      ? (index) => widget.onImageTap(index, _cachedPaths)
+                      : (_) {},
+                  uploadProgress: widget.uploadProgress?[1],
+                  isCached: _cachedStatus[1] ?? false,
+                  cachedPath: _cachedPaths[1],
+                  showBlur: !_allCached,
                 ),
               ),
             ),
@@ -195,131 +495,262 @@ class MultiImageMessageBubble extends StatelessWidget {
       );
     }
 
-    // Special case for 3 items (WhatsApp: 2 top + 1 bottom full-width)
+    // Special case for 3 items
     if (count == 3) {
       return _ThreeImageLayout(
-        imageUrls: imageUrls,
-        gap: gap,
-        tileRadius: tileRadius,
-        onTap: onImageTap,
-        uploadProgress: uploadProgress,
+        imageUrls: widget.imageUrls,
+        gap: widget.gap,
+        tileRadius: widget.tileRadius,
+        onTap: _allCached
+            ? (index) => widget.onImageTap(index, _cachedPaths)
+            : (_) {},
+        uploadProgress: widget.uploadProgress,
+        cachedStatus: _cachedStatus,
+        cachedPaths: _cachedPaths,
+        showBlur: !_allCached,
       );
     }
 
     // Four images: 2x2 grid
     if (count == 4) {
-      return IntrinsicHeight(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IntrinsicHeight(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: _ImageTile(
-                        url: imageUrls[0],
-                        index: 0,
-                        radius: tileRadius,
-                        onTap: onImageTap,
-                        uploadProgress: uploadProgress?[0],
+      final tileSize = (screenWidth * 0.7 - widget.gap) / 2;
+      final gridHeight = !_allCached
+          ? 250.0 // Compact height when showing download button
+          : (tileSize * 2) + widget.gap; // Full height when cached
+
+      // Use ClipRect to prevent overflow when not cached
+      return ClipRect(
+        child: SizedBox(
+          height: gridHeight,
+          child: _allCached
+              ? IntrinsicHeight(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IntrinsicHeight(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Expanded(
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: _ImageTile(
+                                  url: widget.imageUrls[0],
+                                  index: 0,
+                                  radius: widget.tileRadius,
+                                  onTap: _allCached
+                                      ? (index) => widget.onImageTap(
+                                          index,
+                                          _cachedPaths,
+                                        )
+                                      : (_) {},
+                                  uploadProgress: widget.uploadProgress?[0],
+                                  isCached: _cachedStatus[0] ?? false,
+                                  cachedPath: _cachedPaths[0],
+                                  showBlur: !_allCached,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: widget.gap),
+                            Expanded(
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: _ImageTile(
+                                  url: widget.imageUrls[1],
+                                  index: 1,
+                                  radius: widget.tileRadius,
+                                  onTap: _allCached
+                                      ? (index) => widget.onImageTap(
+                                          index,
+                                          _cachedPaths,
+                                        )
+                                      : (_) {},
+                                  uploadProgress: widget.uploadProgress?[1],
+                                  isCached: _cachedStatus[1] ?? false,
+                                  cachedPath: _cachedPaths[1],
+                                  showBlur: !_allCached,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                  SizedBox(width: gap),
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: _ImageTile(
-                        url: imageUrls[1],
-                        index: 1,
-                        radius: tileRadius,
-                        onTap: onImageTap,
-                        uploadProgress: uploadProgress?[1],
+                      SizedBox(height: widget.gap),
+                      IntrinsicHeight(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Expanded(
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: _ImageTile(
+                                  url: widget.imageUrls[2],
+                                  index: 2,
+                                  radius: widget.tileRadius,
+                                  onTap: _allCached
+                                      ? (index) => widget.onImageTap(
+                                          index,
+                                          _cachedPaths,
+                                        )
+                                      : (_) {},
+                                  uploadProgress: widget.uploadProgress?[2],
+                                  isCached: _cachedStatus[2] ?? false,
+                                  cachedPath: _cachedPaths[2],
+                                  showBlur: !_allCached,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: widget.gap),
+                            Expanded(
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: _ImageTile(
+                                  url: widget.imageUrls[3],
+                                  index: 3,
+                                  radius: widget.tileRadius,
+                                  onTap: _allCached
+                                      ? (index) => widget.onImageTap(
+                                          index,
+                                          _cachedPaths,
+                                        )
+                                      : (_) {},
+                                  uploadProgress: widget.uploadProgress?[3],
+                                  isCached: _cachedStatus[3] ?? false,
+                                  cachedPath: _cachedPaths[3],
+                                  showBlur: !_allCached,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: gap),
-            IntrinsicHeight(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: _ImageTile(
-                        url: imageUrls[2],
-                        index: 2,
-                        radius: tileRadius,
-                        onTap: onImageTap,
-                        uploadProgress: uploadProgress?[2],
+                      SizedBox(height: widget.gap),
+                      IntrinsicHeight(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Expanded(
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: _ImageTile(
+                                  url: widget.imageUrls[2],
+                                  index: 2,
+                                  radius: widget.tileRadius,
+                                  onTap: _allCached
+                                      ? (index) => widget.onImageTap(
+                                          index,
+                                          _cachedPaths,
+                                        )
+                                      : (_) {},
+                                  uploadProgress: widget.uploadProgress?[2],
+                                  isCached: _cachedStatus[2] ?? false,
+                                  cachedPath: _cachedPaths[2],
+                                  showBlur: !_allCached,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: widget.gap),
+                            Expanded(
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: _ImageTile(
+                                  url: widget.imageUrls[3],
+                                  index: 3,
+                                  radius: widget.tileRadius,
+                                  onTap: _allCached
+                                      ? (index) => widget.onImageTap(
+                                          index,
+                                          _cachedPaths,
+                                        )
+                                      : (_) {},
+                                  uploadProgress: widget.uploadProgress?[3],
+                                  isCached: _cachedStatus[3] ?? false,
+                                  cachedPath: _cachedPaths[3],
+                                  showBlur: !_allCached,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                  SizedBox(width: gap),
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: _ImageTile(
-                        url: imageUrls[3],
-                        index: 3,
-                        radius: tileRadius,
-                        onTap: onImageTap,
-                        uploadProgress: uploadProgress?[3],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                )
+              : Container(color: Colors.grey.shade900),
         ),
       );
     }
 
-    // 5+ images: scrollable 2x2 grid with overlay
-    // Calculate explicit width: 2 tiles + 1 gap between them
-    final tileSize =
-        (screenWidth * 0.7 - (gap * 3)) / 2; // maxBubbleWidth - padding - gap
-    final gridWidth = (tileSize * 2) + gap;
+    // 5+ images: grid (limited to 4 visible, rest shown via overlay)
+    final tileSize = (screenWidth * 0.7 - (widget.gap * 3)) / 2;
+    final gridWidth = (tileSize * 2) + widget.gap;
 
-    final grid = GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: gap,
-        mainAxisSpacing: gap,
-        childAspectRatio: 1,
-      ),
-      itemCount: count,
-      itemBuilder: (context, index) {
-        final url = imageUrls[index];
-        final showOverlay = (index == 3) && (count > 4);
-        final overlayCount = showOverlay ? (count - 4) : 0;
+    // Calculate rows needed (show max 4 images: 2x2 grid)
+    final displayCount = count > 4 ? 4 : count;
+    final rows = (displayCount / 2).ceil();
 
-        return _ImageTile(
-          url: url,
-          index: index,
-          radius: tileRadius,
-          onTap: onImageTap,
-          showOverlay: showOverlay,
-          overlayCount: overlayCount,
-          uploadProgress:
-              uploadProgress != null && index < uploadProgress!.length
-              ? uploadProgress![index]
-              : null,
-        );
-      },
+    // Use compact height if not cached (for download button overlay)
+    final gridHeight = !_allCached
+        ? 250.0 // Compact height when showing download button
+        : (tileSize * rows) +
+              (widget.gap * (rows - 1)); // Full height when cached
+
+    final grid = _allCached
+        ? GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: widget.gap,
+              mainAxisSpacing: widget.gap,
+              childAspectRatio: 1,
+            ),
+            itemCount: displayCount,
+            itemBuilder: (context, index) {
+              final url = widget.imageUrls[index];
+              final showOverlay = (index == 3) && (count > 4);
+              final overlayCount = showOverlay ? (count - 4) : 0;
+
+              return _ImageTile(
+                url: url,
+                index: index,
+                radius: widget.tileRadius,
+                onTap: _allCached
+                    ? (index) => widget.onImageTap(index, _cachedPaths)
+                    : (_) {},
+                showOverlay: showOverlay,
+                overlayCount: overlayCount,
+                uploadProgress:
+                    widget.uploadProgress != null &&
+                        index < widget.uploadProgress!.length
+                    ? widget.uploadProgress![index]
+                    : null,
+                isCached: _cachedStatus[index] ?? false,
+                cachedPath: _cachedPaths[index],
+                showBlur: !_allCached,
+              );
+            },
+          )
+        : GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: widget.gap,
+              mainAxisSpacing: widget.gap,
+              childAspectRatio: 1,
+            ),
+            itemCount: displayCount,
+            itemBuilder: (context, index) {
+              return Container(color: Colors.grey.shade900);
+            },
+          );
+
+    return ClipRect(
+      child: SizedBox(width: gridWidth, height: gridHeight, child: grid),
     );
-
-    return SizedBox(width: gridWidth, height: maxScrollableHeight, child: grid);
   }
 }
 
@@ -329,6 +760,9 @@ class _ThreeImageLayout extends StatelessWidget {
   final double tileRadius;
   final void Function(int) onTap;
   final List<double?>? uploadProgress;
+  final Map<int, bool> cachedStatus;
+  final Map<int, String> cachedPaths;
+  final bool showBlur;
 
   const _ThreeImageLayout({
     required this.imageUrls,
@@ -336,6 +770,9 @@ class _ThreeImageLayout extends StatelessWidget {
     required this.tileRadius,
     required this.onTap,
     this.uploadProgress,
+    required this.cachedStatus,
+    required this.cachedPaths,
+    required this.showBlur,
   });
 
   @override
@@ -357,6 +794,9 @@ class _ThreeImageLayout extends StatelessWidget {
                       radius: tileRadius,
                       onTap: onTap,
                       uploadProgress: uploadProgress?[0],
+                      isCached: cachedStatus[0] ?? false,
+                      cachedPath: cachedPaths[0],
+                      showBlur: showBlur,
                     ),
                   ),
                 ),
@@ -370,6 +810,9 @@ class _ThreeImageLayout extends StatelessWidget {
                       radius: tileRadius,
                       onTap: onTap,
                       uploadProgress: uploadProgress?[1],
+                      isCached: cachedStatus[1] ?? false,
+                      cachedPath: cachedPaths[1],
+                      showBlur: showBlur,
                     ),
                   ),
                 ),
@@ -377,7 +820,6 @@ class _ThreeImageLayout extends StatelessWidget {
             ),
           ),
           SizedBox(height: gap),
-          // Bottom full-width tile (16:9 looks balanced inside bubble)
           AspectRatio(
             aspectRatio: 16 / 9,
             child: _ImageTile(
@@ -386,6 +828,9 @@ class _ThreeImageLayout extends StatelessWidget {
               radius: tileRadius,
               onTap: onTap,
               uploadProgress: uploadProgress?[2],
+              isCached: cachedStatus[2] ?? false,
+              cachedPath: cachedPaths[2],
+              showBlur: showBlur,
             ),
           ),
         ],
@@ -401,8 +846,11 @@ class _ImageTile extends StatefulWidget {
   final void Function(int) onTap;
   final bool showOverlay;
   final int overlayCount;
-  final double? uploadProgress; // 0.0 to 1.0, null means completed
-  final BoxFit? fit; // Add fit parameter
+  final double? uploadProgress;
+  final BoxFit? fit;
+  final bool isCached;
+  final String? cachedPath;
+  final bool showBlur;
 
   const _ImageTile({
     required this.url,
@@ -412,7 +860,10 @@ class _ImageTile extends StatefulWidget {
     this.showOverlay = false,
     this.overlayCount = 0,
     this.uploadProgress,
-    this.fit, // Optional fit parameter
+    this.fit,
+    this.isCached = false,
+    this.cachedPath,
+    this.showBlur = false,
   });
 
   @override
@@ -424,7 +875,7 @@ class _ImageTileState extends State<_ImageTile>
   bool _loaded = false;
 
   @override
-  bool get wantKeepAlive => true; // Keep the widget alive
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
@@ -493,7 +944,7 @@ class _ImageTileState extends State<_ImageTile>
     }
 
     if (url.startsWith('/')) {
-      // Local file path
+      // Local file path (from pending message)
       final file = File(url);
       if (file.existsSync()) {
         _markLoadedAsync();
@@ -518,7 +969,53 @@ class _ImageTileState extends State<_ImageTile>
       }
     }
 
-    // Network image with caching
+    // Check if image is cached locally first
+    // ✅ If cached locally, load from file
+    // ⚪ If NOT cached, show download button without auto-downloading
+    if (widget.isCached && widget.cachedPath != null) {
+      final file = File(widget.cachedPath!);
+      if (file.existsSync()) {
+        debugPrint('✅ Loading image from local cache: ${widget.cachedPath}');
+        _markLoadedAsync();
+        Widget imageWidget = RepaintBoundary(
+          child: Image.file(
+            file,
+            fit: widget.fit ?? BoxFit.cover,
+            filterQuality: FilterQuality.high,
+            cacheWidth: 800,
+            errorBuilder: (_, __, ___) => _errorFallback(),
+          ),
+        );
+
+        // Apply blur if needed (during download of other images)
+        if (widget.showBlur) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(widget.radius),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                imageWidget,
+                BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(color: Colors.black.withOpacity(0.3)),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return imageWidget;
+      }
+    }
+
+    // NOT cached locally - show download prompt WITHOUT attempting network load
+    if (!widget.isCached) {
+      debugPrint('⚪ Image NOT in local cache, showing download button: $url');
+      return _downloadPromptFallback();
+    }
+
+    // Fallback: attempt network loading (should not reach here in normal flow)
+    debugPrint('🔄 Falling back to network image: $url');
     return RepaintBoundary(
       child: CachedNetworkImage(
         imageUrl: url,

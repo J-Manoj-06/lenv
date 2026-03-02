@@ -281,23 +281,27 @@ class _ParentSectionGroupChatScreenState
   }
 
   /// Save pending message with current upload progress to cache
-  Future<void> _updatePendingMessageCache(String messageId, List<Map<String, dynamic>> mediaWithProgress) async {
+  Future<void> _updatePendingMessageCache(
+    String messageId,
+    List<Map<String, dynamic>> mediaWithProgress,
+  ) async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       if (currentUser == null) return;
 
       // ✅ Find the pending message safely
-      final pendingMsg = _pendingMessages.cast<CommunityMessageModel?>().firstWhere(
-        (m) => m?.messageId == messageId, 
-        orElse: () => null,
-      );
-      
+      final pendingMsg = _pendingMessages
+          .cast<CommunityMessageModel?>()
+          .firstWhere((m) => m?.messageId == messageId, orElse: () => null);
+
       if (pendingMsg == null) {
-        print('⚠️ Pending message $messageId not found in list, skipping cache update');
+        print(
+          '⚠️ Pending message $messageId not found in list, skipping cache update',
+        );
         return;
       }
-      
+
       final localMessage = LocalMessage(
         messageId: messageId,
         chatId: widget.groupId,
@@ -309,7 +313,7 @@ class _ParentSectionGroupChatScreenState
         multipleMedia: mediaWithProgress,
         isPending: true,
       );
-      
+
       await _localRepo.saveMessage(localMessage);
       print('💾 Updated cache for $messageId with progress');
     } catch (e) {
@@ -358,21 +362,30 @@ class _ParentSectionGroupChatScreenState
             })
             .map((msg) => msg.messageId)
             .toSet();
-        
-        print('🔄 Preserving ${activeUploadIds.length} actively uploading messages');
-        
+
+        print(
+          '🔄 Preserving ${activeUploadIds.length} actively uploading messages',
+        );
+
         // Remove only completed/stale messages, keep active uploads
-        _pendingMessages.removeWhere((msg) => !activeUploadIds.contains(msg.messageId));
-        
+        _pendingMessages.removeWhere(
+          (msg) => !activeUploadIds.contains(msg.messageId),
+        );
+
         // Clean up notifiers for removed messages only
         final messagesToKeep = _pendingMessages.map((m) => m.messageId).toSet();
         _pendingUploadNotifiers.removeWhere((key, notifier) {
-          final shouldRemove = !messagesToKeep.any((msgId) => key.startsWith(msgId.replaceFirst('pending:', '')));
+          final shouldRemove = !messagesToKeep.any(
+            (msgId) => key.startsWith(msgId.replaceFirst('pending:', '')),
+          );
           if (shouldRemove) notifier.dispose();
           return shouldRemove;
         });
-        _lastUploadPercent.removeWhere((key, _) => 
-          !messagesToKeep.any((msgId) => key.startsWith(msgId.replaceFirst('pending:', ''))));
+        _lastUploadPercent.removeWhere(
+          (key, _) => !messagesToKeep.any(
+            (msgId) => key.startsWith(msgId.replaceFirst('pending:', '')),
+          ),
+        );
 
         // Convert LocalMessage to CommunityMessageModel format
         for (final msg in pendingMessages) {
@@ -509,7 +522,9 @@ class _ParentSectionGroupChatScreenState
           // ✅ CRITICAL: Check if upload is still in progress before removing
           final notifier = _pendingUploadNotifiers[pendingId];
           if (notifier != null && notifier.value < 100) {
-            print('⏳ [CLEANUP] Keep pending:$pendingId - upload at ${notifier.value}%');
+            print(
+              '⏳ [CLEANUP] Keep pending:$pendingId - upload at ${notifier.value}%',
+            );
             continue; // Still uploading, don't remove yet
           }
           toRemove.add(pendingId);
@@ -1055,24 +1070,27 @@ class _ParentSectionGroupChatScreenState
                     'pending:',
                     '',
                   );
-                  
+
                   // ✅ Check if upload is still in progress FIRST
                   bool uploadInProgress = false;
-                  final notifier = _pendingUploadNotifiers[pendingMsg.messageId];
+                  final notifier =
+                      _pendingUploadNotifiers[pendingMsg.messageId];
                   if (notifier != null && notifier.value < 100) {
                     uploadInProgress = true;
                   }
-                  
+
                   print(
                     '🔍 [PENDING_MERGE] Check ${pendingMsg.messageId} base=$pendingId media=${pendingMsg.multipleMedia?.length ?? 0} uploading=$uploadInProgress progress=${notifier?.value ?? -1}%',
                   );
-                  
+
                   // ✅ If upload in progress, keep the message visible
                   if (uploadInProgress) {
                     final cachedPending =
                         _messageCache[pendingMsg.messageId] ??= pendingMsg;
                     filteredPendingMessages.add(cachedPending);
-                    print('⏳ [PENDING_MERGE] Keep ${pendingMsg.messageId} - upload at ${notifier?.value ?? 0}%');
+                    print(
+                      '⏳ [PENDING_MERGE] Keep ${pendingMsg.messageId} - upload at ${notifier?.value ?? 0}%',
+                    );
                     continue;
                   }
 
@@ -1084,22 +1102,28 @@ class _ParentSectionGroupChatScreenState
                       bool uploadComplete = true;
                       if (pendingMsg.multipleMedia != null) {
                         for (final media in pendingMsg.multipleMedia!) {
-                          final notifier = _pendingUploadNotifiers[media.messageId];
+                          final notifier =
+                              _pendingUploadNotifiers[media.messageId];
                           if (notifier != null && notifier.value < 100) {
                             uploadComplete = false;
-                            print('📤 [EXACT_MATCH] ${media.messageId} still uploading: ${notifier.value}%');
+                            print(
+                              '📤 [EXACT_MATCH] ${media.messageId} still uploading: ${notifier.value}%',
+                            );
                             break;
                           }
                         }
                       } else {
                         // Check single upload
-                        final notifier = _pendingUploadNotifiers[pendingMsg.messageId];
+                        final notifier =
+                            _pendingUploadNotifiers[pendingMsg.messageId];
                         if (notifier != null && notifier.value < 100) {
                           uploadComplete = false;
-                          print('📤 [EXACT_MATCH] ${pendingMsg.messageId} still uploading: ${notifier.value}%');
+                          print(
+                            '📤 [EXACT_MATCH] ${pendingMsg.messageId} still uploading: ${notifier.value}%',
+                          );
                         }
                       }
-                      
+
                       if (uploadComplete) {
                         foundExactMatch = true;
                         print(
@@ -1189,22 +1213,28 @@ class _ParentSectionGroupChatScreenState
                     bool uploadComplete = true;
                     if (pendingMsg.multipleMedia != null) {
                       for (final media in pendingMsg.multipleMedia!) {
-                        final notifier = _pendingUploadNotifiers[media.messageId];
+                        final notifier =
+                            _pendingUploadNotifiers[media.messageId];
                         if (notifier != null && notifier.value < 100) {
                           uploadComplete = false;
-                          print('📤 [PENDING_MERGE] ${media.messageId} still uploading: ${notifier.value}%');
+                          print(
+                            '📤 [PENDING_MERGE] ${media.messageId} still uploading: ${notifier.value}%',
+                          );
                           break;
                         }
                       }
                     } else {
                       // Check single upload
-                      final notifier = _pendingUploadNotifiers[pendingMsg.messageId];
+                      final notifier =
+                          _pendingUploadNotifiers[pendingMsg.messageId];
                       if (notifier != null && notifier.value < 100) {
                         uploadComplete = false;
-                        print('📤 [PENDING_MERGE] ${pendingMsg.messageId} still uploading: ${notifier.value}%');
+                        print(
+                          '📤 [PENDING_MERGE] ${pendingMsg.messageId} still uploading: ${notifier.value}%',
+                        );
                       }
                     }
-                    
+
                     if (uploadComplete) {
                       // Upload complete - safe to remove pending and show server version
                       print(
@@ -1216,7 +1246,9 @@ class _ParentSectionGroupChatScreenState
                       final cachedPending =
                           _messageCache[pendingMsg.messageId] ??= pendingMsg;
                       filteredPendingMessages.add(cachedPending);
-                      print('⏳ [PENDING_MERGE] Keep ${pendingMsg.messageId} - upload in progress');
+                      print(
+                        '⏳ [PENDING_MERGE] Keep ${pendingMsg.messageId} - upload in progress',
+                      );
                     }
                   } else {
                     // Still uploading - keep in list
@@ -1714,23 +1746,66 @@ class _ParentSectionGroupChatScreenState
                                                                           : null;
                                                                     }).toList()
                                                                   : null,
-                                                              onImageTap: (index) {
-                                                                // ✅ Open full-screen viewer with zoom, pinch, and swipe
-                                                                Navigator.of(
-                                                                  context,
-                                                                ).push(
-                                                                  MaterialPageRoute(
-                                                                    builder: (_) => _ImageGalleryViewer(
-                                                                      mediaList:
-                                                                          msg.multipleMedia!,
-                                                                      initialIndex:
-                                                                          index,
-                                                                      localFilePaths:
-                                                                          _localSenderMediaPaths,
-                                                                    ),
-                                                                  ),
-                                                                );
-                                                              },
+                                                              onImageTap:
+                                                                  (
+                                                                    index,
+                                                                    cachedPaths,
+                                                                  ) {
+                                                                    // Update media list with cached paths
+                                                                    final updatedMediaList =
+                                                                        <
+                                                                          MediaMetadata
+                                                                        >[];
+                                                                    for (
+                                                                      int i = 0;
+                                                                      i <
+                                                                          msg
+                                                                              .multipleMedia!
+                                                                              .length;
+                                                                      i++
+                                                                    ) {
+                                                                      final media =
+                                                                          msg.multipleMedia![i];
+                                                                      updatedMediaList.add(
+                                                                        MediaMetadata(
+                                                                          localPath:
+                                                                              cachedPaths[i] ??
+                                                                              media.localPath,
+                                                                          publicUrl:
+                                                                              media.publicUrl,
+                                                                          messageId:
+                                                                              media.messageId,
+                                                                          mimeType:
+                                                                              media.mimeType,
+                                                                          fileSize:
+                                                                              media.fileSize,
+                                                                          r2Key:
+                                                                              media.r2Key,
+                                                                          thumbnail:
+                                                                              media.thumbnail,
+                                                                          expiresAt:
+                                                                              media.expiresAt,
+                                                                          uploadedAt:
+                                                                              media.uploadedAt,
+                                                                        ),
+                                                                      );
+                                                                    }
+                                                                    // ✅ Open full-screen viewer with zoom, pinch, and swipe
+                                                                    Navigator.of(
+                                                                      context,
+                                                                    ).push(
+                                                                      MaterialPageRoute(
+                                                                        builder: (_) => _ImageGalleryViewer(
+                                                                          mediaList:
+                                                                              updatedMediaList,
+                                                                          initialIndex:
+                                                                              index,
+                                                                          localFilePaths:
+                                                                              _localSenderMediaPaths,
+                                                                        ),
+                                                                      ),
+                                                                    );
+                                                                  },
                                                             ),
                                                           ),
                                                           if (msg
@@ -2685,7 +2760,7 @@ class _ParentSectionGroupChatScreenState
 
                 // ✅ Trigger rebuild to show live progress for multi-image messages
                 setState(() {});
-                
+
                 // ✅ Save progress to cache every 10% to persist across navigation
                 if (percent % 10 == 0 || percent == 100) {
                   final mediaWithProgress = mediaList.map((m) {
@@ -2702,7 +2777,10 @@ class _ParentSectionGroupChatScreenState
                       'originalFileName': m.originalFileName,
                     };
                   }).toList();
-                  _updatePendingMessageCache('pending:$groupMessageId', mediaWithProgress);
+                  _updatePendingMessageCache(
+                    'pending:$groupMessageId',
+                    mediaWithProgress,
+                  );
                 }
               }
 
@@ -3005,14 +3083,16 @@ class _ParentSectionGroupChatScreenState
           senderName: user.name,
           timestamp: DateTime.now().millisecondsSinceEpoch,
           messageText: '',
-          multipleMedia: [{
-            'messageId': pendingId,
-            'localPath': file.path,
-            'uploadProgress': 0.0,
-            'originalFileName': fileName,
-            'fileSize': fileSize,
-            'mimeType': mimeType,
-          }],
+          multipleMedia: [
+            {
+              'messageId': pendingId,
+              'localPath': file.path,
+              'uploadProgress': 0.0,
+              'originalFileName': fileName,
+              'fileSize': fileSize,
+              'mimeType': mimeType,
+            },
+          ],
           isPending: true,
         );
         await _localRepo.saveMessage(pendingLocalMsg);
@@ -3037,17 +3117,19 @@ class _ParentSectionGroupChatScreenState
           if (!shouldUpdate) return;
           _lastUploadPercent[pendingId] = percent;
           _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
-          
+
           // ✅ Update cache with progress every 20% for persistence
           if (percent % 20 == 0 || percent == 100) {
-            _updatePendingMessageCache(pendingId, [{
-              'messageId': pendingId,
-              'localPath': file.path,
-              'uploadProgress': percent / 100.0,
-              'originalFileName': fileName,
-              'fileSize': fileSize,
-              'mimeType': mimeType,
-            }]);
+            _updatePendingMessageCache(pendingId, [
+              {
+                'messageId': pendingId,
+                'localPath': file.path,
+                'uploadProgress': percent / 100.0,
+                'originalFileName': fileName,
+                'fileSize': fileSize,
+                'mimeType': mimeType,
+              },
+            ]);
           }
         },
       );

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/parent_provider.dart';
 import '../../widgets/student_selection/student_avatar_row.dart';
-import 'parent_chat_screen.dart';
 import '../../services/offline_data_service.dart';
 import 'parent_profile_screen.dart';
 import '../../services/whatsapp_chat_service.dart';

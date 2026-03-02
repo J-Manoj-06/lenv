@@ -2104,10 +2104,36 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                                                     .messageId],
                                           )
                                           .toList(),
-                                      onImageTap: (index) {
+                                      onImageTap: (index, cachedPaths) {
                                         if (_selectionMode) return;
+                                        // Update media list with cached paths
+                                        final updatedMediaList =
+                                            <MediaMetadata>[];
+                                        for (
+                                          int i = 0;
+                                          i < message.multipleMedia!.length;
+                                          i++
+                                        ) {
+                                          final media =
+                                              message.multipleMedia![i];
+                                          updatedMediaList.add(
+                                            MediaMetadata(
+                                              localPath:
+                                                  cachedPaths[i] ??
+                                                  media.localPath,
+                                              publicUrl: media.publicUrl,
+                                              messageId: media.messageId,
+                                              mimeType: media.mimeType,
+                                              fileSize: media.fileSize,
+                                              r2Key: media.r2Key,
+                                              thumbnail: media.thumbnail,
+                                              expiresAt: media.expiresAt,
+                                              uploadedAt: media.uploadedAt,
+                                            ),
+                                          );
+                                        }
                                         _showImageGalleryViewer(
-                                          message.multipleMedia!,
+                                          updatedMediaList,
                                           index,
                                           isCurrentUser,
                                         );

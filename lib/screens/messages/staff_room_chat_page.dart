@@ -3619,13 +3619,33 @@ class _MessageBubbleState extends State<_MessageBubble>
                                 }
                               }).toList(),
                               isMe: widget.isMe,
-                              onImageTap: (index) {
+                              onImageTap: (index, cachedPaths) {
+                                // Merge cached paths into mediaList
+                                final updatedMediaList =
+                                    List<Map<String, dynamic>>.from(
+                                      multipleMedia!.map((media) {
+                                        final mediaMap =
+                                            media is Map<String, dynamic>
+                                            ? Map<String, dynamic>.from(media)
+                                            : (media as Map)
+                                                  .cast<String, dynamic>();
+                                        return mediaMap;
+                                      }),
+                                    );
+
+                                // Update localPath with cached paths
+                                cachedPaths.forEach((idx, path) {
+                                  if (idx < updatedMediaList.length) {
+                                    updatedMediaList[idx]['localPath'] = path;
+                                  }
+                                });
+
                                 // Open full-screen image gallery
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => _ImageGalleryViewer(
-                                      mediaList: multipleMedia!,
+                                      mediaList: updatedMediaList,
                                       initialIndex: index,
                                       isPending: isPending,
                                     ),

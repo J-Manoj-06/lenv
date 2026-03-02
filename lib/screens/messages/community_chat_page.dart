@@ -3290,12 +3290,30 @@ class _MessageBubble extends StatelessWidget {
                     uploadProgress: message.multipleMedia!
                         .map((m) => pendingUploadProgress[m.messageId])
                         .toList(),
-                    onImageTap: (index) {
+                    onImageTap: (index, cachedPaths) {
+                      // Update media list with cached paths
+                      final updatedMediaList = <MediaMetadata>[];
+                      for (int i = 0; i < message.multipleMedia!.length; i++) {
+                        final media = message.multipleMedia![i];
+                        updatedMediaList.add(
+                          MediaMetadata(
+                            localPath: cachedPaths[i] ?? media.localPath,
+                            publicUrl: media.publicUrl,
+                            messageId: media.messageId,
+                            mimeType: media.mimeType,
+                            fileSize: media.fileSize,
+                            r2Key: media.r2Key,
+                            thumbnail: media.thumbnail,
+                            expiresAt: media.expiresAt,
+                            uploadedAt: media.uploadedAt,
+                          ),
+                        );
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => _ImageGalleryViewer(
-                            mediaList: message.multipleMedia!,
+                            mediaList: updatedMediaList,
                             initialIndex: index,
                             localSenderMediaPaths: localSenderMediaPaths,
                             isMe: isMe,
