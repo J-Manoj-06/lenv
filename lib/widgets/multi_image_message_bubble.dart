@@ -362,6 +362,46 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
               ),
             ),
 
+          // Grid lines overlay (above blur, for multi-images only)
+          if (!_allCached && widget.imageUrls.length > 1)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(widget.bubbleRadius),
+                child: IgnorePointer(
+                  child: Stack(
+                    children: [
+                      // Vertical line in center
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: Center(
+                          child: Container(
+                            width: 4,
+                            color: const Color(0xFF146D7A),
+                          ),
+                        ),
+                      ),
+                      // Horizontal line in center
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: Center(
+                          child: Container(
+                            height: 4,
+                            color: const Color(0xFF146D7A),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
           // Downloading progress overlay
           if (_isDownloading)
             Positioned.fill(
@@ -678,37 +718,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                     ],
                   ),
                 )
-              : Stack(
-                  children: [
-                    Container(color: Colors.grey.shade900),
-                    // Vertical line in center
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Center(
-                        child: Container(
-                          width: 4,
-                          color: const Color(0xFF146D7A),
-                        ),
-                      ),
-                    ),
-                    // Horizontal line in center
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Center(
-                        child: Container(
-                          height: 4,
-                          color: const Color(0xFF146D7A),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              : Container(color: Colors.grey.shade900),
         ),
       );
     }
@@ -784,34 +794,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
       child: SizedBox(
         width: gridWidth,
         height: gridHeight,
-        child: Stack(
-          children: [
-            grid,
-            // Only show grid lines when not cached
-            if (!_allCached) ...[
-              // Vertical line in center
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: Container(width: 4, color: const Color(0xFF146D7A)),
-                ),
-              ),
-              // Horizontal line in center
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: Container(height: 4, color: const Color(0xFF146D7A)),
-                ),
-              ),
-            ],
-          ],
-        ),
+        child: Stack(children: [grid]),
       ),
     );
   }
