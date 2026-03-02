@@ -595,46 +595,14 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                   ),
                 ),
               )
-            else if (!widget.isMe)
+            else
+              // Not downloaded yet - show Download button for both sender and receiver
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: widget.selectionMode ? null : _download,
                   icon: const Icon(Icons.download),
                   label: Text('Download ${_formatSize(widget.fileSize)}'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _accentColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              )
-            else if (widget.isMe)
-              // Sender: show View button (can open directly from R2)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: widget.selectionMode ? null : () => _openFromR2(),
-                  icon: Icon(
-                    _isDocument
-                        ? Icons.open_in_new
-                        : _isAudio
-                        ? Icons.play_arrow
-                        : _isImage
-                        ? Icons.image
-                        : Icons.play_arrow,
-                  ),
-                  label: Text(
-                    _isDocument
-                        ? 'View Document'
-                        : _isAudio
-                        ? 'Play Audio'
-                        : _isImage
-                        ? 'View Image'
-                        : 'View',
-                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _accentColor,
                     foregroundColor: Colors.white,

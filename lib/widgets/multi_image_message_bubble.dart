@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/media_availability_service.dart';
-import '../services/media_repository.dart';
+import '../services/background_download_service.dart';
 
 /// WhatsApp-style multi-image message bubble with centralized download.
 /// Features:
@@ -44,7 +44,8 @@ class MultiImageMessageBubble extends StatefulWidget {
 class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
   final MediaAvailabilityService _availabilityService =
       MediaAvailabilityService();
-  final MediaRepository _repository = MediaRepository();
+  final BackgroundDownloadService _downloadService =
+      BackgroundDownloadService();
 
   // Track which images are cached
   final Map<int, bool> _cachedStatus = {};
@@ -141,17 +142,25 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
       return;
     }
 
-    // Download each image
-    for (final index in toDownload) {
-      await _downloadSingleImage(index);
-      _downloadedCount++;
+    // Use background download service with notifications
+    final results = await _downloadService.downloadMultipleImages(
+      urls: widget.imageUrls,
+      onProgress: (downloaded, total, progress) {
+        if (mounted) {
+          setState(() {
+            _downloadedCount = downloaded;
+            _totalToDownload = total;
+            _downloadProgress = progress;
+          });
+        }
+      },
+    );
 
-      if (mounted) {
-        setState(() {
-          _downloadProgress = _downloadedCount / _totalToDownload;
-        });
-      }
-    }
+    // Update cached paths with results
+    results.forEach((index, path) {
+      _cachedPaths[index] = path;
+      _cachedStatus[index] = true;
+    });
 
     // Re-check cache status
     await _checkAllCacheStatus();
@@ -160,45 +169,6 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
       setState(() {
         _isDownloading = false;
       });
-    }
-  }
-
-  /// Download a single image by index
-  Future<void> _downloadSingleImage(int index) async {
-    final url = widget.imageUrls[index];
-
-    // Extract r2Key
-    String r2Key = url;
-    if (r2Key.startsWith('http')) {
-      final uri = Uri.parse(r2Key);
-      r2Key = uri.path.replaceFirst('/', '');
-    }
-
-    try {
-      final result = await _repository.downloadMedia(
-        r2Key: r2Key,
-        fileName: 'image_$index.jpg',
-        mimeType: 'image/jpeg',
-        onProgress: (progress) {
-          // Optional: update per-image progress
-        },
-      );
-
-      if (result.success && result.localPath != null) {
-        if (mounted) {
-          setState(() {
-            _cachedStatus[index] = true;
-            _cachedPaths[index] = result.localPath!;
-          });
-        }
-        debugPrint(
-          '✅ Downloaded and cached image $index at: ${result.localPath}',
-        );
-      } else {
-        debugPrint('❌ Failed to download image $index');
-      }
-    } catch (e) {
-      debugPrint('❌ Error downloading image $index: $e');
     }
   }
 

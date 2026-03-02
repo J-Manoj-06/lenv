@@ -23,6 +23,7 @@ import 'services/offline_cache_manager.dart';
 import 'services/offline_data_service.dart';
 import 'services/offline_first_initializer.dart';
 import 'services/notification_service.dart';
+import 'services/background_download_service.dart';
 import 'models/local_message.dart';
 import 'share/share_controller.dart';
 import 'share/share_receiver_service.dart';
@@ -87,6 +88,8 @@ Future<void> _initializeServicesAsync() async {
       ConnectivityService().initialize(),
       ShareReceiverService().initialize(),
       NotificationService().initialize(), // ✅ Initialize notification service
+      BackgroundDownloadService()
+          .initialize(), // ✅ Initialize download notifications
     ], eagerError: false); // Continue even if one fails
   } catch (e) {
     // Services failed to initialize, but app can still run
