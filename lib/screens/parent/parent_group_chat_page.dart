@@ -63,12 +63,10 @@ class ParentGroupChatPage extends StatefulWidget {
   });
 
   @override
-  State<ParentGroupChatPage> createState() =>
-      _ParentGroupChatPageState();
+  State<ParentGroupChatPage> createState() => _ParentGroupChatPageState();
 }
 
-class _ParentGroupChatPageState
-    extends State<ParentGroupChatPage>
+class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     with AutomaticKeepAliveClientMixin, MessageScrollAndHighlightMixin {
   // ✅ NEW THEME COLORS - Modern dark design
   static const Color primaryBackground = Color(0xFF0F1113);

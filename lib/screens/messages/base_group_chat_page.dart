@@ -41,7 +41,7 @@ class AttachmentConfig {
   final bool audio;
   final bool poll;
   final bool mindmap;
-  
+
   const AttachmentConfig({
     this.camera = true,
     this.image = true,
@@ -50,13 +50,13 @@ class AttachmentConfig {
     this.poll = true,
     this.mindmap = false,
   });
-  
+
   /// Default config for all roles
   static const standard = AttachmentConfig();
-  
+
   /// Config for teachers with mindmap enabled
   static const teacher = AttachmentConfig(mindmap: true);
-  
+
   /// Config with restricted features
   static const restricted = AttachmentConfig(
     camera: false,
@@ -70,7 +70,7 @@ class AttachmentConfig {
 
 /// Base Group Chat Page - Unified implementation for all group chats
 /// This replaces: StaffRoomChatPage, GroupChatPage, ParentGroupChatPage
-/// 
+///
 /// Features:
 /// - Background uploads with progress tracking
 /// - Offline-first messaging with caching
@@ -81,7 +81,7 @@ class AttachmentConfig {
 /// - Role-specific attachment options (e.g., mindmap for teachers)
 /// - Message search
 /// - Message deletion
-/// 
+///
 /// Usage:
 /// ```dart
 /// BaseGroupChatPage(
@@ -101,7 +101,7 @@ class BaseGroupChatPage extends StatefulWidget {
   final Color? themeColor; // Optional custom theme color
   final AttachmentConfig attachmentConfig;
   final Map<String, dynamic>? metadata; // Optional additional data
-  
+
   const BaseGroupChatPage({
     super.key,
     required this.chatId,
@@ -120,51 +120,50 @@ class BaseGroupChatPage extends StatefulWidget {
 
 class _BaseGroupChatPageState extends State<BaseGroupChatPage>
     with MessageScrollAndHighlightMixin, WidgetsBindingObserver {
-  
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   late final MediaUploadService _mediaUploadService;
   final ValueNotifier<bool> _isUploading = ValueNotifier<bool>(false);
-  
+
   // OFFLINE-FIRST SERVICES
   late final LocalMessageRepository _localRepo;
   late final FirebaseMessageSyncService _syncService;
-  
+
   // Recording variables
   final AudioRecorder _audioRecorder = AudioRecorder();
   final ValueNotifier<bool> _isRecording = ValueNotifier<bool>(false);
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   Timer? _recordingTimer;
-  
+
   // Emoji picker
   bool _showEmojiPicker = false;
-  
+
   // Pending uploads tracking
   final List<Map<String, dynamic>> _pendingMessages = [];
   final Set<String> _uploadingMessageIds = {};
   final Map<String, double> _pendingUploadProgress = {};
   final Map<String, String> _localFilePaths = {};
-  
+
   // Selection mode for delete
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
-  
+
   // User info
   String? _userName;
   String? _userId;
-  
+
   // Theme color
   late Color _accentColor;
-  
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    
+
     // Set theme color
     _accentColor = widget.themeColor ?? _getDefaultThemeColor();
-    
+
     // Initialize media upload service
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -173,22 +172,22 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       secretAccessKey: CloudflareConfig.secretAccessKey,
       r2Domain: CloudflareConfig.r2Domain,
     );
-    
+
     _mediaUploadService = MediaUploadService(
       r2Service: r2Service,
       firestore: FirebaseFirestore.instance,
       cacheService: LocalCacheService(),
     );
-    
+
     // Initialize offline-first services
     _initOfflineFirst();
-    
+
     // Load user data
     _loadUserData();
-    
+
     // Bridge background upload progress to UI
     BackgroundUploadService().onUploadProgress = _handleUploadProgress;
-    
+
     // Focus listener
     _messageFocusNode.addListener(() {
       if (_messageFocusNode.hasFocus && _showEmojiPicker) {
@@ -196,23 +195,23 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       }
     });
   }
-  
+
   void _initOfflineFirst() async {
     _localRepo = LocalMessageRepository();
     _syncService = FirebaseMessageSyncService(_localRepo);
-    
+
     await _localRepo.initialize();
-    
+
     print('🔥 BaseGroupChat - Initializing offline-first');
     print('   Chat ID: ${widget.chatId}');
     print('   Chat Type: ${widget.chatType}');
-    
+
     // Load from cache first
     final cachedMessages = await _localRepo.getMessagesForChat(
       widget.chatId,
       limit: 50,
     );
-    
+
     if (cachedMessages.isEmpty) {
       print('📥 No cache - fetching initial messages...');
       await _syncService.initialSyncForChat(
@@ -228,7 +227,7 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
         lastTimestamp: cachedMessages.first.timestamp,
       );
     }
-    
+
     // Start real-time sync
     if (_userId != null) {
       await _syncService.startSyncForChat(
@@ -238,21 +237,21 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       );
     }
   }
-  
+
   Future<void> _loadUserData() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
-    
+
     if (currentUser == null) return;
-    
+
     setState(() {
       _userId = currentUser.uid;
-      _userName = currentUser.name.isNotEmpty 
-        ? currentUser.name 
-        : currentUser.email.split('@').first;
+      _userName = currentUser.name.isNotEmpty
+          ? currentUser.name
+          : currentUser.email.split('@').first;
     });
   }
-  
+
   Color _getDefaultThemeColor() {
     switch (widget.currentUserRole.toLowerCase()) {
       case 'teacher':
@@ -268,8 +267,12 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
         return AppColors.insightsTeal;
     }
   }
-  
-  void _handleUploadProgress(String messageId, bool isUploading, double progress) {
+
+  void _handleUploadProgress(
+    String messageId,
+    bool isUploading,
+    double progress,
+  ) {
     if (!mounted) return;
     setState(() {
       if (isUploading) {
@@ -280,12 +283,12 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       }
     });
   }
-  
+
   void _removeCompletedUpload(String messageId) {
     // Remove from pending messages after upload completes
     _pendingMessages.removeWhere((msg) => msg['messageId'] == messageId);
   }
-  
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -301,7 +304,7 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
     _recordingTimer?.cancel();
     super.dispose();
   }
-  
+
   void _showAttachmentOptions() {
     showModernAttachmentSheet(
       context,
@@ -310,7 +313,9 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       onDocumentTap: widget.attachmentConfig.document ? _pickDocument : null,
       onAudioTap: widget.attachmentConfig.audio ? _pickAudio : null,
       onPollTap: widget.attachmentConfig.poll ? _navigateToCreatePoll : null,
-      onMindmapTap: widget.attachmentConfig.mindmap ? _navigateToCreateMindmap : null,
+      onMindmapTap: widget.attachmentConfig.mindmap
+          ? _navigateToCreateMindmap
+          : null,
       cameraEnabled: widget.attachmentConfig.camera,
       imageEnabled: widget.attachmentConfig.image,
       documentEnabled: widget.attachmentConfig.document,
@@ -320,54 +325,52 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       color: _accentColor,
     );
   }
-  
+
   // Attachment handlers (to be implemented with actual upload logic)
   void _pickCamera() async {
     // TODO: Implement camera picker
     print('📷 Camera picker');
   }
-  
+
   void _pickImages() async {
     // TODO: Implement image picker
     print('🖼️ Image picker');
   }
-  
+
   void _pickDocument() async {
     // TODO: Implement document picker
     print('📄 Document picker');
   }
-  
+
   void _pickAudio() async {
     // TODO: Implement audio picker
     print('🎵 Audio picker');
   }
-  
+
   void _navigateToCreatePoll() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => CreatePollScreen(
-          chatId: widget.chatId,
-          chatType: widget.chatType,
-        ),
+        builder: (context) =>
+            CreatePollScreen(chatId: widget.chatId, chatType: widget.chatType),
       ),
     );
   }
-  
+
   void _navigateToCreateMindmap() {
     // TODO: Implement mindmap creation navigation
     print('🧠 Mindmap creator');
   }
-  
+
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _userId == null || _userName == null) return;
-    
+
     _messageController.clear();
-    
+
     // TODO: Implement message sending logic
     print('💬 Sending message: $text');
   }
-  
+
   Future<void> _startRecording() async {
     final hasPermission = await _audioRecorder.hasPermission();
     if (!hasPermission) {
@@ -376,44 +379,45 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       );
       return;
     }
-    
+
     final tempDir = await getTemporaryDirectory();
-    final path = '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    
+    final path =
+        '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
     await _audioRecorder.start(
       const RecordConfig(encoder: AudioEncoder.aacLc),
       path: path,
     );
-    
+
     _isRecording.value = true;
     _recordingPath = path;
     _recordingDuration.value = 0;
-    
+
     _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _recordingDuration.value++;
     });
   }
-  
+
   Future<void> _stopAndSendRecording() async {
     if (!_isRecording.value) return;
-    
+
     await _audioRecorder.stop();
     _recordingTimer?.cancel();
     _isRecording.value = false;
-    
+
     // TODO: Implement audio upload logic
     print('🎤 Sending recording: $_recordingPath');
-    
+
     _recordingPath = null;
     _recordingDuration.value = 0;
   }
-  
+
   Future<void> _cancelRecording() async {
     if (!_isRecording.value) return;
-    
+
     await _audioRecorder.stop();
     _recordingTimer?.cancel();
-    
+
     if (_recordingPath != null) {
       try {
         final file = File(_recordingPath!);
@@ -424,48 +428,50 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
         print('Error deleting recording: $e');
       }
     }
-    
+
     _isRecording.value = false;
     _recordingPath = null;
     _recordingDuration.value = 0;
   }
-  
+
   void _openSearch() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => OfflineMessageSearchPage(
-          chatId: widget.chatId,
-          chatType: widget.chatType,
-        ),
-      ),
-    ).then((selectedMessageId) async {
-      if (selectedMessageId != null) {
-        await scrollToMessage(selectedMessageId, [{'id': selectedMessageId}]);
-      }
-    });
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => OfflineMessageSearchPage(
+              chatId: widget.chatId,
+              chatType: widget.chatType,
+            ),
+          ),
+        )
+        .then((selectedMessageId) async {
+          if (selectedMessageId != null) {
+            await scrollToMessage(selectedMessageId, [
+              {'id': selectedMessageId},
+            ]);
+          }
+        });
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
-    
+
     return Scaffold(
       backgroundColor: bgColor,
       appBar: _buildAppBar(theme),
       body: Column(
         children: [
-          Expanded(
-            child: _buildMessageList(),
-          ),
+          Expanded(child: _buildMessageList()),
           _buildInputArea(theme, isDark),
           if (_showEmojiPicker) _buildEmojiPicker(),
         ],
       ),
     );
   }
-  
+
   PreferredSizeWidget _buildAppBar(ThemeData theme) {
     return AppBar(
       backgroundColor: theme.brightness == Brightness.dark
@@ -505,7 +511,7 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
               },
             );
           }
-          
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -540,12 +546,14 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
                 builder: (context, selected, _) {
                   return IconButton(
                     icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: selected.isEmpty ? null : _deleteSelectedMessages,
+                    onPressed: selected.isEmpty
+                        ? null
+                        : _deleteSelectedMessages,
                   );
                 },
               );
             }
-            
+
             return Row(
               children: [
                 IconButton(
@@ -577,26 +585,35 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       ],
     );
   }
-  
+
   Widget _buildMessageList() {
     // TODO: Implement actual message list with offline-first support
-    return const Center(
-      child: Text('Messages will appear here'),
-    );
+    return const Center(child: Text('Messages will appear here'));
   }
-  
+
   Widget _buildInputArea(ThemeData theme, bool isDark) {
-    final backgroundColor = isDark ? const Color(0xFF0D0E10) : const Color(0xFFF5F5F5);
+    final backgroundColor = isDark
+        ? const Color(0xFF0D0E10)
+        : const Color(0xFFF5F5F5);
     final inputFieldColor = isDark ? const Color(0xFF1E2024) : Colors.white;
-    final textColor = isDark ? const Color(0xFFE8E8E8) : const Color(0xFF000000);
-    final hintColor = isDark ? const Color(0xFF6B6B6B) : const Color(0xFF999999);
-    
+    final textColor = isDark
+        ? const Color(0xFFE8E8E8)
+        : const Color(0xFF000000);
+    final hintColor = isDark
+        ? const Color(0xFF6B6B6B)
+        : const Color(0xFF999999);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: backgroundColor,
         border: isDark
-            ? Border(top: BorderSide(color: Colors.white.withOpacity(0.05), width: 0.5))
+            ? Border(
+                top: BorderSide(
+                  color: Colors.white.withOpacity(0.05),
+                  width: 0.5,
+                ),
+              )
             : null,
       ),
       child: SafeArea(
@@ -612,8 +629,20 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
                   color: inputFieldColor,
                   borderRadius: BorderRadius.circular(22),
                   boxShadow: isDark
-                      ? [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))]
-                      : [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2))],
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -632,7 +661,9 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
                           }
                         },
                         child: Icon(
-                          _showEmojiPicker ? Icons.keyboard_outlined : Icons.emoji_emotions_outlined,
+                          _showEmojiPicker
+                              ? Icons.keyboard_outlined
+                              : Icons.emoji_emotions_outlined,
                           color: _accentColor,
                           size: 23,
                         ),
@@ -644,13 +675,19 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
                         controller: _messageController,
                         focusNode: _messageFocusNode,
                         cursorColor: _accentColor,
-                        style: TextStyle(color: textColor, fontSize: 15, height: 1.4),
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 15,
+                          height: 1.4,
+                        ),
                         decoration: InputDecoration(
                           hintText: 'Message',
                           hintStyle: TextStyle(color: hintColor, fontSize: 15),
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
                         ),
                         maxLines: null,
                         keyboardType: TextInputType.multiline,
@@ -697,19 +734,45 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
                           await _startRecording();
                         }
                       },
-                      onLongPress: !recording && !hasText ? _startRecording : null,
+                      onLongPress: !recording && !hasText
+                          ? _startRecording
+                          : null,
                       child: Container(
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: recording ? theme.colorScheme.error : _accentColor,
+                          color: recording
+                              ? theme.colorScheme.error
+                              : _accentColor,
                           shape: BoxShape.circle,
                           boxShadow: isDark
-                              ? [BoxShadow(color: (recording ? theme.colorScheme.error : _accentColor).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))]
-                              : [BoxShadow(color: (recording ? theme.colorScheme.error : _accentColor).withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4))],
+                              ? [
+                                  BoxShadow(
+                                    color:
+                                        (recording
+                                                ? theme.colorScheme.error
+                                                : _accentColor)
+                                            .withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : [
+                                  BoxShadow(
+                                    color:
+                                        (recording
+                                                ? theme.colorScheme.error
+                                                : _accentColor)
+                                            .withOpacity(0.25),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                         ),
                         child: Icon(
-                          recording ? Icons.stop : (hasText ? Icons.send_rounded : Icons.mic),
+                          recording
+                              ? Icons.stop
+                              : (hasText ? Icons.send_rounded : Icons.mic),
                           color: Colors.white,
                           size: 20,
                         ),
@@ -724,7 +787,7 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       ),
     );
   }
-  
+
   Widget _buildEmojiPicker() {
     return EmojiPicker(
       onEmojiSelected: (category, emoji) {
@@ -755,7 +818,7 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
       ),
     );
   }
-  
+
   Future<void> _deleteSelectedMessages() async {
     // TODO: Implement message deletion
     print('🗑️ Deleting ${_selectedMessages.value.length} messages');
@@ -866,14 +929,14 @@ class _AttachmentOption extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  
+
   const _AttachmentOption({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
