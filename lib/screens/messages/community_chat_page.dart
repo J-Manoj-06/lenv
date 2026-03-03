@@ -1918,6 +1918,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final currentUserId = authProvider.currentUser?.uid;
+    final userRole = authProvider.currentUser?.role;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF8FAFC);
     final appBarColor = isDark ? const Color(0xFF141414) : Colors.white;
@@ -2591,6 +2592,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                           selectionMode: isSelectionMode,
                                           isSelected: isSelected,
                                           communityId: widget.communityId,
+                                          userRole: userRole,
                                         ),
                                       ),
                                     ),
@@ -3198,6 +3200,7 @@ class _MessageBubble extends StatelessWidget {
   final bool selectionMode;
   final bool isSelected;
   final String communityId;
+  final UserRole? userRole;
 
   const _MessageBubble({
     required this.message,
@@ -3210,6 +3213,7 @@ class _MessageBubble extends StatelessWidget {
     this.selectionMode = false,
     this.isSelected = false,
     required this.communityId,
+    required this.userRole,
   });
 
   @override
@@ -3461,6 +3465,12 @@ class _MessageBubble extends StatelessWidget {
     final isUploading = uploadingMessageIds.contains(metadata.messageId);
     final uploadProgressVal = pendingUploadProgress[metadata.messageId];
 
+    // Get theme color from context
+    final isPrincipal = userRole == UserRole.institute;
+    final themeColor = isPrincipal
+        ? const Color(0xFF0F6B6B)
+        : const Color(0xFFFF8800);
+
     return MediaPreviewCard(
       r2Key: metadata.r2Key,
       fileName: _fileNameFromMetadata(metadata),
@@ -3473,7 +3483,7 @@ class _MessageBubble extends StatelessWidget {
       selectionMode: selectionMode,
       uploading: isUploading,
       uploadProgress: uploadProgressVal,
-      themeColor: const Color(0xFF146D7A),
+      themeColor: themeColor,
     );
   }
 
@@ -3484,6 +3494,12 @@ class _MessageBubble extends StatelessWidget {
     final fileName = _fileNameFromUrl(url);
     final mimeType = _guessMimeType(fileName);
 
+    // Get theme color from context
+    final isPrincipal = userRole == UserRole.institute;
+    final themeColor = isPrincipal
+        ? const Color(0xFF0F6B6B)
+        : const Color(0xFFFF8800);
+
     return MediaPreviewCard(
       r2Key: r2Key,
       fileName: fileName,
@@ -3493,7 +3509,7 @@ class _MessageBubble extends StatelessWidget {
       selectionMode: selectionMode,
       uploading: uploading,
       uploadProgress: uploadProgress,
-      themeColor: const Color(0xFF146D7A),
+      themeColor: themeColor,
     );
   }
 

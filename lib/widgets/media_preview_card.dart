@@ -504,12 +504,15 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           final bgColor = isDark
               ? const Color(0xFF2C2C2E)
               : const Color(0xFFFFFFFF);
+          final borderColor =
+              widget.themeColor ??
+              (isDark ? const Color(0xFF3A3A3A) : const Color(0xFFE0E0E0));
           print('🎨 MEDIAPREVIEWCARD DECORATION:');
           print(
             '   - backgroundColor: ${isDark ? "0xFF2C2C2E (dark gray)" : "0xFFFFFFFF (white)"}',
           );
           print('   - borderRadius: 12');
-          print('   - border: 1px subtle gray');
+          print('   - border: 2.5px theme color');
           return Container(
             width: 260,
             constraints: const BoxConstraints(minWidth: 220, minHeight: 140),
@@ -517,12 +520,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             decoration: BoxDecoration(
               color: bgColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDark
-                    ? const Color(0xFF3A3A3A) // Subtle gray for dark mode
-                    : const Color(0xFFE0E0E0), // Light gray for light mode
-                width: 1,
-              ),
+              border: Border.all(color: borderColor, width: 2.5),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
