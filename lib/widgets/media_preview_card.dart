@@ -499,124 +499,145 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           ? null
           : (_isDownloaded ? _open : null),
       onLongPress: null, // Let parent GestureDetector handle selection
-      child: Container(
-        width: 260,
-        constraints: const BoxConstraints(minWidth: 220, minHeight: 140),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header: Icon + File info
-            Row(
+      child: Builder(
+        builder: (context) {
+          final bgColor = isDark
+              ? const Color(0xFF2C2C2E)
+              : const Color(0xFFFFFFFF);
+          print('🎨 MEDIAPREVIEWCARD DECORATION:');
+          print(
+            '   - backgroundColor: ${isDark ? "0xFF2C2C2E (dark gray)" : "0xFFFFFFFF (white)"}',
+          );
+          print('   - borderRadius: 12');
+          print('   - border: 1px subtle gray');
+          return Container(
+            width: 260,
+            constraints: const BoxConstraints(minWidth: 220, minHeight: 140),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF3A3A3A) // Subtle gray for dark mode
+                    : const Color(0xFFE0E0E0), // Light gray for light mode
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(_icon, color: _accentColor, size: 28),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.fileName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF1A1D21),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
+                // Header: Icon + File info
+                Row(
+                  children: [
+                    Icon(_icon, color: _accentColor, size: 28),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.fileName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF1A1D21),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatSize(widget.fileSize),
+                            style: TextStyle(
+                              color: isDark ? Colors.white60 : Colors.black54,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Action button (Download/Open/Progress)
+                if (_isDownloading && !widget.isMe)
+                  Column(
+                    children: [
+                      LinearProgressIndicator(
+                        value: _downloadProgress,
+                        backgroundColor: isDark
+                            ? Colors.white24
+                            : Colors.black12,
+                        valueColor: AlwaysStoppedAnimation<Color>(_accentColor),
+                      ),
+                      const SizedBox(height: 4),
                       Text(
-                        _formatSize(widget.fileSize),
+                        'Downloading... ${(_downloadProgress * 100).toInt()}%',
                         style: TextStyle(
-                          color: isDark ? Colors.white60 : Colors.black54,
+                          color: isDark ? Colors.white70 : Colors.black54,
                           fontSize: 11,
                         ),
                       ),
                     ],
+                  )
+                else if (_isDownloaded)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: widget.selectionMode ? null : _open,
+                      icon: Icon(
+                        _isDocument
+                            ? Icons.open_in_new
+                            : _isAudio
+                            ? Icons.play_arrow
+                            : _isImage
+                            ? Icons.image
+                            : Icons.play_arrow,
+                      ),
+                      label: Text(
+                        _isDocument
+                            ? 'View Document'
+                            : _isAudio
+                            ? 'Play Audio'
+                            : _isImage
+                            ? 'View Image'
+                            : 'View',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _accentColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  // Not downloaded yet - show Download button for both sender and receiver
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: widget.selectionMode ? null : _download,
+                      icon: const Icon(Icons.download),
+                      label: Text('Download ${_formatSize(widget.fileSize)}'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _accentColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
-            const SizedBox(height: 10),
-
-            // Action button (Download/Open/Progress)
-            if (_isDownloading && !widget.isMe)
-              Column(
-                children: [
-                  LinearProgressIndicator(
-                    value: _downloadProgress,
-                    backgroundColor: isDark ? Colors.white24 : Colors.black12,
-                    valueColor: AlwaysStoppedAnimation<Color>(_accentColor),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Downloading... ${(_downloadProgress * 100).toInt()}%',
-                    style: TextStyle(
-                      color: isDark ? Colors.white70 : Colors.black54,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              )
-            else if (_isDownloaded)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: widget.selectionMode ? null : _open,
-                  icon: Icon(
-                    _isDocument
-                        ? Icons.open_in_new
-                        : _isAudio
-                        ? Icons.play_arrow
-                        : _isImage
-                        ? Icons.image
-                        : Icons.play_arrow,
-                  ),
-                  label: Text(
-                    _isDocument
-                        ? 'View Document'
-                        : _isAudio
-                        ? 'Play Audio'
-                        : _isImage
-                        ? 'View Image'
-                        : 'View',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _accentColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              )
-            else
-              // Not downloaded yet - show Download button for both sender and receiver
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: widget.selectionMode ? null : _download,
-                  icon: const Icon(Icons.download),
-                  label: Text('Download ${_formatSize(widget.fileSize)}'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _accentColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+          );
+        },
       ),
     );
 

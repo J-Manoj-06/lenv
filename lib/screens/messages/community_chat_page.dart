@@ -3238,7 +3238,7 @@ class _MessageBubble extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 2),
       child: Row(
         mainAxisAlignment: isMe
             ? MainAxisAlignment.end
@@ -3354,11 +3354,17 @@ class _MessageBubble extends StatelessWidget {
                           (message.mediaMetadata != null ||
                                   message.imageUrl != null) &&
                               message.message.isEmpty
-                          ? 6
+                          ? 0
                           : 10,
                     ),
                     decoration: BoxDecoration(
-                      color: bubbleColor,
+                      // FIXED: Use transparent background when media-only to avoid teal showing around MediaPreviewCard
+                      color:
+                          (message.mediaMetadata != null ||
+                                  message.imageUrl != null) &&
+                              message.message.isEmpty
+                          ? Colors.transparent
+                          : bubbleColor,
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(16),
                         topRight: const Radius.circular(16),
@@ -3366,24 +3372,43 @@ class _MessageBubble extends StatelessWidget {
                         bottomRight: Radius.circular(isMe ? 4 : 16),
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (message.mediaMetadata != null) ...[
-                          _buildMetadataAttachment(
-                            context,
-                            message.mediaMetadata!,
-                          ),
-                          if (message.message.isNotEmpty)
-                            const SizedBox(height: 8),
-                        ] else if (message.imageUrl != null) ...[
-                          _buildLegacyAttachment(context, message.imageUrl!),
-                          if (message.message.isNotEmpty)
-                            const SizedBox(height: 8),
-                        ],
-                        if (message.message.isNotEmpty)
-                          _buildLinkifiedText(textColor),
-                      ],
+                    child: Builder(
+                      builder: (context) {
+                        final actualBgColor =
+                            (message.mediaMetadata != null ||
+                                    message.imageUrl != null) &&
+                                message.message.isEmpty
+                            ? Colors.transparent
+                            : bubbleColor;
+                        print('🎨 COMMUNITY_CHAT_PAGE BUBBLE:');
+                        print(
+                          '   - hasMedia: ${message.mediaMetadata != null}',
+                        );
+                        print('   - backgroundColor: $actualBgColor');
+                        print('   - border: NONE (FIXED!)');
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (message.mediaMetadata != null) ...[
+                              _buildMetadataAttachment(
+                                context,
+                                message.mediaMetadata!,
+                              ),
+                              if (message.message.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ] else if (message.imageUrl != null) ...[
+                              _buildLegacyAttachment(
+                                context,
+                                message.imageUrl!,
+                              ),
+                              if (message.message.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ],
+                            if (message.message.isNotEmpty)
+                              _buildLinkifiedText(textColor),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],

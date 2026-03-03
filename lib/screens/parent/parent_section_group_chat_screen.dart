@@ -1619,8 +1619,8 @@ class _ParentSectionGroupChatScreenState
                                                                       : primaryColor,
                                                                   width:
                                                                       isSelected
-                                                                      ? 1.0
-                                                                      : 1.5,
+                                                                      ? 0.8
+                                                                      : 1.0,
                                                                 )
                                                               : (isSelected
                                                                     ? Border.all(
